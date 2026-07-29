@@ -76,6 +76,27 @@ python examples/run_multi_sat_scenario.py
 python examples/run_multi_sat_interface.py
 python examples/run_v13_1_baseline.py
 python examples/run_v13_2_fleet_ci.py
+python examples/run_v13_4_attitude_coupling.py
+```
+
+Run the v13.4 attitude-coupling Monte Carlo validation with:
+
+```bash
+python examples/run_v13_4_attitude_monte_carlo.py --seeds 30
+```
+
+Validate the independent MEKF covariance before tuning orbit/attitude
+interface weights:
+
+```bash
+python examples/run_v13_4_attitude_consistency_monte_carlo.py --seeds 30
+```
+
+Run distributed Fleet-State CI validation across packet-loss and delay grids:
+
+```bash
+python examples/run_v13_4_distributed_monte_carlo.py --seeds 30 \
+  --packet-loss-rates 0.0 0.2 --delays 0.0 4.0
 ```
 
 Run the configurable noise and process Monte Carlo sweep with:
@@ -100,6 +121,43 @@ python -m pytest
 ---
 
 # Version Change Log
+
+## v13.4 - Attitude-aware BODY angle fusion
+
+### Added
+
+- Added BODY-frame inter-satellite azimuth/elevation prediction using explicit
+  source-satellite `wxyz` inertial-to-body quaternions.
+- Added BODY-angle Jacobians with respect to the orbital states and the MEKF
+  left-multiplicative small-angle attitude error.
+- Added propagation of attitude uncertainty into the angle covariance through
+  `R_effective = R_sensor + J_attitude P_attitude J_attitude^T`.
+- Connected epoch- and satellite-matched `AttitudeEstimate` objects to the
+  centralized Fleet EKF and distributed Fleet-State CI paths.
+- Added a reproducible comparison of truth attitude, MEKF attitude with
+  covariance, and MEKF attitude without covariance.
+- Added multi-seed Monte Carlo export with per-run metrics, aggregate
+  statistics, percentiles, failure rates, and paired covariance-propagation
+  win rates.
+- Added distributed Fleet-State CI Monte Carlo validation across configurable
+  packet-loss and communication-delay grids while keeping attitude as an
+  external or independently estimated auxiliary input.
+- Added Pre-CI and Post-CI state/covariance histories, per-epoch CI gain
+  diagnostics, and a local-only control mode for separating measurement-update
+  behavior from communication-fusion effects.
+- Added independent attitude NEES, gyro NIS, and star-tracker NIS Monte Carlo
+  diagnostics so MEKF covariance calibration can be assessed before any
+  orbit/attitude interface scaling is introduced.
+
+### Validation
+
+- The 120-second comparison produces a mean MEKF attitude error of about
+  `0.051 deg`.
+- Truth-attitude BODY angles produce a mean two-dimensional angle NIS near the
+  expected value of `2`.
+- Propagating MEKF attitude covariance prevents the strongly overconfident NIS
+  observed when the same attitude estimate is used with zero attitude
+  covariance.
 
 ## v13.3 - Attitude MEKF migration
 

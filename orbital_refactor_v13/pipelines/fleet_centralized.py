@@ -5,6 +5,7 @@ from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from interfaces.attitude_data_objects import AttitudeEstimate
 from interfaces.data_objects import AbsolutePositionObservation, InterSatelliteObservation
 from orbital_core.fleet_centralized_ekf import FleetCentralizedEKF
 
@@ -29,6 +30,7 @@ def run_fleet_centralized_filter(
     initial_covariance_by_node: Mapping[str, Array],
     inter_satellite_observations: Iterable[InterSatelliteObservation],
     absolute_position_observations: Iterable[AbsolutePositionObservation] = (),
+    attitude_estimates: Iterable[AttitudeEstimate] = (),
     node_ids: Sequence[str] | None = None,
     process_noise_acceleration: float = 1e-4,
     frame_by_modality: Mapping[str, str] | None = None,
@@ -67,6 +69,7 @@ def run_fleet_centralized_filter(
                 f"Absolute observation timestamp {timestamp} is not in runtime timestamps."
             )
         absolute_by_time[timestamp].append(observation)
+    attitude_by_time = _group_attitude_estimates(attitude_estimates, times)
 
     dimension = filter_obj.state_dimension
     state_history = np.zeros((times.size, dimension), dtype=float)
@@ -82,6 +85,7 @@ def run_fleet_centralized_filter(
             covariance,
             observations_by_time[float(timestamp)],
             frame_by_modality=frame_by_modality,
+            attitude_estimate_by_node=attitude_by_time[float(timestamp)],
         )
         state, covariance, absolute_diagnostics = filter_obj.update_absolute_positions(
             state,
@@ -112,3 +116,25 @@ def run_fleet_centralized_filter(
         covariance_history_by_node=covariance_by_node,
         nis_history=nis_history,
     )
+
+
+def _group_attitude_estimates(
+    estimates: Iterable[AttitudeEstimate],
+    times: Array,
+) -> dict[float, dict[str, AttitudeEstimate]]:
+    result: dict[float, dict[str, AttitudeEstimate]] = {
+        float(timestamp): {} for timestamp in times
+    }
+    for estimate in estimates:
+        timestamp = float(estimate.timestamp)
+        if timestamp not in result:
+            raise ValueError(
+                f"Attitude-estimate timestamp {timestamp} is not in runtime timestamps."
+            )
+        satellite_id = str(estimate.satellite_id)
+        if satellite_id in result[timestamp]:
+            raise ValueError(
+                f"Duplicate attitude estimate for {satellite_id} at {timestamp}."
+            )
+        result[timestamp][satellite_id] = estimate
+    return result

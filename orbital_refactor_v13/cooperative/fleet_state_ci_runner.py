@@ -7,6 +7,7 @@ import numpy as np
 
 from cooperative.consensus_runner import CommunicationStats
 from cooperative.topology import NetworkTopology
+from interfaces.attitude_data_objects import AttitudeEstimate
 from interfaces.data_objects import (
     AbsolutePositionObservation,
     FleetStateMessage,
@@ -22,6 +23,9 @@ Array = np.ndarray
 class DistributedFleetCIHistory:
     timestamps: Array
     node_ids: tuple[str, ...]
+    pre_ci_stacked_state_history_by_node: dict[str, Array]
+    pre_ci_stacked_covariance_history_by_node: dict[str, Array]
+    pre_ci_physical_state_history_by_node: dict[str, Array]
     local_stacked_state_history_by_node: dict[str, Array]
     local_stacked_covariance_history_by_node: dict[str, Array]
     physical_state_history_by_node: dict[str, Array]
@@ -38,6 +42,7 @@ def run_distributed_fleet_state_ci(
     topology: NetworkTopology,
     inter_satellite_observations: Iterable[InterSatelliteObservation],
     absolute_position_observations: Iterable[AbsolutePositionObservation] = (),
+    attitude_estimates: Iterable[AttitudeEstimate] = (),
     node_ids: Sequence[str] | None = None,
     process_noise_acceleration: float = 1e-4,
     ci_objective: str = "trace",
@@ -47,6 +52,7 @@ def run_distributed_fleet_state_ci(
     align_delayed_messages: bool = True,
     random_seed: int = 42,
     frame_by_modality: Mapping[str, str] | None = None,
+    enable_ci_fusion: bool = True,
 ) -> DistributedFleetCIHistory:
     """Distributed baseline where every node estimates the same fleet state X."""
 
@@ -77,12 +83,21 @@ def run_distributed_fleet_state_ci(
     absolute_by_time_and_owner = _group_absolute_observations(
         absolute_position_observations, times
     )
+    attitude_by_time = _group_attitude_estimates(attitude_estimates, times)
     dimension = filter_obj.state_dimension
     state_history = {
         node_id: np.zeros((times.size, dimension), dtype=float)
         for node_id in ordered_nodes
     }
     covariance_history = {
+        node_id: np.zeros((times.size, dimension, dimension), dtype=float)
+        for node_id in ordered_nodes
+    }
+    pre_ci_state_history = {
+        node_id: np.zeros((times.size, dimension), dtype=float)
+        for node_id in ordered_nodes
+    }
+    pre_ci_covariance_history = {
         node_id: np.zeros((times.size, dimension, dimension), dtype=float)
         for node_id in ordered_nodes
     }
@@ -117,6 +132,7 @@ def run_distributed_fleet_state_ci(
                 covariances[node_id],
                 relative,
                 frame_by_modality=frame_by_modality,
+                attitude_estimate_by_node=attitude_by_time[float(timestamp)],
             )
             absolute = absolute_by_time_and_owner[float(timestamp)].get(node_id, [])
             states[node_id], covariances[node_id], absolute_diagnostics = (
@@ -132,6 +148,8 @@ def run_distributed_fleet_state_ci(
                     **absolute_diagnostics.nis_by_observation,
                 }
             )
+            pre_ci_state_history[node_id][index] = states[node_id]
+            pre_ci_covariance_history[node_id][index] = covariances[node_id]
 
         for source_node_id in ordered_nodes:
             message = _make_message(
@@ -161,24 +179,25 @@ def run_distributed_fleet_state_ci(
                 for message in latest.values()
             )
             posteriors = [(node_id, states[node_id], covariances[node_id])]
-            for source_node_id, message in latest.items():
-                _validate_message(message, ordered_nodes, dimension)
-                message_state = message.state_estimate
-                message_covariance = message.covariance
-                source_time = (
-                    message.source_timestamp
-                    if message.source_timestamp is not None
-                    else message.timestamp
-                )
-                if align_delayed_messages and timestamp > source_time:
-                    message_state, message_covariance = filter_obj.predict(
-                        message_state,
-                        message_covariance,
-                        float(timestamp - source_time),
+            if enable_ci_fusion:
+                for source_node_id, message in latest.items():
+                    _validate_message(message, ordered_nodes, dimension)
+                    message_state = message.state_estimate
+                    message_covariance = message.covariance
+                    source_time = (
+                        message.source_timestamp
+                        if message.source_timestamp is not None
+                        else message.timestamp
                     )
-                posteriors.append(
-                    (source_node_id, message_state, message_covariance)
-                )
+                    if align_delayed_messages and timestamp > source_time:
+                        message_state, message_covariance = filter_obj.predict(
+                            message_state,
+                            message_covariance,
+                            float(timestamp - source_time),
+                        )
+                    posteriors.append(
+                        (source_node_id, message_state, message_covariance)
+                    )
             fusion = ci_fuse_posteriors(
                 posteriors,
                 objective=ci_objective,
@@ -198,9 +217,18 @@ def run_distributed_fleet_state_ci(
         node_id: state_history[node_id][:, filter_obj.state_slice(node_id)].copy()
         for node_id in ordered_nodes
     }
+    pre_ci_physical_history = {
+        node_id: pre_ci_state_history[node_id][
+            :, filter_obj.state_slice(node_id)
+        ].copy()
+        for node_id in ordered_nodes
+    }
     return DistributedFleetCIHistory(
         timestamps=times.copy(),
         node_ids=ordered_nodes,
+        pre_ci_stacked_state_history_by_node=pre_ci_state_history,
+        pre_ci_stacked_covariance_history_by_node=pre_ci_covariance_history,
+        pre_ci_physical_state_history_by_node=pre_ci_physical_history,
         local_stacked_state_history_by_node=state_history,
         local_stacked_covariance_history_by_node=covariance_history,
         physical_state_history_by_node=physical_history,
@@ -236,6 +264,23 @@ def _group_absolute_observations(observations, times):
                 f"Absolute observation timestamp {timestamp} is not in runtime timestamps."
             )
         result[timestamp].setdefault(str(observation.satellite_id), []).append(observation)
+    return result
+
+
+def _group_attitude_estimates(estimates, times):
+    result = {float(timestamp): {} for timestamp in times}
+    for estimate in estimates:
+        timestamp = float(estimate.timestamp)
+        if timestamp not in result:
+            raise ValueError(
+                f"Attitude-estimate timestamp {timestamp} is not in runtime timestamps."
+            )
+        satellite_id = str(estimate.satellite_id)
+        if satellite_id in result[timestamp]:
+            raise ValueError(
+                f"Duplicate attitude estimate for {satellite_id} at {timestamp}."
+            )
+        result[timestamp][satellite_id] = estimate
     return result
 
 

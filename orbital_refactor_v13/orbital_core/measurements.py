@@ -4,6 +4,7 @@ from typing import Callable
 
 import numpy as np
 
+from .attitude import quat_to_dcm_i2b
 from .coordinates import build_rtn_quaternion, rotate_eci_to_pri, state_eci_to_spri
 
 
@@ -91,8 +92,15 @@ def measure_relative_az_el(
     state_j: np.ndarray,
     frame: str = "ECI",
     noise: np.ndarray | None = None,
+    *,
+    quaternion_i2b_wxyz: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Inter-satellite azimuth/elevation from i to j in ECI or local RTN axes."""
+    """Inter-satellite azimuth/elevation from i to j.
+
+    ``BODY`` measurements use the source satellite's inertial-to-body
+    quaternion. The quaternion follows the project's explicit ``wxyz``
+    convention.
+    """
 
     state_i = np.asarray(state_i, dtype=float).reshape(6)
     state_j = np.asarray(state_j, dtype=float).reshape(6)
@@ -104,6 +112,14 @@ def measure_relative_az_el(
         relative_position = rotate_eci_to_pri(
             relative_position,
             build_rtn_quaternion(state_i),
+        )
+    elif normalized_frame == "BODY":
+        if quaternion_i2b_wxyz is None:
+            raise ValueError(
+                "BODY inter-satellite angles require quaternion_i2b_wxyz."
+            )
+        relative_position = (
+            quat_to_dcm_i2b(quaternion_i2b_wxyz) @ relative_position
         )
     elif normalized_frame != "ECI":
         raise ValueError(f"Unsupported inter-satellite angle frame: {frame}")

@@ -2,9 +2,14 @@ import numpy as np
 
 from cooperative.fleet_state_ci_runner import run_distributed_fleet_state_ci
 from cooperative.topology import fully_connected_topology
+from interfaces.attitude_data_objects import AttitudeEstimate
 from interfaces.data_objects import AbsolutePositionObservation, InterSatelliteObservation
 from orbital_core.constants import R_EARTH
-from orbital_core.measurements import measure_relative_range, measure_relative_range_rate
+from orbital_core.measurements import (
+    measure_relative_az_el,
+    measure_relative_range,
+    measure_relative_range_rate,
+)
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.fleet_scenario import generate_fleet_scenario
 
@@ -97,6 +102,9 @@ def test_distributed_fleet_ci_fuses_identical_18_state_semantics():
         assert history.local_stacked_state_history_by_node[node_id].shape == (3, 18)
         assert history.local_stacked_covariance_history_by_node[node_id].shape == (3, 18, 18)
         assert history.physical_state_history_by_node[node_id].shape == (3, 6)
+        assert history.pre_ci_stacked_state_history_by_node[node_id].shape == (3, 18)
+        assert history.pre_ci_stacked_covariance_history_by_node[node_id].shape == (3, 18, 18)
+        assert history.pre_ci_physical_state_history_by_node[node_id].shape == (3, 6)
         assert set(history.node_weight_history_by_node[node_id][0]) == set(scenario.node_ids)
         assert np.all(
             np.linalg.eigvalsh(
@@ -104,6 +112,57 @@ def test_distributed_fleet_ci_fuses_identical_18_state_semantics():
             )
             > -1e-6
         )
+
+
+def test_distributed_fleet_ci_accepts_body_angles_with_epoch_attitude():
+    scenario, estimates, covariances, topology, _, anchors = _case()
+    source = "sat_01"
+    target = "sat_02"
+    state_i = scenario.trajectories[source].state_history_eci[0]
+    state_j = scenario.trajectories[target].state_history_eci[0]
+    quaternion = np.array([1.0, 0.0, 0.0, 0.0])
+    observation = InterSatelliteObservation(
+        timestamp=0.0,
+        source_node_id=source,
+        target_node_id=target,
+        modality="AZ_EL",
+        measurement=measure_relative_az_el(
+            state_i,
+            state_j,
+            frame="BODY",
+            quaternion_i2b_wxyz=quaternion,
+        ),
+        covariance=np.diag([1.0e-4, 1.0e-4]),
+        confidence=1.0,
+        valid_flag=True,
+    )
+    attitude = AttitudeEstimate(
+        timestamp=0.0,
+        satellite_id=source,
+        quaternion_i2b_wxyz=quaternion,
+        angular_velocity_body=np.zeros(3),
+        gyro_bias=np.zeros(3),
+        error_covariance=np.diag([1.0e-4] * 3 + [1.0e-6] * 6),
+    )
+
+    history = run_distributed_fleet_state_ci(
+        timestamps=scenario.timestamps,
+        initial_state_by_node=estimates,
+        initial_covariance_by_node=covariances,
+        topology=topology,
+        inter_satellite_observations=[observation],
+        absolute_position_observations=anchors,
+        attitude_estimates=[attitude],
+        node_ids=scenario.node_ids,
+        process_noise_acceleration=1.0e-8,
+        ci_grid_points=5,
+        frame_by_modality={"AZ_EL": "BODY"},
+    )
+
+    assert "sat_01->sat_02:AZ_EL" in history.nis_history_by_node[source][0]
+    assert np.all(
+        np.isfinite(history.local_stacked_state_history_by_node[source])
+    )
 
 
 def test_distributed_fleet_ci_supports_loss_and_delay():
