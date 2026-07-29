@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from cooperative.inter_satellite_range import (
     update_with_inter_satellite_observation_block,
@@ -6,6 +7,12 @@ from cooperative.inter_satellite_range import (
     update_with_relative_range_rate,
 )
 from cooperative.satellite_node import SatelliteNode
+from orbital_core.inter_satellite_model import (
+    body_angle_attitude_jacobian,
+    body_angle_effective_covariance,
+    inter_satellite_jacobians,
+    predict_inter_satellite_measurement,
+)
 from orbital_core.measurements import measure_relative_az_el, measure_relative_range_rate
 
 
@@ -148,6 +155,155 @@ def test_measure_relative_az_el_supports_rtn_frame():
 
     np.testing.assert_allclose(eci_measurement, np.array([np.pi / 2.0, 0.0]))
     np.testing.assert_allclose(rtn_measurement, np.array([0.0, 0.0]), atol=1e-12)
+
+
+def test_measure_relative_az_el_supports_body_frame_with_i2b_quaternion():
+    state_i = np.zeros(6)
+    state_j = np.array([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    half_angle = np.pi / 4.0
+    quaternion_i2b = np.array([
+        np.cos(half_angle),
+        0.0,
+        0.0,
+        np.sin(half_angle),
+    ])
+
+    measurement = measure_relative_az_el(
+        state_i,
+        state_j,
+        frame="BODY",
+        quaternion_i2b_wxyz=quaternion_i2b,
+    )
+
+    np.testing.assert_allclose(measurement, np.array([np.pi / 2.0, 0.0]))
+
+
+def test_measure_relative_az_el_requires_attitude_for_body_frame():
+    with pytest.raises(ValueError, match="quaternion_i2b_wxyz"):
+        measure_relative_az_el(
+            np.zeros(6),
+            np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            frame="BODY",
+        )
+
+
+def test_body_angle_model_identity_attitude_matches_eci_prediction_and_jacobians():
+    state_i = np.array([7.0e6, 2.0, -1.0, 0.0, 7500.0, 0.0])
+    state_j = state_i + np.array([100.0, 20.0, 10.0, 0.0, 0.0, 0.0])
+    identity_i2b = np.array([1.0, 0.0, 0.0, 0.0])
+
+    predicted_eci = predict_inter_satellite_measurement(
+        state_i,
+        state_j,
+        modality="AZ_EL",
+        frame="ECI",
+    )
+    predicted_body = predict_inter_satellite_measurement(
+        state_i,
+        state_j,
+        modality="AZ_EL",
+        frame="BODY",
+        quaternion_i2b_wxyz=identity_i2b,
+    )
+    jacobians_eci = inter_satellite_jacobians(
+        state_i,
+        state_j,
+        modality="AZ_EL",
+        frame="ECI",
+    )
+    jacobians_body = inter_satellite_jacobians(
+        state_i,
+        state_j,
+        modality="AZ_EL",
+        frame="BODY",
+        quaternion_i2b_wxyz=identity_i2b,
+    )
+
+    np.testing.assert_allclose(predicted_body, predicted_eci)
+    np.testing.assert_allclose(jacobians_body[0], jacobians_eci[0])
+    np.testing.assert_allclose(jacobians_body[1], jacobians_eci[1])
+
+
+def test_body_angle_attitude_jacobian_matches_axis_rotation_geometry():
+    state_i = np.zeros(6)
+    state_j = np.array([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+    jacobian = body_angle_attitude_jacobian(
+        state_i,
+        state_j,
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+    )
+
+    np.testing.assert_allclose(
+        jacobian,
+        np.array([
+            [0.0, 0.0, 1.0],
+            [0.0, -1.0, 0.0],
+        ]),
+        atol=1e-9,
+    )
+
+
+def test_body_angle_effective_covariance_adds_attitude_uncertainty():
+    state_i = np.zeros(6)
+    state_j = np.array([10.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    sensor_covariance = np.diag([1.0e-4, 2.0e-4])
+    attitude_covariance = np.diag([3.0e-4, 4.0e-4, 5.0e-4])
+
+    effective = body_angle_effective_covariance(
+        state_i,
+        state_j,
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+        sensor_covariance=sensor_covariance,
+        attitude_covariance=attitude_covariance,
+    )
+
+    np.testing.assert_allclose(
+        effective,
+        sensor_covariance + np.diag([5.0e-4, 4.0e-4]),
+    )
+    assert np.all(np.linalg.eigvalsh(effective) >= 0.0)
+
+
+def test_body_angle_effective_covariance_preserves_sensor_noise_at_zero_attitude_uncertainty():
+    sensor_covariance = np.array([[2.0e-4, 1.0e-5], [1.0e-5, 3.0e-4]])
+
+    effective = body_angle_effective_covariance(
+        np.zeros(6),
+        np.array([1.0, 1.0, 1.0, 0.0, 0.0, 0.0]),
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+        sensor_covariance=sensor_covariance,
+        attitude_covariance=np.zeros((3, 3)),
+    )
+
+    np.testing.assert_allclose(effective, sensor_covariance)
+
+
+@pytest.mark.parametrize(
+    ("sensor_covariance", "attitude_covariance", "message"),
+    [
+        (np.eye(3), np.eye(3), "sensor_covariance must have shape"),
+        (np.eye(2), np.diag([1.0, 1.0, -1.0]), "positive semidefinite"),
+        (
+            np.array([[1.0, 0.1], [0.0, 1.0]]),
+            np.eye(3),
+            "sensor_covariance must be symmetric",
+        ),
+    ],
+)
+def test_body_angle_effective_covariance_validates_inputs(
+    sensor_covariance,
+    attitude_covariance,
+    message,
+):
+    with pytest.raises(ValueError, match=message):
+        body_angle_effective_covariance(
+            np.zeros(6),
+            np.array([1.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+            quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+            sensor_covariance=sensor_covariance,
+            attitude_covariance=attitude_covariance,
+        )
 
 
 def test_inter_satellite_block_update_accepts_az_el():

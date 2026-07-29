@@ -6,10 +6,12 @@ from typing import Iterable, Mapping, Sequence
 import numpy as np
 
 from orbital_core.inter_satellite_model import (
+    body_angle_effective_covariance,
     inter_satellite_jacobians,
     normalize_inter_satellite_modality,
     predict_inter_satellite_measurement,
 )
+from interfaces.attitude_data_objects import AttitudeEstimate
 from interfaces.data_objects import AbsolutePositionObservation, InterSatelliteObservation
 from orbital_core.dynamics import (
     make_process_noise,
@@ -118,6 +120,7 @@ class FleetCentralizedEKF:
         observations: Iterable[InterSatelliteObservation],
         *,
         frame_by_modality: Mapping[str, str] | None = None,
+        attitude_estimate_by_node: Mapping[str, AttitudeEstimate] | None = None,
     ) -> tuple[Array, Array, FleetUpdateDiagnostics]:
         state = np.asarray(predicted_state, dtype=float).reshape(self.state_dimension)
         covariance = np.asarray(predicted_covariance, dtype=float).reshape(
@@ -146,13 +149,29 @@ class FleetCentralizedEKF:
                 if frame_by_modality is not None
                 else "ECI"
             )
+            quaternion_i2b = None
+            attitude_estimate = None
+            if modality == "AZ_EL" and frame.upper() == "BODY":
+                attitude_estimate = _attitude_for_observation(
+                    observation,
+                    attitude_estimate_by_node,
+                )
+                quaternion_i2b = attitude_estimate.quaternion_i2b_wxyz
             state_i = state[source_block]
             state_j = state[target_block]
             predicted = predict_inter_satellite_measurement(
-                state_i, state_j, modality=modality, frame=frame
+                state_i,
+                state_j,
+                modality=modality,
+                frame=frame,
+                quaternion_i2b_wxyz=quaternion_i2b,
             )
             h_i, h_j = inter_satellite_jacobians(
-                state_i, state_j, modality=modality, frame=frame
+                state_i,
+                state_j,
+                modality=modality,
+                frame=frame,
+                quaternion_i2b_wxyz=quaternion_i2b,
             )
             measurement = np.asarray(observation.measurement, dtype=float).reshape(-1)
             base_covariance = np.asarray(observation.covariance, dtype=float)
@@ -161,6 +180,15 @@ class FleetCentralizedEKF:
             if base_covariance.shape != (measurement.size, measurement.size):
                 raise ValueError(f"{modality} covariance has incompatible dimensions.")
             confidence = float(np.clip(observation.confidence, 1e-6, 1.0))
+            effective_covariance = base_covariance / confidence
+            if attitude_estimate is not None:
+                effective_covariance = body_angle_effective_covariance(
+                    state_i,
+                    state_j,
+                    quaternion_i2b_wxyz=quaternion_i2b,
+                    sensor_covariance=effective_covariance,
+                    attitude_covariance=attitude_estimate.attitude_covariance,
+                )
 
             full_jacobian = np.zeros(
                 (measurement.size, self.state_dimension), dtype=float
@@ -170,7 +198,7 @@ class FleetCentralizedEKF:
             measurement_blocks.append(measurement)
             prediction_blocks.append(predicted)
             jacobian_blocks.append(full_jacobian)
-            measurement_covariances.append(base_covariance / confidence)
+            measurement_covariances.append(effective_covariance)
             label = f"{source}->{target}:{modality}"
             labels.append(label)
             if modality == "AZ_EL":
@@ -330,3 +358,21 @@ def _block_diag(matrices: Sequence[Array]) -> Array:
 
 def _symmetrize(matrix: Array) -> Array:
     return 0.5 * (matrix + matrix.T)
+
+
+def _attitude_for_observation(
+    observation: InterSatelliteObservation,
+    attitude_estimate_by_node: Mapping[str, AttitudeEstimate] | None,
+) -> AttitudeEstimate:
+    source = str(observation.source_node_id)
+    if attitude_estimate_by_node is None or source not in attitude_estimate_by_node:
+        raise ValueError(
+            f"BODY observation {source}->{observation.target_node_id} requires "
+            f"an attitude estimate for {source}."
+        )
+    estimate = attitude_estimate_by_node[source]
+    if str(estimate.satellite_id) != source:
+        raise ValueError("Attitude-estimate satellite ID does not match observation source.")
+    if not np.isclose(float(estimate.timestamp), float(observation.timestamp)):
+        raise ValueError("Attitude-estimate timestamp does not match observation timestamp.")
+    return estimate
