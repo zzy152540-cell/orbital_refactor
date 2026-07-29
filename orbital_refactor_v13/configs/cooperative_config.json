@@ -1,0 +1,20 @@
+{
+  "communication": {
+    "delay": {
+      "enabled": true,
+      "values": {
+        "sat_01": 0.0,
+        "sat_02": 5.0,
+        "sat_03": 10.0
+      }
+    }
+  },
+  "fusion": {
+    "method": "CI",
+    "age_aware": true,
+    "age_penalty": 0.05
+  },
+  "experiment": {
+    "name": "async_age_aware_ci"
+  }
+}
