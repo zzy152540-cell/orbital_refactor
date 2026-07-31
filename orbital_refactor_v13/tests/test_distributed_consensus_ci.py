@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from cooperative.consensus_ci import run_consensus_ci_step
 from cooperative.communication_channel import CommunicationChannel
@@ -42,6 +43,7 @@ def test_consensus_ci_keeps_per_node_estimates_without_global_state():
         topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
         timestamp=10.0,
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert set(result.estimates) == {"sat_01", "sat_02", "sat_03"}
@@ -69,11 +71,26 @@ def test_consensus_ci_respects_packet_loss():
             packet_loss_rate={"sat_01": 1.0, "sat_02": 0.0},
             random_seed=1,
         ),
+        allow_cross_target_legacy=True,
     )
 
     assert result.received_reports_by_node["sat_01"] == ["sat_02"]
     assert result.received_reports_by_node["sat_02"] == []
     assert result.node_weight_by_node["sat_02"] == {"sat_02": 1.0}
+
+
+def test_consensus_ci_rejects_direct_fusion_of_different_satellites():
+    nodes = {
+        "sat_01": _node("sat_01", 0.0, 9.0),
+        "sat_02": _node("sat_02", 10.0, 4.0),
+    }
+
+    with pytest.raises(ValueError, match="same physical target"):
+        run_consensus_ci_step(
+            nodes=nodes,
+            topology=chain_topology(["sat_01", "sat_02"]),
+            timestamp=0.0,
+        )
 
 
 def test_measure_relative_range_uses_absolute_positions():

@@ -44,6 +44,7 @@ def test_distributed_consensus_history_keeps_per_node_outputs():
         covariance_history_by_node=covariances,
         topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert set(result.node_ids) == {"sat_01", "sat_02", "sat_03"}
@@ -72,6 +73,7 @@ def test_distributed_consensus_history_supports_multiple_consensus_iterations():
         topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
         consensus_iterations=2,
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     for node_id in result.node_ids:
@@ -113,6 +115,7 @@ def test_distributed_consensus_history_buffers_delayed_reports():
         topology=chain_topology(["sat_01", "sat_02"]),
         delay_channel=DelayChannel(delay_by_node={"sat_01": 1.0, "sat_02": 1.0}),
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert result.received_reports_by_node["sat_01"][0] == []
@@ -143,6 +146,7 @@ def test_distributed_consensus_history_tracks_packet_loss_statistics():
             random_seed=1,
         ),
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert result.communication_stats.attempted_report_count == 6
@@ -186,6 +190,7 @@ def test_distributed_consensus_history_applies_optional_range_updates():
         range_measurements_by_node=ranges,
         range_variance=1.0,
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert len(result.range_nis_history_by_node["sat_01"]) == 3
@@ -248,6 +253,7 @@ def test_distributed_consensus_history_accepts_inter_satellite_observation_objec
         topology=chain_topology(["sat_01", "sat_02"]),
         inter_satellite_observations=observations,
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert set(result.range_nis_history_by_node["sat_01"][0]) == {"sat_02"}
@@ -293,6 +299,7 @@ def test_distributed_consensus_history_records_inter_satellite_gates():
         inter_satellite_gate_threshold=1.0,
         inter_satellite_gate_mode="hard",
         grid_points=11,
+        allow_cross_target_legacy=True,
     )
 
     assert result.inter_satellite_gate_history_by_node["sat_01"][0]["sat_02:BLOCK"]

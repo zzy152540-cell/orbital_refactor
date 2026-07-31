@@ -8,6 +8,60 @@ from cooperative.multi_sat_pipeline import (
     run_cooperative_pipeline,
 )
 from cooperative.consensus_ci import ConsensusStepResult, run_consensus_ci_step
+from cooperative.cooperative_update import CooperativeUpdateResult, update_local_state
+from cooperative.distributed_cooperative_runner import (
+    DistributedCooperativeHistory,
+    V14CommunicationStats,
+    run_distributed_cooperative_history,
+)
+from cooperative.message_transport import MessageChannel, TypedMessageBuffer
+from cooperative.temporal_alignment import (
+    DelayedCooperativeUpdateResult,
+    align_state_message,
+    apply_delayed_cooperative_update,
+    propagate_state_covariance,
+)
+from cooperative.recursive_cooperative_runner import (
+    RecursiveCommunicationStats,
+    RecursiveCooperativeHistory,
+    run_recursive_distributed_cooperative_filter,
+)
+from cooperative.dual_track_runner import (
+    DualTrackCooperativeHistory,
+    run_dual_track_distributed_cooperative_filter,
+)
+from cooperative.schmidt_consider import (
+    SchmidtHistory,
+    SchmidtState,
+    SchmidtUpdateResult,
+    run_schmidt_consider_history,
+    schmidt_predict,
+    schmidt_update,
+)
+from cooperative.multi_neighbor_schmidt import (
+    MultiNeighborSchmidtHistory,
+    MultiNeighborSchmidtState,
+    MultiNeighborSchmidtUpdateResult,
+    add_consider_neighbor,
+    initialize_multi_neighbor_schmidt,
+    multi_neighbor_schmidt_predict,
+    multi_neighbor_schmidt_update,
+    remove_consider_neighbor,
+    run_multi_neighbor_schmidt_history,
+)
+from cooperative.network_schmidt_runner import (
+    NetworkSchmidtHistory,
+    run_network_schmidt_filter,
+)
+from cooperative.schmidt_refresh import exact_transport_eligibility, refresh_consider_neighbor
+from cooperative.exact_transport_protocol import (
+    ExactTransportReceiveResult,
+    apply_exact_transport_state_message,
+    build_exact_transport_state_message,
+)
+from cooperative.exact_transport_accumulator import ExactTransportAccumulator
+from cooperative.schmidt_event_replay import SchmidtReplayResult, replay_schmidt_events
+from cooperative.schmidt_transport_replay import replay_transport_event_bundle
 from cooperative.consensus_runner import (
     CommunicationStats,
     DistributedConsensusHistory,
@@ -37,34 +91,76 @@ from cooperative.topology import NetworkTopology, chain_topology, fully_connecte
 __all__ = [
     "CommunicationStats",
     "CooperativeFusionHistory",
+    "CooperativeUpdateResult",
+    "DistributedCooperativeHistory",
+    "DelayedCooperativeUpdateResult",
     "ConsensusStepResult",
     "DistributedConsensusHistory",
     "DistributedFleetCIHistory",
+    "DualTrackCooperativeHistory",
     "InterSatelliteRangeAdapterResult",
     "InterSatelliteObservationAdapterResult",
     "InterSatelliteBlockUpdateResult",
     "MultiNodeRunResult",
+    "MultiNeighborSchmidtHistory",
+    "MultiNeighborSchmidtState",
+    "MultiNeighborSchmidtUpdateResult",
     "CooperativeMetrics",
     "CooperativePipelineResult",
     "NetworkTopology",
+    "NetworkSchmidtHistory",
+    "MessageChannel",
     "NodeEstimate",
     "RangeUpdateResult",
+    "RecursiveCommunicationStats",
+    "RecursiveCooperativeHistory",
     "SatelliteNode",
+    "SchmidtHistory",
+    "SchmidtState",
+    "SchmidtUpdateResult",
+    "TypedMessageBuffer",
+    "V14CommunicationStats",
+    "add_consider_neighbor",
     "chain_topology",
     "fully_connected_topology",
     "fuse_local_histories",
+    "initialize_multi_neighbor_schmidt",
+    "multi_neighbor_schmidt_predict",
+    "multi_neighbor_schmidt_update",
+    "remove_consider_neighbor",
     "run_multi_node_histories",
+    "run_multi_neighbor_schmidt_history",
+    "run_network_schmidt_filter",
+    "refresh_consider_neighbor",
+    "exact_transport_eligibility",
+    "ExactTransportReceiveResult",
+    "apply_exact_transport_state_message",
+    "build_exact_transport_state_message",
+    "ExactTransportAccumulator",
+    "SchmidtReplayResult",
+    "replay_schmidt_events",
+    "replay_transport_event_bundle",
     "build_module_inputs",
     "evaluate_cooperative_result",
     "run_cooperative_pipeline",
     "run_consensus_ci_step",
     "run_distributed_consensus_history",
+    "run_distributed_cooperative_history",
+    "run_recursive_distributed_cooperative_filter",
+    "run_schmidt_consider_history",
+    "schmidt_predict",
+    "schmidt_update",
     "run_fleet_filter",
     "run_distributed_fleet_state_ci",
+    "run_dual_track_distributed_cooperative_filter",
     "adapt_inter_satellite_range_observations",
     "adapt_inter_satellite_observations",
+    "align_state_message",
+    "apply_delayed_cooperative_update",
     "update_with_relative_range",
     "update_with_relative_range_rate",
     "update_with_inter_satellite_observation",
     "update_with_inter_satellite_observation_block",
+    "update_local_state",
+    "propagate_state_covariance",
 ]

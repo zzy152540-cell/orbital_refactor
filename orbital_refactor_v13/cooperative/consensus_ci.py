@@ -31,6 +31,7 @@ def run_consensus_ci_step(
     grid_points: int = 31,
     communication_channel: CommunicationChannel | None = None,
     delay_channel: DelayChannel | None = None,
+    allow_cross_target_legacy: bool = False,
 ) -> ConsensusStepResult:
     """Run one distributed Consensus-CI exchange.
 
@@ -64,6 +65,10 @@ def run_consensus_ci_step(
             weights_by_node[node_id] = {}
             received_by_node[node_id] = []
             continue
+        _require_same_target(
+            valid,
+            allow_cross_target_legacy=allow_cross_target_legacy,
+        )
         fusion = ci_fuse_posteriors(
             [
                 (report.node_id, report.state_estimate, report.covariance)
@@ -82,6 +87,20 @@ def run_consensus_ci_step(
         node_weight_by_node=weights_by_node,
         received_reports_by_node=received_by_node,
     )
+
+
+def _require_same_target(
+    reports: list[NodeReport],
+    *,
+    allow_cross_target_legacy: bool,
+) -> None:
+    target_ids = {str(report.target_id) for report in reports}
+    if len(target_ids) > 1 and not allow_cross_target_legacy:
+        raise ValueError(
+            "CI inputs must estimate the same physical target; direct fusion "
+            "of different satellites' own states is invalid. Use "
+            "allow_cross_target_legacy=True only to reproduce legacy results."
+        )
 
 
 def _deliver_neighbor_reports(

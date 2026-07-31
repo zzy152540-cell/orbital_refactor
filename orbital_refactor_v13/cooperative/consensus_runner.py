@@ -86,6 +86,7 @@ def run_distributed_consensus_history(
     inter_satellite_soft_scale: float = 20.0,
     consensus_iterations: int = 1,
     inter_satellite_frame_by_modality: dict[str, str] | None = None,
+    allow_cross_target_legacy: bool = False,
 ) -> DistributedConsensusHistory:
     """Run multi-epoch distributed Consensus-CI over per-satellite histories.
 
@@ -216,6 +217,7 @@ def run_distributed_consensus_history(
             grid_points=grid_points,
             age_aware=age_aware,
             age_penalty=age_penalty,
+            allow_cross_target_legacy=allow_cross_target_legacy,
         )
 
         for node_id in node_ids:
@@ -261,6 +263,7 @@ def _run_consensus_iterations(
     grid_points: int,
     age_aware: bool,
     age_penalty: float,
+    allow_cross_target_legacy: bool,
 ) -> tuple[dict[str, NodeReport], dict[str, list[dict[str, float]]]]:
     current_reports = dict(local_reports)
     allowed_neighbors = {
@@ -290,6 +293,7 @@ def _run_consensus_iterations(
                 grid_points=grid_points,
                 age_aware=age_aware,
                 age_penalty=age_penalty,
+                allow_cross_target_legacy=allow_cross_target_legacy,
             )
             weights_by_node[node_id].append(weights)
             next_reports[node_id] = _copy_report_with_posterior(
@@ -442,10 +446,18 @@ def _fuse_reports(
     grid_points: int,
     age_aware: bool,
     age_penalty: float,
+    allow_cross_target_legacy: bool,
 ) -> tuple[Array, Array, dict[str, float]]:
     valid = [report for report in reports if report.valid_flag]
     if not valid:
         raise ValueError("At least the local node report must be valid.")
+    target_ids = {str(report.target_id) for report in valid}
+    if len(target_ids) > 1 and not allow_cross_target_legacy:
+        raise ValueError(
+            "CI inputs must estimate the same physical target; direct fusion "
+            "of different satellites' own states is invalid. Use "
+            "allow_cross_target_legacy=True only to reproduce legacy results."
+        )
     inputs = []
     for report in valid:
         covariance = report.covariance

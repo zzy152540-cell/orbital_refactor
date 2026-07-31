@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from orbital_core.attitude import (
@@ -27,6 +29,59 @@ _ALIASES = {
     "ANGLE": "AZ_EL",
     "INTER_SATELLITE_AZ_EL": "AZ_EL",
 }
+
+
+@dataclass(frozen=True)
+class RelativeMeasurementModel:
+    """Unified directed model for inter-satellite relative measurements."""
+
+    modality: str
+    frame: str = "ECI"
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "modality", normalize_inter_satellite_modality(self.modality)
+        )
+        object.__setattr__(self, "frame", str(self.frame).upper())
+
+    def predict(
+        self,
+        observer_state: Array,
+        target_state: Array,
+        *,
+        quaternion_i2b_wxyz: Array | None = None,
+    ) -> Array:
+        return predict_inter_satellite_measurement(
+            observer_state,
+            target_state,
+            modality=self.modality,
+            frame=self.frame,
+            quaternion_i2b_wxyz=quaternion_i2b_wxyz,
+        )
+
+    def jacobians(
+        self,
+        observer_state: Array,
+        target_state: Array,
+        *,
+        quaternion_i2b_wxyz: Array | None = None,
+        eps: float = 1e-6,
+    ) -> tuple[Array, Array]:
+        return inter_satellite_jacobians(
+            observer_state,
+            target_state,
+            modality=self.modality,
+            frame=self.frame,
+            quaternion_i2b_wxyz=quaternion_i2b_wxyz,
+            eps=eps,
+        )
+
+    def residual(self, measurement: Array, prediction: Array) -> Array:
+        difference = (
+            np.asarray(measurement, dtype=float).reshape(-1)
+            - np.asarray(prediction, dtype=float).reshape(-1)
+        )
+        return wrap_angle(difference) if self.modality == "AZ_EL" else difference
 
 
 def normalize_inter_satellite_modality(modality: str) -> str:

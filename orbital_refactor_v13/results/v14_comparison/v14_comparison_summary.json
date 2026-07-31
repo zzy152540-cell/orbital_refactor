@@ -1,0 +1,115 @@
+{
+  "independent": {
+    "by_node": {
+      "sat_01": {
+        "position_rmse": 31.068176882523133,
+        "velocity_rmse": 0.024847419724256033,
+        "mean_nees": 0.43999959624672774
+      },
+      "sat_02": {
+        "position_rmse": 29.70079114139014,
+        "velocity_rmse": 0.024730537332201544,
+        "mean_nees": 0.40719965227649746
+      },
+      "sat_03": {
+        "position_rmse": 21.882786116314644,
+        "velocity_rmse": 0.024406946057641512,
+        "mean_nees": 0.2475995396884577
+      }
+    },
+    "fleet_position_rmse": 27.84615435711364,
+    "fleet_velocity_rmse": 0.024662338085654576,
+    "mean_nees": 0.3649329294038943,
+    "mean_nis": null,
+    "communication": {}
+  },
+  "v14_distributed": {
+    "by_node": {
+      "sat_01": {
+        "position_rmse": 8.5589037881962,
+        "velocity_rmse": 0.02764795028183529,
+        "mean_nees": 6146.989676924749
+      },
+      "sat_02": {
+        "position_rmse": 9.60403867288755,
+        "velocity_rmse": 0.01875393557741906,
+        "mean_nees": 6025.138671136461
+      },
+      "sat_03": {
+        "position_rmse": 8.394414000975903,
+        "velocity_rmse": 0.038099650209418655,
+        "mean_nees": 2536.791899501112
+      }
+    },
+    "fleet_position_rmse": 8.868644753769676,
+    "fleet_velocity_rmse": 0.029255783476712628,
+    "mean_nees": 4902.973415854108,
+    "mean_nis": 0.4608658863461005,
+    "communication": {
+      "attempted_state_count": 66,
+      "received_state_count": 66,
+      "dropped_state_count": 0,
+      "attempted_observation_count": 198,
+      "received_observation_count": 396,
+      "dropped_observation_count": 0,
+      "deferred_observation_count": 0,
+      "pending_state_count": 0,
+      "pending_observation_count": 0
+    }
+  },
+  "centralized_fleet_ekf": {
+    "by_node": {
+      "sat_01": {
+        "position_rmse": 24.096482521448987,
+        "velocity_rmse": 0.6408206927349018,
+        "mean_nees": 115.62033144406755
+      },
+      "sat_02": {
+        "position_rmse": 21.800347738318614,
+        "velocity_rmse": 0.6166128093670313,
+        "mean_nees": 110.32824497914093
+      },
+      "sat_03": {
+        "position_rmse": 21.153008732693763,
+        "velocity_rmse": 1.1539835682327626,
+        "mean_nees": 379.2378279029768
+      }
+    },
+    "fleet_position_rmse": 22.385601100287126,
+    "fleet_velocity_rmse": 0.841138235302609,
+    "mean_nees": 201.72880144206175,
+    "mean_nis": 752.636741366203,
+    "communication": {}
+  },
+  "distributed_fleet_state_ci": {
+    "by_node": {
+      "sat_01": {
+        "position_rmse": 8.229119896936204,
+        "velocity_rmse": 0.4863341150047785,
+        "mean_nees": 61.76675870459018
+      },
+      "sat_02": {
+        "position_rmse": 11.144304660052564,
+        "velocity_rmse": 0.3188623324165259,
+        "mean_nees": 28.611071183081837
+      },
+      "sat_03": {
+        "position_rmse": 7.636424754867096,
+        "velocity_rmse": 0.49987177532559557,
+        "mean_nees": 66.21402464033682
+      }
+    },
+    "fleet_position_rmse": 9.132887890675974,
+    "fleet_velocity_rmse": 0.4427436618099879,
+    "mean_nees": 52.19728484266962,
+    "mean_nis": 191.3250699568169,
+    "communication": {
+      "attempted_report_count": 66,
+      "received_report_count": 66,
+      "dropped_report_count": 0,
+      "pending_report_count": 0,
+      "average_delay": 0.0,
+      "packet_loss_rate": 0.0
+    }
+  }
+}

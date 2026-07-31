@@ -9,6 +9,15 @@ import numpy as np
 Array = np.ndarray
 
 
+@dataclass(frozen=True)
+class CovarianceTransportEvent:
+    timestamp: float
+    state_estimate: Array
+    error_transition: Array
+    independent_process_noise: Array
+    information_ids: tuple[str, ...] = ()
+
+
 @dataclass
 class InitialState:
     target_id: str
@@ -43,6 +52,71 @@ class InterSatelliteObservation:
     confidence: float
     valid_flag: bool
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class StateMessage:
+    """A state estimate sent by one node about one physical target."""
+
+    source_node_id: str
+    target_node_id: str
+    timestamp: float
+    state_estimate: Array
+    covariance: Array
+    quality_score: float
+    valid_flag: bool = True
+    source_timestamp: float | None = None
+    arrival_timestamp: float | None = None
+    information_ids: tuple[str, ...] = ()
+    lineage_id: str | None = None
+    reference_timestamp: float | None = None
+    error_transition: Array | None = None
+    accumulated_process_noise: Array | None = None
+    reference_state_estimate: Array | None = None
+    reference_covariance: Array | None = None
+    transport_events: tuple[CovarianceTransportEvent, ...] = ()
+
+
+@dataclass
+class ObservationMessage:
+    """A communicable, directed relative observation."""
+
+    message_id: str
+    observer_id: str
+    target_id: str
+    timestamp: float
+    modality: str
+    measurement: Array
+    covariance: Array
+    frame: str = "ECI"
+    confidence: float = 1.0
+    valid_flag: bool = True
+    source_timestamp: float | None = None
+    arrival_timestamp: float | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    physical_observation_id: str | None = None
+
+    @property
+    def information_id(self) -> str:
+        return (
+            str(self.message_id)
+            if self.physical_observation_id is None
+            else str(self.physical_observation_id)
+        )
+
+
+@dataclass
+class TargetEstimate:
+    """One estimator's posterior for a specifically identified target."""
+
+    estimator_node_id: str
+    target_node_id: str
+    timestamp: float
+    state_estimate: Array
+    covariance: Array
+    quality_score: float
+    valid_flag: bool = True
+    information_ids: tuple[str, ...] = ()
 
 
 @dataclass

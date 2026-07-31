@@ -174,6 +174,9 @@ def run_demo(
         inter_satellite_gate_threshold=9.21,
         inter_satellite_gate_mode="soft",
         inter_satellite_soft_scale=25.0,
+        # This v13 demo intentionally reproduces the retired cross-satellite
+        # 6D Consensus-CI baseline. V14 paths must not enable this escape hatch.
+        allow_cross_target_legacy=True,
     )
     return case, history
 
