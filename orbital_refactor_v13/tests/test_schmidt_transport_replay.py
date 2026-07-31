@@ -34,3 +34,36 @@ def test_remote_event_is_applied_before_same_timestamp_relative_observation():
     )
     assert np.allclose(replayed.neighbor_state_by_id["b"], updated_neighbor)
     assert observation.information_id in replayed.information_ids
+    assert replayed.transport_information_ids == ("remote-update",)
+
+
+def test_duplicate_and_stale_remote_events_are_idempotent():
+    active = np.array([7e6, 0, 0, 0, 7500, 0.0])
+    neighbor = active + np.array([1000, 0, 0, 0, 0, 0.0])
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=1.0, active_node_id="a", active_state=active,
+        active_covariance=np.eye(6), neighbor_state_by_id={"b": neighbor},
+        neighbor_covariance_by_id={"b": np.eye(6)},
+    )
+    stale = CovarianceTransportEvent(
+        timestamp=0.0, state_estimate=neighbor + 100.0,
+        error_transition=np.eye(6) * 0.1,
+        independent_process_noise=np.eye(6), information_ids=("stale",),
+    )
+    current = CovarianceTransportEvent(
+        timestamp=1.0, state_estimate=neighbor + 1.0,
+        error_transition=np.eye(6) * 0.9,
+        independent_process_noise=np.eye(6) * 0.1,
+        information_ids=("current",),
+    )
+    once = replay_transport_event_bundle(
+        state, neighbor_id="b", events=[stale, current], observations=[],
+        current_timestamp=1.0,
+    )
+    twice = replay_transport_event_bundle(
+        once, neighbor_id="b", events=[current], observations=[],
+        current_timestamp=1.0,
+    )
+    assert np.allclose(twice.joint_covariance, once.joint_covariance)
+    assert np.allclose(twice.neighbor_state_by_id["b"], once.neighbor_state_by_id["b"])
+    assert "stale" not in twice.transport_information_ids

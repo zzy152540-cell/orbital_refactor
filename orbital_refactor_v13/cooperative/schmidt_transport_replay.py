@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Iterable
 
 from cooperative.multi_neighbor_schmidt import MultiNeighborSchmidtState, multi_neighbor_schmidt_predict, multi_neighbor_schmidt_update
@@ -16,7 +17,9 @@ def replay_transport_event_bundle(
     """Merge remote update events and local observations in timestamp order."""
     remote_by_time = {}
     for event in events:
-        remote_by_time.setdefault(float(event.timestamp), []).append(event)
+        timestamp = float(event.timestamp)
+        if float(state.timestamp) <= timestamp <= float(current_timestamp):
+            remote_by_time.setdefault(timestamp, []).append(event)
     observation_by_time = {}
     for observation in observations:
         timestamp = float(observation.timestamp)
@@ -30,12 +33,26 @@ def replay_transport_event_bundle(
                 current, timestamp,
                 process_noise_acceleration=process_noise_acceleration,
             )
-        for event in remote_by_time.get(timestamp, []):
+        ordered_events = sorted(
+            remote_by_time.get(timestamp, []),
+            key=lambda item: (tuple(str(value) for value in item.information_ids),),
+        )
+        for event in ordered_events:
+            event_ids = tuple(str(value) for value in event.information_ids)
+            already_used = set(event_ids) & set(current.transport_information_ids)
+            if already_used:
+                if already_used == set(event_ids):
+                    continue
+                raise ValueError("Transport event partially overlaps previously used information IDs.")
             current = refresh_consider_neighbor(
                 current, neighbor_id=neighbor_id,
                 neighbor_state=event.state_estimate, mode="exact_transport",
                 error_transition=event.error_transition,
                 independent_process_noise=event.independent_process_noise,
+            )
+            current = replace(
+                current,
+                transport_information_ids=(*current.transport_information_ids, *event_ids),
             )
         for observation in sorted(observation_by_time.get(timestamp, []), key=lambda item: item.information_id):
             if observation.information_id not in current.information_ids:

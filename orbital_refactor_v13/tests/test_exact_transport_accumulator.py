@@ -66,3 +66,28 @@ def test_out_of_order_old_message_cannot_overwrite_newer_acknowledged_state():
     stale = apply_exact_transport_state_message(newer.state, old_message)
     assert not stale.accepted
     assert stale.reason in {"reference_covariance_mismatch", "reference_mean_mismatch"}
+
+
+def test_delayed_ack_rebases_unconfirmed_suffix():
+    covariance = np.eye(6) * 2.0
+    accumulator = ExactTransportAccumulator(
+        source_node_id="b", lineage_id="b:0", reference_timestamp=0.0,
+        reference_state=np.zeros(6), reference_covariance=covariance,
+    )
+    t1 = np.eye(6) * 0.9; q1 = np.eye(6) * 0.1
+    t2 = np.eye(6) * 0.8; q2 = np.eye(6) * 0.2
+    accumulator.append(timestamp=1.0, updated_state=np.ones(6),
+                       error_transition=t1, independent_process_noise=q1,
+                       information_ids=("one",))
+    first = accumulator.build_message()
+    accumulator.append(timestamp=2.0, updated_state=np.ones(6) * 2.0,
+                       error_transition=t2, independent_process_noise=q2,
+                       information_ids=("two",))
+    accumulator.acknowledge(first)
+    rebased = accumulator.build_message()
+    assert rebased.reference_timestamp == 1.0
+    assert rebased.timestamp == 2.0
+    assert rebased.information_ids == ("two",)
+    assert len(rebased.transport_events) == 1
+    assert np.allclose(rebased.error_transition, t2)
+    assert np.allclose(rebased.accumulated_process_noise, q2)

@@ -21,6 +21,7 @@ class MultiNeighborSchmidtState:
     neighbor_state_by_id: dict[str, Array]
     joint_covariance: Array
     information_ids: tuple[str, ...] = ()
+    transport_information_ids: tuple[str, ...] = ()
 
     @property
     def dimension(self) -> int:
@@ -100,6 +101,7 @@ def multi_neighbor_schmidt_predict(
         neighbor_ids=state.neighbor_ids, active_state=propagated[0],
         neighbor_state_by_id={node_id: propagated[index + 1] for index, node_id in enumerate(state.neighbor_ids)},
         joint_covariance=_symmetrize(covariance), information_ids=state.information_ids,
+        transport_information_ids=state.transport_information_ids,
     )
 
 
@@ -172,6 +174,7 @@ def add_consider_neighbor(
         neighbor_ids=(*state.neighbor_ids, neighbor_id), active_state=state.active_state.copy(),
         neighbor_state_by_id={**state.neighbor_state_by_id, neighbor_id: np.asarray(neighbor_state, dtype=float).reshape(6).copy()},
         joint_covariance=_symmetrize(covariance), information_ids=state.information_ids,
+        transport_information_ids=state.transport_information_ids,
     )
 
 
@@ -186,6 +189,7 @@ def remove_consider_neighbor(state: MultiNeighborSchmidtState, neighbor_id: str)
         active_state=state.active_state.copy(),
         neighbor_state_by_id={node_id: vector.copy() for node_id, vector in state.neighbor_state_by_id.items() if node_id != neighbor_id},
         joint_covariance=state.joint_covariance[np.ix_(keep, keep)].copy(), information_ids=state.information_ids,
+        transport_information_ids=state.transport_information_ids,
     )
 
 
