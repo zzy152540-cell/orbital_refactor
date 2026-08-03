@@ -12,6 +12,10 @@ def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
     assert ideal.replay_count > 0
     assert ideal.total_replay_seconds > 0.0
     assert ideal.maximum_batch_size >= 1
+    assert ideal.maximum_remote_event_count > 0
+    assert ideal.maximum_observation_count > 0
+    assert ideal.maximum_checkpoint_count > 0
+    assert ideal.maximum_retained_journal_count >= ideal.maximum_remote_event_count
     insufficient = result.summary_by_scenario_and_mode[("insufficient_history", "exact_transport_event_replay")]
     assert insufficient.message_rejection_count > 0
     assert any(
@@ -35,3 +39,13 @@ def test_five_node_topology_scan_uses_all_public_topologies():
         assert ideal.node_count == 5
         assert ideal.topology_type == topology_type
         assert ideal.psd_failure_count == 0
+
+
+def test_topology_scan_can_select_formal_scenarios_and_modes():
+    result = run_v14_exact_transport_topology_scan(
+        node_count=3, topology_types=("chain",), seeds=1,
+        duration=4.0, dt=2.0, scenario_names=("ideal",),
+        modes=("exact_transport_event_replay",),
+    )
+    summaries = result.result_by_topology["chain"].summary_by_scenario_and_mode
+    assert set(summaries) == {("ideal", "exact_transport_event_replay")}

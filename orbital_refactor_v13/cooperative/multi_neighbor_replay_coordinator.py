@@ -48,6 +48,14 @@ class ReplayPerformanceStats:
     replayed_remote_events: int = 0
     replayed_observations: int = 0
     maximum_batch_size: int = 0
+    fallback_count: int = 0
+    maximum_remote_event_count: int = 0
+    maximum_observation_count: int = 0
+    maximum_checkpoint_count: int = 0
+    maximum_posterior_state_count: int = 0
+    maximum_pinned_checkpoint_count: int = 0
+    maximum_resync_required_count: int = 0
+    maximum_retained_journal_count: int = 0
 
 
 class MultiNeighborReplayCoordinator:
@@ -78,6 +86,7 @@ class MultiNeighborReplayCoordinator:
         self._pinned_checkpoints: dict[tuple[str, str | None], tuple[float, MultiNeighborSchmidtState]] = {}
         self._resync_required: dict[tuple[str, str | None], str] = {}
         self.performance = ReplayPerformanceStats()
+        self._record_resource_peaks()
 
     def advance(self, timestamp: float) -> MultiNeighborSchmidtState:
         timestamp = float(timestamp)
@@ -91,6 +100,7 @@ class MultiNeighborReplayCoordinator:
         self._posterior_states[timestamp] = self.state
         self._prune(timestamp)
         self._enforce_resource_limits(timestamp)
+        self._record_resource_peaks()
         return self.state
 
     def apply_observation(self, observation: ObservationMessage) -> float:
@@ -101,6 +111,7 @@ class MultiNeighborReplayCoordinator:
         self.state = update.state
         self._posterior_states[float(observation.timestamp)] = self.state
         self._enforce_resource_limits(float(self.state.timestamp))
+        self._record_resource_peaks()
         return update.nis
 
     def apply_state_message(
@@ -174,6 +185,7 @@ class MultiNeighborReplayCoordinator:
                 for key in all_new_keys: self._remote_events.pop(key, None)
                 self._replay_from(earliest[4], starting_state=earliest[3])
                 if allow_fallback:
+                    self.performance.fallback_count += 1
                     for index, message, expected_lineage_id, *_ in staged:
                         results[index] = self.apply_state_message(
                             message, expected_lineage_id=expected_lineage_id,
@@ -191,6 +203,7 @@ class MultiNeighborReplayCoordinator:
                     self._resync_required.pop(link_key, None)
                     results[index] = CoordinatorMessageResult(True, "accepted", len(new_keys))
                 self._enforce_resource_limits(float(self.state.timestamp))
+        self._record_resource_peaks()
         if any(result is None for result in results):
             raise RuntimeError("Every batched state message must produce a result.")
         return tuple(results)  # type: ignore[return-value]
@@ -378,6 +391,32 @@ class MultiNeighborReplayCoordinator:
             if reason is not None:
                 self._pinned_checkpoints.pop(link_key, None)
                 self._resync_required[link_key] = reason
+
+    def _record_resource_peaks(self) -> None:
+        performance = self.performance
+        performance.maximum_remote_event_count = max(
+            performance.maximum_remote_event_count, len(self._remote_events)
+        )
+        performance.maximum_observation_count = max(
+            performance.maximum_observation_count, len(self._observations)
+        )
+        performance.maximum_checkpoint_count = max(
+            performance.maximum_checkpoint_count, len(self._checkpoints)
+        )
+        performance.maximum_posterior_state_count = max(
+            performance.maximum_posterior_state_count, len(self._posterior_states)
+        )
+        performance.maximum_pinned_checkpoint_count = max(
+            performance.maximum_pinned_checkpoint_count,
+            len(self._pinned_checkpoints),
+        )
+        performance.maximum_resync_required_count = max(
+            performance.maximum_resync_required_count, len(self._resync_required)
+        )
+        performance.maximum_retained_journal_count = max(
+            performance.maximum_retained_journal_count,
+            len(self._remote_events) + len(self._observations),
+        )
 
 
 def _same_event(left: CovarianceTransportEvent, right: CovarianceTransportEvent) -> bool:

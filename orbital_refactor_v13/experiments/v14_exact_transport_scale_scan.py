@@ -54,6 +54,14 @@ class ExactTransportScanSummary:
     maximum_batch_size: int
     replayed_remote_events: int
     replayed_observations: int
+    fallback_count: int
+    maximum_remote_event_count: int
+    maximum_observation_count: int
+    maximum_checkpoint_count: int
+    maximum_posterior_state_count: int
+    maximum_pinned_checkpoint_count: int
+    maximum_resync_required_count: int
+    maximum_retained_journal_count: int
 
 
 @dataclass(frozen=True)
@@ -72,20 +80,30 @@ def run_v14_exact_transport_smoke_scan(
     range_sigma: float = 2.0, absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
     node_count: int = 3, topology_type: str = "chain",
+    scenario_names: tuple[str, ...] | None = None,
+    modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
 ) -> ExactTransportScaleScanResult:
     """Run the production network API over five configurable fleet cases."""
     if seeds < 1:
         raise ValueError("seeds must be at least one.")
     if node_count < 2:
         raise ValueError("node_count must be at least two.")
-    scenarios = {
+    all_scenarios = {
         "ideal": (0.0, 0.0, 10.0),
         "loss_20_percent": (0.2, 0.0, 10.0),
         "delay_one_epoch": (0.0, dt, 10.0),
         "delay_loss": (0.2, dt, 10.0),
         "insufficient_history": (0.0, 3.0 * dt, 2.0 * dt),
     }
-    modes = ("propagate_only", "exact_transport_event_replay")
+    selected_scenarios = tuple(all_scenarios) if scenario_names is None else scenario_names
+    unknown_scenarios = set(selected_scenarios) - set(all_scenarios)
+    if unknown_scenarios:
+        raise ValueError(f"Unknown scenario names: {sorted(unknown_scenarios)}")
+    supported_modes = {"propagate_only", "exact_transport_event_replay"}
+    unknown_modes = set(modes) - supported_modes
+    if unknown_modes or not modes:
+        raise ValueError(f"Unsupported or empty modes: {sorted(unknown_modes)}")
+    scenarios = {name: all_scenarios[name] for name in selected_scenarios}
     collected = {(scenario, mode): [] for scenario in scenarios for mode in modes}
     diagnostic_records = []
     for seed in range(seeds):
@@ -162,6 +180,14 @@ def run_v14_exact_transport_smoke_scan(
             maximum_batch_size=max(value[13]["maximum_batch_size"] for value in values),
             replayed_remote_events=sum(value[13]["replayed_remote_events"] for value in values),
             replayed_observations=sum(value[13]["replayed_observations"] for value in values),
+            fallback_count=sum(value[13]["fallback_count"] for value in values),
+            maximum_remote_event_count=max(value[13]["maximum_remote_event_count"] for value in values),
+            maximum_observation_count=max(value[13]["maximum_observation_count"] for value in values),
+            maximum_checkpoint_count=max(value[13]["maximum_checkpoint_count"] for value in values),
+            maximum_posterior_state_count=max(value[13]["maximum_posterior_state_count"] for value in values),
+            maximum_pinned_checkpoint_count=max(value[13]["maximum_pinned_checkpoint_count"] for value in values),
+            maximum_resync_required_count=max(value[13]["maximum_resync_required_count"] for value in values),
+            maximum_retained_journal_count=max(value[13]["maximum_retained_journal_count"] for value in values),
         )
     return ExactTransportScaleScanResult(summaries, tuple(diagnostic_records))
 
@@ -171,6 +197,8 @@ def run_v14_exact_transport_topology_scan(
     seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
     range_sigma: float = 2.0, absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
+    scenario_names: tuple[str, ...] | None = None,
+    modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
 ) -> ExactTransportTopologyScanResult:
     results = {}
     for topology_type in topology_types:
@@ -179,6 +207,7 @@ def run_v14_exact_transport_topology_scan(
             range_sigma=range_sigma, absolute_sigma=absolute_sigma,
             process_noise_acceleration=process_noise_acceleration,
             node_count=node_count, topology_type=topology_type,
+            scenario_names=scenario_names, modes=modes,
         )
     return ExactTransportTopologyScanResult(results)
 
@@ -343,6 +372,28 @@ def _metrics(history, truth, transmitted_count, run_seconds):
         ),
         "replayed_remote_events": sum(value.replayed_remote_events for value in replay_stats),
         "replayed_observations": sum(value.replayed_observations for value in replay_stats),
+        "fallback_count": sum(value.fallback_count for value in replay_stats),
+        "maximum_remote_event_count": max(
+            (value.maximum_remote_event_count for value in replay_stats), default=0
+        ),
+        "maximum_observation_count": max(
+            (value.maximum_observation_count for value in replay_stats), default=0
+        ),
+        "maximum_checkpoint_count": max(
+            (value.maximum_checkpoint_count for value in replay_stats), default=0
+        ),
+        "maximum_posterior_state_count": max(
+            (value.maximum_posterior_state_count for value in replay_stats), default=0
+        ),
+        "maximum_pinned_checkpoint_count": max(
+            (value.maximum_pinned_checkpoint_count for value in replay_stats), default=0
+        ),
+        "maximum_resync_required_count": max(
+            (value.maximum_resync_required_count for value in replay_stats), default=0
+        ),
+        "maximum_retained_journal_count": max(
+            (value.maximum_retained_journal_count for value in replay_stats), default=0
+        ),
     }
     return (
         compute_rmse(np.vstack(position)), compute_rmse(np.vstack(velocity)),

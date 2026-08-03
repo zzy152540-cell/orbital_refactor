@@ -90,6 +90,9 @@ def test_two_neighbor_batch_matches_sequential_result_with_one_replay():
     assert batched.performance.batch_count == 1
     assert batched.performance.maximum_batch_size == 2
     assert batched.performance.replayed_remote_events == 2
+    assert batched.performance.maximum_remote_event_count == 2
+    assert batched.performance.maximum_checkpoint_count >= 1
+    assert batched.performance.maximum_pinned_checkpoint_count == 2
 
 
 def test_duplicate_message_is_idempotent_and_conflict_is_rejected():
@@ -139,6 +142,9 @@ def test_failed_batch_endpoint_check_falls_back_without_rejecting_valid_peer():
     assert bad.reason == "event_bundle_endpoint_mismatch"
     assert valid.accepted
     assert "right:absolute:0" in coordinator.state.transport_information_ids
+    assert coordinator.performance.fallback_count == 1
+
+
 
 
 def test_last_ack_checkpoint_is_pinned_beyond_fixed_lag_window():
