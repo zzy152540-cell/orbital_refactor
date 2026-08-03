@@ -65,6 +65,7 @@ from cooperative.schmidt_transport_replay import replay_transport_event_bundle
 from cooperative.multi_neighbor_replay_coordinator import (
     CoordinatorMessageResult,
     MultiNeighborReplayCoordinator,
+    ReplayPerformanceStats,
     RemoteTransportEvent,
     ResynchronizationBaseline,
 )
@@ -153,6 +154,7 @@ __all__ = [
     "replay_transport_event_bundle",
     "CoordinatorMessageResult",
     "MultiNeighborReplayCoordinator",
+    "ReplayPerformanceStats",
     "RemoteTransportEvent",
     "ResynchronizationBaseline",
     "build_module_inputs",

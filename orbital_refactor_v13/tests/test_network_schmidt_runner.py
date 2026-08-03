@@ -188,6 +188,8 @@ def test_formal_network_mode_replays_neighbor_state_messages():
         process_noise_acceleration=0.0,
     )
     assert history.refresh_diagnostics["accepted"] == 1
+    assert history.replay_performance_by_node["sat_02"].replay_count == 1
+    assert history.replay_performance_by_node["sat_02"].maximum_batch_size == 1
     assert np.linalg.eigvalsh(
         history.joint_covariance_history_by_node["sat_02"][-1]
     ).min() >= -1e-8

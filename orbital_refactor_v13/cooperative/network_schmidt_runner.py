@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Iterable, Mapping
 
 import numpy as np
@@ -16,7 +16,10 @@ from cooperative.schmidt_refresh import (
     exact_transport_eligibility,
     refresh_consider_neighbor,
 )
-from cooperative.multi_neighbor_replay_coordinator import MultiNeighborReplayCoordinator
+from cooperative.multi_neighbor_replay_coordinator import (
+    MultiNeighborReplayCoordinator,
+    ReplayPerformanceStats,
+)
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
 from interfaces.data_objects import ObservationMessage, StateMessage
 
@@ -34,6 +37,7 @@ class NetworkSchmidtHistory:
     local_dimension_by_node: dict[str, int]
     refresh_diagnostics: dict[str, int]
     refresh_diagnostic_records: tuple[dict[str, object], ...]
+    replay_performance_by_node: dict[str, ReplayPerformanceStats]
 
     @property
     def node_ids(self) -> list[str]:
@@ -156,42 +160,45 @@ def run_network_schmidt_filter(
                     coordinator.advance(float(timestamp))
             for node_id in node_ids:
                 remaining = []
+                available = []
                 for message in pending_state_messages[node_id]:
                     arrival = message.timestamp if message.arrival_timestamp is None else message.arrival_timestamp
                     if float(arrival) <= float(timestamp):
-                        outcome = coordinators[node_id].apply_state_message(
+                        available.append((
                             message,
-                            expected_lineage_id=(expected_lineage_by_link or {}).get(
+                            (expected_lineage_by_link or {}).get(
                                 (node_id, str(message.source_node_id))
                             ),
-                        )
-                        key = "accepted" if outcome.accepted else outcome.reason
-                        refresh_diagnostics[key] = refresh_diagnostics.get(key, 0) + 1
-                        checkpoints = coordinators[node_id].checkpoint_timestamps
-                        refresh_diagnostic_records.append({
-                            "receiver_id": node_id,
-                            "source_id": str(message.source_node_id),
-                            "current_timestamp": float(timestamp),
-                            "message_timestamp": float(message.timestamp),
-                            "reference_timestamp": message.reference_timestamp,
-                            "arrival_timestamp": message.arrival_timestamp,
-                            "lineage_id": message.lineage_id,
-                            "information_ids": "|".join(message.information_ids),
-                            "transport_event_count": len(message.transport_events),
-                            "accepted": outcome.accepted,
-                            "reason": outcome.reason,
-                            "checkpoint_count": len(checkpoints),
-                            "oldest_checkpoint": min(checkpoints) if checkpoints else None,
-                            "newest_checkpoint": max(checkpoints) if checkpoints else None,
-                            "pinned_checkpoint_count": coordinators[node_id].pinned_checkpoint_count,
-                            "oldest_pinned_timestamp": coordinators[node_id].oldest_pinned_timestamp,
-                            "resync_required_count": len(
-                                coordinators[node_id].resynchronization_requirements
-                            ),
-                            **message.metadata,
-                        })
+                        ))
                     else:
                         remaining.append(message)
+                outcomes = coordinators[node_id].apply_state_messages(tuple(available))
+                for (message, _), outcome in zip(available, outcomes):
+                    key = "accepted" if outcome.accepted else outcome.reason
+                    refresh_diagnostics[key] = refresh_diagnostics.get(key, 0) + 1
+                    checkpoints = coordinators[node_id].checkpoint_timestamps
+                    refresh_diagnostic_records.append({
+                        "receiver_id": node_id,
+                        "source_id": str(message.source_node_id),
+                        "current_timestamp": float(timestamp),
+                        "message_timestamp": float(message.timestamp),
+                        "reference_timestamp": message.reference_timestamp,
+                        "arrival_timestamp": message.arrival_timestamp,
+                        "lineage_id": message.lineage_id,
+                        "information_ids": "|".join(message.information_ids),
+                        "transport_event_count": len(message.transport_events),
+                        "accepted": outcome.accepted,
+                        "reason": outcome.reason,
+                        "checkpoint_count": len(checkpoints),
+                        "oldest_checkpoint": min(checkpoints) if checkpoints else None,
+                        "newest_checkpoint": max(checkpoints) if checkpoints else None,
+                        "pinned_checkpoint_count": coordinators[node_id].pinned_checkpoint_count,
+                        "oldest_pinned_timestamp": coordinators[node_id].oldest_pinned_timestamp,
+                        "resync_required_count": len(
+                            coordinators[node_id].resynchronization_requirements
+                        ),
+                        **message.metadata,
+                    })
                 pending_state_messages[node_id] = remaining
                 local_states[node_id] = coordinators[node_id].state
         elif index > 0:
@@ -281,6 +288,10 @@ def run_network_schmidt_filter(
         },
         refresh_diagnostics=refresh_diagnostics,
         refresh_diagnostic_records=tuple(refresh_diagnostic_records),
+        replay_performance_by_node={
+            node_id: replace(coordinator.performance)
+            for node_id, coordinator in coordinators.items()
+        },
     )
 
 

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from dataclasses import replace
 import csv
 from pathlib import Path
+from time import perf_counter
 
 import numpy as np
 
@@ -43,6 +44,16 @@ class ExactTransportScanSummary:
     minimum_joint_eigenvalue: float
     transmitted_state_messages: int
     rejection_counts: dict[str, int]
+    mean_run_seconds: float
+    total_replay_seconds: float
+    replay_count: int
+    batch_count: int
+    maximum_replay_seconds: float
+    mean_replay_span: float
+    maximum_replay_span: float
+    maximum_batch_size: int
+    replayed_remote_events: int
+    replayed_observations: int
 
 
 @dataclass(frozen=True)
@@ -88,6 +99,7 @@ def run_v14_exact_transport_smoke_scan(
                 node_count=node_count, topology_type=topology_type,
             )
             for mode in modes:
+                started = perf_counter()
                 history = run_network_schmidt_filter(
                     timestamps=case["timestamps"],
                     initial_state_by_node=case["initial_states"],
@@ -101,8 +113,12 @@ def run_v14_exact_transport_smoke_scan(
                     replay_history_window=(history_window if mode == "exact_transport_event_replay" else None),
                     expected_lineage_by_link=(case["lineages"] if mode == "exact_transport_event_replay" else None),
                 )
+                run_seconds = perf_counter() - started
                 collected[(scenario, mode)].append(
-                    _metrics(history, case["truth"], len(case["transmitted_messages"]))
+                    _metrics(
+                        history, case["truth"], len(case["transmitted_messages"]),
+                        run_seconds,
+                    )
                 )
                 for record in history.refresh_diagnostic_records:
                     diagnostic_records.append({
@@ -113,8 +129,10 @@ def run_v14_exact_transport_smoke_scan(
     summaries = {}
     for key, values in collected.items():
         scenario, mode = key
-        attempted = sum(value[8] for value in values)
+        transmitted = sum(value[8] for value in values)
         accepted = sum(value[7] for value in values)
+        rejected = sum(value[9] for value in values)
+        processed = accepted + rejected
         summaries[key] = ExactTransportScanSummary(
             node_count=node_count, topology_type=topology_type,
             scenario=scenario, mode=mode, run_count=len(values),
@@ -124,12 +142,26 @@ def run_v14_exact_transport_smoke_scan(
             mean_nees_95_coverage=float(np.mean([value[3] for value in values])),
             mean_nis=float(np.mean([value[4] for value in values])),
             mean_nis_95_coverage=float(np.mean([value[5] for value in values])),
-            message_acceptance_rate=(accepted / attempted if attempted else 0.0),
-            message_rejection_count=sum(value[9] for value in values),
+            message_acceptance_rate=(accepted / processed if processed else 0.0),
+            message_rejection_count=rejected,
             psd_failure_count=sum(value[10] for value in values),
             minimum_joint_eigenvalue=min(value[6] for value in values),
-            transmitted_state_messages=attempted,
+            transmitted_state_messages=transmitted,
             rejection_counts=_sum_rejection_counts([value[11] for value in values]),
+            mean_run_seconds=float(np.mean([value[12] for value in values])),
+            total_replay_seconds=sum(value[13]["total_replay_seconds"] for value in values),
+            replay_count=sum(value[13]["replay_count"] for value in values),
+            batch_count=sum(value[13]["batch_count"] for value in values),
+            maximum_replay_seconds=max(value[13]["maximum_replay_seconds"] for value in values),
+            mean_replay_span=(
+                sum(value[13]["total_replay_span"] for value in values)
+                / sum(value[13]["replay_count"] for value in values)
+                if sum(value[13]["replay_count"] for value in values) else 0.0
+            ),
+            maximum_replay_span=max(value[13]["maximum_replay_span"] for value in values),
+            maximum_batch_size=max(value[13]["maximum_batch_size"] for value in values),
+            replayed_remote_events=sum(value[13]["replayed_remote_events"] for value in values),
+            replayed_observations=sum(value[13]["replayed_observations"] for value in values),
         )
     return ExactTransportScaleScanResult(summaries, tuple(diagnostic_records))
 
@@ -277,7 +309,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     }
 
 
-def _metrics(history, truth, transmitted_count):
+def _metrics(history, truth, transmitted_count, run_seconds):
     position = []; velocity = []; nees = []; nis = []; minimum = float("inf"); failures = 0
     for node in history.node_ids:
         error = history.active_state_history_by_node[node] - truth[node]
@@ -294,11 +326,30 @@ def _metrics(history, truth, transmitted_count):
         key: int(value) for key, value in history.refresh_diagnostics.items()
         if key != "accepted" and value
     }
+    replay_stats = list(history.replay_performance_by_node.values())
+    performance = {
+        "total_replay_seconds": sum(value.total_replay_seconds for value in replay_stats),
+        "replay_count": sum(value.replay_count for value in replay_stats),
+        "batch_count": sum(value.batch_count for value in replay_stats),
+        "maximum_replay_seconds": max(
+            (value.maximum_replay_seconds for value in replay_stats), default=0.0
+        ),
+        "maximum_replay_span": max(
+            (value.maximum_replay_span for value in replay_stats), default=0.0
+        ),
+        "total_replay_span": sum(value.total_replay_span for value in replay_stats),
+        "maximum_batch_size": max(
+            (value.maximum_batch_size for value in replay_stats), default=0
+        ),
+        "replayed_remote_events": sum(value.replayed_remote_events for value in replay_stats),
+        "replayed_observations": sum(value.replayed_observations for value in replay_stats),
+    }
     return (
         compute_rmse(np.vstack(position)), compute_rmse(np.vstack(velocity)),
         float(np.mean(nees)), _coverage(nees, NEES_95_DOF6),
         float(np.mean(nis)), _coverage(nis, NIS_95_DOF1), minimum,
         accepted, transmitted_count, rejected, failures, rejection_counts,
+        float(run_seconds), performance,
     )
 
 

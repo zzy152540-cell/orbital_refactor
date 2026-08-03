@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from time import perf_counter
 
 import numpy as np
 
@@ -36,6 +37,19 @@ class ResynchronizationBaseline:
     covariance: np.ndarray
 
 
+@dataclass
+class ReplayPerformanceStats:
+    replay_count: int = 0
+    batch_count: int = 0
+    total_replay_seconds: float = 0.0
+    maximum_replay_seconds: float = 0.0
+    total_replay_span: float = 0.0
+    maximum_replay_span: float = 0.0
+    replayed_remote_events: int = 0
+    replayed_observations: int = 0
+    maximum_batch_size: int = 0
+
+
 class MultiNeighborReplayCoordinator:
     """Own one coherent replay timeline for a node and all its neighbors."""
 
@@ -63,6 +77,7 @@ class MultiNeighborReplayCoordinator:
         self._remote_events: dict[tuple[str, str], RemoteTransportEvent] = {}
         self._pinned_checkpoints: dict[tuple[str, str | None], tuple[float, MultiNeighborSchmidtState]] = {}
         self._resync_required: dict[tuple[str, str | None], str] = {}
+        self.performance = ReplayPerformanceStats()
 
     def advance(self, timestamp: float) -> MultiNeighborSchmidtState:
         timestamp = float(timestamp)
@@ -91,78 +106,98 @@ class MultiNeighborReplayCoordinator:
     def apply_state_message(
         self, message: StateMessage, *, expected_lineage_id: str | None = None,
     ) -> CoordinatorMessageResult:
+        return self.apply_state_messages(((message, expected_lineage_id),))[0]
+
+    def apply_state_messages(
+        self, messages: tuple[tuple[StateMessage, str | None], ...],
+    ) -> tuple[CoordinatorMessageResult, ...]:
+        if not messages:
+            return ()
+        self.performance.batch_count += 1
+        self.performance.maximum_batch_size = max(
+            self.performance.maximum_batch_size, len(messages)
+        )
+        results: list[CoordinatorMessageResult | None] = [None] * len(messages)
+        staged = []
+        all_new_keys = []
+        for index, (message, expected_lineage_id) in enumerate(messages):
+            validation = self._validated_checkpoint(message, expected_lineage_id)
+            if isinstance(validation, CoordinatorMessageResult):
+                results[index] = validation
+                continue
+            checkpoint, reference_timestamp, link_key = validation
+            neighbor_id = str(message.source_node_id); new_keys = []
+            failure = None
+            for event in message.transport_events:
+                event_ids = tuple(str(value) for value in event.information_ids)
+                if not event_ids:
+                    failure = CoordinatorMessageResult(False, "missing_event_information_id"); break
+                key = (neighbor_id, "|".join(event_ids))
+                existing = self._remote_events.get(key)
+                if existing is not None:
+                    if not _same_event(existing.event, event):
+                        failure = CoordinatorMessageResult(False, "conflicting_event_information_id")
+                    continue
+                self._remote_events[key] = RemoteTransportEvent(neighbor_id, event)
+                new_keys.append(key); all_new_keys.append(key)
+            if failure is not None:
+                for key in new_keys: self._remote_events.pop(key, None)
+                results[index] = failure; continue
+            staged.append((index, message, checkpoint, reference_timestamp, link_key, new_keys))
+        if staged:
+            earliest = min(staged, key=lambda item: item[3])
+            self._replay_from(earliest[3], starting_state=earliest[2])
+            mismatched = False
+            for _, message, _, _, _, _ in staged:
+                endpoint = self._posterior_states.get(float(message.timestamp))
+                neighbor_id = str(message.source_node_id)
+                if not (endpoint is not None and np.allclose(
+                    endpoint.neighbor_state_by_id[neighbor_id], message.state_estimate,
+                    rtol=1e-9, atol=1e-7,
+                ) and np.allclose(
+                    endpoint.neighbor_covariance(neighbor_id), message.covariance,
+                    rtol=1e-8, atol=1e-10,
+                )):
+                    mismatched = True; break
+            if mismatched:
+                for key in all_new_keys: self._remote_events.pop(key, None)
+                self._replay_from(earliest[3], starting_state=earliest[2])
+                for index, *_ in staged:
+                    results[index] = CoordinatorMessageResult(False, "event_bundle_endpoint_mismatch")
+            else:
+                for index, message, _, _, link_key, new_keys in staged:
+                    self._pinned_checkpoints[link_key] = (
+                        float(message.timestamp), self._posterior_states[float(message.timestamp)]
+                    )
+                    self._resync_required.pop(link_key, None)
+                    results[index] = CoordinatorMessageResult(True, "accepted", len(new_keys))
+                self._enforce_resource_limits(float(self.state.timestamp))
+        if any(result is None for result in results):
+            raise RuntimeError("Every batched state message must produce a result.")
+        return tuple(results)  # type: ignore[return-value]
+
+    def _validated_checkpoint(self, message, expected_lineage_id):
         if not message.transport_events:
             return CoordinatorMessageResult(False, "missing_transport_events")
-        reference_timestamp = message.reference_timestamp
-        if reference_timestamp is None:
+        if message.reference_timestamp is None:
             return CoordinatorMessageResult(False, "missing_provenance")
-        checkpoint = self._checkpoints.get(float(reference_timestamp))
+        reference_timestamp = float(message.reference_timestamp)
         link_key = (str(message.source_node_id), message.lineage_id)
         if link_key in self._resync_required:
             return CoordinatorMessageResult(False, "resync_required")
         pinned = self._pinned_checkpoints.get(link_key)
-        if checkpoint is None and pinned is not None and np.isclose(pinned[0], float(reference_timestamp)):
-            checkpoint = pinned[1]
-        if checkpoint is None:
-            return CoordinatorMessageResult(False, "history_unavailable")
-        validation = apply_exact_transport_state_message(
-            checkpoint, message, expected_lineage_id=expected_lineage_id,
-        )
-        if not validation.accepted:
-            posterior_checkpoint = self._posterior_states.get(float(reference_timestamp))
-            if posterior_checkpoint is not None:
-                posterior_validation = apply_exact_transport_state_message(
-                    posterior_checkpoint, message,
-                    expected_lineage_id=expected_lineage_id,
-                )
-                if posterior_validation.accepted:
-                    checkpoint = posterior_checkpoint
-                    validation = posterior_validation
-        if not validation.accepted and pinned is not None and np.isclose(pinned[0], float(reference_timestamp)):
-            pinned_validation = apply_exact_transport_state_message(
-                pinned[1], message, expected_lineage_id=expected_lineage_id,
+        candidates = [self._checkpoints.get(reference_timestamp), self._posterior_states.get(reference_timestamp)]
+        if pinned is not None and np.isclose(pinned[0], reference_timestamp): candidates.append(pinned[1])
+        last_reason = "history_unavailable"
+        for checkpoint in candidates:
+            if checkpoint is None: continue
+            validation = apply_exact_transport_state_message(
+                checkpoint, message, expected_lineage_id=expected_lineage_id,
             )
-            if pinned_validation.accepted:
-                checkpoint = pinned[1]
-                validation = pinned_validation
-        if not validation.accepted:
-            return CoordinatorMessageResult(False, validation.reason)
-        neighbor_id = str(message.source_node_id)
-        new_count = 0
-        new_keys = []
-        for event in message.transport_events:
-            event_ids = tuple(str(value) for value in event.information_ids)
-            if not event_ids:
-                return CoordinatorMessageResult(False, "missing_event_information_id")
-            key = (neighbor_id, "|".join(event_ids))
-            existing = self._remote_events.get(key)
-            if existing is not None:
-                if not _same_event(existing.event, event):
-                    return CoordinatorMessageResult(False, "conflicting_event_information_id")
-                continue
-            self._remote_events[key] = RemoteTransportEvent(neighbor_id, event)
-            new_keys.append(key)
-            new_count += 1
-        self._replay_from(float(reference_timestamp), starting_state=checkpoint)
-        endpoint = self._posterior_states.get(float(message.timestamp))
-        endpoint_matches = endpoint is not None and np.allclose(
-            endpoint.neighbor_state_by_id[neighbor_id], message.state_estimate,
-            rtol=1e-9, atol=1e-7,
-        ) and np.allclose(
-            endpoint.neighbor_covariance(neighbor_id), message.covariance,
-            rtol=1e-8, atol=1e-10,
-        )
-        if not endpoint_matches:
-            for key in new_keys:
-                self._remote_events.pop(key, None)
-            self._replay_from(float(reference_timestamp), starting_state=checkpoint)
-            return CoordinatorMessageResult(False, "event_bundle_endpoint_mismatch")
-        self._pinned_checkpoints[link_key] = (
-            float(message.timestamp), self._posterior_states[float(message.timestamp)]
-        )
-        self._resync_required.pop(link_key, None)
-        self._enforce_resource_limits(float(self.state.timestamp))
-        return CoordinatorMessageResult(True, "accepted", new_count)
+            if validation.accepted:
+                return checkpoint, reference_timestamp, link_key
+            last_reason = validation.reason
+        return CoordinatorMessageResult(False, last_reason)
 
     @property
     def checkpoint_timestamps(self) -> tuple[float, ...]:
@@ -215,6 +250,7 @@ class MultiNeighborReplayCoordinator:
         self, reference_timestamp: float,
         starting_state: MultiNeighborSchmidtState | None = None,
     ) -> None:
+        started = perf_counter()
         current_timestamp = float(self.state.timestamp)
         current = self._checkpoints[reference_timestamp] if starting_state is None else starting_state
         event_times = {
@@ -226,6 +262,7 @@ class MultiNeighborReplayCoordinator:
             if reference_timestamp <= float(item.timestamp) <= current_timestamp
         }
         times = sorted(event_times | observation_times | {current_timestamp})
+        remote_count = 0; observation_count = 0
         for timestamp in times:
             if timestamp > float(current.timestamp):
                 current = multi_neighbor_schmidt_predict(
@@ -259,6 +296,7 @@ class MultiNeighborReplayCoordinator:
                     current,
                     transport_information_ids=(*current.transport_information_ids, *event_ids),
                 )
+                remote_count += 1
             observations = sorted(
                 (item for item in self._observations.values()
                  if np.isclose(float(item.timestamp), timestamp)),
@@ -267,8 +305,18 @@ class MultiNeighborReplayCoordinator:
             for observation in observations:
                 if observation.information_id not in current.information_ids:
                     current = multi_neighbor_schmidt_update(current, observation).state
+                    observation_count += 1
             self._posterior_states[timestamp] = current
         self.state = current
+        elapsed = perf_counter() - started
+        span = current_timestamp - reference_timestamp
+        self.performance.replay_count += 1
+        self.performance.total_replay_seconds += elapsed
+        self.performance.maximum_replay_seconds = max(self.performance.maximum_replay_seconds, elapsed)
+        self.performance.total_replay_span += span
+        self.performance.maximum_replay_span = max(self.performance.maximum_replay_span, span)
+        self.performance.replayed_remote_events += remote_count
+        self.performance.replayed_observations += observation_count
 
     def _prune(self, current_timestamp: float) -> None:
         if self.history_window is None:

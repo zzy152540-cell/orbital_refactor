@@ -74,6 +74,24 @@ def test_two_neighbor_events_share_one_order_independent_node_timeline():
     assert first.information_ids == ("center-left-range",)
 
 
+def test_two_neighbor_batch_matches_sequential_result_with_one_replay():
+    state, messages, _ = _case()
+    batched = MultiNeighborReplayCoordinator(state, process_noise_acceleration=0.0)
+    outcomes = batched.apply_state_messages((
+        (messages["right"], "right:0"),
+        (messages["left"], "left:0"),
+    ))
+
+    sequential = _run(("right", "left"))
+    assert all(outcome.accepted for outcome in outcomes)
+    assert np.allclose(batched.state.active_state, sequential.active_state)
+    assert np.allclose(batched.state.joint_covariance, sequential.joint_covariance)
+    assert batched.performance.replay_count == 1
+    assert batched.performance.batch_count == 1
+    assert batched.performance.maximum_batch_size == 2
+    assert batched.performance.replayed_remote_events == 2
+
+
 def test_duplicate_message_is_idempotent_and_conflict_is_rejected():
     state, messages, _ = _case()
     coordinator = MultiNeighborReplayCoordinator(state)

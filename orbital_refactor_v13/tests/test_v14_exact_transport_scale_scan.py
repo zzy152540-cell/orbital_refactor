@@ -8,6 +8,10 @@ def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
     ideal = result.summary_by_scenario_and_mode[("ideal", "exact_transport_event_replay")]
     assert ideal.message_acceptance_rate == 1.0
     assert ideal.psd_failure_count == 0
+    assert ideal.mean_run_seconds > 0.0
+    assert ideal.replay_count > 0
+    assert ideal.total_replay_seconds > 0.0
+    assert ideal.maximum_batch_size >= 1
     insufficient = result.summary_by_scenario_and_mode[("insufficient_history", "exact_transport_event_replay")]
     assert insufficient.message_rejection_count > 0
     assert any(
