@@ -84,6 +84,31 @@ def test_one_neighbor_multi_schmidt_matches_two_node_implementation():
     )
 
 
+def test_body_angle_update_reads_epoch_attitude_from_observation_metadata():
+    active, _, right = _states()
+    quaternion = np.array([1.0, 0.0, 0.0, 0.0])
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="sat_02", active_state=active,
+        active_covariance=np.eye(6),
+        neighbor_state_by_id={"sat_03": right},
+        neighbor_covariance_by_id={"sat_03": 2.0 * np.eye(6)},
+    )
+    observation = ObservationMessage(
+        message_id="body-angles", observer_id="sat_02", target_id="sat_03",
+        timestamp=0.0, modality="AZ_EL", frame="BODY",
+        measurement=measure_relative_az_el(
+            active, right, frame="BODY", quaternion_i2b_wxyz=quaternion,
+        ),
+        covariance=np.eye(2) * 1e-6,
+        metadata={"quaternion_i2b_wxyz": quaternion},
+    )
+
+    result = multi_neighbor_schmidt_update(state, observation)
+
+    assert result.nis == 0.0
+    assert np.linalg.eigvalsh(result.state.joint_covariance).min() >= -1e-10
+
+
 def test_two_neighbor_updates_preserve_joint_psd_and_create_cross_terms():
     active, left, right = _states()
     state = initialize_multi_neighbor_schmidt(

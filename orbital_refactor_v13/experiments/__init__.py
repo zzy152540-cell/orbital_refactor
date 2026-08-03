@@ -27,6 +27,17 @@ from experiments.v14_exact_transport_scale_scan import (
     run_v14_exact_transport_topology_scan,
     export_exact_transport_diagnostics,
 )
+from experiments.v14_dynamic_visibility import (
+    AzElSensitivityResult,
+    AttitudeErrorConsistencyResult,
+    DynamicVisibilityExperimentResult,
+    DynamicVisibilityRunSummary,
+    RangeRateSensitivityResult,
+    run_v14_dynamic_visibility_experiment,
+    run_v14_az_el_sensitivity,
+    run_v14_attitude_error_consistency,
+    run_v14_range_rate_sensitivity,
+)
 
 __all__ = [
     "V14ComparisonCase",
@@ -37,6 +48,11 @@ __all__ = [
     "ExactTransportScaleScanResult",
     "ExactTransportScanSummary",
     "ExactTransportTopologyScanResult",
+    "DynamicVisibilityExperimentResult",
+    "DynamicVisibilityRunSummary",
+    "RangeRateSensitivityResult",
+    "AzElSensitivityResult",
+    "AttitudeErrorConsistencyResult",
     "build_v14_comparison_case",
     "export_v14_comparison",
     "run_v14_comparison",
@@ -48,4 +64,8 @@ __all__ = [
     "run_v14_exact_transport_smoke_scan",
     "run_v14_exact_transport_topology_scan",
     "export_exact_transport_diagnostics",
+    "run_v14_dynamic_visibility_experiment",
+    "run_v14_az_el_sensitivity",
+    "run_v14_attitude_error_consistency",
+    "run_v14_range_rate_sensitivity",
 ]

@@ -5,6 +5,7 @@ from typing import Mapping, Protocol
 
 import numpy as np
 
+from orbital_core.attitude import quat_to_dcm_i2b
 from orbital_core.constants import R_EARTH
 
 Array = np.ndarray
@@ -18,6 +19,7 @@ class VisibilityConfig:
     earth_radius: float = R_EARTH
     earth_clearance: float = 0.0
     maximum_range: float | None = None
+    field_of_view_half_angle: float | None = None
     tolerance: float = 1e-6
 
     def __post_init__(self) -> None:
@@ -27,6 +29,12 @@ class VisibilityConfig:
             raise ValueError("earth_clearance cannot be negative.")
         if self.maximum_range is not None and self.maximum_range <= 0.0:
             raise ValueError("maximum_range must be positive when provided.")
+        if self.field_of_view_half_angle is not None and not (
+            0.0 < self.field_of_view_half_angle <= np.pi
+        ):
+            raise ValueError(
+                "field_of_view_half_angle must be in (0, pi] when provided."
+            )
         if self.tolerance < 0.0:
             raise ValueError("tolerance cannot be negative.")
 
@@ -37,6 +45,7 @@ class VisibilityResult:
     reason: str
     range: float
     earth_clearance: float
+    off_boresight_angle: float | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +86,8 @@ def evaluate_inter_satellite_visibility(
     observer_state: Array,
     target_state: Array,
     config: VisibilityConfig | None = None,
+    *,
+    quaternion_i2b_wxyz: Array | None = None,
 ) -> VisibilityResult:
     """Evaluate range and finite-segment Earth occultation in ECI geometry."""
 
@@ -106,7 +117,24 @@ def evaluate_inter_satellite_visibility(
         and distance > limits.maximum_range + limits.tolerance
     ):
         return VisibilityResult(False, "range_exceeded", distance, clearance)
-    return VisibilityResult(True, "visible", distance, clearance)
+    off_boresight_angle = None
+    if limits.field_of_view_half_angle is not None:
+        if quaternion_i2b_wxyz is None:
+            raise ValueError(
+                "FOV visibility requires observer quaternion_i2b_wxyz."
+            )
+        relative_body = quat_to_dcm_i2b(quaternion_i2b_wxyz) @ relative
+        cosine = float(np.clip(relative_body[0] / distance, -1.0, 1.0))
+        off_boresight_angle = float(np.arccos(cosine))
+        if off_boresight_angle > (
+            limits.field_of_view_half_angle + limits.tolerance
+        ):
+            return VisibilityResult(
+                False, "outside_fov", distance, clearance, off_boresight_angle
+            )
+    return VisibilityResult(
+        True, "visible", distance, clearance, off_boresight_angle
+    )
 
 
 def generate_inter_satellite_observation_opportunities(
@@ -115,6 +143,7 @@ def generate_inter_satellite_observation_opportunities(
     truth_state_history_by_node: Mapping[str, Array],
     candidate_topology: CandidateTopology,
     visibility_by_modality: Mapping[str, VisibilityConfig],
+    attitude_history_by_node: Mapping[str, Array] | None = None,
 ) -> tuple[MeasurementOpportunity, ...]:
     """Generate directed physical observation opportunities for every epoch."""
 
@@ -146,6 +175,9 @@ def generate_inter_satellite_observation_opportunities(
         )
         for node_id in node_ids
     }
+    attitude_histories = _attitude_histories(
+        attitude_history_by_node, node_ids=node_ids, count=times.size,
+    )
     opportunities = []
     for index, timestamp in enumerate(times):
         for observer_id in node_ids:
@@ -157,6 +189,10 @@ def generate_inter_satellite_observation_opportunities(
                     visibility = evaluate_inter_satellite_visibility(
                         histories[observer_id][index], histories[target_id][index],
                         normalized_visibility[modality],
+                        quaternion_i2b_wxyz=(
+                            None if attitude_histories is None
+                            else attitude_histories[observer_id][index]
+                        ),
                     )
                     opportunities.append(MeasurementOpportunity(
                         timestamp=float(timestamp), observer_id=observer_id,
@@ -243,6 +279,26 @@ def _state_history(history: Array, count: int, node_id: str) -> Array:
     if not np.all(np.isfinite(values)):
         raise ValueError(f"Truth history for {node_id} must contain finite values.")
     return values
+
+
+def _attitude_histories(histories, *, node_ids, count):
+    if histories is None:
+        return None
+    if set(histories) != set(node_ids):
+        raise ValueError("Attitude-history keys must match candidate topology nodes.")
+    result = {}
+    for node_id in node_ids:
+        values = np.asarray(histories[node_id], dtype=float)
+        if values.shape != (count, 4) or not np.all(np.isfinite(values)):
+            raise ValueError(
+                f"Attitude history for {node_id} must have shape ({count}, 4) "
+                "and contain finite values."
+            )
+        norms = np.linalg.norm(values, axis=1)
+        if np.any(norms < 1e-15):
+            raise ValueError("Attitude quaternions must have nonzero norm.")
+        result[node_id] = values / norms[:, None]
+    return result
 
 
 def _count_summary(

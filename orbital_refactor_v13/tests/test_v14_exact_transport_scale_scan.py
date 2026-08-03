@@ -81,6 +81,46 @@ def test_scale_scan_visibility_rejects_unsupported_modalities():
             visibility_by_modality={"AZ_EL": VisibilityConfig()},
         )
     except ValueError as error:
-        assert "supports only RANGE" in str(error)
+        assert "must match enabled relative modalities" in str(error)
     else:
         raise AssertionError("Expected unsupported visibility modality rejection.")
+
+
+def test_scale_scan_supports_visibility_filtered_range_and_range_rate():
+    result = run_v14_exact_transport_smoke_scan(
+        node_count=3, topology_type="chain", seeds=1, duration=4.0, dt=2.0,
+        scenario_names=("ideal",), modes=("exact_transport_event_replay",),
+        relative_modalities=("RANGE", "RANGE_RATE"),
+        visibility_by_modality={
+            "RANGE": VisibilityConfig(maximum_range=1500.0),
+            "RANGE_RATE": VisibilityConfig(maximum_range=1500.0),
+        },
+    )
+
+    assert result.visibility_summary is not None
+    assert set(result.visibility_summary.by_modality) == {"RANGE", "RANGE_RATE"}
+    summary = result.summary_by_scenario_and_mode[
+        ("ideal", "exact_transport_event_replay")
+    ]
+    assert summary.mean_nis > 0.0
+    assert summary.psd_failure_count == 0
+
+
+def test_scale_scan_supports_eci_az_el_with_dimension_aware_nis():
+    result = run_v14_exact_transport_smoke_scan(
+        node_count=3, topology_type="chain", seeds=1, duration=4.0, dt=2.0,
+        scenario_names=("ideal",), modes=("exact_transport_event_replay",),
+        relative_modalities=("RANGE", "AZ_EL"),
+        visibility_by_modality={
+            "RANGE": VisibilityConfig(maximum_range=3000.0),
+            "AZ_EL": VisibilityConfig(maximum_range=3000.0),
+        },
+    )
+
+    summary = result.summary_by_scenario_and_mode[
+        ("ideal", "exact_transport_event_replay")
+    ]
+    assert set(summary.mean_nis_by_modality) == {"RANGE", "AZ_EL"}
+    assert set(summary.mean_nis_95_coverage_by_modality) == {"RANGE", "AZ_EL"}
+    assert 0.0 <= summary.mean_nis_95_coverage <= 1.0
+    assert summary.psd_failure_count == 0

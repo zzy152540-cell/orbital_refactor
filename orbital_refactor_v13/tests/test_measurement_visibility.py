@@ -63,6 +63,39 @@ def test_maximum_range_is_applied_after_clear_line_of_sight():
     assert result.reason == "range_exceeded"
 
 
+def test_body_fov_uses_positive_x_boresight_and_reports_angle():
+    observer = np.array([ORBIT_RADIUS, 0.0, 0.0])
+    identity_i2b = np.array([1.0, 0.0, 0.0, 0.0])
+    config = VisibilityConfig(field_of_view_half_angle=np.deg2rad(20.0))
+
+    on_axis = evaluate_inter_satellite_visibility(
+        observer, observer + np.array([1000.0, 0.0, 0.0]), config,
+        quaternion_i2b_wxyz=identity_i2b,
+    )
+    off_axis = evaluate_inter_satellite_visibility(
+        observer, observer + np.array([0.0, 1000.0, 0.0]), config,
+        quaternion_i2b_wxyz=identity_i2b,
+    )
+
+    assert on_axis.visible
+    assert on_axis.off_boresight_angle == pytest.approx(0.0)
+    assert not off_axis.visible
+    assert off_axis.reason == "outside_fov"
+    assert off_axis.off_boresight_angle == pytest.approx(np.pi / 2.0)
+
+
+def test_fov_requires_attitude_and_valid_half_angle():
+    observer = np.array([ORBIT_RADIUS, 0.0, 0.0])
+    target = observer + np.array([1000.0, 0.0, 0.0])
+    with pytest.raises(ValueError, match="field_of_view_half_angle"):
+        VisibilityConfig(field_of_view_half_angle=0.0)
+    with pytest.raises(ValueError, match="requires observer quaternion"):
+        evaluate_inter_satellite_visibility(
+            observer, target,
+            VisibilityConfig(field_of_view_half_angle=np.deg2rad(20.0)),
+        )
+
+
 def test_earth_occultation_can_be_disabled_for_control_experiments():
     first = np.array([ORBIT_RADIUS, 0.0, 0.0])
     result = evaluate_inter_satellite_visibility(
@@ -135,6 +168,33 @@ def test_opportunity_generator_preserves_invisible_reasons():
     assert len(opportunities) == 2
     assert all(not item.visibility.visible for item in opportunities)
     assert {item.visibility.reason for item in opportunities} == {"earth_occulted"}
+
+
+def test_opportunity_generator_applies_observer_attitude_history_to_fov():
+    times = np.array([0.0])
+    topology = chain_topology(["a", "b"])
+    truth = {
+        "a": np.array([[ORBIT_RADIUS, 0.0, 0.0]]),
+        "b": np.array([[ORBIT_RADIUS + 1000.0, 0.0, 0.0]]),
+    }
+    attitudes = {
+        node: np.array([[1.0, 0.0, 0.0, 0.0]]) for node in truth
+    }
+
+    opportunities = generate_inter_satellite_observation_opportunities(
+        timestamps=times, truth_state_history_by_node=truth,
+        candidate_topology=topology,
+        visibility_by_modality={
+            "AZ_EL": VisibilityConfig(
+                field_of_view_half_angle=np.deg2rad(20.0)
+            ),
+        },
+        attitude_history_by_node=attitudes,
+    )
+
+    by_observer = {item.observer_id: item for item in opportunities}
+    assert by_observer["a"].visibility.visible
+    assert by_observer["b"].visibility.reason == "outside_fov"
 
 
 def test_opportunity_generator_validates_inputs():

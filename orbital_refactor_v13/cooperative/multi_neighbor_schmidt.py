@@ -109,6 +109,8 @@ def multi_neighbor_schmidt_update(
     state: MultiNeighborSchmidtState, observation: ObservationMessage, *,
     quaternion_i2b_wxyz: Array | None = None, regularization: float = 1e-9,
 ) -> MultiNeighborSchmidtUpdateResult:
+    if quaternion_i2b_wxyz is None and observation.frame.upper() == "BODY":
+        quaternion_i2b_wxyz = observation.metadata.get("quaternion_i2b_wxyz")
     if not np.isclose(float(observation.timestamp), float(state.timestamp)):
         raise ValueError("Observation and Schmidt state timestamps must match.")
     if observation.information_id in state.information_ids:

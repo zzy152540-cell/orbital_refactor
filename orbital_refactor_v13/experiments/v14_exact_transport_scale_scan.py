@@ -15,7 +15,12 @@ from cooperative.topology import chain_topology, ring_topology, star_topology
 from interfaces.data_objects import ObservationMessage, StateMessage
 from orbital_core.constants import R_EARTH
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
-from orbital_core.measurements import measure_relative_range
+from orbital_core.measurements import (
+    measure_relative_az_el,
+    measure_relative_range,
+    measure_relative_range_rate,
+)
+from orbital_core.inter_satellite_model import body_angle_effective_covariance
 from orbital_core.metrics import compute_nees_history, compute_rmse
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.fleet_scenario import generate_fleet_scenario
@@ -29,6 +34,7 @@ from scenarios.measurement_visibility import (
 Array = np.ndarray
 NEES_95_DOF6 = (1.2373442458, 14.4493753354)
 NIS_95_DOF1 = (0.0009820691, 5.0238861873)
+NIS_95_DOF2 = (0.0506356159, 7.3777589082)
 
 
 @dataclass(frozen=True)
@@ -44,6 +50,8 @@ class ExactTransportScanSummary:
     mean_nees_95_coverage: float
     mean_nis: float
     mean_nis_95_coverage: float
+    mean_nis_by_modality: dict[str, float]
+    mean_nis_95_coverage_by_modality: dict[str, float]
     message_acceptance_rate: float
     message_rejection_count: int
     psd_failure_count: int
@@ -84,18 +92,28 @@ class ExactTransportTopologyScanResult:
 
 def run_v14_exact_transport_smoke_scan(
     *, seeds: int = 20, duration: float = 60.0, dt: float = 2.0,
-    range_sigma: float = 2.0, absolute_sigma: float = 3.0,
+    range_sigma: float = 2.0, range_rate_sigma: float = 0.02,
+    az_el_sigma: float = np.deg2rad(0.05),
+    absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
     node_count: int = 3, topology_type: str = "chain",
     scenario_names: tuple[str, ...] | None = None,
     modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
     visibility_by_modality: dict[str, VisibilityConfig] | None = None,
+    relative_modalities: tuple[str, ...] = ("RANGE",),
 ) -> ExactTransportScaleScanResult:
     """Run the production network API over five configurable fleet cases."""
     if seeds < 1:
         raise ValueError("seeds must be at least one.")
     if node_count < 2:
         raise ValueError("node_count must be at least two.")
+    supported_relative_modalities = {"RANGE", "RANGE_RATE", "AZ_EL"}
+    if (
+        not relative_modalities
+        or len(set(relative_modalities)) != len(relative_modalities)
+        or set(relative_modalities) - supported_relative_modalities
+    ):
+        raise ValueError("relative_modalities must uniquely select RANGE, RANGE_RATE, and/or AZ_EL.")
     all_scenarios = {
         "ideal": (0.0, 0.0, 10.0),
         "loss_20_percent": (0.2, 0.0, 10.0),
@@ -125,12 +143,14 @@ def run_v14_exact_transport_smoke_scan(
         for scenario, (loss, delay, history_window) in scenarios.items():
             case = _build_case(
                 seed=seed, duration=duration, dt=dt, range_sigma=range_sigma,
+                range_rate_sigma=range_rate_sigma, az_el_sigma=az_el_sigma,
                 absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=loss, delay=delay,
                 acknowledge_messages=delay <= history_window,
                 node_count=node_count, topology_type=topology_type,
                 visibility_by_modality=visibility_by_modality,
+                relative_modalities=relative_modalities,
             )
             if visibility_summary is None:
                 visibility_summary = case["visibility_summary"]
@@ -178,6 +198,10 @@ def run_v14_exact_transport_smoke_scan(
             mean_nees_95_coverage=float(np.mean([value[3] for value in values])),
             mean_nis=float(np.mean([value[4] for value in values])),
             mean_nis_95_coverage=float(np.mean([value[5] for value in values])),
+            mean_nis_by_modality=_mean_metric_dict([value[14] for value in values]),
+            mean_nis_95_coverage_by_modality=_mean_metric_dict(
+                [value[15] for value in values]
+            ),
             message_acceptance_rate=(accepted / processed if processed else 0.0),
             message_rejection_count=rejected,
             psd_failure_count=sum(value[10] for value in values),
@@ -215,43 +239,88 @@ def run_v14_exact_transport_smoke_scan(
 def run_v14_exact_transport_topology_scan(
     *, node_count: int = 5, topology_types: tuple[str, ...] = ("chain", "ring", "star"),
     seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
-    range_sigma: float = 2.0, absolute_sigma: float = 3.0,
+    range_sigma: float = 2.0, range_rate_sigma: float = 0.02,
+    az_el_sigma: float = np.deg2rad(0.05),
+    absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
     scenario_names: tuple[str, ...] | None = None,
     modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
     visibility_by_modality: dict[str, VisibilityConfig] | None = None,
+    relative_modalities: tuple[str, ...] = ("RANGE",),
 ) -> ExactTransportTopologyScanResult:
     results = {}
     for topology_type in topology_types:
         results[topology_type] = run_v14_exact_transport_smoke_scan(
             seeds=seeds, duration=duration, dt=dt,
-            range_sigma=range_sigma, absolute_sigma=absolute_sigma,
+            range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
+            az_el_sigma=az_el_sigma,
+            absolute_sigma=absolute_sigma,
             process_noise_acceleration=process_noise_acceleration,
             node_count=node_count, topology_type=topology_type,
             scenario_names=scenario_names, modes=modes,
             visibility_by_modality=visibility_by_modality,
+            relative_modalities=relative_modalities,
         )
     return ExactTransportTopologyScanResult(results)
 
 
 def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 process_noise_acceleration, packet_loss, delay, acknowledge_messages,
-                node_count, topology_type, visibility_by_modality=None):
+                node_count, topology_type, visibility_by_modality=None,
+                truth_initial_state_by_node=None, range_rate_sigma=0.02,
+                az_el_sigma=np.deg2rad(0.05),
+                az_el_frame="ECI", attitude_history_by_node=None,
+                estimated_attitude_history_by_node=None,
+                attitude_covariance=None,
+                relative_modalities=("RANGE",)):
     rng = np.random.default_rng(20260830 + seed)
+    range_rate_rng = np.random.default_rng(20260930 + seed)
+    az_el_rng = np.random.default_rng(20261030 + seed)
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     base = keplerian_to_eci(R_EARTH + 700e3, 0.001, np.deg2rad(23.0), 0.0, 0.0, 0.0)
     center = 0.5 * (node_count - 1)
-    truth_initials = {
-        f"sat_{index + 1:02d}": base + np.array([
-            1200.0 * (index - center),
-            100.0 * np.sin(2.0 * np.pi * index / node_count),
-            30.0 * np.cos(2.0 * np.pi * index / node_count),
-            0.0, 0.02 * (index - center), 0.0,
-        ])
-        for index in range(node_count)
-    }
+    truth_initials = (
+        {
+            f"sat_{index + 1:02d}": base + np.array([
+                1200.0 * (index - center),
+                100.0 * np.sin(2.0 * np.pi * index / node_count),
+                30.0 * np.cos(2.0 * np.pi * index / node_count),
+                0.0, 0.02 * (index - center), 0.0,
+            ])
+            for index in range(node_count)
+        }
+        if truth_initial_state_by_node is None
+        else {
+            str(node_id): np.asarray(state, dtype=float).reshape(6).copy()
+            for node_id, state in truth_initial_state_by_node.items()
+        }
+    )
+    if len(truth_initials) != node_count:
+        raise ValueError("Truth initial-state count must match node_count.")
     scenario = generate_fleet_scenario(timestamps=timestamps, initial_state_by_node=truth_initials)
     truth = scenario.truth_state_history_by_node
+    az_el_frame = str(az_el_frame).upper()
+    if az_el_frame not in {"ECI", "BODY"}:
+        raise ValueError("az_el_frame must be 'ECI' or 'BODY'.")
+    if az_el_frame == "BODY":
+        if attitude_history_by_node is None:
+            raise ValueError("BODY AZ_EL requires attitude_history_by_node.")
+        if set(attitude_history_by_node) != set(scenario.node_ids):
+            raise ValueError("Attitude-history keys must match scenario nodes.")
+        attitude_history_by_node = {
+            node: np.asarray(values, dtype=float).reshape(len(timestamps), 4)
+            for node, values in attitude_history_by_node.items()
+        }
+        if estimated_attitude_history_by_node is None:
+            estimated_attitude_history_by_node = attitude_history_by_node
+        if set(estimated_attitude_history_by_node) != set(scenario.node_ids):
+            raise ValueError("Estimated-attitude keys must match scenario nodes.")
+        estimated_attitude_history_by_node = {
+            node: np.asarray(values, dtype=float).reshape(len(timestamps), 4)
+            for node, values in estimated_attitude_history_by_node.items()
+        }
+        if attitude_covariance is not None:
+            attitude_covariance = np.asarray(attitude_covariance, dtype=float).reshape(3, 3)
     covariance = np.diag([10, 10, 10, 0.02, 0.02, 0.02]) ** 2
     initial_states = {node: truth_initials[node] + rng.multivariate_normal(np.zeros(6), covariance) for node in scenario.node_ids}
     initial_covariances = {node: covariance.copy() for node in scenario.node_ids}
@@ -264,19 +333,22 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     visibility_summary = None
     visible_range_opportunities = None
     if visibility_by_modality is not None:
-        if set(visibility_by_modality) != {"RANGE"}:
+        if set(visibility_by_modality) != set(relative_modalities):
             raise ValueError(
-                "The current scale scan visibility path supports only RANGE."
+                "Visibility configurations must match enabled relative modalities."
             )
         opportunities = generate_inter_satellite_observation_opportunities(
             timestamps=timestamps,
             truth_state_history_by_node=truth,
             candidate_topology=topology,
             visibility_by_modality=visibility_by_modality,
+            attitude_history_by_node=(
+                attitude_history_by_node if az_el_frame == "BODY" else None
+            ),
         )
         visibility_summary = summarize_observation_opportunities(opportunities)
         visible_range_opportunities = {
-            (item.timestamp, item.observer_id, item.target_id)
+            (item.timestamp, item.observer_id, item.target_id, item.modality)
             for item in opportunities if item.visibility.visible
         }
     edges = tuple((receiver, source) for receiver in topology.node_ids for source in topology.neighbors(receiver))
@@ -362,19 +434,80 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     consecutive_losses[(receiver, source)] += 1
         for observer in topology.node_ids:
             for target in topology.neighbors(observer):
-                if (
-                    visible_range_opportunities is not None
-                    and (float(timestamp), observer, target)
-                    not in visible_range_opportunities
+                range_noise = rng.normal(0.0, range_sigma)
+                if "RANGE" in relative_modalities and (
+                    visible_range_opportunities is None
+                    or (float(timestamp), observer, target, "RANGE")
+                    in visible_range_opportunities
                 ):
-                    continue
-                information_id = f"{observer}->{target}:range:{index}"
-                observations.append(ObservationMessage(
-                    message_id=information_id, observer_id=observer, target_id=target,
-                    timestamp=float(timestamp), modality="RANGE",
-                    measurement=np.array([measure_relative_range(truth[observer][index], truth[target][index]) + rng.normal(0.0, range_sigma)]),
-                    covariance=np.array([[range_sigma**2]]),
-                ))
+                    information_id = f"{observer}->{target}:range:{index}"
+                    observations.append(ObservationMessage(
+                        message_id=information_id, observer_id=observer, target_id=target,
+                        timestamp=float(timestamp), modality="RANGE",
+                        measurement=np.array([measure_relative_range(
+                            truth[observer][index], truth[target][index]
+                        ) + range_noise]),
+                        covariance=np.array([[range_sigma**2]]),
+                    ))
+                if "RANGE_RATE" in relative_modalities:
+                    rate_noise = range_rate_rng.normal(0.0, range_rate_sigma)
+                    if (
+                        visible_range_opportunities is None
+                        or (float(timestamp), observer, target, "RANGE_RATE")
+                        in visible_range_opportunities
+                    ):
+                        information_id = f"{observer}->{target}:range_rate:{index}"
+                        observations.append(ObservationMessage(
+                            message_id=information_id, observer_id=observer,
+                            target_id=target, timestamp=float(timestamp),
+                            modality="RANGE_RATE",
+                            measurement=np.array([measure_relative_range_rate(
+                                truth[observer][index], truth[target][index]
+                            ) + rate_noise]),
+                            covariance=np.array([[range_rate_sigma**2]]),
+                        ))
+                if "AZ_EL" in relative_modalities:
+                    angle_noise = az_el_rng.normal(0.0, az_el_sigma, 2)
+                    if (
+                        visible_range_opportunities is None
+                        or (float(timestamp), observer, target, "AZ_EL")
+                        in visible_range_opportunities
+                    ):
+                        information_id = f"{observer}->{target}:az_el:{index}"
+                        truth_quaternion = (
+                            attitude_history_by_node[observer][index]
+                            if az_el_frame == "BODY" else None
+                        )
+                        estimate_quaternion = (
+                            estimated_attitude_history_by_node[observer][index]
+                            if az_el_frame == "BODY" else None
+                        )
+                        sensor_covariance = np.eye(2) * az_el_sigma**2
+                        measurement_covariance = (
+                            body_angle_effective_covariance(
+                                truth[observer][index], truth[target][index],
+                                quaternion_i2b_wxyz=estimate_quaternion,
+                                sensor_covariance=sensor_covariance,
+                                attitude_covariance=attitude_covariance,
+                            )
+                            if attitude_covariance is not None
+                            else sensor_covariance
+                        )
+                        observations.append(ObservationMessage(
+                            message_id=information_id, observer_id=observer,
+                            target_id=target, timestamp=float(timestamp),
+                            modality="AZ_EL", frame=az_el_frame,
+                            measurement=measure_relative_az_el(
+                                truth[observer][index], truth[target][index],
+                                frame=az_el_frame,
+                                quaternion_i2b_wxyz=truth_quaternion,
+                            ) + angle_noise,
+                            covariance=measurement_covariance,
+                            metadata=(
+                                {"quaternion_i2b_wxyz": estimate_quaternion.copy()}
+                                if estimate_quaternion is not None else {}
+                            ),
+                        ))
     return {
         "timestamps": timestamps, "truth": truth, "initial_states": initial_states,
         "initial_covariances": initial_covariances, "topology": topology,
@@ -387,11 +520,17 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
 
 def _metrics(history, truth, transmitted_count, run_seconds):
     position = []; velocity = []; nees = []; nis = []; minimum = float("inf"); failures = 0
+    nis_by_modality: dict[str, list[float]] = {}
     for node in history.node_ids:
         error = history.active_state_history_by_node[node] - truth[node]
         position.append(error[:, :3]); velocity.append(error[:, 3:])
         nees.extend(compute_nees_history(history.active_state_history_by_node[node], truth[node], history.active_covariance_history_by_node[node]))
-        nis.extend(value for epoch in history.nis_history_by_node[node] for value in epoch.values())
+        for epoch in history.nis_history_by_node[node]:
+            for information_id, value in epoch.items():
+                nis.append(value)
+                nis_by_modality.setdefault(
+                    _modality_from_information_id(information_id), []
+                ).append(value)
         for covariance in history.joint_covariance_history_by_node[node]:
             value = float(np.linalg.eigvalsh(covariance).min()); minimum = min(minimum, value)
             failures += int(value < -1e-8)
@@ -445,15 +584,51 @@ def _metrics(history, truth, transmitted_count, run_seconds):
     return (
         compute_rmse(np.vstack(position)), compute_rmse(np.vstack(velocity)),
         float(np.mean(nees)), _coverage(nees, NEES_95_DOF6),
-        float(np.mean(nis)), _coverage(nis, NIS_95_DOF1), minimum,
+        float(np.mean(nis)), _modality_aware_nis_coverage(nis_by_modality), minimum,
         accepted, transmitted_count, rejected, failures, rejection_counts,
         float(run_seconds), performance,
+        {key: float(np.mean(value)) for key, value in nis_by_modality.items()},
+        {
+            key: _coverage(np.asarray(value), _nis_interval(key))
+            for key, value in nis_by_modality.items()
+        },
     )
 
 
 def _coverage(values, interval):
     lower, upper = interval
     return float(np.mean((values >= lower) & (values <= upper)))
+
+
+def _modality_from_information_id(information_id):
+    if ":range_rate:" in information_id:
+        return "RANGE_RATE"
+    if ":az_el:" in information_id:
+        return "AZ_EL"
+    return "RANGE"
+
+
+def _nis_interval(modality):
+    return NIS_95_DOF2 if modality == "AZ_EL" else NIS_95_DOF1
+
+
+def _modality_aware_nis_coverage(values_by_modality):
+    covered = 0
+    count = 0
+    for modality, values in values_by_modality.items():
+        array = np.asarray(values)
+        lower, upper = _nis_interval(modality)
+        covered += int(np.count_nonzero((array >= lower) & (array <= upper)))
+        count += int(array.size)
+    return covered / count if count else float("nan")
+
+
+def _mean_metric_dict(values):
+    keys = sorted({key for value in values for key in value})
+    return {
+        key: float(np.mean([value[key] for value in values if key in value]))
+        for key in keys
+    }
 
 
 def _sum_rejection_counts(values):
