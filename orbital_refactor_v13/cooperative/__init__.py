@@ -62,6 +62,11 @@ from cooperative.exact_transport_protocol import (
 from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.schmidt_event_replay import SchmidtReplayResult, replay_schmidt_events
 from cooperative.schmidt_transport_replay import replay_transport_event_bundle
+from cooperative.multi_neighbor_replay_coordinator import (
+    CoordinatorMessageResult,
+    MultiNeighborReplayCoordinator,
+    RemoteTransportEvent,
+)
 from cooperative.consensus_runner import (
     CommunicationStats,
     DistributedConsensusHistory,
@@ -140,6 +145,9 @@ __all__ = [
     "SchmidtReplayResult",
     "replay_schmidt_events",
     "replay_transport_event_bundle",
+    "CoordinatorMessageResult",
+    "MultiNeighborReplayCoordinator",
+    "RemoteTransportEvent",
     "build_module_inputs",
     "evaluate_cooperative_result",
     "run_cooperative_pipeline",

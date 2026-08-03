@@ -1,8 +1,9 @@
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
+from cooperative.exact_transport_protocol import build_exact_transport_state_message
 from cooperative.topology import chain_topology, fully_connected_topology
-from interfaces.data_objects import ObservationMessage
+from interfaces.data_objects import CovarianceTransportEvent, ObservationMessage
 from orbital_core.measurements import (
     measure_relative_az_el,
     measure_relative_range,
@@ -157,3 +158,36 @@ def test_exact_transport_is_only_accepted_for_matching_provenance_baseline():
     )
     assert sum(history.refresh_diagnostics.values()) == 4
     assert history.refresh_diagnostics["accepted"] < 4
+
+
+def test_formal_network_mode_replays_neighbor_state_messages():
+    timestamps, states, covariances, observations = _case()
+    transition = np.eye(6) * 0.9
+    noise = np.eye(6) * 0.1
+    updated = states["sat_01"] + np.array([2.0, -1.0, 0, 0, 0, 0])
+    event = CovarianceTransportEvent(
+        timestamp=0.0, state_estimate=updated,
+        error_transition=transition, independent_process_noise=noise,
+        information_ids=("sat01-private-update",),
+    )
+    message = build_exact_transport_state_message(
+        source_node_id="sat_01", timestamp=0.0, reference_timestamp=0.0,
+        reference_state=states["sat_01"],
+        reference_covariance=covariances["sat_01"],
+        updated_state=updated, error_transition=transition,
+        independent_process_noise=noise, lineage_id="sat01:0",
+        transport_events=(event,),
+    )
+    history = run_network_schmidt_filter(
+        timestamps=timestamps, initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=observations,
+        consider_refresh_mode="exact_transport_event_replay",
+        state_messages_by_receiver={"sat_02": [message]},
+        process_noise_acceleration=0.0,
+    )
+    assert history.refresh_diagnostics["accepted"] == 1
+    assert np.linalg.eigvalsh(
+        history.joint_covariance_history_by_node["sat_02"][-1]
+    ).min() >= -1e-8

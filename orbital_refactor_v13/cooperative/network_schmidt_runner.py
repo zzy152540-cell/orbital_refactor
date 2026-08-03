@@ -16,8 +16,9 @@ from cooperative.schmidt_refresh import (
     exact_transport_eligibility,
     refresh_consider_neighbor,
 )
+from cooperative.multi_neighbor_replay_coordinator import MultiNeighborReplayCoordinator
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
-from interfaces.data_objects import ObservationMessage
+from interfaces.data_objects import ObservationMessage, StateMessage
 
 Array = np.ndarray
 
@@ -48,6 +49,9 @@ def run_network_schmidt_filter(
     observation_usage: str = "observer_only",
     process_noise_acceleration: float = 1e-4,
     consider_refresh_mode: str = "propagate_only",
+    state_messages_by_receiver: Mapping[str, Iterable[StateMessage]] | None = None,
+    replay_history_window: float | None = None,
+    expected_lineage_by_link: Mapping[tuple[str, str], str] | None = None,
 ) -> NetworkSchmidtHistory:
     """Run one local multi-neighbor Schmidt filter at every topology node.
 
@@ -63,8 +67,10 @@ def run_network_schmidt_filter(
         raise ValueError(
             "observation_usage must be 'observer_only' or 'both_endpoints'."
         )
-    if consider_refresh_mode not in {"propagate_only", "safe_rescale", "zero_cross", "exact_if_compatible"}:
+    if consider_refresh_mode not in {"propagate_only", "safe_rescale", "zero_cross", "exact_if_compatible", "exact_transport_event_replay"}:
         raise ValueError("Unsupported network consider_refresh_mode.")
+    if state_messages_by_receiver and consider_refresh_mode != "exact_transport_event_replay":
+        raise ValueError("State messages require exact_transport_event_replay mode.")
     node_ids = topology.node_ids
     states = _initial_values(initial_state_by_node, node_ids, (6,), "state")
     covariances = _initial_values(
@@ -87,6 +93,21 @@ def run_network_schmidt_filter(
         )
         for node_id in node_ids
     }
+    coordinators = (
+        {
+            node_id: MultiNeighborReplayCoordinator(
+                local_states[node_id],
+                process_noise_acceleration=process_noise_acceleration,
+                history_window=replay_history_window,
+            )
+            for node_id in node_ids
+        }
+        if consider_refresh_mode == "exact_transport_event_replay"
+        else {}
+    )
+    pending_state_messages = _prepare_state_messages(
+        state_messages_by_receiver or {}, node_ids, topology
+    )
     observations_by_time_and_owner = _route_observations(
         observation_messages,
         times=times,
@@ -123,7 +144,28 @@ def run_network_schmidt_filter(
     }
 
     for index, timestamp in enumerate(times):
-        if index > 0:
+        if consider_refresh_mode == "exact_transport_event_replay":
+            if index > 0:
+                for coordinator in coordinators.values():
+                    coordinator.advance(float(timestamp))
+            for node_id in node_ids:
+                remaining = []
+                for message in pending_state_messages[node_id]:
+                    arrival = message.timestamp if message.arrival_timestamp is None else message.arrival_timestamp
+                    if float(arrival) <= float(timestamp):
+                        outcome = coordinators[node_id].apply_state_message(
+                            message,
+                            expected_lineage_id=(expected_lineage_by_link or {}).get(
+                                (node_id, str(message.source_node_id))
+                            ),
+                        )
+                        key = "accepted" if outcome.accepted else outcome.reason
+                        refresh_diagnostics[key] = refresh_diagnostics.get(key, 0) + 1
+                    else:
+                        remaining.append(message)
+                pending_state_messages[node_id] = remaining
+                local_states[node_id] = coordinators[node_id].state
+        elif index > 0:
             local_states = {
                 node_id: multi_neighbor_schmidt_predict(
                     local_states[node_id], float(timestamp),
@@ -175,9 +217,14 @@ def run_network_schmidt_filter(
             for observation in observations_by_time_and_owner[float(timestamp)].get(
                 node_id, []
             ):
-                update = multi_neighbor_schmidt_update(state, observation)
-                state = update.state
-                epoch_nis[observation.information_id] = update.nis
+                if consider_refresh_mode == "exact_transport_event_replay":
+                    value = coordinators[node_id].apply_observation(observation)
+                    state = coordinators[node_id].state
+                    epoch_nis[observation.information_id] = value
+                else:
+                    update = multi_neighbor_schmidt_update(state, observation)
+                    state = update.state
+                    epoch_nis[observation.information_id] = update.nis
             local_states[node_id] = state
             active_states[node_id][index] = state.active_state
             active_covariances[node_id][index] = state.active_covariance
@@ -253,4 +300,24 @@ def _initial_values(
         if array.shape != shape:
             raise ValueError(f"Initial {name} for {node_id} must have shape {shape}.")
         result[node_id] = array.copy()
+    return result
+
+
+def _prepare_state_messages(
+    messages_by_receiver: Mapping[str, Iterable[StateMessage]],
+    node_ids: tuple[str, ...], topology: NetworkTopology,
+) -> dict[str, list[StateMessage]]:
+    unknown = set(messages_by_receiver) - set(node_ids)
+    if unknown:
+        raise ValueError("State-message receiver IDs must belong to the topology.")
+    result = {node_id: [] for node_id in node_ids}
+    for receiver_id, messages in messages_by_receiver.items():
+        for message in messages:
+            if str(message.source_node_id) not in topology.neighbors(receiver_id):
+                raise ValueError("State-message source must be a receiver neighbor.")
+            result[receiver_id].append(message)
+        result[receiver_id].sort(key=lambda item: (
+            float(item.timestamp if item.arrival_timestamp is None else item.arrival_timestamp),
+            float(item.timestamp), str(item.source_node_id),
+        ))
     return result
