@@ -1,5 +1,6 @@
 from experiments.v14_exact_transport_scale_scan import run_v14_exact_transport_smoke_scan
 from experiments.v14_exact_transport_scale_scan import run_v14_exact_transport_topology_scan
+from scenarios.measurement_visibility import VisibilityConfig
 
 
 def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
@@ -49,3 +50,37 @@ def test_topology_scan_can_select_formal_scenarios_and_modes():
     )
     summaries = result.result_by_topology["chain"].summary_by_scenario_and_mode
     assert set(summaries) == {("ideal", "exact_transport_event_replay")}
+
+
+def test_optional_visibility_filters_range_measurements_and_reports_summary():
+    baseline = run_v14_exact_transport_smoke_scan(
+        node_count=5, topology_type="star", seeds=1, duration=4.0, dt=2.0,
+        scenario_names=("ideal",), modes=("propagate_only",),
+    )
+    visible = run_v14_exact_transport_smoke_scan(
+        node_count=5, topology_type="star", seeds=1, duration=4.0, dt=2.0,
+        scenario_names=("ideal",), modes=("propagate_only",),
+        visibility_by_modality={
+            "RANGE": VisibilityConfig(maximum_range=1500.0)
+        },
+    )
+
+    assert baseline.visibility_summary is None
+    assert visible.visibility_summary is not None
+    assert 0.0 < visible.visibility_summary.overall.visibility_rate < 1.0
+    baseline_nis = baseline.summary_by_scenario_and_mode[("ideal", "propagate_only")].mean_nis
+    visible_nis = visible.summary_by_scenario_and_mode[("ideal", "propagate_only")].mean_nis
+    assert baseline_nis != visible_nis
+
+
+def test_scale_scan_visibility_rejects_unsupported_modalities():
+    try:
+        run_v14_exact_transport_smoke_scan(
+            seeds=1, duration=4.0, dt=2.0,
+            scenario_names=("ideal",), modes=("propagate_only",),
+            visibility_by_modality={"AZ_EL": VisibilityConfig()},
+        )
+    except ValueError as error:
+        assert "supports only RANGE" in str(error)
+    else:
+        raise AssertionError("Expected unsupported visibility modality rejection.")

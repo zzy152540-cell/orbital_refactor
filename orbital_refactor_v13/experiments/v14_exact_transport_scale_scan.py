@@ -19,6 +19,12 @@ from orbital_core.measurements import measure_relative_range
 from orbital_core.metrics import compute_nees_history, compute_rmse
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.fleet_scenario import generate_fleet_scenario
+from scenarios.measurement_visibility import (
+    VisibilityConfig,
+    VisibilityOpportunitySummary,
+    generate_inter_satellite_observation_opportunities,
+    summarize_observation_opportunities,
+)
 
 Array = np.ndarray
 NEES_95_DOF6 = (1.2373442458, 14.4493753354)
@@ -68,6 +74,7 @@ class ExactTransportScanSummary:
 class ExactTransportScaleScanResult:
     summary_by_scenario_and_mode: dict[tuple[str, str], ExactTransportScanSummary]
     diagnostic_records: tuple[dict[str, object], ...] = ()
+    visibility_summary: VisibilityOpportunitySummary | None = None
 
 
 @dataclass(frozen=True)
@@ -82,6 +89,7 @@ def run_v14_exact_transport_smoke_scan(
     node_count: int = 3, topology_type: str = "chain",
     scenario_names: tuple[str, ...] | None = None,
     modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
+    visibility_by_modality: dict[str, VisibilityConfig] | None = None,
 ) -> ExactTransportScaleScanResult:
     """Run the production network API over five configurable fleet cases."""
     if seeds < 1:
@@ -96,16 +104,23 @@ def run_v14_exact_transport_smoke_scan(
         "insufficient_history": (0.0, 3.0 * dt, 2.0 * dt),
     }
     selected_scenarios = tuple(all_scenarios) if scenario_names is None else scenario_names
+    if not selected_scenarios:
+        raise ValueError("At least one scenario must be selected.")
+    if len(set(selected_scenarios)) != len(selected_scenarios):
+        raise ValueError("Scenario names must be unique.")
     unknown_scenarios = set(selected_scenarios) - set(all_scenarios)
     if unknown_scenarios:
         raise ValueError(f"Unknown scenario names: {sorted(unknown_scenarios)}")
     supported_modes = {"propagate_only", "exact_transport_event_replay"}
+    if len(set(modes)) != len(modes):
+        raise ValueError("Modes must be unique.")
     unknown_modes = set(modes) - supported_modes
     if unknown_modes or not modes:
         raise ValueError(f"Unsupported or empty modes: {sorted(unknown_modes)}")
     scenarios = {name: all_scenarios[name] for name in selected_scenarios}
     collected = {(scenario, mode): [] for scenario in scenarios for mode in modes}
     diagnostic_records = []
+    visibility_summary = None
     for seed in range(seeds):
         for scenario, (loss, delay, history_window) in scenarios.items():
             case = _build_case(
@@ -115,7 +130,10 @@ def run_v14_exact_transport_smoke_scan(
                 packet_loss=loss, delay=delay,
                 acknowledge_messages=delay <= history_window,
                 node_count=node_count, topology_type=topology_type,
+                visibility_by_modality=visibility_by_modality,
             )
+            if visibility_summary is None:
+                visibility_summary = case["visibility_summary"]
             for mode in modes:
                 started = perf_counter()
                 history = run_network_schmidt_filter(
@@ -189,7 +207,9 @@ def run_v14_exact_transport_smoke_scan(
             maximum_resync_required_count=max(value[13]["maximum_resync_required_count"] for value in values),
             maximum_retained_journal_count=max(value[13]["maximum_retained_journal_count"] for value in values),
         )
-    return ExactTransportScaleScanResult(summaries, tuple(diagnostic_records))
+    return ExactTransportScaleScanResult(
+        summaries, tuple(diagnostic_records), visibility_summary
+    )
 
 
 def run_v14_exact_transport_topology_scan(
@@ -199,6 +219,7 @@ def run_v14_exact_transport_topology_scan(
     process_noise_acceleration: float = 1e-8,
     scenario_names: tuple[str, ...] | None = None,
     modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
+    visibility_by_modality: dict[str, VisibilityConfig] | None = None,
 ) -> ExactTransportTopologyScanResult:
     results = {}
     for topology_type in topology_types:
@@ -208,13 +229,14 @@ def run_v14_exact_transport_topology_scan(
             process_noise_acceleration=process_noise_acceleration,
             node_count=node_count, topology_type=topology_type,
             scenario_names=scenario_names, modes=modes,
+            visibility_by_modality=visibility_by_modality,
         )
     return ExactTransportTopologyScanResult(results)
 
 
 def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 process_noise_acceleration, packet_loss, delay, acknowledge_messages,
-                node_count, topology_type):
+                node_count, topology_type, visibility_by_modality=None):
     rng = np.random.default_rng(20260830 + seed)
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     base = keplerian_to_eci(R_EARTH + 700e3, 0.001, np.deg2rad(23.0), 0.0, 0.0, 0.0)
@@ -239,6 +261,24 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     if topology_type not in topology_builders:
         raise ValueError("topology_type must be 'chain', 'ring', or 'star'.")
     topology = topology_builders[topology_type](list(scenario.node_ids))
+    visibility_summary = None
+    visible_range_opportunities = None
+    if visibility_by_modality is not None:
+        if set(visibility_by_modality) != {"RANGE"}:
+            raise ValueError(
+                "The current scale scan visibility path supports only RANGE."
+            )
+        opportunities = generate_inter_satellite_observation_opportunities(
+            timestamps=timestamps,
+            truth_state_history_by_node=truth,
+            candidate_topology=topology,
+            visibility_by_modality=visibility_by_modality,
+        )
+        visibility_summary = summarize_observation_opportunities(opportunities)
+        visible_range_opportunities = {
+            (item.timestamp, item.observer_id, item.target_id)
+            for item in opportunities if item.visibility.visible
+        }
     edges = tuple((receiver, source) for receiver in topology.node_ids for source in topology.neighbors(receiver))
     sender_state = {node: value.copy() for node, value in initial_states.items()}
     sender_covariance = {node: covariance.copy() for node in scenario.node_ids}
@@ -322,6 +362,12 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     consecutive_losses[(receiver, source)] += 1
         for observer in topology.node_ids:
             for target in topology.neighbors(observer):
+                if (
+                    visible_range_opportunities is not None
+                    and (float(timestamp), observer, target)
+                    not in visible_range_opportunities
+                ):
+                    continue
                 information_id = f"{observer}->{target}:range:{index}"
                 observations.append(ObservationMessage(
                     message_id=information_id, observer_id=observer, target_id=target,
@@ -335,6 +381,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
         "observations": observations, "state_messages": state_messages,
         "transmitted_messages": transmitted_messages,
         "lineages": {(receiver, source): f"{source}->{receiver}:0" for receiver, source in edges},
+        "visibility_summary": visibility_summary,
     }
 
 
