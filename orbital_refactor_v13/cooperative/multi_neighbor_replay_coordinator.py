@@ -82,6 +82,16 @@ class MultiNeighborReplayCoordinator:
             checkpoint, message, expected_lineage_id=expected_lineage_id,
         )
         if not validation.accepted:
+            posterior_checkpoint = self._posterior_states.get(float(reference_timestamp))
+            if posterior_checkpoint is not None:
+                posterior_validation = apply_exact_transport_state_message(
+                    posterior_checkpoint, message,
+                    expected_lineage_id=expected_lineage_id,
+                )
+                if posterior_validation.accepted:
+                    checkpoint = posterior_checkpoint
+                    validation = posterior_validation
+        if not validation.accepted:
             return CoordinatorMessageResult(False, validation.reason)
         neighbor_id = str(message.source_node_id)
         new_count = 0
@@ -99,7 +109,7 @@ class MultiNeighborReplayCoordinator:
             self._remote_events[key] = RemoteTransportEvent(neighbor_id, event)
             new_keys.append(key)
             new_count += 1
-        self._replay_from(float(reference_timestamp))
+        self._replay_from(float(reference_timestamp), starting_state=checkpoint)
         endpoint = self._posterior_states.get(float(message.timestamp))
         endpoint_matches = endpoint is not None and np.allclose(
             endpoint.neighbor_state_by_id[neighbor_id], message.state_estimate,
@@ -111,7 +121,7 @@ class MultiNeighborReplayCoordinator:
         if not endpoint_matches:
             for key in new_keys:
                 self._remote_events.pop(key, None)
-            self._replay_from(float(reference_timestamp))
+            self._replay_from(float(reference_timestamp), starting_state=checkpoint)
             return CoordinatorMessageResult(False, "event_bundle_endpoint_mismatch")
         return CoordinatorMessageResult(True, "accepted", new_count)
 
@@ -119,9 +129,12 @@ class MultiNeighborReplayCoordinator:
     def checkpoint_timestamps(self) -> tuple[float, ...]:
         return tuple(sorted(self._checkpoints))
 
-    def _replay_from(self, reference_timestamp: float) -> None:
+    def _replay_from(
+        self, reference_timestamp: float,
+        starting_state: MultiNeighborSchmidtState | None = None,
+    ) -> None:
         current_timestamp = float(self.state.timestamp)
-        current = self._checkpoints[reference_timestamp]
+        current = self._checkpoints[reference_timestamp] if starting_state is None else starting_state
         event_times = {
             float(item.event.timestamp) for item in self._remote_events.values()
             if reference_timestamp <= float(item.event.timestamp) <= current_timestamp
@@ -137,7 +150,8 @@ class MultiNeighborReplayCoordinator:
                     current, timestamp,
                     process_noise_acceleration=self.process_noise_acceleration,
                 )
-            self._checkpoints[timestamp] = current
+            if starting_state is None or timestamp > reference_timestamp:
+                self._checkpoints[timestamp] = current
             remote = sorted(
                 (item for item in self._remote_events.values()
                  if np.isclose(float(item.event.timestamp), timestamp)),
