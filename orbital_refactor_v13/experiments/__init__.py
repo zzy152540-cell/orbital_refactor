@@ -23,6 +23,7 @@ from experiments.v14_exact_transport_scale_scan import (
     ExactTransportScaleScanResult,
     ExactTransportScanSummary,
     run_v14_exact_transport_smoke_scan,
+    export_exact_transport_diagnostics,
 )
 
 __all__ = [
@@ -42,4 +43,5 @@ __all__ = [
     "run_neighbor_update_transport_monte_carlo",
     "run_exact_transport_orbit_communication_validation",
     "run_v14_exact_transport_smoke_scan",
+    "export_exact_transport_diagnostics",
 ]

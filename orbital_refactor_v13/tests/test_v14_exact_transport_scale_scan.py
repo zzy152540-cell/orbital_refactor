@@ -9,3 +9,11 @@ def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
     assert ideal.psd_failure_count == 0
     insufficient = result.summary_by_scenario_and_mode[("insufficient_history", "exact_transport_event_replay")]
     assert insufficient.message_rejection_count > 0
+    assert any(
+        "consecutive_losses_before_delivery" in record
+        for record in result.diagnostic_records
+    )
+    assert any(
+        record["reason"] == "history_unavailable"
+        for record in result.diagnostic_records
+    )

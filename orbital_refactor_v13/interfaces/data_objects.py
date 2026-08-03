@@ -75,6 +75,7 @@ class StateMessage:
     reference_state_estimate: Array | None = None
     reference_covariance: Array | None = None
     transport_events: tuple[CovarianceTransportEvent, ...] = ()
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

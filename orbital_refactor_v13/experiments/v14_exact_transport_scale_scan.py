@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from dataclasses import replace
+import csv
+from pathlib import Path
 
 import numpy as np
 
@@ -43,6 +46,7 @@ class ExactTransportScanSummary:
 @dataclass(frozen=True)
 class ExactTransportScaleScanResult:
     summary_by_scenario_and_mode: dict[tuple[str, str], ExactTransportScanSummary]
+    diagnostic_records: tuple[dict[str, object], ...] = ()
 
 
 def run_v14_exact_transport_smoke_scan(
@@ -62,6 +66,7 @@ def run_v14_exact_transport_smoke_scan(
     }
     modes = ("propagate_only", "exact_transport_event_replay")
     collected = {(scenario, mode): [] for scenario in scenarios for mode in modes}
+    diagnostic_records = []
     for seed in range(seeds):
         for scenario, (loss, delay, history_window) in scenarios.items():
             case = _build_case(
@@ -88,6 +93,10 @@ def run_v14_exact_transport_smoke_scan(
                 collected[(scenario, mode)].append(
                     _metrics(history, case["truth"], len(case["transmitted_messages"]))
                 )
+                for record in history.refresh_diagnostic_records:
+                    diagnostic_records.append({
+                        "seed": seed, "scenario": scenario, "mode": mode, **record
+                    })
     summaries = {}
     for key, values in collected.items():
         scenario, mode = key
@@ -108,7 +117,7 @@ def run_v14_exact_transport_smoke_scan(
             transmitted_state_messages=attempted,
             rejection_counts=_sum_rejection_counts([value[11] for value in values]),
         )
-    return ExactTransportScaleScanResult(summaries)
+    return ExactTransportScaleScanResult(summaries, tuple(diagnostic_records))
 
 
 def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
@@ -146,6 +155,8 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     state_messages = {node: [] for node in topology.node_ids}
     transmitted_messages: list[StateMessage] = []
     pending_acks = []
+    consecutive_losses = {edge: 0 for edge in edges}
+    link_sequence = {edge: 0 for edge in edges}
     observations = []
     h = np.zeros((3, 6)); h[:, :3] = np.eye(3)
     absolute_covariance = np.eye(3) * absolute_sigma**2
@@ -186,11 +197,26 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     event_process_noise=update_noise,
                 )
                 message = accumulator.build_message()
+                link_sequence[(receiver, source)] += 1
                 transmitted = channels[(receiver, source)].transmit(message)
                 if transmitted is not None:
+                    ack_eligible = bool(acknowledge_messages)
+                    transmitted = replace(
+                        transmitted,
+                        metadata={
+                            "link_sequence": link_sequence[(receiver, source)],
+                            "consecutive_losses_before_delivery": consecutive_losses[(receiver, source)],
+                            "reference_event_count": len(message.transport_events),
+                            "ack_eligible": ack_eligible,
+                        },
+                    )
+                    consecutive_losses[(receiver, source)] = 0
                     state_messages[receiver].append(transmitted)
                     transmitted_messages.append(transmitted)
-                    pending_acks.append((float(transmitted.arrival_timestamp), (receiver, source), message))
+                    if ack_eligible:
+                        pending_acks.append((float(transmitted.arrival_timestamp), (receiver, source), message))
+                else:
+                    consecutive_losses[(receiver, source)] += 1
         for observer in topology.node_ids:
             for target in topology.neighbors(observer):
                 information_id = f"{observer}->{target}:range:{index}"
@@ -245,3 +271,17 @@ def _sum_rejection_counts(values):
         for key, count in counts.items():
             result[key] = result.get(key, 0) + int(count)
     return result
+
+
+def export_exact_transport_diagnostics(
+    result: ExactTransportScaleScanResult, output_path: str | Path,
+) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    records = list(result.diagnostic_records)
+    fieldnames = sorted({key for record in records for key in record})
+    with path.open("w", newline="", encoding="utf-8-sig") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(records)
+    return path

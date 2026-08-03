@@ -66,6 +66,7 @@ from cooperative.multi_neighbor_replay_coordinator import (
     CoordinatorMessageResult,
     MultiNeighborReplayCoordinator,
     RemoteTransportEvent,
+    ResynchronizationBaseline,
 )
 from cooperative.consensus_runner import (
     CommunicationStats,
@@ -148,6 +149,7 @@ __all__ = [
     "CoordinatorMessageResult",
     "MultiNeighborReplayCoordinator",
     "RemoteTransportEvent",
+    "ResynchronizationBaseline",
     "build_module_inputs",
     "evaluate_cooperative_result",
     "run_cooperative_pipeline",

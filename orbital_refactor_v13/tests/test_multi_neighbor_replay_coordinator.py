@@ -1,10 +1,12 @@
 import numpy as np
 
 from cooperative.exact_transport_protocol import build_exact_transport_state_message
+from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.multi_neighbor_replay_coordinator import MultiNeighborReplayCoordinator
 from cooperative.multi_neighbor_schmidt import initialize_multi_neighbor_schmidt
 from interfaces.data_objects import CovarianceTransportEvent, ObservationMessage
 from orbital_core.measurements import measure_relative_range
+from orbital_core.dynamics import numerical_jacobian_discrete, rk4_step_absolute
 
 
 def _case():
@@ -97,3 +99,85 @@ def test_event_bundle_must_reproduce_advertised_endpoint():
     result = coordinator.apply_state_message(tampered)
     assert not result.accepted
     assert result.reason == "event_bundle_endpoint_mismatch"
+
+
+def test_last_ack_checkpoint_is_pinned_beyond_fixed_lag_window():
+    state, messages, _ = _case()
+    first_message = messages["left"]
+    coordinator = MultiNeighborReplayCoordinator(
+        state, process_noise_acceleration=0.0, history_window=1.0
+    )
+    assert coordinator.apply_state_message(first_message).accepted
+    accumulator = ExactTransportAccumulator(
+        source_node_id="left", lineage_id="left:0",
+        reference_timestamp=0.0,
+        reference_state=first_message.state_estimate,
+        reference_covariance=first_message.covariance,
+    )
+    remote_state = first_message.state_estimate.copy()
+    for timestamp in (1.0, 2.0, 3.0, 4.0):
+        transition = numerical_jacobian_discrete(
+            lambda value: rk4_step_absolute(value, 1.0), remote_state
+        )
+        remote_state = rk4_step_absolute(remote_state, 1.0)
+        accumulator.append(
+            timestamp=timestamp, updated_state=remote_state,
+            error_transition=transition,
+            independent_process_noise=np.zeros((6, 6)),
+            information_ids=(f"left:prediction:{int(timestamp)}",),
+            event_error_transition=np.eye(6),
+            event_process_noise=np.zeros((6, 6)),
+        )
+        coordinator.advance(timestamp)
+    assert 0.0 not in coordinator.checkpoint_timestamps
+    assert coordinator.oldest_pinned_timestamp == 0.0
+    recovered = coordinator.apply_state_message(accumulator.build_message())
+    assert recovered.accepted
+    assert coordinator.oldest_pinned_timestamp == 4.0
+
+
+def test_pinned_age_limit_requires_explicit_new_lineage_resynchronization():
+    state, messages, _ = _case()
+    coordinator = MultiNeighborReplayCoordinator(
+        state, process_noise_acceleration=0.0,
+        history_window=1.0, max_pinned_age=2.0,
+    )
+    assert coordinator.apply_state_message(messages["left"]).accepted
+    for timestamp in (1.0, 2.0, 3.0):
+        coordinator.advance(timestamp)
+    assert coordinator.resynchronization_requirements[("left", "left:0")] == "max_pinned_age_exceeded"
+    assert coordinator.apply_state_message(messages["left"]).reason == "resync_required"
+
+    baseline = coordinator.establish_resynchronized_link(
+        neighbor_id="left", lineage_id="left:resync:1"
+    )
+    transition = np.eye(6) * 0.95; noise = np.eye(6) * 0.01
+    updated = baseline.state_estimate + np.array([0.5, 0, 0, 0, 0, 0])
+    event = CovarianceTransportEvent(
+        timestamp=3.0, state_estimate=updated,
+        error_transition=transition, independent_process_noise=noise,
+        information_ids=("left:resync-update",),
+    )
+    message = build_exact_transport_state_message(
+        source_node_id="left", timestamp=3.0,
+        reference_timestamp=baseline.timestamp,
+        reference_state=baseline.state_estimate,
+        reference_covariance=baseline.covariance,
+        updated_state=updated, error_transition=transition,
+        independent_process_noise=noise, lineage_id=baseline.lineage_id,
+        transport_events=(event,),
+    )
+    assert coordinator.apply_state_message(
+        message, expected_lineage_id="left:resync:1"
+    ).accepted
+
+
+def test_retained_event_limit_marks_link_for_resynchronization():
+    state, messages, observation = _case()
+    coordinator = MultiNeighborReplayCoordinator(
+        state, max_retained_events=1
+    )
+    assert coordinator.apply_state_message(messages["left"]).accepted
+    coordinator.apply_observation(observation)
+    requirement = coordinator.resynchronization_requirements
+    assert requirement[("left", "left:0")] == "max_retained_events_exceeded"
