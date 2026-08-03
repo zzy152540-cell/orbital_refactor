@@ -97,6 +97,61 @@ def test_dynamic_recovery_supports_target_pointing_body_az_el_and_fov():
     assert exact.psd_failure_count == 0
 
 
+def test_dynamic_fov_recovery_is_driven_by_body_pointing_not_range():
+    result = run_v14_dynamic_visibility_experiment(
+        seeds=1, duration=120.0, dt=2.0, transition_type="recovery",
+        visibility_driver="fov",
+        relative_modalities=("RANGE", "RANGE_RATE", "AZ_EL"),
+        az_el_frame="BODY",
+        az_el_field_of_view_half_angle=np.deg2rad(5.0),
+    )
+
+    exact = result.summary_by_case_and_mode[
+        ("visibility_limited", "exact_transport_event_replay")
+    ]
+    assert exact.transition_timestamp > 0.0
+    assert result.visibility_summary.by_modality["RANGE"].visibility_rate == 1.0
+    assert 0.0 < result.visibility_summary.by_modality["AZ_EL"].visibility_rate < 1.0
+    assert set(
+        result.visibility_summary.by_modality["AZ_EL"].rejection_counts
+    ) == {"outside_fov"}
+    assert (
+        result.visibility_summary.by_modality["AZ_EL"]
+        .rejection_counts["outside_fov"] > 0
+    )
+    assert exact.psd_failure_count == 0
+
+
+def test_dynamic_fov_hysteresis_suppresses_jitter_chatter():
+    common = dict(
+        seeds=1, duration=120.0, dt=2.0, transition_type="recovery",
+        visibility_driver="fov",
+        relative_modalities=("RANGE", "RANGE_RATE", "AZ_EL"),
+        az_el_frame="BODY",
+        az_el_field_of_view_half_angle=np.deg2rad(5.0),
+        fov_jitter_amplitude=np.deg2rad(0.8),
+    )
+    raw = run_v14_dynamic_visibility_experiment(**common)
+    stabilized = run_v14_dynamic_visibility_experiment(
+        **common, fov_hysteresis=np.deg2rad(0.2),
+        fov_acquisition_epochs=2, fov_loss_epochs=2,
+    )
+
+    key = ("sat_a", "sat_b", "AZ_EL")
+    raw_switches = (
+        raw.visibility_summary.availability_switch_count_by_edge_and_modality[key]
+    )
+    stabilized_switches = (
+        stabilized.visibility_summary
+        .availability_switch_count_by_edge_and_modality[key]
+    )
+    assert raw_switches > 1
+    assert stabilized_switches < raw_switches
+    assert stabilized.summary_by_case_and_mode[
+        ("visibility_limited", "exact_transport_event_replay")
+    ].psd_failure_count == 0
+
+
 def test_range_rate_sensitivity_uses_fixed_range_baseline():
     result = run_v14_range_rate_sensitivity(
         range_rate_sigmas=(0.02, 0.05), seeds=1, duration=120.0, dt=2.0,

@@ -18,7 +18,11 @@ from scenarios.fleet_scenario import (
     DifferentialOrbitOffset,
     generate_differential_orbit_fleet_scenario,
 )
-from scenarios.measurement_visibility import VisibilityConfig, VisibilityOpportunitySummary
+from scenarios.measurement_visibility import (
+    VisibilityConfig,
+    VisibilityOpportunitySummary,
+    VisibilityTemporalFilterConfig,
+)
 
 
 @dataclass(frozen=True)
@@ -73,6 +77,7 @@ class AttitudeErrorConsistencyResult:
 def run_v14_dynamic_visibility_experiment(
     *, seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
     maximum_range: float | None = None, transition_type: str = "loss",
+    visibility_driver: str = "range",
     range_sigma: float = 2.0,
     range_rate_sigma: float = 0.02,
     az_el_sigma: float = np.deg2rad(0.05),
@@ -80,6 +85,10 @@ def run_v14_dynamic_visibility_experiment(
     az_el_field_of_view_half_angle: float | None = None,
     attitude_error_sigma: float = 0.0,
     inflate_attitude_covariance: bool = False,
+    fov_jitter_amplitude: float = 0.0,
+    fov_hysteresis: float = 0.0,
+    fov_acquisition_epochs: int = 1,
+    fov_loss_epochs: int = 1,
     relative_modalities: tuple[str, ...] = ("RANGE",),
     absolute_sigma: float = 3.0, process_noise_acceleration: float = 1e-8,
 ) -> DynamicVisibilityExperimentResult:
@@ -89,6 +98,8 @@ def run_v14_dynamic_visibility_experiment(
         raise ValueError("seeds must be at least one.")
     if transition_type not in {"loss", "recovery"}:
         raise ValueError("transition_type must be 'loss' or 'recovery'.")
+    if visibility_driver not in {"range", "fov"}:
+        raise ValueError("visibility_driver must be 'range' or 'fov'.")
     if (
         not relative_modalities
         or len(set(relative_modalities)) != len(relative_modalities)
@@ -96,7 +107,10 @@ def run_v14_dynamic_visibility_experiment(
     ):
         raise ValueError("relative_modalities must uniquely select RANGE, RANGE_RATE, and/or AZ_EL.")
     if maximum_range is None:
-        maximum_range = 5000.0 if transition_type == "loss" else 5800.0
+        maximum_range = (
+            1.0e9 if visibility_driver == "fov"
+            else (5000.0 if transition_type == "loss" else 5800.0)
+        )
     anomaly_offset = -0.0006 if transition_type == "loss" else 0.0008
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     scenario = generate_differential_orbit_fleet_scenario(
@@ -128,6 +142,11 @@ def run_v14_dynamic_visibility_experiment(
         and normalized_az_el_frame != "BODY"
     ):
         raise ValueError("AZ_EL FOV requires az_el_frame='BODY'.")
+    if visibility_driver == "fov":
+        if normalized_az_el_frame != "BODY" or "AZ_EL" not in relative_modalities:
+            raise ValueError("FOV visibility transitions require BODY AZ_EL.")
+        if az_el_field_of_view_half_angle is None:
+            az_el_field_of_view_half_angle = float(np.deg2rad(5.0))
     if attitude_error_sigma < 0.0:
         raise ValueError("attitude_error_sigma cannot be negative.")
     if attitude_error_sigma > 0.0 and normalized_az_el_frame != "BODY":
@@ -136,12 +155,25 @@ def run_v14_dynamic_visibility_experiment(
         raise ValueError(
             "Attitude covariance inflation requires positive attitude_error_sigma."
         )
+    if fov_jitter_amplitude < 0.0:
+        raise ValueError("fov_jitter_amplitude cannot be negative.")
+    if (fov_jitter_amplitude > 0.0 or fov_hysteresis > 0.0) and (
+        visibility_driver != "fov"
+    ):
+        raise ValueError("FOV jitter and hysteresis require visibility_driver='fov'.")
     attitude_history = (
         _two_node_target_pointing_attitude_history(
             scenario.truth_state_history_by_node
         )
         if normalized_az_el_frame == "BODY" else None
     )
+    if visibility_driver == "fov":
+        attitude_history = _slew_target_pointing_attitude_history(
+            attitude_history,
+            maximum_offset=2.0 * az_el_field_of_view_half_angle,
+            transition_type=transition_type,
+            jitter_amplitude=fov_jitter_amplitude,
+        )
     visibility_config = {
         modality: VisibilityConfig(
             maximum_range=maximum_range,
@@ -152,6 +184,20 @@ def run_v14_dynamic_visibility_experiment(
         )
         for modality in relative_modalities
     }
+    temporal_filter = (
+        {
+            "AZ_EL": VisibilityTemporalFilterConfig(
+                acquisition_epochs=fov_acquisition_epochs,
+                loss_epochs=fov_loss_epochs,
+                fov_hysteresis=fov_hysteresis,
+            ),
+        }
+        if visibility_driver == "fov" and (
+            fov_hysteresis > 0.0
+            or fov_acquisition_epochs > 1
+            or fov_loss_epochs > 1
+        ) else None
+    )
     modes = ("propagate_only", "exact_transport_event_replay")
     collected = {
         (case, mode): []
@@ -178,6 +224,7 @@ def run_v14_dynamic_visibility_experiment(
                 attitude_history_by_node=attitude_history,
                 estimated_attitude_history_by_node=estimated_attitude_history,
                 attitude_covariance=attitude_covariance,
+                visibility_temporal_filter_by_modality=temporal_filter,
                 absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=0.0, delay=0.0, acknowledge_messages=True,
@@ -192,6 +239,7 @@ def run_v14_dynamic_visibility_experiment(
                 attitude_history_by_node=attitude_history,
                 estimated_attitude_history_by_node=estimated_attitude_history,
                 attitude_covariance=attitude_covariance,
+                visibility_temporal_filter_by_modality=temporal_filter,
                 absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=0.0, delay=0.0, acknowledge_messages=True,
@@ -203,9 +251,18 @@ def run_v14_dynamic_visibility_experiment(
         }
         if visibility_summary is None:
             visibility_summary = cases["visibility_limited"]["visibility_summary"]
-            epoch_counts = tuple(
-                visibility_summary.visible_directed_edge_count_by_timestamp.values()
-            )
+            if visibility_driver == "fov":
+                count_by_timestamp = {
+                    timestamp: count
+                    for (timestamp, modality), count in
+                    visibility_summary.visible_directed_edge_count_by_timestamp_and_modality.items()
+                    if modality == "AZ_EL"
+                }
+            else:
+                count_by_timestamp = (
+                    visibility_summary.visible_directed_edge_count_by_timestamp
+                )
+            epoch_counts = tuple(count_by_timestamp.values())
             if not any(epoch_counts) or not any(count == 0 for count in epoch_counts):
                 raise ValueError(
                     "The selected duration and range must contain a visibility transition."
@@ -213,7 +270,7 @@ def run_v14_dynamic_visibility_experiment(
             epoch_visibility = tuple(
                 (timestamp, count > 0)
                 for timestamp, count in
-                visibility_summary.visible_directed_edge_count_by_timestamp.items()
+                count_by_timestamp.items()
             )
             initially_visible = epoch_visibility[0][1]
             expected_initial = transition_type == "loss"
@@ -510,5 +567,27 @@ def _perturb_attitude_history(attitude_by_node, *, sigma, seed):
                 quaternion,
             ))
             for quaternion in history
+        ])
+    return result
+
+
+def _slew_target_pointing_attitude_history(
+    attitude_by_node, *, maximum_offset, transition_type, jitter_amplitude=0.0,
+):
+    result = {}
+    for node_id, history in attitude_by_node.items():
+        fractions = np.linspace(0.0, 1.0, len(history))
+        if transition_type == "recovery":
+            fractions = fractions[::-1]
+        offsets = (
+            maximum_offset * fractions
+            + jitter_amplitude * np.sin(2.0 * np.pi * 12.0 * fractions)
+        )
+        result[node_id] = np.vstack([
+            quat_normalize_wxyz(quat_multiply_wxyz(
+                small_angle_quaternion_wxyz(np.array([0.0, 0.0, offset])),
+                quaternion,
+            ))
+            for quaternion, offset in zip(history, offsets)
         ])
     return result

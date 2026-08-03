@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Mapping, Protocol
 
 import numpy as np
@@ -40,6 +40,21 @@ class VisibilityConfig:
 
 
 @dataclass(frozen=True)
+class VisibilityTemporalFilterConfig:
+    """Debounce and hysteresis applied after instantaneous geometry checks."""
+
+    acquisition_epochs: int = 1
+    loss_epochs: int = 1
+    fov_hysteresis: float = 0.0
+
+    def __post_init__(self) -> None:
+        if self.acquisition_epochs < 1 or self.loss_epochs < 1:
+            raise ValueError("Temporal confirmation epochs must be at least one.")
+        if self.fov_hysteresis < 0.0:
+            raise ValueError("fov_hysteresis cannot be negative.")
+
+
+@dataclass(frozen=True)
 class VisibilityResult:
     visible: bool
     reason: str
@@ -71,8 +86,12 @@ class VisibilityOpportunitySummary:
     by_modality: dict[str, VisibilityCountSummary]
     by_directed_edge: dict[tuple[str, str], VisibilityCountSummary]
     visible_directed_edge_count_by_timestamp: dict[float, int]
+    visible_directed_edge_count_by_timestamp_and_modality: dict[
+        tuple[float, str], int
+    ]
     longest_unavailable_epochs_by_edge_and_modality: dict[tuple[str, str, str], int]
     longest_unavailable_span_by_edge_and_modality: dict[tuple[str, str, str], float]
+    availability_switch_count_by_edge_and_modality: dict[tuple[str, str, str], int]
 
 
 class CandidateTopology(Protocol):
@@ -225,6 +244,9 @@ def summarize_observation_opportunities(
     edge_groups: dict[tuple[str, str], list[MeasurementOpportunity]] = {}
     timeline_groups: dict[tuple[str, str, str], list[MeasurementOpportunity]] = {}
     visible_edges: dict[float, set[tuple[str, str]]] = {}
+    visible_edges_by_time_and_modality: dict[
+        tuple[float, str], set[tuple[str, str]]
+    ] = {}
     all_timestamps = set()
     for item in ordered:
         modality_groups.setdefault(item.modality, []).append(item)
@@ -235,12 +257,21 @@ def summarize_observation_opportunities(
         all_timestamps.add(timestamp)
         if item.visibility.visible:
             visible_edges.setdefault(timestamp, set()).add(edge)
+            visible_edges_by_time_and_modality.setdefault(
+                (timestamp, item.modality), set()
+            ).add(edge)
     longest_epochs = {}
     longest_spans = {}
+    switch_counts = {}
     for key, values in timeline_groups.items():
         epochs, span = _longest_unavailable_run(values)
         longest_epochs[key] = epochs
         longest_spans[key] = span
+        ordered_values = sorted(values, key=lambda item: item.timestamp)
+        switch_counts[key] = sum(
+            left.visibility.visible != right.visibility.visible
+            for left, right in zip(ordered_values, ordered_values[1:])
+        )
     return VisibilityOpportunitySummary(
         overall=overall,
         by_modality={
@@ -255,9 +286,102 @@ def summarize_observation_opportunities(
             timestamp: len(visible_edges.get(timestamp, set()))
             for timestamp in sorted(all_timestamps)
         },
+        visible_directed_edge_count_by_timestamp_and_modality={
+            (timestamp, modality): len(
+                visible_edges_by_time_and_modality.get((timestamp, modality), set())
+            )
+            for timestamp in sorted(all_timestamps)
+            for modality in sorted(modality_groups)
+        },
         longest_unavailable_epochs_by_edge_and_modality=longest_epochs,
         longest_unavailable_span_by_edge_and_modality=longest_spans,
+        availability_switch_count_by_edge_and_modality=switch_counts,
     )
+
+
+def stabilize_observation_opportunities(
+    opportunities: tuple[MeasurementOpportunity, ...],
+    *,
+    visibility_by_modality: Mapping[str, VisibilityConfig],
+    temporal_filter_by_modality: Mapping[str, VisibilityTemporalFilterConfig],
+) -> tuple[MeasurementOpportunity, ...]:
+    """Apply per-link FOV hysteresis and consecutive-epoch confirmation."""
+
+    if not opportunities:
+        raise ValueError("At least one measurement opportunity is required.")
+    unknown = set(temporal_filter_by_modality) - set(visibility_by_modality)
+    if unknown:
+        raise ValueError(f"Temporal filters have unknown modalities: {sorted(unknown)}")
+    groups: dict[tuple[str, str, str], list[MeasurementOpportunity]] = {}
+    for item in opportunities:
+        groups.setdefault(
+            (item.observer_id, item.target_id, item.modality), []
+        ).append(item)
+    stabilized = []
+    for (_, _, modality), values in sorted(groups.items()):
+        limits = visibility_by_modality[modality]
+        settings = temporal_filter_by_modality.get(
+            modality, VisibilityTemporalFilterConfig()
+        )
+        if (
+            settings.fov_hysteresis > 0.0
+            and limits.field_of_view_half_angle is None
+        ):
+            raise ValueError("FOV hysteresis requires a modality FOV limit.")
+        if (
+            limits.field_of_view_half_angle is not None
+            and settings.fov_hysteresis >= limits.field_of_view_half_angle
+        ):
+            raise ValueError("fov_hysteresis must be smaller than the FOV half-angle.")
+        available = False
+        acquisition_count = 0
+        loss_count = 0
+        for item in sorted(values, key=lambda value: value.timestamp):
+            raw = item.visibility
+            fov_eligible = raw.reason in {"visible", "outside_fov"}
+            if not fov_eligible:
+                available = False
+                acquisition_count = 0
+                loss_count = 0
+                stabilized.append(item)
+                continue
+            candidate = raw.visible
+            if limits.field_of_view_half_angle is not None:
+                angle = raw.off_boresight_angle
+                if angle is None:
+                    raise ValueError("FOV temporal filtering requires off-boresight angle.")
+                threshold = limits.field_of_view_half_angle + (
+                    settings.fov_hysteresis if available
+                    else -settings.fov_hysteresis
+                )
+                candidate = angle <= threshold + limits.tolerance
+            if candidate:
+                loss_count = 0
+                acquisition_count += 1
+                if not available and acquisition_count >= settings.acquisition_epochs:
+                    available = True
+                visibility = replace(
+                    raw,
+                    visible=available,
+                    reason=("visible" if available else "acquisition_pending"),
+                )
+            else:
+                acquisition_count = 0
+                loss_count += 1
+                if available and loss_count >= settings.loss_epochs:
+                    available = False
+                visibility = replace(
+                    raw,
+                    visible=available,
+                    reason=("visible_temporal_hold" if available else "outside_fov"),
+                )
+            stabilized.append(replace(item, visibility=visibility))
+    return tuple(sorted(
+        stabilized,
+        key=lambda item: (
+            item.timestamp, item.observer_id, item.target_id, item.modality,
+        ),
+    ))
 
 
 def _position(state: Array, name: str) -> Array:

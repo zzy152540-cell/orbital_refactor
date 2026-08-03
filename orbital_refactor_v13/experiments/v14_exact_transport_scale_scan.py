@@ -29,6 +29,7 @@ from scenarios.measurement_visibility import (
     VisibilityOpportunitySummary,
     generate_inter_satellite_observation_opportunities,
     summarize_observation_opportunities,
+    stabilize_observation_opportunities,
 )
 
 Array = np.ndarray
@@ -272,6 +273,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 az_el_frame="ECI", attitude_history_by_node=None,
                 estimated_attitude_history_by_node=None,
                 attitude_covariance=None,
+                visibility_temporal_filter_by_modality=None,
                 relative_modalities=("RANGE",)):
     rng = np.random.default_rng(20260830 + seed)
     range_rate_rng = np.random.default_rng(20260930 + seed)
@@ -346,6 +348,14 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 attitude_history_by_node if az_el_frame == "BODY" else None
             ),
         )
+        if visibility_temporal_filter_by_modality is not None:
+            opportunities = stabilize_observation_opportunities(
+                opportunities,
+                visibility_by_modality=visibility_by_modality,
+                temporal_filter_by_modality=(
+                    visibility_temporal_filter_by_modality
+                ),
+            )
         visibility_summary = summarize_observation_opportunities(opportunities)
         visible_range_opportunities = {
             (item.timestamp, item.observer_id, item.target_id, item.modality)

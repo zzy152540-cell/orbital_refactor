@@ -3,10 +3,14 @@ import pytest
 
 from orbital_core.constants import R_EARTH
 from scenarios.measurement_visibility import (
+    MeasurementOpportunity,
     VisibilityConfig,
+    VisibilityResult,
+    VisibilityTemporalFilterConfig,
     evaluate_inter_satellite_visibility,
     generate_inter_satellite_observation_opportunities,
     summarize_observation_opportunities,
+    stabilize_observation_opportunities,
 )
 from cooperative.topology import chain_topology
 
@@ -239,6 +243,9 @@ def test_opportunity_summary_reports_modalities_edges_and_epoch_counts():
     assert summary.by_modality["RANGE"].opportunity_count == 8
     assert summary.by_directed_edge[("a", "b")].opportunity_count == 4
     assert summary.visible_directed_edge_count_by_timestamp == {0.0: 4, 2.0: 4}
+    assert summary.visible_directed_edge_count_by_timestamp_and_modality[
+        (0.0, "RANGE")
+    ] == 4
     assert all(
         value == 0
         for value in summary.longest_unavailable_epochs_by_edge_and_modality.values()
@@ -278,3 +285,71 @@ def test_opportunity_summary_reports_consecutive_range_outage():
 def test_opportunity_summary_rejects_empty_input():
     with pytest.raises(ValueError, match="At least one measurement opportunity"):
         summarize_observation_opportunities(())
+
+
+def test_fov_temporal_filter_suppresses_boundary_chatter():
+    half_angle = np.deg2rad(5.0)
+    angles = np.deg2rad([4.7, 5.1, 4.9, 5.2, 5.3, 4.8, 4.6, 4.4, 4.3])
+    raw = tuple(
+        MeasurementOpportunity(
+            timestamp=float(index), observer_id="a", target_id="b",
+            modality="AZ_EL",
+            visibility=VisibilityResult(
+                visible=angle <= half_angle,
+                reason="visible" if angle <= half_angle else "outside_fov",
+                range=1000.0, earth_clearance=ALTITUDE,
+                off_boresight_angle=float(angle),
+            ),
+        )
+        for index, angle in enumerate(angles)
+    )
+    limits = {"AZ_EL": VisibilityConfig(field_of_view_half_angle=half_angle)}
+    filtered = stabilize_observation_opportunities(
+        raw, visibility_by_modality=limits,
+        temporal_filter_by_modality={
+            "AZ_EL": VisibilityTemporalFilterConfig(
+                acquisition_epochs=2, loss_epochs=2,
+                fov_hysteresis=np.deg2rad(0.2),
+            ),
+        },
+    )
+
+    raw_switches = sum(
+        left.visibility.visible != right.visibility.visible
+        for left, right in zip(raw, raw[1:])
+    )
+    filtered_switches = sum(
+        left.visibility.visible != right.visibility.visible
+        for left, right in zip(filtered, filtered[1:])
+    )
+    assert raw_switches == 4
+    assert filtered_switches == 1
+    assert summarize_observation_opportunities(
+        filtered
+    ).availability_switch_count_by_edge_and_modality[("a", "b", "AZ_EL")] == 1
+    assert [item.visibility.visible for item in filtered] == [
+        False, False, False, False, False, False, True, True, True,
+    ]
+
+
+def test_fov_temporal_filter_validates_hysteresis_against_fov():
+    opportunity = MeasurementOpportunity(
+        timestamp=0.0, observer_id="a", target_id="b", modality="AZ_EL",
+        visibility=VisibilityResult(
+            True, "visible", 1000.0, ALTITUDE, np.deg2rad(1.0)
+        ),
+    )
+    with pytest.raises(ValueError, match="smaller than the FOV"):
+        stabilize_observation_opportunities(
+            (opportunity,),
+            visibility_by_modality={
+                "AZ_EL": VisibilityConfig(
+                    field_of_view_half_angle=np.deg2rad(5.0)
+                ),
+            },
+            temporal_filter_by_modality={
+                "AZ_EL": VisibilityTemporalFilterConfig(
+                    fov_hysteresis=np.deg2rad(5.0)
+                ),
+            },
+        )
