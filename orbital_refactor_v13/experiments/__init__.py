@@ -30,13 +30,29 @@ from experiments.v14_exact_transport_scale_scan import (
 from experiments.v14_dynamic_visibility import (
     AzElSensitivityResult,
     AttitudeErrorConsistencyResult,
+    ObservationCommunicationSummary,
+    ObservationSharingExperimentResult,
     DynamicVisibilityExperimentResult,
     DynamicVisibilityRunSummary,
     RangeRateSensitivityResult,
     run_v14_dynamic_visibility_experiment,
     run_v14_az_el_sensitivity,
     run_v14_attitude_error_consistency,
+    run_v14_observation_sharing_experiment,
     run_v14_range_rate_sensitivity,
+)
+from experiments.v14_third_party_tracking import (
+    ThirdPartyTrackingExperimentResult,
+    ThirdPartyTrackingSummary,
+    run_v14_third_party_tracking_experiment,
+)
+from experiments.v14_three_satellite_local_observation import (
+    OpticalSchedulingSummary,
+    ThreeSatelliteBodySchedulingResult,
+    ThreeSatelliteLocalObservationResult,
+    ThreeSatelliteLocalObservationSummary,
+    run_v14_three_satellite_local_observation_experiment,
+    run_v14_three_satellite_body_scheduling_experiment,
 )
 
 __all__ = [
@@ -53,6 +69,14 @@ __all__ = [
     "RangeRateSensitivityResult",
     "AzElSensitivityResult",
     "AttitudeErrorConsistencyResult",
+    "ObservationCommunicationSummary",
+    "ObservationSharingExperimentResult",
+    "ThirdPartyTrackingExperimentResult",
+    "ThirdPartyTrackingSummary",
+    "ThreeSatelliteLocalObservationResult",
+    "ThreeSatelliteLocalObservationSummary",
+    "OpticalSchedulingSummary",
+    "ThreeSatelliteBodySchedulingResult",
     "build_v14_comparison_case",
     "export_v14_comparison",
     "run_v14_comparison",
@@ -67,5 +91,9 @@ __all__ = [
     "run_v14_dynamic_visibility_experiment",
     "run_v14_az_el_sensitivity",
     "run_v14_attitude_error_consistency",
+    "run_v14_observation_sharing_experiment",
+    "run_v14_third_party_tracking_experiment",
+    "run_v14_three_satellite_local_observation_experiment",
+    "run_v14_three_satellite_body_scheduling_experiment",
     "run_v14_range_rate_sensitivity",
 ]

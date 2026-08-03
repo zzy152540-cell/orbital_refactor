@@ -91,6 +91,48 @@ def test_chain_network_builds_expected_local_schmidt_dimensions():
         ) >= -1e-8
 
 
+def test_exact_replay_routes_delayed_shared_observation_and_deduplicates_copy():
+    timestamps = np.array([0.0, 1.0])
+    first = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    second = first + np.array([1000.0, 100.0, 0.0, 0.0, 0.0, 0.0])
+    states = {"sat_01": first, "sat_02": second}
+    covariances = {node: np.eye(6) for node in states}
+    physical_id = "physical-range-0"
+    observation = ObservationMessage(
+        message_id="range-original", physical_observation_id=physical_id,
+        observer_id="sat_01", target_id="sat_02", timestamp=0.0,
+        arrival_timestamp=1.0, modality="RANGE",
+        measurement=np.array([measure_relative_range(first, second)]),
+        covariance=np.array([[1.0]]),
+    )
+    retransmission = ObservationMessage(
+        message_id="range-retransmission", physical_observation_id=physical_id,
+        observer_id="sat_01", target_id="sat_02", timestamp=0.0,
+        arrival_timestamp=1.0, modality="RANGE",
+        measurement=observation.measurement.copy(),
+        covariance=observation.covariance.copy(),
+    )
+
+    history = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02"]),
+        observation_messages=[observation, retransmission],
+        observation_usage="both_endpoints",
+        process_noise_acceleration=0.0,
+        consider_refresh_mode="exact_transport_event_replay",
+        replay_history_window=2.0,
+    )
+
+    assert set(history.nis_history_by_node["sat_01"][0]) == {physical_id}
+    assert history.nis_history_by_node["sat_02"][0] == {}
+    assert set(history.nis_history_by_node["sat_02"][1]) == {physical_id}
+    assert (
+        history.replay_performance_by_node["sat_02"].replayed_observations == 1
+    )
+
+
 def test_both_endpoint_routing_updates_the_target_local_filter_too():
     timestamps, states, covariances, observations = _case()
     history = run_network_schmidt_filter(
@@ -106,6 +148,35 @@ def test_both_endpoint_routing_updates_the_target_local_filter_too():
     assert len(history.nis_history_by_node["sat_01"][0]) == 3
     assert len(history.nis_history_by_node["sat_02"][0]) == 6
     assert len(history.nis_history_by_node["sat_03"][0]) == 3
+
+
+def test_observer_only_never_routes_a_to_b_observation_to_third_party_c():
+    timestamps, states, covariances, _ = _case()
+    observation = ObservationMessage(
+        message_id="a-to-b-only", physical_observation_id="physical-a-to-b",
+        observer_id="sat_01", target_id="sat_02", timestamp=0.0,
+        modality="RANGE",
+        measurement=np.array([
+            measure_relative_range(states["sat_01"], states["sat_02"])
+        ]),
+        covariance=np.array([[1.0]]),
+    )
+
+    history = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=fully_connected_topology(list(states)),
+        observation_messages=[observation],
+        observation_usage="observer_only",
+        process_noise_acceleration=0.0,
+    )
+
+    assert set(history.nis_history_by_node["sat_01"][0]) == {
+        "physical-a-to-b"
+    }
+    assert history.nis_history_by_node["sat_02"][0] == {}
+    assert history.nis_history_by_node["sat_03"][0] == {}
 
 
 def test_fully_connected_network_uses_eighteen_dimensions_at_every_node():

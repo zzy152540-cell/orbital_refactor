@@ -452,7 +452,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 ):
                     information_id = f"{observer}->{target}:range:{index}"
                     observations.append(ObservationMessage(
-                        message_id=information_id, observer_id=observer, target_id=target,
+                        message_id=information_id,
+                        physical_observation_id=information_id,
+                        observer_id=observer, target_id=target,
                         timestamp=float(timestamp), modality="RANGE",
                         measurement=np.array([measure_relative_range(
                             truth[observer][index], truth[target][index]
@@ -468,7 +470,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     ):
                         information_id = f"{observer}->{target}:range_rate:{index}"
                         observations.append(ObservationMessage(
-                            message_id=information_id, observer_id=observer,
+                            message_id=information_id,
+                            physical_observation_id=information_id,
+                            observer_id=observer,
                             target_id=target, timestamp=float(timestamp),
                             modality="RANGE_RATE",
                             measurement=np.array([measure_relative_range_rate(
@@ -504,7 +508,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                             else sensor_covariance
                         )
                         observations.append(ObservationMessage(
-                            message_id=information_id, observer_id=observer,
+                            message_id=information_id,
+                            physical_observation_id=information_id,
+                            observer_id=observer,
                             target_id=target, timestamp=float(timestamp),
                             modality="AZ_EL", frame=az_el_frame,
                             measurement=measure_relative_az_el(

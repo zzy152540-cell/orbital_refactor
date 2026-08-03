@@ -3,6 +3,7 @@ import numpy as np
 from experiments.v14_dynamic_visibility import (
     run_v14_az_el_sensitivity,
     run_v14_attitude_error_consistency,
+    run_v14_observation_sharing_experiment,
     run_v14_dynamic_visibility_experiment,
     run_v14_range_rate_sensitivity,
 )
@@ -150,6 +151,49 @@ def test_dynamic_fov_hysteresis_suppresses_jitter_chatter():
     assert stabilized.summary_by_case_and_mode[
         ("visibility_limited", "exact_transport_event_replay")
     ].psd_failure_count == 0
+
+
+def test_dynamic_observation_sharing_supports_delay_loss_and_exact_replay():
+    result = run_v14_dynamic_visibility_experiment(
+        seeds=1, duration=120.0, dt=2.0, transition_type="recovery",
+        relative_modalities=("RANGE", "RANGE_RATE", "AZ_EL"),
+        az_el_frame="BODY",
+        az_el_field_of_view_half_angle=np.deg2rad(5.0),
+        modes=("exact_transport_event_replay",),
+        observation_usage="both_endpoints",
+        observation_share_delay=2.0,
+        observation_share_packet_loss=0.2,
+    )
+
+    assert set(result.summary_by_case_and_mode) == {
+        ("continuous_range", "exact_transport_event_replay"),
+        ("visibility_limited", "exact_transport_event_replay"),
+    }
+    communication = result.observation_communication_summary
+    assert communication is not None
+    assert communication.attempted_count > 0
+    assert 0 < communication.delivered_count < communication.attempted_count
+    assert communication.dropped_count > 0
+    summary = result.summary_by_case_and_mode[
+        ("visibility_limited", "exact_transport_event_replay")
+    ]
+    assert summary.message_acceptance_rate == 1.0
+    assert summary.psd_failure_count == 0
+
+
+def test_observation_sharing_experiment_compares_all_three_paths():
+    result = run_v14_observation_sharing_experiment(
+        observation_delay=2.0, observation_packet_loss=0.2,
+        seeds=1, duration=120.0, dt=2.0,
+    )
+
+    assert result.observer_only.relative_modalities == (
+        "RANGE", "RANGE_RATE", "AZ_EL",
+    )
+    assert result.ideal_communication.dropped_count == 0
+    assert result.delay_loss_communication.dropped_count > 0
+    assert result.shared_ideal.psd_failure_count == 0
+    assert result.shared_delay_loss.psd_failure_count == 0
 
 
 def test_range_rate_sensitivity_uses_fixed_range_baseline():

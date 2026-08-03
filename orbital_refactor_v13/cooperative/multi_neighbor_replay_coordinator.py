@@ -114,6 +114,31 @@ class MultiNeighborReplayCoordinator:
         self._record_resource_peaks()
         return update.nis
 
+    def apply_delayed_observation(
+        self, observation: ObservationMessage,
+    ) -> float | None:
+        """Insert one arrived observation at source time and replay once."""
+
+        information_id = observation.information_id
+        existing = self._observations.get(information_id)
+        if existing is not None:
+            if not _same_observation(existing, observation):
+                raise ValueError("Conflicting copies share a physical observation ID.")
+            return None
+        timestamp = float(observation.timestamp)
+        current_timestamp = float(self.state.timestamp)
+        if timestamp > current_timestamp:
+            raise ValueError("Observation timestamp cannot be in the future.")
+        if np.isclose(timestamp, current_timestamp):
+            return self.apply_observation(observation)
+        if timestamp not in self._checkpoints:
+            raise ValueError("Observation timestamp is unavailable in replay history.")
+        self._observations[information_id] = observation
+        nis_by_id = self._replay_from(timestamp)
+        self._enforce_resource_limits(current_timestamp)
+        self._record_resource_peaks()
+        return nis_by_id[information_id]
+
     def apply_state_message(
         self, message: StateMessage, *, expected_lineage_id: str | None = None,
     ) -> CoordinatorMessageResult:
@@ -281,7 +306,7 @@ class MultiNeighborReplayCoordinator:
     def _replay_from(
         self, reference_timestamp: float,
         starting_state: MultiNeighborSchmidtState | None = None,
-    ) -> None:
+    ) -> dict[str, float]:
         started = perf_counter()
         current_timestamp = float(self.state.timestamp)
         current = self._checkpoints[reference_timestamp] if starting_state is None else starting_state
@@ -295,6 +320,7 @@ class MultiNeighborReplayCoordinator:
         }
         times = sorted(event_times | observation_times | {current_timestamp})
         remote_count = 0; observation_count = 0
+        nis_by_id: dict[str, float] = {}
         for timestamp in times:
             if timestamp > float(current.timestamp):
                 current = multi_neighbor_schmidt_predict(
@@ -336,7 +362,9 @@ class MultiNeighborReplayCoordinator:
             )
             for observation in observations:
                 if observation.information_id not in current.information_ids:
-                    current = multi_neighbor_schmidt_update(current, observation).state
+                    update = multi_neighbor_schmidt_update(current, observation)
+                    current = update.state
+                    nis_by_id[observation.information_id] = update.nis
                     observation_count += 1
             self._posterior_states[timestamp] = current
         self.state = current
@@ -349,6 +377,7 @@ class MultiNeighborReplayCoordinator:
         self.performance.maximum_replay_span = max(self.performance.maximum_replay_span, span)
         self.performance.replayed_remote_events += remote_count
         self.performance.replayed_observations += observation_count
+        return nis_by_id
 
     def _prune(self, current_timestamp: float) -> None:
         if self.history_window is None:
@@ -426,4 +455,16 @@ def _same_event(left: CovarianceTransportEvent, right: CovarianceTransportEvent)
         and np.allclose(left.state_estimate, right.state_estimate)
         and np.allclose(left.error_transition, right.error_transition)
         and np.allclose(left.independent_process_noise, right.independent_process_noise)
+    )
+
+
+def _same_observation(left: ObservationMessage, right: ObservationMessage) -> bool:
+    return (
+        np.isclose(float(left.timestamp), float(right.timestamp))
+        and str(left.observer_id) == str(right.observer_id)
+        and str(left.target_id) == str(right.target_id)
+        and str(left.modality) == str(right.modality)
+        and str(left.frame) == str(right.frame)
+        and np.allclose(left.measurement, right.measurement)
+        and np.allclose(left.covariance, right.covariance)
     )

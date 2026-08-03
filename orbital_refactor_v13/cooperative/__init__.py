@@ -92,6 +92,15 @@ from cooperative.fleet_state_ci_runner import (
     DistributedFleetCIHistory,
     run_distributed_fleet_state_ci,
 )
+from cooperative.third_party_observation import (
+    ObservationRoutingDecision,
+    ThirdPartyObservationUpdateResult,
+    ThirdPartyTrackHistory,
+    apply_third_party_observation,
+    classify_observation_receiver,
+    run_third_party_target_track_filter,
+    run_third_party_schmidt_pair_filter,
+)
 from cooperative.satellite_node import NodeEstimate, SatelliteNode
 from cooperative.topology import (
     NetworkTopology, chain_topology, fully_connected_topology,
@@ -107,6 +116,13 @@ __all__ = [
     "ConsensusStepResult",
     "DistributedConsensusHistory",
     "DistributedFleetCIHistory",
+    "ObservationRoutingDecision",
+    "ThirdPartyObservationUpdateResult",
+    "ThirdPartyTrackHistory",
+    "apply_third_party_observation",
+    "classify_observation_receiver",
+    "run_third_party_target_track_filter",
+    "run_third_party_schmidt_pair_filter",
     "DualTrackCooperativeHistory",
     "InterSatelliteRangeAdapterResult",
     "InterSatelliteObservationAdapterResult",

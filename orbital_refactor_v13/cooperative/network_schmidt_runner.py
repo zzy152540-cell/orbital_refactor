@@ -122,6 +122,7 @@ def run_network_schmidt_filter(
         times=times,
         topology=topology,
         observation_usage=observation_usage,
+        allow_delayed=(consider_refresh_mode == "exact_transport_event_replay"),
     )
     active_states = {
         node_id: np.zeros((times.size, 6), dtype=float) for node_id in node_ids
@@ -254,9 +255,12 @@ def run_network_schmidt_filter(
                 node_id, []
             ):
                 if consider_refresh_mode == "exact_transport_event_replay":
-                    value = coordinators[node_id].apply_observation(observation)
+                    value = coordinators[node_id].apply_delayed_observation(
+                        observation
+                    )
                     state = coordinators[node_id].state
-                    epoch_nis[observation.information_id] = value
+                    if value is not None:
+                        epoch_nis[observation.information_id] = value
                 else:
                     update = multi_neighbor_schmidt_update(state, observation)
                     state = update.state
@@ -301,12 +305,13 @@ def _route_observations(
     times: Array,
     topology: NetworkTopology,
     observation_usage: str,
+    allow_delayed: bool = False,
 ) -> dict[float, dict[str, list[ObservationMessage]]]:
     result = {float(timestamp): {} for timestamp in times}
     seen_message_ids: set[str] = set()
     for observation in observations:
-        timestamp = float(observation.timestamp)
-        if timestamp not in result:
+        source_timestamp = float(observation.timestamp)
+        if source_timestamp not in result:
             raise ValueError("Observation timestamp is not in timestamps.")
         observer, target = str(observation.observer_id), str(observation.target_id)
         if target not in topology.neighbors(observer):
@@ -316,14 +321,32 @@ def _route_observations(
         seen_message_ids.add(observation.message_id)
         owners = (
             (observer, target)
-            if observation_usage == "both_endpoints"
+            if (
+                observation_usage == "both_endpoints"
+                and observation.metadata.get("shared_delivery", True)
+            )
             else (observer,)
         )
         for owner in owners:
-            result[timestamp].setdefault(owner, []).append(observation)
+            route_timestamp = source_timestamp
+            if owner != observer and observation.arrival_timestamp is not None:
+                route_timestamp = float(observation.arrival_timestamp)
+            if route_timestamp > float(times[-1]):
+                continue
+            if route_timestamp not in result:
+                raise ValueError("Observation arrival timestamp is not in timestamps.")
+            if not allow_delayed and route_timestamp > source_timestamp:
+                raise ValueError(
+                    "Delayed shared observations require exact event replay."
+                )
+            result[route_timestamp].setdefault(owner, []).append(observation)
     for per_owner in result.values():
-        for messages in per_owner.values():
+        for owner, messages in per_owner.items():
             messages.sort(key=lambda item: item.information_id)
+            unique = {}
+            for message in messages:
+                unique.setdefault(message.information_id, message)
+            per_owner[owner] = list(unique.values())
     return result
 
 

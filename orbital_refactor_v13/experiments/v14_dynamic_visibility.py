@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
+from cooperative.message_transport import MessageChannel
 from experiments.v14_exact_transport_scale_scan import _build_case
 from orbital_core.constants import R_EARTH
 from orbital_core.coordinates import dcm_to_quat_wxyz
@@ -53,6 +54,23 @@ class DynamicVisibilityRunSummary:
 class DynamicVisibilityExperimentResult:
     summary_by_case_and_mode: dict[tuple[str, str], DynamicVisibilityRunSummary]
     visibility_summary: VisibilityOpportunitySummary
+    observation_communication_summary: "ObservationCommunicationSummary | None" = None
+
+
+@dataclass(frozen=True)
+class ObservationCommunicationSummary:
+    attempted_count: int
+    delivered_count: int
+    dropped_count: int
+
+
+@dataclass(frozen=True)
+class ObservationSharingExperimentResult:
+    observer_only: DynamicVisibilityRunSummary
+    shared_ideal: DynamicVisibilityRunSummary
+    shared_delay_loss: DynamicVisibilityRunSummary
+    ideal_communication: ObservationCommunicationSummary
+    delay_loss_communication: ObservationCommunicationSummary
 
 
 @dataclass(frozen=True)
@@ -89,6 +107,12 @@ def run_v14_dynamic_visibility_experiment(
     fov_hysteresis: float = 0.0,
     fov_acquisition_epochs: int = 1,
     fov_loss_epochs: int = 1,
+    modes: tuple[str, ...] = (
+        "propagate_only", "exact_transport_event_replay",
+    ),
+    observation_usage: str = "observer_only",
+    observation_share_delay: float = 0.0,
+    observation_share_packet_loss: float = 0.0,
     relative_modalities: tuple[str, ...] = ("RANGE",),
     absolute_sigma: float = 3.0, process_noise_acceleration: float = 1e-8,
 ) -> DynamicVisibilityExperimentResult:
@@ -100,6 +124,19 @@ def run_v14_dynamic_visibility_experiment(
         raise ValueError("transition_type must be 'loss' or 'recovery'.")
     if visibility_driver not in {"range", "fov"}:
         raise ValueError("visibility_driver must be 'range' or 'fov'.")
+    if observation_usage not in {"observer_only", "both_endpoints"}:
+        raise ValueError("Unsupported observation_usage.")
+    if observation_share_delay < 0.0:
+        raise ValueError("observation_share_delay cannot be negative.")
+    if not 0.0 <= observation_share_packet_loss <= 1.0:
+        raise ValueError("observation_share_packet_loss must be in [0, 1].")
+    supported_modes = {"propagate_only", "exact_transport_event_replay"}
+    if not modes or len(set(modes)) != len(modes) or set(modes) - supported_modes:
+        raise ValueError("modes must uniquely select supported modes.")
+    if observation_share_delay > 0.0 and set(modes) != {
+        "exact_transport_event_replay"
+    }:
+        raise ValueError("Delayed observation sharing requires exact replay only.")
     if (
         not relative_modalities
         or len(set(relative_modalities)) != len(relative_modalities)
@@ -198,13 +235,15 @@ def run_v14_dynamic_visibility_experiment(
             or fov_loss_epochs > 1
         ) else None
     )
-    modes = ("propagate_only", "exact_transport_event_replay")
     collected = {
         (case, mode): []
         for case in ("continuous_range", "visibility_limited")
         for mode in modes
     }
     visibility_summary = None
+    attempted_observation_shares = 0
+    delivered_observation_shares = 0
+    dropped_observation_shares = 0
     for seed in range(seeds):
         estimated_attitude_history = (
             _perturb_attitude_history(
@@ -249,6 +288,17 @@ def run_v14_dynamic_visibility_experiment(
                 relative_modalities=relative_modalities,
             ),
         }
+        if observation_usage == "both_endpoints":
+            for case_index, case in enumerate(cases.values()):
+                prepared, attempted, delivered = _prepare_observation_sharing(
+                    case["observations"],
+                    delay=observation_share_delay,
+                    packet_loss=observation_share_packet_loss,
+                    seed=seed * 17 + case_index,
+                )
+                case["observations"] = prepared
+                attempted_observation_shares += attempted
+                delivered_observation_shares += delivered
         if visibility_summary is None:
             visibility_summary = cases["visibility_limited"]["visibility_summary"]
             if visibility_driver == "fov":
@@ -288,7 +338,7 @@ def run_v14_dynamic_visibility_experiment(
                     initial_covariance_by_node=case["initial_covariances"],
                     topology=case["topology"],
                     observation_messages=case["observations"],
-                    observation_usage="observer_only",
+                    observation_usage=observation_usage,
                     process_noise_acceleration=process_noise_acceleration,
                     consider_refresh_mode=mode,
                     state_messages_by_receiver=(
@@ -360,7 +410,20 @@ def run_v14_dynamic_visibility_experiment(
             message_rejection_count=rejected,
             psd_failure_count=sum(value[10] for value in values),
         )
-    return DynamicVisibilityExperimentResult(summaries, visibility_summary)
+    dropped_observation_shares = (
+        attempted_observation_shares - delivered_observation_shares
+    )
+    communication_summary = (
+        ObservationCommunicationSummary(
+            attempted_observation_shares,
+            delivered_observation_shares,
+            dropped_observation_shares,
+        )
+        if observation_usage == "both_endpoints" else None
+    )
+    return DynamicVisibilityExperimentResult(
+        summaries, visibility_summary, communication_summary
+    )
 
 
 def run_v14_range_rate_sensitivity(
@@ -457,6 +520,45 @@ def run_v14_attitude_error_consistency(
     return AttitudeErrorConsistencyResult(ideal, ignored, propagated)
 
 
+def run_v14_observation_sharing_experiment(
+    *, observation_delay: float = 2.0,
+    observation_packet_loss: float = 0.2,
+    seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
+) -> ObservationSharingExperimentResult:
+    """Compare local-only and shared physical observations under communication."""
+
+    common = dict(
+        seeds=seeds, duration=duration, dt=dt, transition_type="recovery",
+        relative_modalities=("RANGE", "RANGE_RATE", "AZ_EL"),
+        az_el_frame="BODY",
+        az_el_field_of_view_half_angle=float(np.deg2rad(5.0)),
+        range_rate_sigma=0.05,
+        modes=("exact_transport_event_replay",),
+    )
+    key = ("visibility_limited", "exact_transport_event_replay")
+    observer_only_result = run_v14_dynamic_visibility_experiment(**common)
+    ideal_result = run_v14_dynamic_visibility_experiment(
+        **common, observation_usage="both_endpoints",
+    )
+    impaired_result = run_v14_dynamic_visibility_experiment(
+        **common, observation_usage="both_endpoints",
+        observation_share_delay=observation_delay,
+        observation_share_packet_loss=observation_packet_loss,
+    )
+    if (
+        ideal_result.observation_communication_summary is None
+        or impaired_result.observation_communication_summary is None
+    ):
+        raise RuntimeError("Shared runs must report observation communication.")
+    return ObservationSharingExperimentResult(
+        observer_only_result.summary_by_case_and_mode[key],
+        ideal_result.summary_by_case_and_mode[key],
+        impaired_result.summary_by_case_and_mode[key],
+        ideal_result.observation_communication_summary,
+        impaired_result.observation_communication_summary,
+    )
+
+
 def _run_metrics(history, truth, transition_timestamp):
     pre_transition_errors = []
     post_transition_errors = []
@@ -530,6 +632,31 @@ def _modality_from_information_id(information_id):
     if ":az_el:" in information_id:
         return "AZ_EL"
     return "RANGE"
+
+
+def _prepare_observation_sharing(observations, *, delay, packet_loss, seed):
+    source_ids = {str(item.observer_id) for item in observations}
+    channel = MessageChannel(
+        packet_loss_rate={source: packet_loss for source in source_ids},
+        delay_by_source={source: delay for source in source_ids},
+        random_seed=20261230 + seed,
+    )
+    prepared = []
+    delivered_count = 0
+    for observation in observations:
+        delivered = channel.transmit(observation)
+        if delivered is None:
+            prepared.append(replace(
+                observation,
+                metadata={**observation.metadata, "shared_delivery": False},
+            ))
+        else:
+            prepared.append(replace(
+                delivered,
+                metadata={**delivered.metadata, "shared_delivery": True},
+            ))
+            delivered_count += 1
+    return prepared, len(observations), delivered_count
 
 
 def _two_node_target_pointing_attitude_history(truth_by_node):
