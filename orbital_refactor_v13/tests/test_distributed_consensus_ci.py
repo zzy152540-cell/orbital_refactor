@@ -4,7 +4,7 @@ import pytest
 from cooperative.consensus_ci import run_consensus_ci_step
 from cooperative.communication_channel import CommunicationChannel
 from cooperative.satellite_node import SatelliteNode
-from cooperative.topology import NetworkTopology, chain_topology
+from cooperative.topology import NetworkTopology, chain_topology, ring_topology, star_topology
 from orbital_core.measurements import measure_relative_range
 
 
@@ -21,6 +21,15 @@ def test_chain_topology_builds_symmetric_neighbors():
     assert topology.neighbors("sat_01") == ("sat_02",)
     assert topology.neighbors("sat_02") == ("sat_01", "sat_03")
     assert topology.neighbors("sat_03") == ("sat_02",)
+
+
+def test_ring_and_star_topologies_build_expected_degrees():
+    nodes = [f"sat_{index:02d}" for index in range(5)]
+    ring = ring_topology(nodes)
+    star = star_topology(nodes)
+    assert all(len(ring.neighbors(node)) == 2 for node in nodes)
+    assert len(star.neighbors(nodes[0])) == 4
+    assert all(star.neighbors(node) == (nodes[0],) for node in nodes[1:])
 
 
 def test_topology_rejects_asymmetric_edges():

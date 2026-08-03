@@ -10,7 +10,7 @@ import numpy as np
 from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.message_transport import MessageChannel
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from cooperative.topology import chain_topology
+from cooperative.topology import chain_topology, ring_topology, star_topology
 from interfaces.data_objects import ObservationMessage, StateMessage
 from orbital_core.constants import R_EARTH
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
@@ -26,6 +26,8 @@ NIS_95_DOF1 = (0.0009820691, 5.0238861873)
 
 @dataclass(frozen=True)
 class ExactTransportScanSummary:
+    node_count: int
+    topology_type: str
     scenario: str
     mode: str
     run_count: int
@@ -49,14 +51,22 @@ class ExactTransportScaleScanResult:
     diagnostic_records: tuple[dict[str, object], ...] = ()
 
 
+@dataclass(frozen=True)
+class ExactTransportTopologyScanResult:
+    result_by_topology: dict[str, ExactTransportScaleScanResult]
+
+
 def run_v14_exact_transport_smoke_scan(
     *, seeds: int = 20, duration: float = 60.0, dt: float = 2.0,
     range_sigma: float = 2.0, absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
+    node_count: int = 3, topology_type: str = "chain",
 ) -> ExactTransportScaleScanResult:
-    """Run the production network API over five three-satellite communication cases."""
+    """Run the production network API over five configurable fleet cases."""
     if seeds < 1:
         raise ValueError("seeds must be at least one.")
+    if node_count < 2:
+        raise ValueError("node_count must be at least two.")
     scenarios = {
         "ideal": (0.0, 0.0, 10.0),
         "loss_20_percent": (0.2, 0.0, 10.0),
@@ -75,6 +85,7 @@ def run_v14_exact_transport_smoke_scan(
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=loss, delay=delay,
                 acknowledge_messages=delay <= history_window,
+                node_count=node_count, topology_type=topology_type,
             )
             for mode in modes:
                 history = run_network_schmidt_filter(
@@ -95,7 +106,9 @@ def run_v14_exact_transport_smoke_scan(
                 )
                 for record in history.refresh_diagnostic_records:
                     diagnostic_records.append({
-                        "seed": seed, "scenario": scenario, "mode": mode, **record
+                        "seed": seed, "node_count": node_count,
+                        "topology_type": topology_type,
+                        "scenario": scenario, "mode": mode, **record
                     })
     summaries = {}
     for key, values in collected.items():
@@ -103,6 +116,7 @@ def run_v14_exact_transport_smoke_scan(
         attempted = sum(value[8] for value in values)
         accepted = sum(value[7] for value in values)
         summaries[key] = ExactTransportScanSummary(
+            node_count=node_count, topology_type=topology_type,
             scenario=scenario, mode=mode, run_count=len(values),
             mean_position_rmse=float(np.mean([value[0] for value in values])),
             mean_velocity_rmse=float(np.mean([value[1] for value in values])),
@@ -120,22 +134,50 @@ def run_v14_exact_transport_smoke_scan(
     return ExactTransportScaleScanResult(summaries, tuple(diagnostic_records))
 
 
+def run_v14_exact_transport_topology_scan(
+    *, node_count: int = 5, topology_types: tuple[str, ...] = ("chain", "ring", "star"),
+    seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
+    range_sigma: float = 2.0, absolute_sigma: float = 3.0,
+    process_noise_acceleration: float = 1e-8,
+) -> ExactTransportTopologyScanResult:
+    results = {}
+    for topology_type in topology_types:
+        results[topology_type] = run_v14_exact_transport_smoke_scan(
+            seeds=seeds, duration=duration, dt=dt,
+            range_sigma=range_sigma, absolute_sigma=absolute_sigma,
+            process_noise_acceleration=process_noise_acceleration,
+            node_count=node_count, topology_type=topology_type,
+        )
+    return ExactTransportTopologyScanResult(results)
+
+
 def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
-                process_noise_acceleration, packet_loss, delay, acknowledge_messages):
+                process_noise_acceleration, packet_loss, delay, acknowledge_messages,
+                node_count, topology_type):
     rng = np.random.default_rng(20260830 + seed)
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     base = keplerian_to_eci(R_EARTH + 700e3, 0.001, np.deg2rad(23.0), 0.0, 0.0, 0.0)
+    center = 0.5 * (node_count - 1)
     truth_initials = {
-        "sat_01": base + np.array([-1200, 100, 20, 0, -0.02, 0.0]),
-        "sat_02": base.copy(),
-        "sat_03": base + np.array([1300, -80, 30, 0, 0.03, 0.0]),
+        f"sat_{index + 1:02d}": base + np.array([
+            1200.0 * (index - center),
+            100.0 * np.sin(2.0 * np.pi * index / node_count),
+            30.0 * np.cos(2.0 * np.pi * index / node_count),
+            0.0, 0.02 * (index - center), 0.0,
+        ])
+        for index in range(node_count)
     }
     scenario = generate_fleet_scenario(timestamps=timestamps, initial_state_by_node=truth_initials)
     truth = scenario.truth_state_history_by_node
     covariance = np.diag([10, 10, 10, 0.02, 0.02, 0.02]) ** 2
     initial_states = {node: truth_initials[node] + rng.multivariate_normal(np.zeros(6), covariance) for node in scenario.node_ids}
     initial_covariances = {node: covariance.copy() for node in scenario.node_ids}
-    topology = chain_topology(list(scenario.node_ids))
+    topology_builders = {
+        "chain": chain_topology, "ring": ring_topology, "star": star_topology,
+    }
+    if topology_type not in topology_builders:
+        raise ValueError("topology_type must be 'chain', 'ring', or 'star'.")
+    topology = topology_builders[topology_type](list(scenario.node_ids))
     edges = tuple((receiver, source) for receiver in topology.node_ids for source in topology.neighbors(receiver))
     sender_state = {node: value.copy() for node, value in initial_states.items()}
     sender_covariance = {node: covariance.copy() for node in scenario.node_ids}

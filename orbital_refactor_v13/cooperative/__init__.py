@@ -92,7 +92,10 @@ from cooperative.fleet_state_ci_runner import (
     run_distributed_fleet_state_ci,
 )
 from cooperative.satellite_node import NodeEstimate, SatelliteNode
-from cooperative.topology import NetworkTopology, chain_topology, fully_connected_topology
+from cooperative.topology import (
+    NetworkTopology, chain_topology, fully_connected_topology,
+    ring_topology, star_topology,
+)
 
 __all__ = [
     "CommunicationStats",
@@ -129,6 +132,8 @@ __all__ = [
     "add_consider_neighbor",
     "chain_topology",
     "fully_connected_topology",
+    "ring_topology",
+    "star_topology",
     "fuse_local_histories",
     "initialize_multi_neighbor_schmidt",
     "multi_neighbor_schmidt_predict",

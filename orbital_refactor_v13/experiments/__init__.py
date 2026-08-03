@@ -22,7 +22,9 @@ from experiments.exact_transport_orbit_communication import (
 from experiments.v14_exact_transport_scale_scan import (
     ExactTransportScaleScanResult,
     ExactTransportScanSummary,
+    ExactTransportTopologyScanResult,
     run_v14_exact_transport_smoke_scan,
+    run_v14_exact_transport_topology_scan,
     export_exact_transport_diagnostics,
 )
 
@@ -34,6 +36,7 @@ __all__ = [
     "OrbitCommunicationSummary",
     "ExactTransportScaleScanResult",
     "ExactTransportScanSummary",
+    "ExactTransportTopologyScanResult",
     "build_v14_comparison_case",
     "export_v14_comparison",
     "run_v14_comparison",
@@ -43,5 +46,6 @@ __all__ = [
     "run_neighbor_update_transport_monte_carlo",
     "run_exact_transport_orbit_communication_validation",
     "run_v14_exact_transport_smoke_scan",
+    "run_v14_exact_transport_topology_scan",
     "export_exact_transport_diagnostics",
 ]

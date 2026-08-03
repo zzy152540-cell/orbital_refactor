@@ -64,6 +64,31 @@ def fully_connected_topology(
     )
 
 
+def ring_topology(node_ids: list[str] | tuple[str, ...]) -> NetworkTopology:
+    nodes = [str(node_id) for node_id in node_ids]
+    if len(nodes) < 3:
+        raise ValueError("Ring topology requires at least three nodes.")
+    if len(set(nodes)) != len(nodes):
+        raise ValueError("node_ids must be unique.")
+    return NetworkTopology({
+        node_id: [nodes[(index - 1) % len(nodes)], nodes[(index + 1) % len(nodes)]]
+        for index, node_id in enumerate(nodes)
+    })
+
+
+def star_topology(node_ids: list[str] | tuple[str, ...]) -> NetworkTopology:
+    nodes = [str(node_id) for node_id in node_ids]
+    if len(nodes) < 2:
+        raise ValueError("Star topology requires at least two nodes.")
+    if len(set(nodes)) != len(nodes):
+        raise ValueError("node_ids must be unique.")
+    center = nodes[0]
+    return NetworkTopology({
+        node_id: ([other for other in nodes if other != center] if node_id == center else [center])
+        for node_id in nodes
+    })
+
+
 def _validate_adjacency(adjacency: Mapping[str, tuple[str, ...]]) -> None:
     if not adjacency:
         raise ValueError("Topology cannot be empty.")
