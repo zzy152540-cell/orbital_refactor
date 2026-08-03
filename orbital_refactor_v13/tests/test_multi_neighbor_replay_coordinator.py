@@ -119,6 +119,28 @@ def test_event_bundle_must_reproduce_advertised_endpoint():
     assert result.reason == "event_bundle_endpoint_mismatch"
 
 
+def test_failed_batch_endpoint_check_falls_back_without_rejecting_valid_peer():
+    from dataclasses import replace
+
+    state, messages, _ = _case()
+    bad_event = replace(
+        messages["left"].transport_events[0],
+        independent_process_noise=np.eye(6) * 50.0,
+    )
+    bad_message = replace(messages["left"], transport_events=(bad_event,))
+    coordinator = MultiNeighborReplayCoordinator(state)
+
+    bad, valid = coordinator.apply_state_messages((
+        (bad_message, "left:0"),
+        (messages["right"], "right:0"),
+    ))
+
+    assert not bad.accepted
+    assert bad.reason == "event_bundle_endpoint_mismatch"
+    assert valid.accepted
+    assert "right:absolute:0" in coordinator.state.transport_information_ids
+
+
 def test_last_ack_checkpoint_is_pinned_beyond_fixed_lag_window():
     state, messages, _ = _case()
     first_message = messages["left"]

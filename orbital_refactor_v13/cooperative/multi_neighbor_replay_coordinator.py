@@ -106,10 +106,18 @@ class MultiNeighborReplayCoordinator:
     def apply_state_message(
         self, message: StateMessage, *, expected_lineage_id: str | None = None,
     ) -> CoordinatorMessageResult:
-        return self.apply_state_messages(((message, expected_lineage_id),))[0]
+        return self._apply_state_messages(
+            ((message, expected_lineage_id),), allow_fallback=False,
+        )[0]
 
     def apply_state_messages(
         self, messages: tuple[tuple[StateMessage, str | None], ...],
+    ) -> tuple[CoordinatorMessageResult, ...]:
+        return self._apply_state_messages(messages, allow_fallback=len(messages) > 1)
+
+    def _apply_state_messages(
+        self, messages: tuple[tuple[StateMessage, str | None], ...], *,
+        allow_fallback: bool,
     ) -> tuple[CoordinatorMessageResult, ...]:
         if not messages:
             return ()
@@ -143,12 +151,15 @@ class MultiNeighborReplayCoordinator:
             if failure is not None:
                 for key in new_keys: self._remote_events.pop(key, None)
                 results[index] = failure; continue
-            staged.append((index, message, checkpoint, reference_timestamp, link_key, new_keys))
+            staged.append((
+                index, message, expected_lineage_id, checkpoint,
+                reference_timestamp, link_key, new_keys,
+            ))
         if staged:
-            earliest = min(staged, key=lambda item: item[3])
-            self._replay_from(earliest[3], starting_state=earliest[2])
+            earliest = min(staged, key=lambda item: item[4])
+            self._replay_from(earliest[4], starting_state=earliest[3])
             mismatched = False
-            for _, message, _, _, _, _ in staged:
+            for _, message, _, _, _, _, _ in staged:
                 endpoint = self._posterior_states.get(float(message.timestamp))
                 neighbor_id = str(message.source_node_id)
                 if not (endpoint is not None and np.allclose(
@@ -161,11 +172,19 @@ class MultiNeighborReplayCoordinator:
                     mismatched = True; break
             if mismatched:
                 for key in all_new_keys: self._remote_events.pop(key, None)
-                self._replay_from(earliest[3], starting_state=earliest[2])
-                for index, *_ in staged:
-                    results[index] = CoordinatorMessageResult(False, "event_bundle_endpoint_mismatch")
+                self._replay_from(earliest[4], starting_state=earliest[3])
+                if allow_fallback:
+                    for index, message, expected_lineage_id, *_ in staged:
+                        results[index] = self.apply_state_message(
+                            message, expected_lineage_id=expected_lineage_id,
+                        )
+                else:
+                    for index, *_ in staged:
+                        results[index] = CoordinatorMessageResult(
+                            False, "event_bundle_endpoint_mismatch"
+                        )
             else:
-                for index, message, _, _, link_key, new_keys in staged:
+                for index, message, _, _, _, link_key, new_keys in staged:
                     self._pinned_checkpoints[link_key] = (
                         float(message.timestamp), self._posterior_states[float(message.timestamp)]
                     )
