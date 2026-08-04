@@ -14,14 +14,17 @@ from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.topology import chain_topology, ring_topology, star_topology
 from interfaces.data_objects import ObservationMessage, StateMessage
 from orbital_core.constants import R_EARTH
+from orbital_core.coordinates import dcm_to_quat_wxyz
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
 from orbital_core.measurements import (
     measure_relative_az_el,
+    measure_relative_optical_uv,
     measure_relative_range,
     measure_relative_range_rate,
 )
 from orbital_core.inter_satellite_model import body_angle_effective_covariance
 from orbital_core.metrics import compute_nees_history, compute_rmse
+from orbital_core.measurement_semantics import inter_satellite_semantic_metadata
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.fleet_scenario import generate_fleet_scenario
 from scenarios.measurement_visibility import (
@@ -94,7 +97,8 @@ class ExactTransportTopologyScanResult:
 def run_v14_exact_transport_smoke_scan(
     *, seeds: int = 20, duration: float = 60.0, dt: float = 2.0,
     range_sigma: float = 2.0, range_rate_sigma: float = 0.02,
-    az_el_sigma: float = np.deg2rad(0.05),
+    radar_correlation: float = 0.0,
+    az_el_sigma: float = np.deg2rad(0.05), optical_sigma: float = 1e-3,
     absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
     node_count: int = 3, topology_type: str = "chain",
@@ -108,13 +112,25 @@ def run_v14_exact_transport_smoke_scan(
         raise ValueError("seeds must be at least one.")
     if node_count < 2:
         raise ValueError("node_count must be at least two.")
-    supported_relative_modalities = {"RANGE", "RANGE_RATE", "AZ_EL"}
+    supported_relative_modalities = {
+        "RADAR", "INFRARED", "OPTICAL", "RANGE", "RANGE_RATE", "AZ_EL",
+    }
     if (
         not relative_modalities
         or len(set(relative_modalities)) != len(relative_modalities)
         or set(relative_modalities) - supported_relative_modalities
     ):
-        raise ValueError("relative_modalities must uniquely select RANGE, RANGE_RATE, and/or AZ_EL.")
+        raise ValueError(
+            "relative_modalities contains an unsupported or duplicate modality."
+        )
+    if "RADAR" in relative_modalities and set(relative_modalities) & {
+        "RANGE", "RANGE_RATE",
+    }:
+        raise ValueError("RADAR cannot be combined with legacy RANGE components.")
+    if "INFRARED" in relative_modalities and "AZ_EL" in relative_modalities:
+        raise ValueError("INFRARED cannot be combined with legacy AZ_EL.")
+    if not -1.0 < radar_correlation < 1.0:
+        raise ValueError("radar_correlation must be strictly between -1 and 1.")
     all_scenarios = {
         "ideal": (0.0, 0.0, 10.0),
         "loss_20_percent": (0.2, 0.0, 10.0),
@@ -145,6 +161,8 @@ def run_v14_exact_transport_smoke_scan(
             case = _build_case(
                 seed=seed, duration=duration, dt=dt, range_sigma=range_sigma,
                 range_rate_sigma=range_rate_sigma, az_el_sigma=az_el_sigma,
+                radar_correlation=radar_correlation,
+                optical_sigma=optical_sigma,
                 absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=loss, delay=delay,
@@ -241,7 +259,8 @@ def run_v14_exact_transport_topology_scan(
     *, node_count: int = 5, topology_types: tuple[str, ...] = ("chain", "ring", "star"),
     seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
     range_sigma: float = 2.0, range_rate_sigma: float = 0.02,
-    az_el_sigma: float = np.deg2rad(0.05),
+    radar_correlation: float = 0.0,
+    az_el_sigma: float = np.deg2rad(0.05), optical_sigma: float = 1e-3,
     absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
     scenario_names: tuple[str, ...] | None = None,
@@ -254,7 +273,9 @@ def run_v14_exact_transport_topology_scan(
         results[topology_type] = run_v14_exact_transport_smoke_scan(
             seeds=seeds, duration=duration, dt=dt,
             range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
+            radar_correlation=radar_correlation,
             az_el_sigma=az_el_sigma,
+            optical_sigma=optical_sigma,
             absolute_sigma=absolute_sigma,
             process_noise_acceleration=process_noise_acceleration,
             node_count=node_count, topology_type=topology_type,
@@ -269,7 +290,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 process_noise_acceleration, packet_loss, delay, acknowledge_messages,
                 node_count, topology_type, visibility_by_modality=None,
                 truth_initial_state_by_node=None, range_rate_sigma=0.02,
+                radar_correlation=0.0,
                 az_el_sigma=np.deg2rad(0.05),
+                optical_sigma=1e-3,
                 az_el_frame="ECI", attitude_history_by_node=None,
                 estimated_attitude_history_by_node=None,
                 attitude_covariance=None,
@@ -278,6 +301,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     rng = np.random.default_rng(20260830 + seed)
     range_rate_rng = np.random.default_rng(20260930 + seed)
     az_el_rng = np.random.default_rng(20261030 + seed)
+    optical_rng = np.random.default_rng(20261130 + seed)
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     base = keplerian_to_eci(R_EARTH + 700e3, 0.001, np.deg2rad(23.0), 0.0, 0.0, 0.0)
     center = 0.5 * (node_count - 1)
@@ -445,6 +469,43 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
         for observer in topology.node_ids:
             for target in topology.neighbors(observer):
                 range_noise = rng.normal(0.0, range_sigma)
+                if "RADAR" in relative_modalities and (
+                    visible_range_opportunities is None
+                    or (float(timestamp), observer, target, "RADAR")
+                    in visible_range_opportunities
+                ):
+                    radar_covariance = np.array([
+                        [
+                            range_sigma**2,
+                            radar_correlation * range_sigma * range_rate_sigma,
+                        ],
+                        [
+                            radar_correlation * range_sigma * range_rate_sigma,
+                            range_rate_sigma**2,
+                        ],
+                    ])
+                    radar_noise = rng.multivariate_normal(
+                        np.zeros(2), radar_covariance
+                    )
+                    information_id = f"{observer}->{target}:radar:{index}"
+                    observations.append(ObservationMessage(
+                        message_id=information_id,
+                        physical_observation_id=information_id,
+                        observer_id=observer,
+                        target_id=target,
+                        timestamp=float(timestamp),
+                        modality="RADAR",
+                        measurement=np.array([
+                            measure_relative_range(
+                                truth[observer][index], truth[target][index]
+                            ),
+                            measure_relative_range_rate(
+                                truth[observer][index], truth[target][index]
+                            ),
+                        ]) + radar_noise,
+                        covariance=radar_covariance,
+                        metadata=inter_satellite_semantic_metadata("RADAR"),
+                    ))
                 if "RANGE" in relative_modalities and (
                     visible_range_opportunities is None
                     or (float(timestamp), observer, target, "RANGE")
@@ -460,6 +521,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                             truth[observer][index], truth[target][index]
                         ) + range_noise]),
                         covariance=np.array([[range_sigma**2]]),
+                        metadata=inter_satellite_semantic_metadata("RANGE"),
                     ))
                 if "RANGE_RATE" in relative_modalities:
                     rate_noise = range_rate_rng.normal(0.0, range_rate_sigma)
@@ -479,15 +541,23 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                                 truth[observer][index], truth[target][index]
                             ) + rate_noise]),
                             covariance=np.array([[range_rate_sigma**2]]),
+                            metadata=inter_satellite_semantic_metadata("RANGE_RATE"),
                         ))
-                if "AZ_EL" in relative_modalities:
+                angular_modality = (
+                    "INFRARED" if "INFRARED" in relative_modalities
+                    else "AZ_EL" if "AZ_EL" in relative_modalities
+                    else None
+                )
+                if angular_modality is not None:
                     angle_noise = az_el_rng.normal(0.0, az_el_sigma, 2)
                     if (
                         visible_range_opportunities is None
-                        or (float(timestamp), observer, target, "AZ_EL")
+                        or (float(timestamp), observer, target, angular_modality)
                         in visible_range_opportunities
                     ):
-                        information_id = f"{observer}->{target}:az_el:{index}"
+                        information_id = (
+                            f"{observer}->{target}:{angular_modality.lower()}:{index}"
+                        )
                         truth_quaternion = (
                             attitude_history_by_node[observer][index]
                             if az_el_frame == "BODY" else None
@@ -512,17 +582,50 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                             physical_observation_id=information_id,
                             observer_id=observer,
                             target_id=target, timestamp=float(timestamp),
-                            modality="AZ_EL", frame=az_el_frame,
+                            modality=angular_modality, frame=az_el_frame,
                             measurement=measure_relative_az_el(
                                 truth[observer][index], truth[target][index],
                                 frame=az_el_frame,
                                 quaternion_i2b_wxyz=truth_quaternion,
                             ) + angle_noise,
                             covariance=measurement_covariance,
-                            metadata=(
-                                {"quaternion_i2b_wxyz": estimate_quaternion.copy()}
-                                if estimate_quaternion is not None else {}
-                            ),
+                            metadata={
+                                **inter_satellite_semantic_metadata(angular_modality),
+                                **(
+                                    {"quaternion_i2b_wxyz": estimate_quaternion.copy()}
+                                    if estimate_quaternion is not None else {}
+                                ),
+                            },
+                        ))
+                if "OPTICAL" in relative_modalities:
+                    optical_noise = optical_rng.normal(0.0, optical_sigma, 2)
+                    if (
+                        visible_range_opportunities is None
+                        or (float(timestamp), observer, target, "OPTICAL")
+                        in visible_range_opportunities
+                    ):
+                        information_id = f"{observer}->{target}:optical:{index}"
+                        optical_quaternion = _target_pointing_quaternion(
+                            truth[observer][index], truth[target][index]
+                        )
+                        observations.append(ObservationMessage(
+                            message_id=information_id,
+                            physical_observation_id=information_id,
+                            observer_id=observer,
+                            target_id=target,
+                            timestamp=float(timestamp),
+                            modality="OPTICAL",
+                            frame="BODY",
+                            measurement=measure_relative_optical_uv(
+                                truth[observer][index], truth[target][index],
+                                frame="BODY",
+                                quaternion_i2b_wxyz=optical_quaternion,
+                            ) + optical_noise,
+                            covariance=np.eye(2) * optical_sigma**2,
+                            metadata={
+                                **inter_satellite_semantic_metadata("OPTICAL"),
+                                "quaternion_i2b_wxyz": optical_quaternion,
+                            },
                         ))
     return {
         "timestamps": timestamps, "truth": truth, "initial_states": initial_states,
@@ -617,15 +720,40 @@ def _coverage(values, interval):
 
 
 def _modality_from_information_id(information_id):
+    if ":radar:" in information_id:
+        return "RADAR"
     if ":range_rate:" in information_id:
         return "RANGE_RATE"
     if ":az_el:" in information_id:
         return "AZ_EL"
+    if ":infrared:" in information_id:
+        return "INFRARED"
+    if ":optical:" in information_id:
+        return "OPTICAL"
     return "RANGE"
 
 
 def _nis_interval(modality):
-    return NIS_95_DOF2 if modality == "AZ_EL" else NIS_95_DOF1
+    return (
+        NIS_95_DOF2
+        if modality in {"RADAR", "AZ_EL", "INFRARED", "OPTICAL"}
+        else NIS_95_DOF1
+    )
+
+
+def _target_pointing_quaternion(observer_state, target_state):
+    observer = np.asarray(observer_state, dtype=float).reshape(6)
+    target = np.asarray(target_state, dtype=float).reshape(6)
+    x_body_eci = target[:3] - observer[:3]
+    x_body_eci /= np.linalg.norm(x_body_eci)
+    reference = observer[:3] / np.linalg.norm(observer[:3])
+    z_body_eci = reference - np.dot(reference, x_body_eci) * x_body_eci
+    if np.linalg.norm(z_body_eci) < 1e-10:
+        reference = np.array([0.0, 0.0, 1.0])
+        z_body_eci = reference - np.dot(reference, x_body_eci) * x_body_eci
+    z_body_eci /= np.linalg.norm(z_body_eci)
+    y_body_eci = np.cross(z_body_eci, x_body_eci)
+    return dcm_to_quat_wxyz(np.vstack((x_body_eci, y_body_eci, z_body_eci)))
 
 
 def _modality_aware_nis_coverage(values_by_modality):

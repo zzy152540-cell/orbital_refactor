@@ -36,6 +36,11 @@ class ThreeSatelliteLocalObservationSummary:
     message_acceptance_rate: float
     message_rejection_count: int
     psd_failure_count: int
+    configured_sensor_modalities: tuple[str, ...] = ("RADAR", "INFRARED")
+    transported_measurement_components: tuple[str, ...] = (
+        "RANGE", "RANGE_RATE", "AZ_EL",
+    )
+    full_three_sensor_suite: bool = False
 
 
 @dataclass(frozen=True)
@@ -64,6 +69,7 @@ def run_v14_three_satellite_local_observation_experiment(
     *, seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
     maximum_range: float = 5000.0,
     range_sigma: float = 2.0, range_rate_sigma: float = 0.05,
+    radar_correlation: float = 0.0,
     az_el_sigma: float = np.deg2rad(0.05),
     absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
@@ -92,7 +98,7 @@ def run_v14_three_satellite_local_observation_experiment(
         node: history[0]
         for node, history in scenario.truth_state_history_by_node.items()
     }
-    modalities = ("RANGE", "RANGE_RATE", "AZ_EL")
+    modalities = ("RADAR", "INFRARED", "OPTICAL")
     visibility = {
         modality: VisibilityConfig(maximum_range=maximum_range)
         for modality in modalities
@@ -108,6 +114,7 @@ def run_v14_three_satellite_local_observation_experiment(
             "continuous": _build_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
+                radar_correlation=radar_correlation,
                 az_el_sigma=az_el_sigma, absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=0.0, delay=0.0, acknowledge_messages=True,
@@ -118,6 +125,7 @@ def run_v14_three_satellite_local_observation_experiment(
             "visibility_limited": _build_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
+                radar_correlation=radar_correlation,
                 az_el_sigma=az_el_sigma, absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=0.0, delay=0.0, acknowledge_messages=True,
@@ -201,6 +209,11 @@ def run_v14_three_satellite_local_observation_experiment(
             ),
             message_rejection_count=rejected,
             psd_failure_count=sum(value[10] for value in values),
+            configured_sensor_modalities=("OPTICAL", "INFRARED", "RADAR"),
+            transported_measurement_components=(
+                "RADAR", "INFRARED", "OPTICAL",
+            ),
+            full_three_sensor_suite=True,
         )
     return ThreeSatelliteLocalObservationResult(summaries, visibility_summary)
 

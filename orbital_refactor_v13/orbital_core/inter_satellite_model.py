@@ -11,6 +11,7 @@ from orbital_core.attitude import (
 )
 from orbital_core.measurements import (
     measure_relative_az_el,
+    measure_relative_optical_uv,
     measure_relative_range,
     measure_relative_range_rate,
     wrap_angle,
@@ -24,10 +25,18 @@ _ALIASES = {
     "RANGE_RATE": "RANGE_RATE",
     "RANGERATE": "RANGE_RATE",
     "INTER_SATELLITE_RANGE_RATE": "RANGE_RATE",
+    "RADAR": "RADAR",
+    "RANGE_RANGE_RATE": "RADAR",
     "AZ_EL": "AZ_EL",
     "AZEL": "AZ_EL",
     "ANGLE": "AZ_EL",
     "INTER_SATELLITE_AZ_EL": "AZ_EL",
+    "INFRARED": "AZ_EL",
+    "IR": "AZ_EL",
+    "AZIMUTH_ELEVATION": "AZ_EL",
+    "OPTICAL": "OPTICAL",
+    "TRADITIONAL_OPTICAL": "OPTICAL",
+    "NORMALIZED_IMAGE_COORDINATES": "OPTICAL",
 }
 
 
@@ -104,6 +113,21 @@ def predict_inter_satellite_measurement(
         return np.array([measure_relative_range(state_i, state_j)], dtype=float)
     if normalized == "RANGE_RATE":
         return np.array([measure_relative_range_rate(state_i, state_j)], dtype=float)
+    if normalized == "RADAR":
+        return np.array(
+            [
+                measure_relative_range(state_i, state_j),
+                measure_relative_range_rate(state_i, state_j),
+            ],
+            dtype=float,
+        )
+    if normalized == "OPTICAL":
+        return measure_relative_optical_uv(
+            state_i,
+            state_j,
+            frame=frame,
+            quaternion_i2b_wxyz=quaternion_i2b_wxyz,
+        )
     return measure_relative_az_el(
         state_i,
         state_j,
@@ -151,6 +175,15 @@ def inter_satellite_jacobians(
         h_i[0, 3:] = -line_of_sight
         return h_i, -h_i
 
+    if normalized == "RADAR":
+        range_i, range_j = inter_satellite_jacobians(
+            state_i, state_j, modality="RANGE", frame=frame, eps=eps,
+        )
+        rate_i, rate_j = inter_satellite_jacobians(
+            state_i, state_j, modality="RANGE_RATE", frame=frame, eps=eps,
+        )
+        return np.vstack((range_i, rate_i)), np.vstack((range_j, rate_j))
+
     function = lambda left, right: predict_inter_satellite_measurement(
         left,
         right,
@@ -159,10 +192,12 @@ def inter_satellite_jacobians(
         quaternion_i2b_wxyz=quaternion_i2b_wxyz,
     )
     h_i = _numerical_state_jacobian(
-        lambda value: function(value, state_j), state_i, angular=True, eps=eps
+        lambda value: function(value, state_j), state_i,
+        angular=normalized == "AZ_EL", eps=eps
     )
     h_j = _numerical_state_jacobian(
-        lambda value: function(state_i, value), state_j, angular=True, eps=eps
+        lambda value: function(state_i, value), state_j,
+        angular=normalized == "AZ_EL", eps=eps
     )
     return h_i, h_j
 

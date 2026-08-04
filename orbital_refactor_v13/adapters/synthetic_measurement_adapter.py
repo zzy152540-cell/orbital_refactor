@@ -3,9 +3,14 @@ from __future__ import annotations
 import numpy as np
 
 from interfaces.data_objects import Observation
+from orbital_core.measurement_semantics import SINGLE_SATELLITE_SENSOR_CONTRACTS
 
 
 Array = np.ndarray
+
+_OPTICAL_CONTRACT = SINGLE_SATELLITE_SENSOR_CONTRACTS["OPTICAL"]
+_INFRARED_CONTRACT = SINGLE_SATELLITE_SENSOR_CONTRACTS["INFRARED"]
+_RADAR_CONTRACT = SINGLE_SATELLITE_SENSOR_CONTRACTS["RADAR"]
 
 
 def create_infrared_observations(
@@ -36,8 +41,8 @@ def create_infrared_observations(
         valid=valid,
         observer_id=observer_id,
         target_id=target_id,
-        modality="INFRARED",
-        measurement_type="AZIMUTH_ELEVATION",
+        modality=_INFRARED_CONTRACT.sensor_modality,
+        measurement_type=_INFRARED_CONTRACT.measurement_type,
         frame="SPRI",
     )
 
@@ -72,8 +77,8 @@ def create_radar_observations(
         valid=valid,
         observer_id=observer_id,
         target_id=target_id,
-        modality="RADAR",
-        measurement_type="RANGE_RANGE_RATE",
+        modality=_RADAR_CONTRACT.sensor_modality,
+        measurement_type=_RADAR_CONTRACT.measurement_type,
         frame="SPRI",
     )
 
@@ -163,8 +168,8 @@ def create_optical_observations(
         valid=valid,
         observer_id=observer_id,
         target_id=target_id,
-        modality="OPTICAL",
-        measurement_type="NORMALIZED_IMAGE_COORDINATES",
+        modality=_OPTICAL_CONTRACT.sensor_modality,
+        measurement_type=_OPTICAL_CONTRACT.measurement_type,
         frame="SPRI",
     )
 

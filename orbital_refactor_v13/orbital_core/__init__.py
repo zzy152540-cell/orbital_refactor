@@ -22,3 +22,9 @@ from .ci_fusion import CIFusionResult, ci_fuse_pair, ci_fuse_posteriors, ci_fuse
 from .filters import DynamicsEKF, LocalDynamicsEKF, UpdateDiagnostics
 
 from .centralized_filter import CentralizedDynamicsEKF, CentralizedUpdateDiagnostics
+from .measurement_semantics import (
+    SINGLE_SATELLITE_SENSOR_CONTRACTS,
+    SensorMeasurementContract,
+    inter_satellite_semantic_metadata,
+    sensor_semantics_for_inter_satellite_component,
+)

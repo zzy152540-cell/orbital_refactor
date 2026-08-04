@@ -136,6 +136,42 @@ def measure_relative_az_el(
     return measurement
 
 
+def measure_relative_optical_uv(
+    state_i: np.ndarray,
+    state_j: np.ndarray,
+    frame: str = "BODY",
+    noise: np.ndarray | None = None,
+    *,
+    quaternion_i2b_wxyz: np.ndarray | None = None,
+) -> np.ndarray:
+    """Normalized pinhole image coordinates for a directed observation.
+
+    The inter-satellite camera uses ``+X`` as its BODY boresight and returns
+    ``[y/x, z/x]``. This is the same normalized-image-coordinate measurement
+    family as the single-satellite ``[x/z, y/z]`` SPRI model, with an explicit
+    camera-axis convention.
+    """
+
+    state_i = np.asarray(state_i, dtype=float).reshape(6)
+    state_j = np.asarray(state_j, dtype=float).reshape(6)
+    relative = state_j[:3] - state_i[:3]
+    normalized_frame = str(frame).upper()
+    if normalized_frame != "BODY":
+        raise ValueError("Inter-satellite optical measurements require BODY frame.")
+    if quaternion_i2b_wxyz is None:
+        raise ValueError("BODY optical measurements require quaternion_i2b_wxyz.")
+    relative_body = quat_to_dcm_i2b(quaternion_i2b_wxyz) @ relative
+    depth = float(relative_body[0])
+    if depth <= 1e-12:
+        raise ValueError("Optical target must lie in front of the camera boresight.")
+    measurement = np.array(
+        [relative_body[1] / depth, relative_body[2] / depth], dtype=float
+    )
+    if noise is not None:
+        measurement += np.asarray(noise, dtype=float).reshape(2)
+    return measurement
+
+
 def measurement_residual(z: np.ndarray, z_pred: np.ndarray, mode: str) -> np.ndarray:
     residual = np.asarray(z, dtype=float) - np.asarray(z_pred, dtype=float)
     if mode.lower() == "ir":
