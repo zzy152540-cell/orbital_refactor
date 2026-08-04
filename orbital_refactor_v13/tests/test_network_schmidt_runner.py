@@ -3,7 +3,11 @@ import numpy as np
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.exact_transport_protocol import build_exact_transport_state_message
 from cooperative.topology import chain_topology, fully_connected_topology
-from interfaces.data_objects import CovarianceTransportEvent, ObservationMessage
+from interfaces.data_objects import (
+    AbsolutePositionObservation,
+    CovarianceTransportEvent,
+    ObservationMessage,
+)
 from orbital_core.measurements import (
     measure_relative_az_el,
     measure_relative_range,
@@ -85,10 +89,92 @@ def test_chain_network_builds_expected_local_schmidt_dimensions():
     assert len(history.nis_history_by_node["sat_01"][0]) == 3
     assert len(history.nis_history_by_node["sat_02"][0]) == 3
     assert history.nis_history_by_node["sat_03"][0] == {}
+    first_integrity = next(
+        iter(history.integrity_history_by_node["sat_01"][0].values())
+    )
+    assert first_integrity.raw_nis is not None
+    assert first_integrity.processed_nis is not None
+    assert first_integrity.measurement_covariance_scale >= 1.0
+    assert first_integrity.status == "ACCEPTED"
     for node_id in history.node_ids:
         assert np.min(
             np.linalg.eigvalsh(history.joint_covariance_history_by_node[node_id][-1])
         ) >= -1e-8
+
+
+def test_network_history_converts_each_satellite_to_formal_module_output():
+    timestamps, states, covariances, observations = _case()
+    history = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=observations,
+        process_noise_acceleration=0.0,
+    )
+
+    outputs = history.to_module_outputs(processing_time=0.25)
+
+    assert set(outputs) == {"sat_01", "sat_02", "sat_03"}
+    first = outputs["sat_01"]
+    assert first.module_output.state_output.target_id == "sat_01"
+    assert first.module_output.state_output.position_estimate.shape == (3,)
+    assert first.module_output.state_output.velocity_estimate.shape == (3,)
+    assert first.module_output.state_output.acceleration_estimate.shape == (3,)
+    assert first.module_output.state_output.covariance.shape == (6, 6)
+    assert first.module_output.runtime_status.processing_time == 0.25
+    assert first.module_output.runtime_status.observation_count == 3
+    assert first.module_output.runtime_status.status == "PREDICTION_ONLY"
+    assert first.network_diagnostics.neighbor_count == 1
+    assert first.network_diagnostics.replay_count == 0
+    assert first.network_diagnostics.configured_neighbors == ("sat_02",)
+    assert first.network_diagnostics.link_health_by_neighbor == {
+        "sat_02": "UNKNOWN"
+    }
+    assert first.network_diagnostics.last_receive_timestamp_by_neighbor == {
+        "sat_02": None
+    }
+    assert outputs["sat_03"].module_output.runtime_status.observation_count == 0
+
+
+def test_absolute_position_anchor_updates_active_state_and_delayed_replay_matches():
+    timestamps = np.array([0.0, 1.0])
+    first = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    second = first + np.array([1000.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    states = {"sat_01": first.copy(), "sat_02": second.copy()}
+    covariances = {node: np.eye(6) * 100.0 for node in states}
+
+    def run(arrival):
+        anchor = AbsolutePositionObservation(
+            timestamp=0.0, satellite_id="sat_01",
+            measurement_eci=first[:3] + np.array([10.0, 0.0, 0.0]),
+            covariance=np.eye(3), confidence=1.0, valid_flag=True,
+            observation_id="sat_01:absolute:0", arrival_timestamp=arrival,
+        )
+        return run_network_schmidt_filter(
+            timestamps=timestamps,
+            initial_state_by_node=states,
+            initial_covariance_by_node=covariances,
+            topology=chain_topology(["sat_01", "sat_02"]),
+            observation_messages=[],
+            absolute_position_observations=[anchor],
+            process_noise_acceleration=0.0,
+            consider_refresh_mode="exact_transport_event_replay",
+            replay_history_window=2.0,
+        )
+
+    immediate = run(None)
+    delayed = run(1.0)
+
+    assert immediate.active_state_history_by_node["sat_01"][0, 0] > first[0]
+    np.testing.assert_allclose(
+        delayed.active_state_history_by_node["sat_01"][-1],
+        immediate.active_state_history_by_node["sat_01"][-1],
+    )
+    assert "sat_01:absolute:0" in delayed.nis_history_by_node["sat_01"][1]
+    assert delayed.modality_history_by_node["sat_01"][1][
+        "sat_01:absolute:0"
+    ] == "ABSOLUTE_POSITION"
 
 
 def test_exact_replay_routes_delayed_shared_observation_and_deduplicates_copy():

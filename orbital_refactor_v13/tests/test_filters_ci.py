@@ -6,6 +6,10 @@ import numpy as np
 from orbital_core.ci_fusion import ci_fuse_pair, ci_fuse_posteriors
 from orbital_core.dynamics import make_process_noise
 from orbital_core.filters import LocalDynamicsEKF
+from orbital_core.measurement_integrity import (
+    INTEGRITY_MODE_PROPORTIONAL_WITH_HARD_GATE,
+    MeasurementIntegrityPolicy,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,6 +54,10 @@ def test_new_ekf_matches_legacy_predict_and_update():
     np.testing.assert_allclose(new_pu, old_pu, rtol=1e-11, atol=1e-11)
     assert np.isclose(diag.nis, old_nis)
     assert diag.gated == old_gated
+    assert np.isclose(diag.integrity.raw_nis, diag.nis)
+    assert diag.integrity.processed_nis is not None
+    assert diag.integrity.measurement_covariance_scale >= 1.0
+    assert diag.integrity.status in {"ACCEPTED", "DOWNWEIGHTED"}
 
 
 def test_ci_pair_returns_normalized_weights_and_psd_covariance():
@@ -62,6 +70,33 @@ def test_ci_pair_returns_normalized_weights_and_psd_covariance():
     assert 0.0 <= w <= 1.0
     assert np.allclose(p, p.T)
     assert np.min(np.linalg.eigvalsh(p)) >= -1e-12
+
+
+def test_single_ekf_accepts_shared_proportional_integrity_policy():
+    policy = MeasurementIntegrityPolicy(
+        mode=INTEGRITY_MODE_PROPORTIONAL_WITH_HARD_GATE,
+        inflation_threshold=5.99,
+        maximum_covariance_scale=9.0,
+        hard_gate_threshold=25.0,
+    )
+    ekf = LocalDynamicsEKF(
+        make_process_noise(1.0, 1e-6),
+        np.diag([1e-6, 1e-6]), "ir",
+        integrity_policy=policy,
+    )
+    state = np.array([100.0, 60.0, 1000.0, 0.1, -0.05, 0.02])
+    covariance = np.eye(6) * 1e-3
+    quaternion = np.array([1.0, 0.0, 0.0, 0.0])
+    nominal = ekf.measurement_function(quaternion)(state)
+
+    _, _, diagnostics = ekf.update(
+        state, covariance, nominal + np.array([0.2, -0.2]), quaternion,
+    )
+
+    assert diagnostics.integrity.raw_nis is not None
+    assert diagnostics.integrity.processed_nis is not None
+    assert diagnostics.integrity.measurement_covariance_scale > 1.0
+    assert diagnostics.integrity.processed_nis < diagnostics.integrity.raw_nis
 
 
 def test_ci_posteriors_preserves_input_names():

@@ -54,6 +54,11 @@ from experiments.v14_three_satellite_local_observation import (
     run_v14_three_satellite_local_observation_experiment,
     run_v14_three_satellite_body_scheduling_experiment,
 )
+from experiments.v14_federated_schmidt_ci import (
+    FederatedSchmidtCIResult,
+    SchmidtArchitectureSummary,
+    run_v14_three_satellite_federated_schmidt_ci_experiment,
+)
 
 __all__ = [
     "V14ComparisonCase",
@@ -77,6 +82,8 @@ __all__ = [
     "ThreeSatelliteLocalObservationSummary",
     "OpticalSchedulingSummary",
     "ThreeSatelliteBodySchedulingResult",
+    "FederatedSchmidtCIResult",
+    "SchmidtArchitectureSummary",
     "build_v14_comparison_case",
     "export_v14_comparison",
     "run_v14_comparison",
@@ -95,5 +102,6 @@ __all__ = [
     "run_v14_third_party_tracking_experiment",
     "run_v14_three_satellite_local_observation_experiment",
     "run_v14_three_satellite_body_scheduling_experiment",
+    "run_v14_three_satellite_federated_schmidt_ci_experiment",
     "run_v14_range_rate_sensitivity",
 ]

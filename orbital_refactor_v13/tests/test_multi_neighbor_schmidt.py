@@ -109,6 +109,32 @@ def test_body_angle_update_reads_epoch_attitude_from_observation_metadata():
     assert np.linalg.eigvalsh(result.state.joint_covariance).min() >= -1e-10
 
 
+def test_nis_adaptive_inflation_scales_covariance_before_extreme_gate():
+    active, _, right = _states()
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="sat_02", active_state=active,
+        active_covariance=np.eye(6),
+        neighbor_state_by_id={"sat_03": right},
+        neighbor_covariance_by_id={"sat_03": 2.0 * np.eye(6)},
+    )
+    observation = _message(
+        "sat_02", "sat_03", "RANGE",
+        [measure_relative_range(active, right) + 20.0], [[1.0]], "outlier",
+    )
+
+    result = multi_neighbor_schmidt_update(
+        state, observation,
+        nis_inflation_threshold=5.99,
+        maximum_measurement_covariance_scale=9.0,
+        nis_gate_threshold=25.0,
+    )
+
+    assert result.raw_nis is not None
+    assert result.measurement_covariance_scale > 1.0
+    assert result.measurement_covariance_scale <= 9.0
+    assert result.nis < result.raw_nis
+
+
 def test_two_neighbor_updates_preserve_joint_psd_and_create_cross_terms():
     active, left, right = _states()
     state = initialize_multi_neighbor_schmidt(

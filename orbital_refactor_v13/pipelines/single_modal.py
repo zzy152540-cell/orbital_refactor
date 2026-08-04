@@ -11,6 +11,7 @@ from orbital_core.dynamics import (
 )
 from orbital_core.filters import LocalDynamicsEKF
 from orbital_core.quality import quality_score_from_covariance
+from orbital_core.measurement_integrity import INTEGRITY_PREDICTION_ONLY
 
 
 Array = np.ndarray
@@ -25,6 +26,10 @@ class SingleModalHistory:
     gate_history: Array
     valid_history: Array
     statistics: dict[str, int]
+    processed_nis_history: Array
+    measurement_covariance_scale_history: Array
+    integrity_status_history: tuple[str, ...]
+    consecutive_anomaly_history: Array
 
     def final_estimate(
         self,
@@ -70,6 +75,10 @@ def run_single_modal_filter(
     state_history = np.zeros((sample_count, 6))
     covariance_history = np.zeros((sample_count, 6, 6))
     nis_history = np.full(sample_count, np.nan)
+    processed_nis_history = np.full(sample_count, np.nan)
+    covariance_scale_history = np.ones(sample_count)
+    integrity_status_history = [INTEGRITY_PREDICTION_ONLY] * sample_count
+    consecutive_anomaly_history = np.zeros(sample_count, dtype=int)
     gate_history = np.zeros(sample_count, dtype=bool)
     output_valid_history = np.ones(sample_count, dtype=bool)
 
@@ -79,6 +88,7 @@ def run_single_modal_filter(
     covariance_history[0] = covariance
 
     accepted = rejected = skipped = 0
+    consecutive_anomalies = 0
     for index in range(1, sample_count):
         dt = float(timestamps[index] - timestamps[index - 1])
         predicted_state, predicted_covariance = ekf.predict(
@@ -95,6 +105,16 @@ def run_single_modal_filter(
                 q_eci2pri_history[index],
             )
             nis_history[index] = diagnostics.nis
+            processed_nis_history[index] = diagnostics.integrity.processed_nis
+            covariance_scale_history[index] = (
+                diagnostics.integrity.measurement_covariance_scale
+            )
+            integrity_status_history[index] = diagnostics.integrity.status
+            consecutive_anomalies = (
+                consecutive_anomalies + 1
+                if diagnostics.integrity.anomalous else 0
+            )
+            consecutive_anomaly_history[index] = consecutive_anomalies
             gate_history[index] = diagnostics.gated
             output_valid_history[index] = not diagnostics.skipped
             if diagnostics.skipped:
@@ -106,6 +126,8 @@ def run_single_modal_filter(
             skipped += 1
             # Prediction-only output remains valid, matching the interface document.
             output_valid_history[index] = True
+            integrity_status_history[index] = INTEGRITY_PREDICTION_ONLY
+            consecutive_anomalies = 0
 
         state_history[index] = state
         covariance_history[index] = covariance
@@ -121,6 +143,10 @@ def run_single_modal_filter(
         gate_history=gate_history,
         valid_history=output_valid_history,
         statistics={"accepted": accepted, "rejected": rejected, "skipped": skipped},
+        processed_nis_history=processed_nis_history,
+        measurement_covariance_scale_history=covariance_scale_history,
+        integrity_status_history=tuple(integrity_status_history),
+        consecutive_anomaly_history=consecutive_anomaly_history,
     )
 
 

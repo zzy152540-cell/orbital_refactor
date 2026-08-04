@@ -17,6 +17,14 @@ from .measurements import (
     measurement_residual,
     numerical_measurement_jacobian,
 )
+from .measurement_integrity import (
+    INTEGRITY_MODE_HARD_GATE,
+    INTEGRITY_MODE_LEGACY_FIXED_SOFT,
+    INTEGRITY_MODE_NONE,
+    MeasurementIntegrityDiagnostics,
+    MeasurementIntegrityPolicy,
+    evaluate_measurement_integrity,
+)
 
 
 Array = np.ndarray
@@ -28,6 +36,7 @@ class UpdateDiagnostics:
     gated: bool
     skipped: bool
     effective_measurement_covariance: Array
+    integrity: MeasurementIntegrityDiagnostics
 
 
 class LocalDynamicsEKF:
@@ -54,6 +63,7 @@ class LocalDynamicsEKF:
         legacy_fixed_jacobian_step: bool = True,
         nn_meas_frame: str = "eci",
         nn_use_pseudo_velocity: bool = False,
+        integrity_policy: MeasurementIntegrityPolicy | None = None,
     ) -> None:
         mode = mode_name.lower()
         if mode not in self._SUPPORTED_MODES:
@@ -74,6 +84,21 @@ class LocalDynamicsEKF:
         self.legacy_fixed_jacobian_step = bool(legacy_fixed_jacobian_step)
         self.nn_meas_frame = nn_meas_frame.lower()
         self.nn_use_pseudo_velocity = bool(nn_use_pseudo_velocity)
+        if integrity_policy is None:
+            if not self.gate_enable or not np.isfinite(self.gate_threshold):
+                integrity_policy = MeasurementIntegrityPolicy()
+            elif self.gate_mode == "hard":
+                integrity_policy = MeasurementIntegrityPolicy(
+                    mode=INTEGRITY_MODE_HARD_GATE,
+                    hard_gate_threshold=self.gate_threshold,
+                )
+            else:
+                integrity_policy = MeasurementIntegrityPolicy(
+                    mode=INTEGRITY_MODE_LEGACY_FIXED_SOFT,
+                    inflation_threshold=self.gate_threshold,
+                    fixed_covariance_scale=self.soft_scale,
+                )
+        self.integrity_policy = integrity_policy
         if self.mode_name == "nn" and self.nn_meas_frame not in {"eci", "spri"}:
             raise ValueError("nn_meas_frame must be 'eci' or 'spri'.")
 
@@ -134,25 +159,27 @@ class LocalDynamicsEKF:
         measurement_matrix = self._measurement_jacobian(h, predicted_state)
         innovation = measurement_residual(measurement, predicted_measurement, self.mode_name)
 
-        effective_r = self.R.copy()
-        innovation_covariance = self._innovation_covariance(
-            measurement_matrix, predicted_covariance, effective_r
+        evaluation = evaluate_measurement_integrity(
+            innovation=innovation,
+            predicted_measurement_covariance=(
+                measurement_matrix @ predicted_covariance @ measurement_matrix.T
+            ),
+            measurement_covariance=self.R,
+            policy=self.integrity_policy,
+            regularization=self.regularization,
         )
-        nis = float(innovation.T @ np.linalg.pinv(innovation_covariance) @ innovation)
-        gated = False
-        skipped = False
-
-        if self.gate_enable and np.isfinite(self.gate_threshold) and nis > self.gate_threshold:
-            gated = True
-            if self.gate_mode == "hard":
-                skipped = True
-                diagnostics = UpdateDiagnostics(nis, gated, skipped, effective_r)
-                return predicted_state.copy(), predicted_covariance.copy(), diagnostics
-            effective_r = self.soft_scale * self.R
-            innovation_covariance = self._innovation_covariance(
-                measurement_matrix, predicted_covariance, effective_r
+        effective_r = evaluation.effective_measurement_covariance
+        innovation_covariance = evaluation.innovation_covariance
+        nis = float(evaluation.diagnostics.raw_nis)
+        gated = evaluation.diagnostics.anomalous
+        skipped = evaluation.skipped
+        if skipped:
+            return (
+                predicted_state.copy(), predicted_covariance.copy(),
+                UpdateDiagnostics(
+                    nis, gated, skipped, effective_r, evaluation.diagnostics
+                ),
             )
-            # Keep legacy behavior: NIS is not recomputed after soft inflation.
 
         kalman_gain = (
             predicted_covariance @ measurement_matrix.T
@@ -165,7 +192,9 @@ class LocalDynamicsEKF:
             residual_matrix @ predicted_covariance @ residual_matrix.T
             + kalman_gain @ effective_r @ kalman_gain.T
         )
-        diagnostics = UpdateDiagnostics(nis, gated, skipped, effective_r)
+        diagnostics = UpdateDiagnostics(
+            nis, gated, skipped, effective_r, evaluation.diagnostics,
+        )
         return updated_state, self._symmetrize(updated_covariance), diagnostics
 
     def _innovation_covariance(self, h: Array, p: Array, r: Array) -> Array:

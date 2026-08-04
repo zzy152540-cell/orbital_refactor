@@ -2,17 +2,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from time import perf_counter
+from typing import Mapping
 
 import numpy as np
+from orbital_core.measurement_integrity import MeasurementIntegrityPolicy
 
 from cooperative.exact_transport_protocol import apply_exact_transport_state_message
 from cooperative.multi_neighbor_schmidt import (
     MultiNeighborSchmidtState,
     multi_neighbor_schmidt_predict,
+    multi_neighbor_schmidt_absolute_position_update,
     multi_neighbor_schmidt_update,
 )
 from cooperative.schmidt_refresh import refresh_consider_neighbor
-from interfaces.data_objects import CovarianceTransportEvent, ObservationMessage, StateMessage
+from interfaces.data_objects import (
+    AbsolutePositionObservation,
+    CovarianceTransportEvent,
+    ObservationMessage,
+    StateMessage,
+)
 
 
 @dataclass(frozen=True)
@@ -67,6 +75,12 @@ class MultiNeighborReplayCoordinator:
         history_window: float | None = None,
         max_pinned_age: float | None = None,
         max_retained_events: int | None = None,
+        nis_gate_threshold_by_modality: Mapping[str, float] | None = None,
+        nis_inflation_threshold_by_modality: Mapping[str, float] | None = None,
+        maximum_measurement_covariance_scale_by_modality: Mapping[str, float] | None = None,
+        integrity_policy_by_modality: Mapping[
+            str, MeasurementIntegrityPolicy
+        ] | None = None,
     ) -> None:
         if history_window is not None and history_window < 0.0:
             raise ValueError("history_window cannot be negative.")
@@ -79,9 +93,48 @@ class MultiNeighborReplayCoordinator:
         self.history_window = history_window
         self.max_pinned_age = max_pinned_age
         self.max_retained_events = max_retained_events
+        self.nis_gate_threshold_by_modality = {
+            str(modality): float(threshold)
+            for modality, threshold in (nis_gate_threshold_by_modality or {}).items()
+        }
+        self.nis_inflation_threshold_by_modality = {
+            str(modality): float(threshold)
+            for modality, threshold in (nis_inflation_threshold_by_modality or {}).items()
+        }
+        self.maximum_measurement_covariance_scale_by_modality = {
+            str(modality): float(scale)
+            for modality, scale in (
+                maximum_measurement_covariance_scale_by_modality or {}
+            ).items()
+        }
+        self.integrity_policy_by_modality = dict(
+            integrity_policy_by_modality or {}
+        )
+        if not all(
+            isinstance(value, MeasurementIntegrityPolicy)
+            for value in self.integrity_policy_by_modality.values()
+        ):
+            raise TypeError("Integrity policies must be MeasurementIntegrityPolicy values.")
+        if any(
+            not np.isfinite(value) or value <= 0.0
+            for value in self.nis_gate_threshold_by_modality.values()
+        ):
+            raise ValueError("NIS gate thresholds must be finite and positive.")
+        if any(
+            not np.isfinite(value) or value <= 0.0
+            for value in self.nis_inflation_threshold_by_modality.values()
+        ):
+            raise ValueError("NIS inflation thresholds must be finite and positive.")
+        if any(
+            not np.isfinite(value) or value < 1.0
+            for value in self.maximum_measurement_covariance_scale_by_modality.values()
+        ):
+            raise ValueError("Maximum covariance scales must be finite and at least one.")
         self._checkpoints = {float(initial_state.timestamp): initial_state}
         self._posterior_states = {float(initial_state.timestamp): initial_state}
         self._observations: dict[str, ObservationMessage] = {}
+        self._absolute_observations: dict[str, AbsolutePositionObservation] = {}
+        self.integrity_by_information_id = {}
         self._remote_events: dict[tuple[str, str], RemoteTransportEvent] = {}
         self._pinned_checkpoints: dict[tuple[str, str | None], tuple[float, MultiNeighborSchmidtState]] = {}
         self._resync_required: dict[tuple[str, str | None], str] = {}
@@ -107,8 +160,27 @@ class MultiNeighborReplayCoordinator:
         if not np.isclose(float(observation.timestamp), float(self.state.timestamp)):
             raise ValueError("Observation must be applied at the coordinator's current time.")
         self._observations[observation.information_id] = observation
-        update = multi_neighbor_schmidt_update(self.state, observation)
+        update = multi_neighbor_schmidt_update(
+            self.state, observation,
+            nis_gate_threshold=self.nis_gate_threshold_by_modality.get(
+                observation.modality
+            ),
+            nis_inflation_threshold=self.nis_inflation_threshold_by_modality.get(
+                observation.modality
+            ),
+            maximum_measurement_covariance_scale=(
+                self.maximum_measurement_covariance_scale_by_modality.get(
+                    observation.modality, 1.0
+                )
+            ),
+            integrity_policy=self.integrity_policy_by_modality.get(
+                observation.modality
+            ),
+        )
         self.state = update.state
+        self.integrity_by_information_id[observation.information_id] = (
+            update.integrity
+        )
         self._posterior_states[float(observation.timestamp)] = self.state
         self._enforce_resource_limits(float(self.state.timestamp))
         self._record_resource_peaks()
@@ -134,6 +206,60 @@ class MultiNeighborReplayCoordinator:
         if timestamp not in self._checkpoints:
             raise ValueError("Observation timestamp is unavailable in replay history.")
         self._observations[information_id] = observation
+        nis_by_id = self._replay_from(timestamp)
+        self._enforce_resource_limits(current_timestamp)
+        self._record_resource_peaks()
+        return nis_by_id[information_id]
+
+    def apply_absolute_observation(
+        self, observation: AbsolutePositionObservation,
+    ) -> float:
+        if not np.isclose(float(observation.timestamp), float(self.state.timestamp)):
+            raise ValueError(
+                "Absolute observation must be applied at the coordinator's current time."
+            )
+        self._absolute_observations[observation.information_id] = observation
+        update = multi_neighbor_schmidt_absolute_position_update(
+            self.state, observation,
+            nis_gate_threshold=self.nis_gate_threshold_by_modality.get(
+                "ABSOLUTE_POSITION"
+            ),
+            nis_inflation_threshold=self.nis_inflation_threshold_by_modality.get(
+                "ABSOLUTE_POSITION"
+            ),
+            maximum_measurement_covariance_scale=(
+                self.maximum_measurement_covariance_scale_by_modality.get(
+                    "ABSOLUTE_POSITION", 1.0
+                )
+            ),
+            integrity_policy=self.integrity_policy_by_modality.get(
+                "ABSOLUTE_POSITION"
+            ),
+        )
+        self.state = update.state
+        self.integrity_by_information_id[observation.information_id] = (
+            update.integrity
+        )
+        self._posterior_states[float(observation.timestamp)] = self.state
+        self._enforce_resource_limits(float(self.state.timestamp))
+        self._record_resource_peaks()
+        return update.nis
+
+    def apply_delayed_absolute_observation(
+        self, observation: AbsolutePositionObservation,
+    ) -> float | None:
+        information_id = observation.information_id
+        if information_id in self._absolute_observations:
+            return None
+        timestamp = float(observation.timestamp)
+        current_timestamp = float(self.state.timestamp)
+        if timestamp > current_timestamp:
+            raise ValueError("Absolute observation timestamp cannot be in the future.")
+        if np.isclose(timestamp, current_timestamp):
+            return self.apply_absolute_observation(observation)
+        if timestamp not in self._checkpoints:
+            raise ValueError("Absolute observation timestamp is unavailable in replay history.")
+        self._absolute_observations[information_id] = observation
         nis_by_id = self._replay_from(timestamp)
         self._enforce_resource_limits(current_timestamp)
         self._record_resource_peaks()
@@ -318,7 +444,14 @@ class MultiNeighborReplayCoordinator:
             float(item.timestamp) for item in self._observations.values()
             if reference_timestamp <= float(item.timestamp) <= current_timestamp
         }
-        times = sorted(event_times | observation_times | {current_timestamp})
+        absolute_observation_times = {
+            float(item.timestamp) for item in self._absolute_observations.values()
+            if reference_timestamp <= float(item.timestamp) <= current_timestamp
+        }
+        times = sorted(
+            event_times | observation_times | absolute_observation_times
+            | {current_timestamp}
+        )
         remote_count = 0; observation_count = 0
         nis_by_id: dict[str, float] = {}
         for timestamp in times:
@@ -360,11 +493,60 @@ class MultiNeighborReplayCoordinator:
                  if np.isclose(float(item.timestamp), timestamp)),
                 key=lambda item: item.information_id,
             )
-            for observation in observations:
+            absolute_observations = sorted(
+                (item for item in self._absolute_observations.values()
+                 if np.isclose(float(item.timestamp), timestamp)),
+                key=lambda item: item.information_id,
+            )
+            for observation in absolute_observations:
                 if observation.information_id not in current.information_ids:
-                    update = multi_neighbor_schmidt_update(current, observation)
+                    update = multi_neighbor_schmidt_absolute_position_update(
+                        current, observation,
+                        nis_gate_threshold=self.nis_gate_threshold_by_modality.get(
+                            "ABSOLUTE_POSITION"
+                        ),
+                        nis_inflation_threshold=self.nis_inflation_threshold_by_modality.get(
+                            "ABSOLUTE_POSITION"
+                        ),
+                        maximum_measurement_covariance_scale=(
+                            self.maximum_measurement_covariance_scale_by_modality.get(
+                                "ABSOLUTE_POSITION", 1.0
+                            )
+                        ),
+                        integrity_policy=self.integrity_policy_by_modality.get(
+                            "ABSOLUTE_POSITION"
+                        ),
+                    )
                     current = update.state
                     nis_by_id[observation.information_id] = update.nis
+                    self.integrity_by_information_id[
+                        observation.information_id
+                    ] = update.integrity
+                    observation_count += 1
+            for observation in observations:
+                if observation.information_id not in current.information_ids:
+                    update = multi_neighbor_schmidt_update(
+                        current, observation,
+                        nis_gate_threshold=self.nis_gate_threshold_by_modality.get(
+                            observation.modality
+                        ),
+                        nis_inflation_threshold=self.nis_inflation_threshold_by_modality.get(
+                            observation.modality
+                        ),
+                        maximum_measurement_covariance_scale=(
+                            self.maximum_measurement_covariance_scale_by_modality.get(
+                                observation.modality, 1.0
+                            )
+                        ),
+                        integrity_policy=self.integrity_policy_by_modality.get(
+                            observation.modality
+                        ),
+                    )
+                    current = update.state
+                    nis_by_id[observation.information_id] = update.nis
+                    self.integrity_by_information_id[
+                        observation.information_id
+                    ] = update.integrity
                     observation_count += 1
             self._posterior_states[timestamp] = current
         self.state = current
@@ -393,6 +575,10 @@ class MultiNeighborReplayCoordinator:
             key: value for key, value in self._observations.items()
             if float(value.timestamp) >= journal_oldest
         }
+        self._absolute_observations = {
+            key: value for key, value in self._absolute_observations.items()
+            if float(value.timestamp) >= journal_oldest
+        }
         self._posterior_states = {
             timestamp: state for timestamp, state in self._posterior_states.items()
             if timestamp >= oldest
@@ -411,6 +597,10 @@ class MultiNeighborReplayCoordinator:
                 retained_observations = sum(
                     float(item.timestamp) >= timestamp for item in self._observations.values()
                 )
+                retained_observations += sum(
+                    float(item.timestamp) >= timestamp
+                    for item in self._absolute_observations.values()
+                )
                 retained_remote = sum(
                     item.neighbor_id == link_key[0] and float(item.event.timestamp) >= timestamp
                     for item in self._remote_events.values()
@@ -427,7 +617,8 @@ class MultiNeighborReplayCoordinator:
             performance.maximum_remote_event_count, len(self._remote_events)
         )
         performance.maximum_observation_count = max(
-            performance.maximum_observation_count, len(self._observations)
+            performance.maximum_observation_count,
+            len(self._observations) + len(self._absolute_observations),
         )
         performance.maximum_checkpoint_count = max(
             performance.maximum_checkpoint_count, len(self._checkpoints)
@@ -444,7 +635,8 @@ class MultiNeighborReplayCoordinator:
         )
         performance.maximum_retained_journal_count = max(
             performance.maximum_retained_journal_count,
-            len(self._remote_events) + len(self._observations),
+            len(self._remote_events) + len(self._observations)
+            + len(self._absolute_observations),
         )
 
 

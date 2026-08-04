@@ -130,6 +130,16 @@ class AbsolutePositionObservation:
     valid_flag: bool
     source_type: str = "GNSS"
     metadata: dict[str, Any] = field(default_factory=dict)
+    observation_id: str | None = None
+    arrival_timestamp: float | None = None
+
+    @property
+    def information_id(self) -> str:
+        return (
+            str(self.observation_id)
+            if self.observation_id is not None
+            else f"{self.satellite_id}:absolute:{float(self.timestamp):.12g}"
+        )
 
 
 @dataclass

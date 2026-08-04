@@ -19,6 +19,7 @@ from orbital_core.ci_fusion import ci_fuse_posteriors
 from orbital_core.dynamics import build_target_absolute_accel_history
 from orbital_core.filters import LocalDynamicsEKF
 from orbital_core.quality import quality_score_from_covariance
+from orbital_core.measurement_integrity import INTEGRITY_PREDICTION_ONLY
 
 
 Array = np.ndarray
@@ -41,6 +42,10 @@ class FederatedCIHistory:
     statistics: dict[str, dict[str, int]]
     abnormal_events: list[AbnormalEvent]
     processing_time: float
+    processed_nis_history: dict[str, Array]
+    measurement_covariance_scale_history: dict[str, Array]
+    integrity_status_history: dict[str, tuple[str, ...]]
+    consecutive_anomaly_history: dict[str, Array]
 
     def final_local_estimates(self, *, node_id: str, target_id: str) -> list[LocalEstimate]:
         estimates: list[LocalEstimate] = []
@@ -175,6 +180,19 @@ def run_federated_ci_filter(
     local_covariances = {name: np.zeros((sample_count, 6, 6)) for name in modalities}
     local_output_valid = {name: np.ones(sample_count, dtype=bool) for name in modalities}
     nis_history = {name: np.full(sample_count, np.nan) for name in modalities}
+    processed_nis_history = {
+        name: np.full(sample_count, np.nan) for name in modalities
+    }
+    covariance_scale_history = {
+        name: np.ones(sample_count) for name in modalities
+    }
+    integrity_status_history = {
+        name: [INTEGRITY_PREDICTION_ONLY] * sample_count for name in modalities
+    }
+    consecutive_anomaly_history = {
+        name: np.zeros(sample_count, dtype=int) for name in modalities
+    }
+    consecutive_anomalies = {name: 0 for name in modalities}
     gate_history = {name: np.zeros(sample_count, dtype=bool) for name in modalities}
     statistics = {
         name: {"accepted": 0, "rejected": 0, "skipped": 0}
@@ -199,6 +217,13 @@ def run_federated_ci_filter(
         if dt <= 0.0:
             raise ValueError("timestamps must be strictly increasing.")
         posterior_list: list[tuple[str, Array, Array]] = []
+        reference_filter = local_filters[modalities[0]]
+        predicted_fused_state, predicted_fused_covariance = (
+            reference_filter.predict(
+                fused_states[index - 1], fused_covariances[index - 1],
+                chief_history[index - 1], dt,
+            )
+        )
 
         for modality in modalities:
             ekf = local_filters[modality]
@@ -213,6 +238,7 @@ def run_federated_ci_filter(
                 state, covariance = predicted_state, predicted_covariance
                 local_output_valid[modality][index] = True
                 statistics[modality]["skipped"] += 1
+                consecutive_anomalies[modality] = 0
                 abnormal_events.append(
                     AbnormalEvent(
                         timestamp=float(timestamps[index]),
@@ -232,6 +258,22 @@ def run_federated_ci_filter(
                     q_history[index],
                 )
                 nis_history[modality][index] = diagnostics.nis
+                processed_nis_history[modality][index] = (
+                    diagnostics.integrity.processed_nis
+                )
+                covariance_scale_history[modality][index] = (
+                    diagnostics.integrity.measurement_covariance_scale
+                )
+                integrity_status_history[modality][index] = (
+                    diagnostics.integrity.status
+                )
+                consecutive_anomalies[modality] = (
+                    consecutive_anomalies[modality] + 1
+                    if diagnostics.integrity.anomalous else 0
+                )
+                consecutive_anomaly_history[modality][index] = (
+                    consecutive_anomalies[modality]
+                )
                 gate_history[modality][index] = diagnostics.gated
                 local_output_valid[modality][index] = not diagnostics.skipped
                 if diagnostics.skipped:
@@ -275,15 +317,18 @@ def run_federated_ci_filter(
             previous_covariances[modality] = covariance
 
         if not posterior_list:
-            fused_states[index] = fused_states[index - 1]
-            fused_covariances[index] = fused_covariances[index - 1]
+            fused_states[index] = predicted_fused_state
+            fused_covariances[index] = predicted_fused_covariance
             ci_weight_history.append(None)
             abnormal_events.append(
                 AbnormalEvent(
                     timestamp=float(timestamps[index]),
                     event_type="ALL_MODALITIES_UNAVAILABLE",
                     severity="ERROR",
-                    description="No accepted modality posterior; previous fused result retained.",
+                    description=(
+                        "No accepted modality posterior; fused result propagated "
+                        "with relative-orbit dynamics."
+                    ),
                     node_id=node_id,
                     target_id=target_id,
                 )
@@ -328,6 +373,13 @@ def run_federated_ci_filter(
         statistics=statistics,
         abnormal_events=abnormal_events,
         processing_time=processing_time,
+        processed_nis_history=processed_nis_history,
+        measurement_covariance_scale_history=covariance_scale_history,
+        integrity_status_history={
+            name: tuple(values)
+            for name, values in integrity_status_history.items()
+        },
+        consecutive_anomaly_history=consecutive_anomaly_history,
     )
 
 

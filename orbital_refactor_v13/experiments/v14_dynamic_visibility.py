@@ -338,6 +338,7 @@ def run_v14_dynamic_visibility_experiment(
                     initial_covariance_by_node=case["initial_covariances"],
                     topology=case["topology"],
                     observation_messages=case["observations"],
+                    absolute_position_observations=case["absolute_observations"],
                     observation_usage=observation_usage,
                     process_noise_acceleration=process_noise_acceleration,
                     consider_refresh_mode=mode,

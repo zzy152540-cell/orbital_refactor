@@ -1,6 +1,9 @@
 import numpy as np
 import pytest
 
+from adapters.synthetic_measurement_adapter import (
+    create_single_satellite_visibility_flags,
+)
 from orbital_core.constants import R_EARTH
 from scenarios.measurement_visibility import (
     MeasurementOpportunity,
@@ -9,8 +12,10 @@ from scenarios.measurement_visibility import (
     VisibilityTemporalFilterConfig,
     evaluate_inter_satellite_visibility,
     generate_inter_satellite_observation_opportunities,
+    generate_single_satellite_observation_opportunities,
     summarize_observation_opportunities,
     stabilize_observation_opportunities,
+    visibility_flags_by_modality,
 )
 from cooperative.topology import chain_topology
 
@@ -86,6 +91,161 @@ def test_body_fov_uses_positive_x_boresight_and_reports_angle():
     assert not off_axis.visible
     assert off_axis.reason == "outside_fov"
     assert off_axis.off_boresight_angle == pytest.approx(np.pi / 2.0)
+
+
+def test_visibility_config_supports_single_satellite_positive_z_camera_axis():
+    observer = np.array([ORBIT_RADIUS, 0.0, 0.0])
+    target = observer + np.array([0.0, 0.0, 1000.0])
+    identity = np.array([1.0, 0.0, 0.0, 0.0])
+
+    result = evaluate_inter_satellite_visibility(
+        observer, target,
+        VisibilityConfig(
+            field_of_view_half_angle=np.deg2rad(20.0),
+            boresight_axis=(0.0, 0.0, 1.0),
+        ),
+        quaternion_i2b_wxyz=identity,
+    )
+
+    assert result.visible
+    assert result.off_boresight_angle == pytest.approx(0.0)
+
+
+def test_single_satellite_opportunities_use_shared_geometry_and_temporal_filter():
+    times = np.array([0.0, 1.0, 2.0])
+    chief = np.tile(
+        np.array([ORBIT_RADIUS, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        (len(times), 1),
+    )
+    relative = np.tile(
+        np.array([0.0, 0.0, 1000.0, 0.0, 0.0, 0.0]),
+        (len(times), 1),
+    )
+    attitude = np.tile(np.array([1.0, 0.0, 0.0, 0.0]), (len(times), 1))
+    visibility = {
+        "OPTICAL": VisibilityConfig(
+            maximum_range=1500.0,
+            field_of_view_half_angle=np.deg2rad(20.0),
+            boresight_axis=(0.0, 0.0, 1.0),
+        )
+    }
+
+    opportunities = generate_single_satellite_observation_opportunities(
+        timestamps=times,
+        chief_state_history_eci=chief,
+        relative_target_state_history_eci=relative,
+        visibility_by_modality=visibility,
+        attitude_history_i2sensor_wxyz=attitude,
+        temporal_filter_by_modality={
+            "OPTICAL": VisibilityTemporalFilterConfig(acquisition_epochs=2)
+        },
+    )
+    flags = visibility_flags_by_modality(opportunities)
+
+    np.testing.assert_array_equal(flags["OPTICAL"], [False, True, True])
+    assert opportunities[0].visibility.reason == "acquisition_pending"
+
+
+def test_single_satellite_adapter_exposes_shared_flags_and_reasons():
+    times = np.array([0.0, 1.0])
+    chief = np.tile(
+        np.array([ORBIT_RADIUS, 0.0, 0.0, 0.0, 7500.0, 0.0]), (2, 1)
+    )
+    relative = np.tile(
+        np.array([2000.0, 0.0, 0.0, 0.0, 0.0, 0.0]), (2, 1)
+    )
+
+    result = create_single_satellite_visibility_flags(
+        timestamps=times,
+        chief_state_history_eci=chief,
+        relative_target_state_history_eci=relative,
+        visibility_by_modality={
+            "RADAR": VisibilityConfig(maximum_range=1500.0)
+        },
+    )
+
+    np.testing.assert_array_equal(result.valid_flags_by_modality["RADAR"], False)
+    assert {
+        item.visibility.reason for item in result.opportunities
+    } == {"range_exceeded"}
+
+
+def test_single_and_multi_satellite_visibility_entries_are_epoch_equivalent():
+    times = np.array([0.0, 1.0, 2.0])
+    chief = np.tile(
+        np.array([ORBIT_RADIUS, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        (len(times), 1),
+    )
+    relative = np.array([
+        [1000.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1000.0, 0.0, 0.0, 0.0],
+        [2000.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    ])
+    target = chief + relative
+    attitudes = np.tile(
+        np.array([1.0, 0.0, 0.0, 0.0]), (len(times), 1)
+    )
+    visibility = {
+        "RADAR": VisibilityConfig(maximum_range=1500.0),
+        "INFRARED": VisibilityConfig(
+            maximum_range=1500.0,
+            field_of_view_half_angle=np.deg2rad(20.0),
+            boresight_axis=(1.0, 0.0, 0.0),
+        ),
+        "OPTICAL": VisibilityConfig(
+            maximum_range=1500.0,
+            field_of_view_half_angle=np.deg2rad(20.0),
+            boresight_axis=(0.0, 0.0, 1.0),
+        ),
+    }
+    temporal = {
+        modality: VisibilityTemporalFilterConfig(
+            acquisition_epochs=1, loss_epochs=1,
+        )
+        for modality in visibility
+    }
+
+    single = generate_single_satellite_observation_opportunities(
+        timestamps=times,
+        chief_state_history_eci=chief,
+        relative_target_state_history_eci=relative,
+        visibility_by_modality=visibility,
+        attitude_history_i2sensor_wxyz=attitudes,
+        temporal_filter_by_modality=temporal,
+        observer_id="chief", target_id="target",
+    )
+    multi_raw = generate_inter_satellite_observation_opportunities(
+        timestamps=times,
+        truth_state_history_by_node={"chief": chief, "target": target},
+        candidate_topology=chain_topology(["chief", "target"]),
+        visibility_by_modality=visibility,
+        attitude_history_by_node={"chief": attitudes, "target": attitudes},
+    )
+    multi = stabilize_observation_opportunities(
+        multi_raw,
+        visibility_by_modality=visibility,
+        temporal_filter_by_modality=temporal,
+    )
+    multi_forward = tuple(
+        item for item in multi
+        if item.observer_id == "chief" and item.target_id == "target"
+    )
+
+    assert len(single) == len(multi_forward) == len(times) * len(visibility)
+    for left, right in zip(single, multi_forward):
+        assert (left.timestamp, left.modality) == (right.timestamp, right.modality)
+        assert left.visibility.visible == right.visibility.visible
+        assert left.visibility.reason == right.visibility.reason
+        assert left.visibility.range == pytest.approx(right.visibility.range)
+        assert left.visibility.earth_clearance == pytest.approx(
+            right.visibility.earth_clearance
+        )
+        if left.visibility.off_boresight_angle is None:
+            assert right.visibility.off_boresight_angle is None
+        else:
+            assert left.visibility.off_boresight_angle == pytest.approx(
+                right.visibility.off_boresight_angle
+            )
 
 
 def test_fov_requires_attitude_and_valid_half_angle():

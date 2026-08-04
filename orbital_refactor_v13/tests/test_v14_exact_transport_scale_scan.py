@@ -1,6 +1,10 @@
+from experiments.v14_exact_transport_scale_scan import _build_case
 from experiments.v14_exact_transport_scale_scan import run_v14_exact_transport_smoke_scan
 from experiments.v14_exact_transport_scale_scan import run_v14_exact_transport_topology_scan
-from scenarios.measurement_visibility import VisibilityConfig
+from scenarios.measurement_visibility import (
+    VisibilityConfig,
+    VisibilityTemporalFilterConfig,
+)
 
 
 def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
@@ -124,3 +128,89 @@ def test_scale_scan_supports_eci_az_el_with_dimension_aware_nis():
     assert set(summary.mean_nis_95_coverage_by_modality) == {"RANGE", "AZ_EL"}
     assert 0.0 <= summary.mean_nis_95_coverage <= 1.0
     assert summary.psd_failure_count == 0
+
+
+def test_state_link_outage_is_independent_and_recovers_with_accumulated_events():
+    result = run_v14_exact_transport_smoke_scan(
+        node_count=3, topology_type="chain", seeds=1, duration=8.0, dt=2.0,
+        scenario_names=("ideal",), modes=("exact_transport_event_replay",),
+        communication_outage_windows_by_directed_link={
+            ("sat_01", "sat_02"): ((2.0, 4.0),),
+        },
+    )
+    summary = result.summary_by_scenario_and_mode[
+        ("ideal", "exact_transport_event_replay")
+    ]
+    recovered = [
+        record for record in result.diagnostic_records
+        if record["receiver_id"] == "sat_01"
+        and record["source_id"] == "sat_02"
+        and record["current_timestamp"] == 6.0
+    ]
+
+    assert len(recovered) == 1
+    assert recovered[0]["accepted"] is True
+    assert recovered[0]["consecutive_losses_before_delivery"] == 2
+    assert recovered[0]["transport_event_count"] >= 2
+    assert summary.message_acceptance_rate == 1.0
+    assert summary.psd_failure_count == 0
+
+
+def test_state_link_outage_rejects_unknown_directed_link():
+    try:
+        run_v14_exact_transport_smoke_scan(
+            node_count=3, topology_type="chain", seeds=1, duration=4.0, dt=2.0,
+            scenario_names=("ideal",), modes=("exact_transport_event_replay",),
+            communication_outage_windows_by_directed_link={
+                ("sat_01", "sat_03"): ((0.0, 2.0),),
+            },
+        )
+    except ValueError as error:
+        assert "unknown link" in str(error)
+    else:
+        raise AssertionError("Expected unknown communication link rejection.")
+
+
+def test_physical_modalities_can_use_independent_measurement_periods():
+    case = _build_case(
+        seed=0, duration=8.0, dt=2.0,
+        range_sigma=2.0, range_rate_sigma=0.05, absolute_sigma=3.0,
+        process_noise_acceleration=1e-8, packet_loss=0.0, delay=0.0,
+        acknowledge_messages=True, node_count=3, topology_type="chain",
+        relative_modalities=("RADAR", "INFRARED", "OPTICAL"),
+        measurement_period_by_modality={
+            "RADAR": 2.0, "INFRARED": 4.0, "OPTICAL": 8.0,
+        },
+    )
+    counts = {
+        modality: sum(
+            observation.modality == modality
+            for observation in case["observations"]
+        )
+        for modality in ("RADAR", "INFRARED", "OPTICAL")
+    }
+
+    assert counts == {"RADAR": 20, "INFRARED": 12, "OPTICAL": 8}
+
+
+def test_public_scan_applies_visibility_temporal_confirmation():
+    raw = run_v14_exact_transport_smoke_scan(
+        node_count=3, topology_type="chain", seeds=1, duration=4.0, dt=2.0,
+        scenario_names=("ideal",), modes=("propagate_only",),
+        relative_modalities=("RANGE",),
+        visibility_by_modality={"RANGE": VisibilityConfig(maximum_range=1500.0)},
+    )
+    confirmed = run_v14_exact_transport_smoke_scan(
+        node_count=3, topology_type="chain", seeds=1, duration=4.0, dt=2.0,
+        scenario_names=("ideal",), modes=("propagate_only",),
+        relative_modalities=("RANGE",),
+        visibility_by_modality={"RANGE": VisibilityConfig(maximum_range=1500.0)},
+        visibility_temporal_filter_by_modality={
+            "RANGE": VisibilityTemporalFilterConfig(acquisition_epochs=2),
+        },
+    )
+
+    assert (
+        confirmed.visibility_summary.overall.visible_count
+        < raw.visibility_summary.overall.visible_count
+    )

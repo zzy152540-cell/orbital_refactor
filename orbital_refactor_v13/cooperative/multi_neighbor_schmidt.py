@@ -5,9 +5,21 @@ from typing import Iterable, Mapping
 
 import numpy as np
 
-from interfaces.data_objects import ObservationMessage
+from interfaces.data_objects import AbsolutePositionObservation, ObservationMessage
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
 from orbital_core.inter_satellite_model import RelativeMeasurementModel
+from orbital_core.measurement_integrity import (
+    INTEGRITY_ACCEPTED,
+    INTEGRITY_DOWNWEIGHTED,
+    INTEGRITY_HARD_REJECTED,
+    MeasurementIntegrityDiagnostics,
+    MeasurementIntegrityPolicy,
+    INTEGRITY_MODE_HARD_GATE,
+    INTEGRITY_MODE_NONE,
+    INTEGRITY_MODE_PROPORTIONAL_INFLATION,
+    INTEGRITY_MODE_PROPORTIONAL_WITH_HARD_GATE,
+    evaluate_measurement_integrity,
+)
 
 Array = np.ndarray
 
@@ -52,6 +64,24 @@ class MultiNeighborSchmidtUpdateResult:
     innovation: Array
     innovation_covariance: Array
     nis: float
+    skipped: bool = False
+    raw_nis: float | None = None
+    measurement_covariance_scale: float = 1.0
+
+    @property
+    def integrity(self) -> MeasurementIntegrityDiagnostics:
+        status = (
+            INTEGRITY_HARD_REJECTED if self.skipped
+            else INTEGRITY_DOWNWEIGHTED
+            if self.measurement_covariance_scale > 1.0
+            else INTEGRITY_ACCEPTED
+        )
+        return MeasurementIntegrityDiagnostics(
+            raw_nis=self.nis if self.raw_nis is None else self.raw_nis,
+            processed_nis=self.nis,
+            measurement_covariance_scale=self.measurement_covariance_scale,
+            status=status,
+        )
 
 
 @dataclass(frozen=True)
@@ -108,6 +138,10 @@ def multi_neighbor_schmidt_predict(
 def multi_neighbor_schmidt_update(
     state: MultiNeighborSchmidtState, observation: ObservationMessage, *,
     quaternion_i2b_wxyz: Array | None = None, regularization: float = 1e-9,
+    nis_gate_threshold: float | None = None,
+    nis_inflation_threshold: float | None = None,
+    maximum_measurement_covariance_scale: float = 1.0,
+    integrity_policy: MeasurementIntegrityPolicy | None = None,
 ) -> MultiNeighborSchmidtUpdateResult:
     if quaternion_i2b_wxyz is None and observation.frame.upper() == "BODY":
         quaternion_i2b_wxyz = observation.metadata.get("quaternion_i2b_wxyz")
@@ -141,14 +175,121 @@ def multi_neighbor_schmidt_update(
     jacobian = np.zeros((measurement.size, state.dimension), dtype=float)
     jacobian[:, :6] = h_active
     jacobian[:, state.neighbor_slice(neighbor_id)] = h_neighbor
-    innovation_covariance = jacobian @ state.joint_covariance @ jacobian.T + measurement_covariance + regularization * np.eye(measurement.size)
+    predicted_measurement_covariance = jacobian @ state.joint_covariance @ jacobian.T
+    policy = integrity_policy or _policy_from_legacy_integrity_parameters(
+        nis_gate_threshold=nis_gate_threshold,
+        nis_inflation_threshold=nis_inflation_threshold,
+        maximum_measurement_covariance_scale=(
+            maximum_measurement_covariance_scale
+        ),
+    )
+    evaluation = evaluate_measurement_integrity(
+        innovation=innovation,
+        predicted_measurement_covariance=predicted_measurement_covariance,
+        measurement_covariance=measurement_covariance,
+        policy=policy, regularization=regularization,
+    )
+    measurement_covariance = evaluation.effective_measurement_covariance
+    innovation_covariance = evaluation.innovation_covariance
+    raw_nis = float(evaluation.diagnostics.raw_nis)
+    nis = float(evaluation.diagnostics.processed_nis)
+    covariance_scale = evaluation.diagnostics.measurement_covariance_scale
+    if evaluation.skipped:
+        return MultiNeighborSchmidtUpdateResult(
+            state, innovation, innovation_covariance, nis, skipped=True,
+            raw_nis=raw_nis,
+            measurement_covariance_scale=covariance_scale,
+        )
     gain = np.zeros((state.dimension, measurement.size), dtype=float)
     gain[:6] = (state.joint_covariance[:6] @ jacobian.T) @ np.linalg.pinv(innovation_covariance)
     residual = np.eye(state.dimension) - gain @ jacobian
     covariance = residual @ state.joint_covariance @ residual.T + gain @ measurement_covariance @ gain.T
     updated = replace(state, active_state=state.active_state + gain[:6] @ innovation, joint_covariance=_symmetrize(covariance), information_ids=(*state.information_ids, observation.information_id))
-    nis = float(innovation.T @ np.linalg.pinv(innovation_covariance) @ innovation)
-    return MultiNeighborSchmidtUpdateResult(updated, innovation, innovation_covariance, nis)
+    return MultiNeighborSchmidtUpdateResult(
+        updated, innovation, innovation_covariance, nis,
+        raw_nis=raw_nis,
+        measurement_covariance_scale=covariance_scale,
+    )
+
+
+def multi_neighbor_schmidt_absolute_position_update(
+    state: MultiNeighborSchmidtState,
+    observation: AbsolutePositionObservation,
+    *, regularization: float = 1e-9,
+    nis_gate_threshold: float | None = None,
+    nis_inflation_threshold: float | None = None,
+    maximum_measurement_covariance_scale: float = 1.0,
+    integrity_policy: MeasurementIntegrityPolicy | None = None,
+) -> MultiNeighborSchmidtUpdateResult:
+    """Update only the active satellite from its own absolute position fix."""
+
+    if not np.isclose(float(observation.timestamp), float(state.timestamp)):
+        raise ValueError("Absolute observation and Schmidt timestamps must match.")
+    if str(observation.satellite_id) != state.active_node_id:
+        raise ValueError("Absolute observation must belong to the active node.")
+    if not observation.valid_flag:
+        raise ValueError("Absolute observation must be valid before filtering.")
+    if observation.information_id in state.information_ids:
+        raise ValueError("Absolute observation has already been used.")
+    measurement = np.asarray(observation.measurement_eci, dtype=float).reshape(3)
+    measurement_covariance = np.asarray(
+        observation.covariance, dtype=float
+    ).reshape(3, 3)
+    if not 0.0 < float(observation.confidence) <= 1.0:
+        raise ValueError("Observation confidence must be in (0, 1].")
+    measurement_covariance = measurement_covariance / float(
+        observation.confidence
+    )
+    jacobian = np.zeros((3, state.dimension), dtype=float)
+    jacobian[:, :3] = np.eye(3)
+    innovation = measurement - state.active_state[:3]
+    predicted_measurement_covariance = (
+        jacobian @ state.joint_covariance @ jacobian.T
+    )
+    policy = integrity_policy or _policy_from_legacy_integrity_parameters(
+        nis_gate_threshold=nis_gate_threshold,
+        nis_inflation_threshold=nis_inflation_threshold,
+        maximum_measurement_covariance_scale=(
+            maximum_measurement_covariance_scale
+        ),
+    )
+    evaluation = evaluate_measurement_integrity(
+        innovation=innovation,
+        predicted_measurement_covariance=predicted_measurement_covariance,
+        measurement_covariance=measurement_covariance,
+        policy=policy, regularization=regularization,
+    )
+    measurement_covariance = evaluation.effective_measurement_covariance
+    innovation_covariance = evaluation.innovation_covariance
+    raw_nis = float(evaluation.diagnostics.raw_nis)
+    nis = float(evaluation.diagnostics.processed_nis)
+    covariance_scale = evaluation.diagnostics.measurement_covariance_scale
+    if evaluation.skipped:
+        return MultiNeighborSchmidtUpdateResult(
+            state, innovation, innovation_covariance, nis, skipped=True,
+            raw_nis=raw_nis,
+            measurement_covariance_scale=covariance_scale,
+        )
+    gain = np.zeros((state.dimension, 3), dtype=float)
+    gain[:6] = (
+        state.joint_covariance[:6] @ jacobian.T
+    ) @ np.linalg.pinv(innovation_covariance)
+    residual = np.eye(state.dimension) - gain @ jacobian
+    covariance = (
+        residual @ state.joint_covariance @ residual.T
+        + gain @ measurement_covariance @ gain.T
+    )
+    updated = replace(
+        state,
+        active_state=state.active_state + gain[:6] @ innovation,
+        joint_covariance=_symmetrize(covariance),
+        information_ids=(*state.information_ids, observation.information_id),
+    )
+    return MultiNeighborSchmidtUpdateResult(
+        updated, innovation, innovation_covariance, nis,
+        raw_nis=raw_nis,
+        measurement_covariance_scale=covariance_scale,
+    )
 
 
 def add_consider_neighbor(
@@ -222,6 +363,29 @@ def run_multi_neighbor_schmidt_history(
         for node_id in state.neighbor_ids: neighbor_states[node_id][index] = state.neighbor_state_by_id[node_id]
         joint_covariances[index] = state.joint_covariance; nis_history.append(epoch_nis)
     return MultiNeighborSchmidtHistory(times.copy(), active_states, active_covariances, neighbor_states, joint_covariances, nis_history)
+
+
+def _policy_from_legacy_integrity_parameters(
+    *, nis_gate_threshold: float | None,
+    nis_inflation_threshold: float | None,
+    maximum_measurement_covariance_scale: float,
+) -> MeasurementIntegrityPolicy:
+    if nis_inflation_threshold is not None and nis_gate_threshold is not None:
+        mode = INTEGRITY_MODE_PROPORTIONAL_WITH_HARD_GATE
+    elif nis_inflation_threshold is not None:
+        mode = INTEGRITY_MODE_PROPORTIONAL_INFLATION
+    elif nis_gate_threshold is not None:
+        mode = INTEGRITY_MODE_HARD_GATE
+    else:
+        mode = INTEGRITY_MODE_NONE
+    return MeasurementIntegrityPolicy(
+        mode=mode,
+        inflation_threshold=nis_inflation_threshold,
+        maximum_covariance_scale=float(
+            maximum_measurement_covariance_scale
+        ),
+        hard_gate_threshold=nis_gate_threshold,
+    )
 
 
 def _block_diag(matrices: list[Array]) -> Array:

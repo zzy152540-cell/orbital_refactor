@@ -20,6 +20,7 @@ class VisibilityConfig:
     earth_clearance: float = 0.0
     maximum_range: float | None = None
     field_of_view_half_angle: float | None = None
+    boresight_axis: tuple[float, float, float] = (1.0, 0.0, 0.0)
     tolerance: float = 1e-6
 
     def __post_init__(self) -> None:
@@ -37,6 +38,11 @@ class VisibilityConfig:
             )
         if self.tolerance < 0.0:
             raise ValueError("tolerance cannot be negative.")
+        boresight = np.asarray(self.boresight_axis, dtype=float)
+        if boresight.shape != (3,) or not np.all(np.isfinite(boresight)):
+            raise ValueError("boresight_axis must contain three finite values.")
+        if np.linalg.norm(boresight) <= 0.0:
+            raise ValueError("boresight_axis must be nonzero.")
 
 
 @dataclass(frozen=True)
@@ -143,7 +149,11 @@ def evaluate_inter_satellite_visibility(
                 "FOV visibility requires observer quaternion_i2b_wxyz."
             )
         relative_body = quat_to_dcm_i2b(quaternion_i2b_wxyz) @ relative
-        cosine = float(np.clip(relative_body[0] / distance, -1.0, 1.0))
+        boresight = np.asarray(limits.boresight_axis, dtype=float)
+        boresight = boresight / np.linalg.norm(boresight)
+        cosine = float(np.clip(
+            np.dot(relative_body, boresight) / distance, -1.0, 1.0
+        ))
         off_boresight_angle = float(np.arccos(cosine))
         if off_boresight_angle > (
             limits.field_of_view_half_angle + limits.tolerance
@@ -219,6 +229,95 @@ def generate_inter_satellite_observation_opportunities(
                         visibility=visibility,
                     ))
     return tuple(opportunities)
+
+
+def generate_single_satellite_observation_opportunities(
+    *,
+    timestamps: Array,
+    chief_state_history_eci: Array,
+    relative_target_state_history_eci: Array,
+    visibility_by_modality: Mapping[str, VisibilityConfig],
+    attitude_history_i2sensor_wxyz: Array | None = None,
+    temporal_filter_by_modality: Mapping[
+        str, VisibilityTemporalFilterConfig
+    ] | None = None,
+    observer_id: str = "chief",
+    target_id: str = "target",
+) -> tuple[MeasurementOpportunity, ...]:
+    """Evaluate a single-target scenario through the shared visibility layer.
+
+    The target absolute ECI trajectory is reconstructed from the chief state
+    and the target-relative ECI state. Sensor-specific camera axes are carried
+    by each :class:`VisibilityConfig`.
+    """
+
+    times = np.asarray(timestamps, dtype=float).reshape(-1)
+    chief = np.asarray(chief_state_history_eci, dtype=float)
+    relative = np.asarray(relative_target_state_history_eci, dtype=float)
+    if times.size == 0:
+        raise ValueError("timestamps cannot be empty.")
+    if times.size > 1 and not np.all(np.diff(times) > 0.0):
+        raise ValueError("timestamps must be strictly increasing.")
+    if chief.shape != (times.size, 6):
+        raise ValueError("chief_state_history_eci must have shape (N, 6).")
+    if relative.shape != (times.size, 6):
+        raise ValueError(
+            "relative_target_state_history_eci must have shape (N, 6)."
+        )
+    if not visibility_by_modality:
+        raise ValueError("At least one visibility modality is required.")
+    attitudes = None
+    if attitude_history_i2sensor_wxyz is not None:
+        attitudes = np.asarray(attitude_history_i2sensor_wxyz, dtype=float)
+        if attitudes.shape != (times.size, 4):
+            raise ValueError(
+                "attitude_history_i2sensor_wxyz must have shape (N, 4)."
+            )
+    target = chief + relative
+    opportunities = []
+    for index, timestamp in enumerate(times):
+        for modality, config in sorted(visibility_by_modality.items()):
+            visibility = evaluate_inter_satellite_visibility(
+                chief[index], target[index], config,
+                quaternion_i2b_wxyz=(
+                    None if attitudes is None else attitudes[index]
+                ),
+            )
+            opportunities.append(MeasurementOpportunity(
+                timestamp=float(timestamp), observer_id=str(observer_id),
+                target_id=str(target_id), modality=str(modality),
+                visibility=visibility,
+            ))
+    result = tuple(opportunities)
+    if temporal_filter_by_modality:
+        result = stabilize_observation_opportunities(
+            result,
+            visibility_by_modality=visibility_by_modality,
+            temporal_filter_by_modality=temporal_filter_by_modality,
+        )
+    return result
+
+
+def visibility_flags_by_modality(
+    opportunities: tuple[MeasurementOpportunity, ...],
+) -> dict[str, Array]:
+    """Convert one observer-target opportunity timeline into boolean flags."""
+
+    if not opportunities:
+        raise ValueError("At least one measurement opportunity is required.")
+    groups: dict[str, list[MeasurementOpportunity]] = {}
+    pairs = {(item.observer_id, item.target_id) for item in opportunities}
+    if len(pairs) != 1:
+        raise ValueError("Visibility flags require one observer-target pair.")
+    for item in opportunities:
+        groups.setdefault(item.modality, []).append(item)
+    return {
+        modality: np.asarray([
+            item.visibility.visible
+            for item in sorted(values, key=lambda value: value.timestamp)
+        ], dtype=bool)
+        for modality, values in sorted(groups.items())
+    }
 
 
 def summarize_observation_opportunities(

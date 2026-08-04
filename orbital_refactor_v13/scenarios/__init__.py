@@ -20,8 +20,10 @@ from scenarios.measurement_visibility import (
     VisibilityTemporalFilterConfig,
     evaluate_inter_satellite_visibility,
     generate_inter_satellite_observation_opportunities,
+    generate_single_satellite_observation_opportunities,
     summarize_observation_opportunities,
     stabilize_observation_opportunities,
+    visibility_flags_by_modality,
 )
 
 __all__ = [
@@ -37,8 +39,10 @@ __all__ = [
     "VisibilityTemporalFilterConfig",
     "evaluate_inter_satellite_visibility",
     "generate_inter_satellite_observation_opportunities",
+    "generate_single_satellite_observation_opportunities",
     "summarize_observation_opportunities",
     "stabilize_observation_opportunities",
+    "visibility_flags_by_modality",
     "generate_attitude_truth",
     "generate_differential_orbit_fleet_scenario",
     "generate_fleet_scenario",

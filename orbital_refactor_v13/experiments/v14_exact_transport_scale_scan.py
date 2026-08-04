@@ -5,6 +5,7 @@ from dataclasses import replace
 import csv
 from pathlib import Path
 from time import perf_counter
+from typing import Mapping
 
 import numpy as np
 
@@ -12,7 +13,11 @@ from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.message_transport import MessageChannel
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.topology import chain_topology, ring_topology, star_topology
-from interfaces.data_objects import ObservationMessage, StateMessage
+from interfaces.data_objects import (
+    AbsolutePositionObservation,
+    ObservationMessage,
+    StateMessage,
+)
 from orbital_core.constants import R_EARTH
 from orbital_core.coordinates import dcm_to_quat_wxyz
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
@@ -30,6 +35,7 @@ from scenarios.fleet_scenario import generate_fleet_scenario
 from scenarios.measurement_visibility import (
     VisibilityConfig,
     VisibilityOpportunitySummary,
+    VisibilityTemporalFilterConfig,
     generate_inter_satellite_observation_opportunities,
     summarize_observation_opportunities,
     stabilize_observation_opportunities,
@@ -106,6 +112,13 @@ def run_v14_exact_transport_smoke_scan(
     modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
     visibility_by_modality: dict[str, VisibilityConfig] | None = None,
     relative_modalities: tuple[str, ...] = ("RANGE",),
+    communication_outage_windows_by_directed_link: Mapping[
+        tuple[str, str], tuple[tuple[float, float], ...]
+    ] | None = None,
+    measurement_period_by_modality: Mapping[str, float] | None = None,
+    visibility_temporal_filter_by_modality: Mapping[
+        str, VisibilityTemporalFilterConfig
+    ] | None = None,
 ) -> ExactTransportScaleScanResult:
     """Run the production network API over five configurable fleet cases."""
     if seeds < 1:
@@ -170,6 +183,13 @@ def run_v14_exact_transport_smoke_scan(
                 node_count=node_count, topology_type=topology_type,
                 visibility_by_modality=visibility_by_modality,
                 relative_modalities=relative_modalities,
+                communication_outage_windows_by_directed_link=(
+                    communication_outage_windows_by_directed_link
+                ),
+                measurement_period_by_modality=measurement_period_by_modality,
+                visibility_temporal_filter_by_modality=(
+                    visibility_temporal_filter_by_modality
+                ),
             )
             if visibility_summary is None:
                 visibility_summary = case["visibility_summary"]
@@ -181,6 +201,7 @@ def run_v14_exact_transport_smoke_scan(
                     initial_covariance_by_node=case["initial_covariances"],
                     topology=case["topology"],
                     observation_messages=case["observations"],
+                    absolute_position_observations=case["absolute_observations"],
                     observation_usage="observer_only",
                     process_noise_acceleration=process_noise_acceleration,
                     consider_refresh_mode=mode,
@@ -267,6 +288,13 @@ def run_v14_exact_transport_topology_scan(
     modes: tuple[str, ...] = ("propagate_only", "exact_transport_event_replay"),
     visibility_by_modality: dict[str, VisibilityConfig] | None = None,
     relative_modalities: tuple[str, ...] = ("RANGE",),
+    communication_outage_windows_by_directed_link: Mapping[
+        tuple[str, str], tuple[tuple[float, float], ...]
+    ] | None = None,
+    measurement_period_by_modality: Mapping[str, float] | None = None,
+    visibility_temporal_filter_by_modality: Mapping[
+        str, VisibilityTemporalFilterConfig
+    ] | None = None,
 ) -> ExactTransportTopologyScanResult:
     results = {}
     for topology_type in topology_types:
@@ -282,6 +310,13 @@ def run_v14_exact_transport_topology_scan(
             scenario_names=scenario_names, modes=modes,
             visibility_by_modality=visibility_by_modality,
             relative_modalities=relative_modalities,
+            communication_outage_windows_by_directed_link=(
+                communication_outage_windows_by_directed_link
+            ),
+            measurement_period_by_modality=measurement_period_by_modality,
+            visibility_temporal_filter_by_modality=(
+                visibility_temporal_filter_by_modality
+            ),
         )
     return ExactTransportTopologyScanResult(results)
 
@@ -297,6 +332,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 estimated_attitude_history_by_node=None,
                 attitude_covariance=None,
                 visibility_temporal_filter_by_modality=None,
+                communication_outage_windows_by_directed_link=None,
+                absolute_navigation_dropout_windows=(),
+                measurement_period_by_modality=None,
                 relative_modalities=("RANGE",)):
     rng = np.random.default_rng(20260830 + seed)
     range_rate_rng = np.random.default_rng(20260930 + seed)
@@ -386,6 +424,23 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
             for item in opportunities if item.visibility.visible
         }
     edges = tuple((receiver, source) for receiver in topology.node_ids for source in topology.neighbors(receiver))
+    communication_outages = _validated_communication_outages(
+        communication_outage_windows_by_directed_link, edges=edges,
+    )
+    absolute_navigation_dropout_windows = tuple(
+        (float(start), float(end))
+        for start, end in absolute_navigation_dropout_windows
+    )
+    if any(
+        not np.isfinite(start) or not np.isfinite(end) or end < start
+        for start, end in absolute_navigation_dropout_windows
+    ):
+        raise ValueError(
+            "Absolute-navigation dropout windows require finite start <= end."
+        )
+    measurement_periods = _validated_measurement_periods(
+        measurement_period_by_modality, modalities=relative_modalities,
+    )
     sender_state = {node: value.copy() for node, value in initial_states.items()}
     sender_covariance = {node: covariance.copy() for node in scenario.node_ids}
     accumulators = {
@@ -407,6 +462,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     consecutive_losses = {edge: 0 for edge in edges}
     link_sequence = {edge: 0 for edge in edges}
     observations = []
+    absolute_observations = []
     h = np.zeros((3, 6)); h[:, :3] = np.eye(3)
     absolute_covariance = np.eye(3) * absolute_sigma**2
     for index, timestamp in enumerate(timestamps):
@@ -424,13 +480,29 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 sender_covariance[node] = transition @ sender_covariance[node] @ transition.T + noise
                 prediction_transition[node] = transition; prediction_noise[node] = noise
         for node in topology.node_ids:
-            innovation_covariance = h @ sender_covariance[node] @ h.T + absolute_covariance
-            gain = sender_covariance[node] @ h.T @ np.linalg.inv(innovation_covariance)
-            update_transition = np.eye(6) - gain @ h
-            update_noise = gain @ absolute_covariance @ gain.T
-            measurement = truth[node][index, :3] + rng.normal(0.0, absolute_sigma, 3)
-            sender_state[node] += gain @ (measurement - h @ sender_state[node])
-            sender_covariance[node] = update_transition @ sender_covariance[node] @ update_transition.T + update_noise
+            navigation_available = not any(
+                start <= float(timestamp) <= end
+                for start, end in absolute_navigation_dropout_windows
+            )
+            update_transition = np.eye(6)
+            update_noise = np.zeros((6, 6))
+            information_ids = ()
+            if navigation_available:
+                innovation_covariance = h @ sender_covariance[node] @ h.T + absolute_covariance
+                gain = sender_covariance[node] @ h.T @ np.linalg.inv(innovation_covariance)
+                update_transition = np.eye(6) - gain @ h
+                update_noise = gain @ absolute_covariance @ gain.T
+                measurement = truth[node][index, :3] + rng.normal(0.0, absolute_sigma, 3)
+                information_id = f"{node}:absolute:{index}"
+                information_ids = (information_id,)
+                absolute_observations.append(AbsolutePositionObservation(
+                    timestamp=float(timestamp), satellite_id=node,
+                    measurement_eci=measurement.copy(),
+                    covariance=absolute_covariance.copy(), confidence=1.0,
+                    valid_flag=True, observation_id=information_id,
+                ))
+                sender_state[node] += gain @ (measurement - h @ sender_state[node])
+                sender_covariance[node] = update_transition @ sender_covariance[node] @ update_transition.T + update_noise
             for receiver, source in edges:
                 if source != node:
                     continue
@@ -441,13 +513,22 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     timestamp=float(timestamp), updated_state=sender_state[node],
                     error_transition=combined_transition,
                     independent_process_noise=combined_noise,
-                    information_ids=(f"{node}:absolute:{index}",),
+                    information_ids=information_ids,
                     event_error_transition=update_transition,
                     event_process_noise=update_noise,
                 )
                 message = accumulator.build_message()
                 link_sequence[(receiver, source)] += 1
-                transmitted = channels[(receiver, source)].transmit(message)
+                transmitted = (
+                    None
+                    if _link_is_in_outage(
+                        communication_outages,
+                        receiver=receiver,
+                        source=source,
+                        timestamp=float(timestamp),
+                    )
+                    else channels[(receiver, source)].transmit(message)
+                )
                 if transmitted is not None:
                     ack_eligible = bool(acknowledge_messages)
                     transmitted = replace(
@@ -469,7 +550,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
         for observer in topology.node_ids:
             for target in topology.neighbors(observer):
                 range_noise = rng.normal(0.0, range_sigma)
-                if "RADAR" in relative_modalities and (
+                if "RADAR" in relative_modalities and _measurement_is_due(
+                    "RADAR", float(timestamp), measurement_periods
+                ) and (
                     visible_range_opportunities is None
                     or (float(timestamp), observer, target, "RADAR")
                     in visible_range_opportunities
@@ -506,7 +589,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                         covariance=radar_covariance,
                         metadata=inter_satellite_semantic_metadata("RADAR"),
                     ))
-                if "RANGE" in relative_modalities and (
+                if "RANGE" in relative_modalities and _measurement_is_due(
+                    "RANGE", float(timestamp), measurement_periods
+                ) and (
                     visible_range_opportunities is None
                     or (float(timestamp), observer, target, "RANGE")
                     in visible_range_opportunities
@@ -523,7 +608,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                         covariance=np.array([[range_sigma**2]]),
                         metadata=inter_satellite_semantic_metadata("RANGE"),
                     ))
-                if "RANGE_RATE" in relative_modalities:
+                if "RANGE_RATE" in relative_modalities and _measurement_is_due(
+                    "RANGE_RATE", float(timestamp), measurement_periods
+                ):
                     rate_noise = range_rate_rng.normal(0.0, range_rate_sigma)
                     if (
                         visible_range_opportunities is None
@@ -548,7 +635,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     else "AZ_EL" if "AZ_EL" in relative_modalities
                     else None
                 )
-                if angular_modality is not None:
+                if angular_modality is not None and _measurement_is_due(
+                    angular_modality, float(timestamp), measurement_periods
+                ):
                     angle_noise = az_el_rng.normal(0.0, az_el_sigma, 2)
                     if (
                         visible_range_opportunities is None
@@ -597,7 +686,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                                 ),
                             },
                         ))
-                if "OPTICAL" in relative_modalities:
+                if "OPTICAL" in relative_modalities and _measurement_is_due(
+                    "OPTICAL", float(timestamp), measurement_periods
+                ):
                     optical_noise = optical_rng.normal(0.0, optical_sigma, 2)
                     if (
                         visible_range_opportunities is None
@@ -605,8 +696,17 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                         in visible_range_opportunities
                     ):
                         information_id = f"{observer}->{target}:optical:{index}"
-                        optical_quaternion = _target_pointing_quaternion(
-                            truth[observer][index], truth[target][index]
+                        truth_optical_quaternion = (
+                            attitude_history_by_node[observer][index]
+                            if attitude_history_by_node is not None
+                            else _target_pointing_quaternion(
+                                truth[observer][index], truth[target][index]
+                            )
+                        )
+                        estimate_optical_quaternion = (
+                            estimated_attitude_history_by_node[observer][index]
+                            if estimated_attitude_history_by_node is not None
+                            else truth_optical_quaternion
                         )
                         observations.append(ObservationMessage(
                             message_id=information_id,
@@ -619,18 +719,21 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                             measurement=measure_relative_optical_uv(
                                 truth[observer][index], truth[target][index],
                                 frame="BODY",
-                                quaternion_i2b_wxyz=optical_quaternion,
+                                quaternion_i2b_wxyz=truth_optical_quaternion,
                             ) + optical_noise,
                             covariance=np.eye(2) * optical_sigma**2,
                             metadata={
                                 **inter_satellite_semantic_metadata("OPTICAL"),
-                                "quaternion_i2b_wxyz": optical_quaternion,
+                                "quaternion_i2b_wxyz": (
+                                    estimate_optical_quaternion.copy()
+                                ),
                             },
                         ))
     return {
         "timestamps": timestamps, "truth": truth, "initial_states": initial_states,
         "initial_covariances": initial_covariances, "topology": topology,
         "observations": observations, "state_messages": state_messages,
+        "absolute_observations": absolute_observations,
         "transmitted_messages": transmitted_messages,
         "lineages": {(receiver, source): f"{source}->{receiver}:0" for receiver, source in edges},
         "visibility_summary": visibility_summary,
@@ -646,6 +749,8 @@ def _metrics(history, truth, transmitted_count, run_seconds):
         nees.extend(compute_nees_history(history.active_state_history_by_node[node], truth[node], history.active_covariance_history_by_node[node]))
         for epoch in history.nis_history_by_node[node]:
             for information_id, value in epoch.items():
+                if ":absolute:" in information_id:
+                    continue
                 nis.append(value)
                 nis_by_modality.setdefault(
                     _modality_from_information_id(information_id), []
@@ -754,6 +859,57 @@ def _target_pointing_quaternion(observer_state, target_state):
     z_body_eci /= np.linalg.norm(z_body_eci)
     y_body_eci = np.cross(z_body_eci, x_body_eci)
     return dcm_to_quat_wxyz(np.vstack((x_body_eci, y_body_eci, z_body_eci)))
+
+
+def _validated_communication_outages(outages, *, edges):
+    if outages is None:
+        return {}
+    valid_edges = set(edges)
+    normalized = {}
+    for raw_edge, raw_windows in outages.items():
+        edge = (str(raw_edge[0]), str(raw_edge[1]))
+        if edge not in valid_edges:
+            raise ValueError(f"Communication outage references unknown link: {edge}")
+        windows = []
+        for start, end in raw_windows:
+            start = float(start)
+            end = float(end)
+            if not np.isfinite(start) or not np.isfinite(end) or end < start:
+                raise ValueError(
+                    "Communication outage windows require finite start <= end."
+                )
+            windows.append((start, end))
+        normalized[edge] = tuple(windows)
+    return normalized
+
+
+def _link_is_in_outage(outages, *, receiver, source, timestamp):
+    return any(
+        start <= timestamp <= end
+        for start, end in outages.get((str(receiver), str(source)), ())
+    )
+
+
+def _validated_measurement_periods(periods, *, modalities):
+    if periods is None:
+        return {}
+    unknown = set(periods) - set(modalities)
+    if unknown:
+        raise ValueError(
+            f"Measurement periods reference disabled modalities: {sorted(unknown)}"
+        )
+    normalized = {str(key): float(value) for key, value in periods.items()}
+    if any(not np.isfinite(value) or value <= 0.0 for value in normalized.values()):
+        raise ValueError("Measurement periods must be finite and positive.")
+    return normalized
+
+
+def _measurement_is_due(modality, timestamp, periods):
+    period = periods.get(str(modality))
+    if period is None:
+        return True
+    quotient = float(timestamp) / period
+    return bool(np.isclose(quotient, round(quotient), rtol=0.0, atol=1e-9))
 
 
 def _modality_aware_nis_coverage(values_by_modality):

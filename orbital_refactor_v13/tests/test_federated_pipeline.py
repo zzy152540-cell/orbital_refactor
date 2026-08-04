@@ -112,9 +112,12 @@ def test_dropout_generates_events_and_valid_module_output():
     assert any(event.event_type == "MODALITY_MISSING" for event in output.abnormal_events)
     assert output.fusion_status.modality_valid_flags["opt"] is False
     assert np.isclose(sum(output.fusion_status.modality_weights.values()), 1.0)
+    assert result.integrity_status_history["opt"][2] == "PREDICTION_ONLY"
+    assert result.measurement_covariance_scale_history["ir"].shape == t.shape
+    assert result.consecutive_anomaly_history["rad"].shape == t.shape
 
 
-def test_all_modalities_missing_holds_previous_fused_state():
+def test_all_modalities_missing_propagates_previous_fused_state():
     t, chief, qhist, x0, p0, zopt, zir, zrad, valid = _synthetic_inputs()
     all_missing = valid.copy(); all_missing[2] = False
     result = run_federated_ci_filter(
@@ -128,7 +131,12 @@ def test_all_modalities_missing_holds_previous_fused_state():
         initial_covariance=p0,
         ci_grid_points=7,
     )
-    np.testing.assert_allclose(result.fused_state_history[2], result.fused_state_history[1])
-    np.testing.assert_allclose(result.fused_covariance_history[2], result.fused_covariance_history[1])
+    filters = _new_filters()
+    expected_state, expected_covariance = filters["opt"].predict(
+        result.fused_state_history[1], result.fused_covariance_history[1],
+        chief[1], float(t[2] - t[1]),
+    )
+    np.testing.assert_allclose(result.fused_state_history[2], expected_state)
+    np.testing.assert_allclose(result.fused_covariance_history[2], expected_covariance)
     assert result.ci_weight_history[2] is None
     assert any(event.event_type == "ALL_MODALITIES_UNAVAILABLE" for event in result.abnormal_events)

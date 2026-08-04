@@ -1,9 +1,19 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Mapping
+
 import numpy as np
 
 from interfaces.data_objects import Observation
 from orbital_core.measurement_semantics import SINGLE_SATELLITE_SENSOR_CONTRACTS
+from scenarios.measurement_visibility import (
+    MeasurementOpportunity,
+    VisibilityConfig,
+    VisibilityTemporalFilterConfig,
+    generate_single_satellite_observation_opportunities,
+    visibility_flags_by_modality,
+)
 
 
 Array = np.ndarray
@@ -11,6 +21,43 @@ Array = np.ndarray
 _OPTICAL_CONTRACT = SINGLE_SATELLITE_SENSOR_CONTRACTS["OPTICAL"]
 _INFRARED_CONTRACT = SINGLE_SATELLITE_SENSOR_CONTRACTS["INFRARED"]
 _RADAR_CONTRACT = SINGLE_SATELLITE_SENSOR_CONTRACTS["RADAR"]
+
+
+@dataclass(frozen=True)
+class SingleSatelliteVisibilityAdapterResult:
+    opportunities: tuple[MeasurementOpportunity, ...]
+    valid_flags_by_modality: dict[str, Array]
+
+
+def create_single_satellite_visibility_flags(
+    *,
+    timestamps: Array,
+    chief_state_history_eci: Array,
+    relative_target_state_history_eci: Array,
+    visibility_by_modality: Mapping[str, VisibilityConfig],
+    attitude_history_i2sensor_wxyz: Array | None = None,
+    temporal_filter_by_modality: Mapping[
+        str, VisibilityTemporalFilterConfig
+    ] | None = None,
+    observer_id: str = "chief",
+    target_id: str = "target",
+) -> SingleSatelliteVisibilityAdapterResult:
+    """Build single-satellite validity flags through the shared V14 layer."""
+
+    opportunities = generate_single_satellite_observation_opportunities(
+        timestamps=timestamps,
+        chief_state_history_eci=chief_state_history_eci,
+        relative_target_state_history_eci=relative_target_state_history_eci,
+        visibility_by_modality=visibility_by_modality,
+        attitude_history_i2sensor_wxyz=attitude_history_i2sensor_wxyz,
+        temporal_filter_by_modality=temporal_filter_by_modality,
+        observer_id=observer_id,
+        target_id=target_id,
+    )
+    return SingleSatelliteVisibilityAdapterResult(
+        opportunities=opportunities,
+        valid_flags_by_modality=visibility_flags_by_modality(opportunities),
+    )
 
 
 def create_infrared_observations(

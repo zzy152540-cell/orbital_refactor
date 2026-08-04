@@ -160,6 +160,7 @@ def run_v14_three_satellite_local_observation_experiment(
                     initial_covariance_by_node=case["initial_covariances"],
                     topology=case["topology"],
                     observation_messages=case["observations"],
+                    absolute_position_observations=case["absolute_observations"],
                     observation_usage="observer_only",
                     process_noise_acceleration=process_noise_acceleration,
                     consider_refresh_mode=mode,
@@ -241,14 +242,25 @@ def _metrics_by_node(history, truth):
 def run_v14_three_satellite_body_scheduling_experiment(
     *, seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
     maximum_range: float = 5000.0, fov_half_angle: float = np.deg2rad(2.0),
+    infrared_fov_half_angle: float | None = None,
+    optical_fov_half_angle: float | None = None,
     range_sigma: float = 2.0, range_rate_sigma: float = 0.05,
-    az_el_sigma: float = np.deg2rad(0.05), absolute_sigma: float = 3.0,
+    az_el_sigma: float = np.deg2rad(0.05), optical_sigma: float = 1e-3,
+    absolute_sigma: float = 3.0,
     process_noise_acceleration: float = 1e-8,
 ) -> ThreeSatelliteBodySchedulingResult:
-    """Compare all-visible ECI angles with one scheduled BODY optical target."""
+    """Compare a multimodal upper bound with one BODY angular target per node."""
 
     if seeds < 1:
         raise ValueError("seeds must be at least one.")
+    infrared_fov = (
+        fov_half_angle
+        if infrared_fov_half_angle is None else infrared_fov_half_angle
+    )
+    optical_fov = (
+        fov_half_angle
+        if optical_fov_half_angle is None else optical_fov_half_angle
+    )
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     scenario = _three_satellite_scenario(timestamps)
     truth = scenario.truth_state_history_by_node
@@ -256,17 +268,20 @@ def run_v14_three_satellite_body_scheduling_experiment(
     attitude_history, scheduling = _longest_unobserved_first_attitudes(
         timestamps=timestamps, truth=truth, maximum_range=maximum_range,
     )
-    modalities = ("RANGE", "RANGE_RATE", "AZ_EL")
+    modalities = ("RADAR", "INFRARED", "OPTICAL")
     eci_visibility = {
         modality: VisibilityConfig(maximum_range=maximum_range)
         for modality in modalities
     }
     body_visibility = {
-        "RANGE": VisibilityConfig(maximum_range=maximum_range),
-        "RANGE_RATE": VisibilityConfig(maximum_range=maximum_range),
-        "AZ_EL": VisibilityConfig(
+        "RADAR": VisibilityConfig(maximum_range=maximum_range),
+        "INFRARED": VisibilityConfig(
             maximum_range=maximum_range,
-            field_of_view_half_angle=fov_half_angle,
+            field_of_view_half_angle=infrared_fov,
+        ),
+        "OPTICAL": VisibilityConfig(
+            maximum_range=maximum_range,
+            field_of_view_half_angle=optical_fov,
         ),
     }
     collected = {"eci_upper_bound": [], "body_scheduled": []}
@@ -277,7 +292,8 @@ def run_v14_three_satellite_body_scheduling_experiment(
             "eci_upper_bound": _build_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
-                az_el_sigma=az_el_sigma, absolute_sigma=absolute_sigma,
+                az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
+                absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=0.0, delay=0.0, acknowledge_messages=True,
                 node_count=3, topology_type="ring",
@@ -288,7 +304,8 @@ def run_v14_three_satellite_body_scheduling_experiment(
             "body_scheduled": _build_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
-                az_el_sigma=az_el_sigma, absolute_sigma=absolute_sigma,
+                az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
+                absolute_sigma=absolute_sigma,
                 process_noise_acceleration=process_noise_acceleration,
                 packet_loss=0.0, delay=0.0, acknowledge_messages=True,
                 node_count=3, topology_type="ring",
@@ -315,6 +332,7 @@ def run_v14_three_satellite_body_scheduling_experiment(
                 initial_covariance_by_node=case["initial_covariances"],
                 topology=case["topology"],
                 observation_messages=case["observations"],
+                absolute_position_observations=case["absolute_observations"],
                 observation_usage="observer_only",
                 process_noise_acceleration=process_noise_acceleration,
                 consider_refresh_mode="exact_transport_event_replay",
@@ -467,4 +485,9 @@ def _aggregate_scheduled_case(case_name, values, by_node, edge_counts, node_ids)
         ),
         message_rejection_count=rejected,
         psd_failure_count=sum(value[10] for value in values),
+        configured_sensor_modalities=tuple(modalities),
+        transported_measurement_components=tuple(modalities),
+        full_three_sensor_suite=set(modalities) == {
+            "RADAR", "INFRARED", "OPTICAL",
+        },
     )
