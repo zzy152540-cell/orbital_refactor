@@ -67,6 +67,7 @@ class ThreeSatelliteBodySchedulingResult:
 
 def run_v14_three_satellite_local_observation_experiment(
     *, seeds: int = 10, duration: float = 120.0, dt: float = 2.0,
+    sensor_modalities: tuple[str, ...] = ("RADAR", "INFRARED", "OPTICAL"),
     maximum_range: float = 5000.0,
     range_sigma: float = 2.0, range_rate_sigma: float = 0.05,
     radar_correlation: float = 0.0,
@@ -78,6 +79,15 @@ def run_v14_three_satellite_local_observation_experiment(
 
     if seeds < 1:
         raise ValueError("seeds must be at least one.")
+    supported_sensor_modalities = {"RADAR", "INFRARED", "OPTICAL"}
+    if (
+        not sensor_modalities
+        or len(set(sensor_modalities)) != len(sensor_modalities)
+        or set(sensor_modalities) - supported_sensor_modalities
+    ):
+        raise ValueError(
+            "sensor_modalities must uniquely select RADAR, INFRARED, and/or OPTICAL."
+        )
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     scenario = generate_differential_orbit_fleet_scenario(
         timestamps=timestamps,
@@ -98,7 +108,7 @@ def run_v14_three_satellite_local_observation_experiment(
         node: history[0]
         for node, history in scenario.truth_state_history_by_node.items()
     }
-    modalities = ("RADAR", "INFRARED", "OPTICAL")
+    modalities = tuple(sensor_modalities)
     visibility = {
         modality: VisibilityConfig(maximum_range=maximum_range)
         for modality in modalities
@@ -209,11 +219,9 @@ def run_v14_three_satellite_local_observation_experiment(
             ),
             message_rejection_count=rejected,
             psd_failure_count=sum(value[10] for value in values),
-            configured_sensor_modalities=("OPTICAL", "INFRARED", "RADAR"),
-            transported_measurement_components=(
-                "RADAR", "INFRARED", "OPTICAL",
-            ),
-            full_three_sensor_suite=True,
+            configured_sensor_modalities=modalities,
+            transported_measurement_components=modalities,
+            full_three_sensor_suite=set(modalities) == supported_sensor_modalities,
         )
     return ThreeSatelliteLocalObservationResult(summaries, visibility_summary)
 

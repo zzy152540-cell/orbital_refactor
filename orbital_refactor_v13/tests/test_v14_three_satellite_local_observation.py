@@ -19,7 +19,7 @@ def test_three_satellite_local_observation_experiment_uses_all_local_edges():
     assert set(exact.mean_nis_by_modality) == {
         "RADAR", "INFRARED", "OPTICAL",
     }
-    assert exact.configured_sensor_modalities == ("OPTICAL", "INFRARED", "RADAR")
+    assert exact.configured_sensor_modalities == ("RADAR", "INFRARED", "OPTICAL")
     assert exact.transported_measurement_components == (
         "RADAR", "INFRARED", "OPTICAL",
     )
@@ -80,3 +80,17 @@ def test_three_satellite_joint_radar_message_preserves_correlated_covariance():
         np.array([[4.0, 0.04], [0.04, 0.0025]]),
     )
     assert radar.metadata["measurement_type"] == "RANGE_RANGE_RATE"
+
+
+def test_three_satellite_experiment_accepts_sensor_ablation_subset():
+    result = run_v14_three_satellite_local_observation_experiment(
+        seeds=1, duration=4.0, dt=2.0,
+        sensor_modalities=("RADAR", "OPTICAL"),
+    )
+    exact = result.summary_by_case_and_mode[
+        ("visibility_limited", "exact_transport_event_replay")
+    ]
+
+    assert exact.configured_sensor_modalities == ("RADAR", "OPTICAL")
+    assert set(exact.mean_nis_by_modality) == {"RADAR", "OPTICAL"}
+    assert exact.full_three_sensor_suite is False
