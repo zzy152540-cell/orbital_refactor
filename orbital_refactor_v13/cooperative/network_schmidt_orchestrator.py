@@ -59,6 +59,7 @@ class NetworkSchmidtOrchestrator:
         communication_delay: float = 0.0,
         random_seed: int = 0,
         stop_and_wait: bool = True,
+        resynchronize_on_resume: bool = False,
         integrity_policy_by_modality: Mapping[
             str, MeasurementIntegrityPolicy
         ] | None = None,
@@ -75,6 +76,7 @@ class NetworkSchmidtOrchestrator:
             node: [] for node in topology.node_ids
         }
         self.stop_and_wait = bool(stop_and_wait)
+        self.resynchronize_on_resume = bool(resynchronize_on_resume)
         for receiver in topology.node_ids:
             neighbor_states = {
                 neighbor: np.asarray(
@@ -292,7 +294,10 @@ class NetworkSchmidtOrchestrator:
                     else:
                         session.resume_link(
                             source, topology_version=topology_version,
-                            history_available=not requirement,
+                            history_available=(
+                                not requirement
+                                and not self.resynchronize_on_resume
+                            ),
                         )
                     if session.link_by_neighbor[
                         source
