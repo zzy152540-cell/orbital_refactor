@@ -101,3 +101,23 @@ def test_online_path_applies_shared_integrity_policy_to_infrared_bias():
 
     assert result.integrity_status_counts["HARD_REJECTED"] > 0
     assert result.protocol_rejected_message_count == 0
+
+
+def test_online_path_supports_five_satellite_ring_and_reports_resources():
+    result = run_v14_online_topology_resynchronization_experiment(
+        seeds=1, duration=8.0, dt=2.0, node_count=5,
+        topology_type="ring", inactive_window=(2.0, 4.0),
+        max_pinned_age=20.0,
+    )
+
+    assert result.node_count == 5
+    assert result.topology_type == "ring"
+    assert result.maximum_local_dimension == 18
+    assert result.maximum_checkpoint_count > 0
+    assert result.maximum_retained_journal_count > 0
+    assert result.mean_runtime_seconds > 0.0
+    assert result.mean_setup_seconds > 0.0
+    assert result.mean_filter_seconds > 0.0
+    assert result.mean_runtime_seconds >= (
+        result.mean_setup_seconds + result.mean_filter_seconds
+    )

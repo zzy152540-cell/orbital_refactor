@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 
@@ -25,6 +26,8 @@ from scenarios.measurement_visibility import VisibilityConfig
 
 @dataclass(frozen=True)
 class OnlineTopologyResynchronizationSummary:
+    node_count: int
+    topology_type: str
     run_count: int
     mean_position_rmse: float
     mean_nees: float
@@ -39,11 +42,19 @@ class OnlineTopologyResynchronizationSummary:
     protocol_rejected_message_count: int
     integrity_status_counts: dict[str, int]
     final_lineage_by_directed_link: dict[tuple[str, str], str]
+    mean_runtime_seconds: float
+    mean_setup_seconds: float
+    mean_filter_seconds: float
+    maximum_checkpoint_count: int
+    maximum_pinned_checkpoint_count: int
+    maximum_retained_journal_count: int
+    maximum_pending_delivery_count: int
+    maximum_local_dimension: int
 
 
 def run_v14_online_topology_resynchronization_experiment(
     *, seeds: int = 5, duration: float = 120.0, dt: float = 2.0,
-    inactive_edge: tuple[str, str] = ("sat_a", "sat_b"),
+    inactive_edge: tuple[str, str] | None = None,
     inactive_window: tuple[float, float] = (20.0, 100.0),
     max_pinned_age: float = 20.0,
     topology_type: str = "ring", maximum_range: float = 5000.0,
@@ -62,6 +73,7 @@ def run_v14_online_topology_resynchronization_experiment(
     integrity_policy_by_modality: Mapping[
         str, MeasurementIntegrityPolicy
     ] | None = None,
+    node_count: int = 3,
 ) -> OnlineTopologyResynchronizationSummary:
     if radar_actual_noise_scale <= 0.0:
         raise ValueError("radar_actual_noise_scale must be positive.")
@@ -77,9 +89,26 @@ def run_v14_online_topology_resynchronization_experiment(
     integrity_status_counts = {}
     rejection_counts = {}
     final_lineages = {}
+    runtimes = []
+    setup_seconds = []
+    filter_seconds = []
+    maximum_checkpoint_count = 0
+    maximum_pinned_checkpoint_count = 0
+    maximum_retained_journal_count = 0
+    maximum_pending_delivery_count = 0
+    maximum_local_dimension = 0
     for seed in range(seeds):
+        started = perf_counter()
         timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
-        scenario = _three_satellite_scenario(timestamps)
+        initial_truth = None
+        if node_count == 3:
+            scenario = _three_satellite_scenario(timestamps)
+            initial_truth = {
+                node: history[0]
+                for node, history in (
+                    scenario.truth_state_history_by_node.items()
+                )
+            }
         case = _build_case(
             seed=seed, duration=duration, dt=dt,
             range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
@@ -87,23 +116,23 @@ def run_v14_online_topology_resynchronization_experiment(
             absolute_sigma=absolute_sigma,
             process_noise_acceleration=process_noise_acceleration,
             packet_loss=0.0, delay=0.0, acknowledge_messages=True,
-            node_count=3, topology_type=topology_type,
-            truth_initial_state_by_node={
-                node: history[0]
-                for node, history in (
-                    scenario.truth_state_history_by_node.items()
-                )
-            },
+            node_count=node_count, topology_type=topology_type,
+            truth_initial_state_by_node=initial_truth,
             visibility_by_modality={
                 modality: VisibilityConfig(maximum_range=maximum_range)
                 for modality in ("RADAR", "INFRARED", "OPTICAL")
             },
             relative_modalities=("RADAR", "INFRARED", "OPTICAL"),
         )
+        selected_edge = (
+            inactive_edge
+            if inactive_edge is not None
+            else tuple(case["topology"].node_ids[:2])
+        )
         inactive = _validated_topology_inactive_windows(
             topology_inactive_windows_by_undirected_edge
             if topology_inactive_windows_by_undirected_edge is not None
-            else {inactive_edge: (inactive_window,)},
+            else {selected_edge: (inactive_window,)},
             topology=case["topology"],
         )
         case["observations"] = apply_observation_faults(
@@ -133,6 +162,8 @@ def run_v14_online_topology_resynchronization_experiment(
             random_seed=20270000 + seed,
             integrity_policy_by_modality=integrity_policy_by_modality,
         )
+        filter_started = perf_counter()
+        setup_seconds.append(filter_started - started)
         states = {
             node: np.zeros((len(case["timestamps"]), 6))
             for node in case["topology"].node_ids
@@ -162,6 +193,12 @@ def run_v14_online_topology_resynchronization_experiment(
             total_protocol_rejected += (
                 result.protocol_rejected_message_count
             )
+            maximum_pending_delivery_count = max(
+                maximum_pending_delivery_count,
+                sum(len(values) for values in (
+                    orchestrator.pending_deliveries.values()
+                )),
+            )
             for reason, count in result.rejection_counts_by_reason.items():
                 rejection_counts[reason] = rejection_counts.get(reason, 0) + count
             for node, step_result in result.result_by_node.items():
@@ -181,13 +218,32 @@ def run_v14_online_topology_resynchronization_experiment(
             for source, lifecycle in session.link_by_neighbor.items()
         }
         for session in orchestrator.sessions.values():
+            performance = session.coordinator.performance
+            maximum_checkpoint_count = max(
+                maximum_checkpoint_count,
+                performance.maximum_checkpoint_count,
+            )
+            maximum_pinned_checkpoint_count = max(
+                maximum_pinned_checkpoint_count,
+                performance.maximum_pinned_checkpoint_count,
+            )
+            maximum_retained_journal_count = max(
+                maximum_retained_journal_count,
+                performance.maximum_retained_journal_count,
+            )
+            maximum_local_dimension = max(
+                maximum_local_dimension, session.state.dimension
+            )
             for integrity in (
                 session.coordinator.integrity_by_information_id.values()
             ):
                 integrity_status_counts[integrity.status] = (
                     integrity_status_counts.get(integrity.status, 0) + 1
                 )
+        filter_seconds.append(perf_counter() - filter_started)
+        runtimes.append(perf_counter() - started)
     return OnlineTopologyResynchronizationSummary(
+        node_count=node_count, topology_type=topology_type,
         run_count=seeds,
         mean_position_rmse=float(np.mean([m["position_rmse"] for m in metrics])),
         mean_nees=float(np.mean([m["nees"] for m in metrics])),
@@ -204,6 +260,14 @@ def run_v14_online_topology_resynchronization_experiment(
         protocol_rejected_message_count=total_protocol_rejected,
         integrity_status_counts=integrity_status_counts,
         final_lineage_by_directed_link=final_lineages,
+        mean_runtime_seconds=float(np.mean(runtimes)),
+        mean_setup_seconds=float(np.mean(setup_seconds)),
+        mean_filter_seconds=float(np.mean(filter_seconds)),
+        maximum_checkpoint_count=maximum_checkpoint_count,
+        maximum_pinned_checkpoint_count=maximum_pinned_checkpoint_count,
+        maximum_retained_journal_count=maximum_retained_journal_count,
+        maximum_pending_delivery_count=maximum_pending_delivery_count,
+        maximum_local_dimension=maximum_local_dimension,
     )
 
 
