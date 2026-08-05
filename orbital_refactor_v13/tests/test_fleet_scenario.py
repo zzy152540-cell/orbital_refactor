@@ -1,6 +1,6 @@
 import numpy as np
 
-from cooperative.topology import chain_topology
+from cooperative.topology import chain_topology, two_hop_chain_topology
 from orbital_core.constants import R_EARTH
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.fleet_scenario import (
@@ -69,3 +69,11 @@ def test_differential_orbit_scenario_crosses_range_visibility_boundary():
     assert summary.visible_directed_edge_count_by_timestamp[0.0] == 2
     assert summary.visible_directed_edge_count_by_timestamp[120.0] == 0
     assert summary.overall.rejection_counts["range_exceeded"] > 0
+
+
+def test_two_hop_chain_keeps_nearest_and_next_nearest_neighbors():
+    topology = two_hop_chain_topology(["a", "b", "c", "d", "e"])
+
+    assert topology.neighbors("a") == ("b", "c")
+    assert topology.neighbors("c") == ("a", "b", "d", "e")
+    assert topology.neighbors("e") == ("c", "d")

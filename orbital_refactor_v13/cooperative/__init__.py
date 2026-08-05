@@ -107,7 +107,7 @@ from cooperative.third_party_observation import (
 from cooperative.satellite_node import NodeEstimate, SatelliteNode
 from cooperative.topology import (
     NetworkTopology, chain_topology, fully_connected_topology,
-    ring_topology, star_topology,
+    ring_topology, star_topology, two_hop_chain_topology,
 )
 
 __all__ = [
@@ -156,6 +156,7 @@ __all__ = [
     "chain_topology",
     "fully_connected_topology",
     "ring_topology",
+    "two_hop_chain_topology",
     "star_topology",
     "fuse_local_histories",
     "initialize_multi_neighbor_schmidt",

@@ -2,6 +2,7 @@ from scenarios.fleet_scenario import (
     DifferentialOrbitOffset,
     FleetScenario,
     FleetTrajectory,
+    centered_along_track_offsets,
     generate_differential_orbit_fleet_scenario,
     generate_fleet_scenario,
 )
@@ -25,6 +26,12 @@ from scenarios.measurement_visibility import (
     stabilize_observation_opportunities,
     visibility_flags_by_modality,
 )
+from scenarios.walker_scenario import (
+    WalkerDeltaConfig,
+    WalkerDeltaScenario,
+    WalkerSatelliteElements,
+    generate_walker_delta_scenario,
+)
 
 __all__ = [
     "AttitudeTruthTrajectory",
@@ -37,8 +44,13 @@ __all__ = [
     "VisibilityOpportunitySummary",
     "VisibilityResult",
     "VisibilityTemporalFilterConfig",
+    "WalkerDeltaConfig",
+    "WalkerDeltaScenario",
+    "WalkerSatelliteElements",
+    "centered_along_track_offsets",
     "evaluate_inter_satellite_visibility",
     "generate_inter_satellite_observation_opportunities",
+    "generate_walker_delta_scenario",
     "generate_single_satellite_observation_opportunities",
     "summarize_observation_opportunities",
     "stabilize_observation_opportunities",

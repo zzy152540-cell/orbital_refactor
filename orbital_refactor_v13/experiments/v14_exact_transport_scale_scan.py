@@ -12,7 +12,10 @@ import numpy as np
 from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.message_transport import MessageChannel
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from cooperative.topology import chain_topology, ring_topology, star_topology
+from cooperative.topology import (
+    NetworkTopology, chain_topology, ring_topology, star_topology,
+    two_hop_chain_topology,
+)
 from interfaces.data_objects import (
     AbsolutePositionObservation,
     ObservationMessage,
@@ -337,6 +340,7 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 absolute_navigation_dropout_windows_by_node=None,
                 topology_inactive_windows_by_undirected_edge=None,
                 measurement_period_by_modality=None,
+                topology_override: NetworkTopology | None = None,
                 relative_modalities=("RANGE",)):
     rng = np.random.default_rng(20260830 + seed)
     range_rate_rng = np.random.default_rng(20260930 + seed)
@@ -392,10 +396,16 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     initial_covariances = {node: covariance.copy() for node in scenario.node_ids}
     topology_builders = {
         "chain": chain_topology, "ring": ring_topology, "star": star_topology,
+        "two_hop_chain": two_hop_chain_topology,
     }
-    if topology_type not in topology_builders:
-        raise ValueError("topology_type must be 'chain', 'ring', or 'star'.")
-    topology = topology_builders[topology_type](list(scenario.node_ids))
+    if topology_override is None:
+        if topology_type not in topology_builders:
+            raise ValueError("Unsupported topology_type.")
+        topology = topology_builders[topology_type](list(scenario.node_ids))
+    else:
+        if set(topology_override.node_ids) != set(scenario.node_ids):
+            raise ValueError("topology_override nodes must match scenario nodes.")
+        topology = topology_override
     visibility_summary = None
     visible_range_opportunities = None
     if visibility_by_modality is not None:

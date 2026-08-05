@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Mapping
+from typing import Mapping, Sequence
 
 import numpy as np
 
@@ -48,6 +48,54 @@ class FleetScenario:
 class DifferentialOrbitOffset:
     semi_major_axis: float = 0.0
     true_anomaly: float = 0.0
+
+
+def centered_along_track_offsets(
+    *, node_count: int, orbital_radius: float, spacing: float,
+    semi_major_axis_step: float = 0.0,
+    semi_major_axis_offsets: Sequence[float] | None = None,
+    node_prefix: str = "sat",
+) -> dict[str, DifferentialOrbitOffset]:
+    """Build a centered, uniformly spaced along-track formation.
+
+    ``spacing`` is converted to a true-anomaly separation using the reference
+    orbital radius.  The returned offsets can be passed directly to
+    :func:`generate_differential_orbit_fleet_scenario` and keep the formation
+    definition independent from Cartesian test perturbations.
+    """
+
+    if node_count < 2:
+        raise ValueError("node_count must be at least two.")
+    if orbital_radius <= 0.0:
+        raise ValueError("orbital_radius must be positive.")
+    if spacing <= 0.0:
+        raise ValueError("spacing must be positive.")
+    if semi_major_axis_offsets is not None:
+        if semi_major_axis_step != 0.0:
+            raise ValueError(
+                "Specify either semi_major_axis_step or explicit offsets, not both."
+            )
+        if len(semi_major_axis_offsets) != node_count:
+            raise ValueError("Explicit semi-major-axis offsets must match node_count.")
+        semi_major_axes = [float(value) for value in semi_major_axis_offsets]
+        if not np.all(np.isfinite(semi_major_axes)):
+            raise ValueError("Semi-major-axis offsets must be finite.")
+    else:
+        semi_major_axes = [
+            (index - 0.5 * (node_count - 1)) * semi_major_axis_step
+            for index in range(node_count)
+        ]
+    prefix = str(node_prefix)
+    if not prefix:
+        raise ValueError("node_prefix cannot be empty.")
+    center = 0.5 * (node_count - 1)
+    return {
+        f"{prefix}_{index + 1:02d}": DifferentialOrbitOffset(
+            semi_major_axis=semi_major_axes[index],
+            true_anomaly=(index - center) * spacing / orbital_radius,
+        )
+        for index in range(node_count)
+    }
 
 
 def generate_fleet_scenario(

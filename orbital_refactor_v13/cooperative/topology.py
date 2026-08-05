@@ -49,6 +49,28 @@ def chain_topology(node_ids: list[str] | tuple[str, ...]) -> NetworkTopology:
     return NetworkTopology(adjacency)
 
 
+def two_hop_chain_topology(
+    node_ids: list[str] | tuple[str, ...],
+) -> NetworkTopology:
+    """Build a sparse chain with nearest- and next-nearest-neighbor edges."""
+
+    nodes = [str(node_id) for node_id in node_ids]
+    if len(nodes) < 2:
+        raise ValueError("Two-hop chain topology requires at least two nodes.")
+    if len(set(nodes)) != len(nodes):
+        raise ValueError("node_ids must be unique.")
+    return NetworkTopology({
+        node_id: [
+            nodes[neighbor_index]
+            for neighbor_index in range(
+                max(0, index - 2), min(len(nodes), index + 3)
+            )
+            if neighbor_index != index
+        ]
+        for index, node_id in enumerate(nodes)
+    })
+
+
 def fully_connected_topology(
     node_ids: list[str] | tuple[str, ...],
 ) -> NetworkTopology:
