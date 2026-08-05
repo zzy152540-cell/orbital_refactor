@@ -55,11 +55,17 @@ class NetworkRuntimeDiagnostics:
     link_health_by_neighbor: dict[str, str]
     last_receive_timestamp_by_neighbor: dict[str, float | None]
     losses_before_last_delivery_by_neighbor: dict[str, int]
+    maximum_consecutive_losses_by_neighbor: dict[str, int]
+    recovery_delivery_count_by_neighbor: dict[str, int]
     resynchronization_required_by_neighbor: dict[str, bool]
     message_rejection_counts_by_reason: dict[str, int]
     maximum_checkpoint_count: int
     maximum_pinned_checkpoint_count: int
     maximum_resync_required_count: int
+    current_topology_version: int
+    topology_transition_count: int
+    active_neighbors: tuple[str, ...]
+    inactive_configured_neighbors: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -92,6 +98,11 @@ class NetworkSchmidtHistory:
     def to_module_outputs(
         self, *, processing_time: float = 0.0,
         link_timeout: float | None = None,
+        topology_version: int = 0,
+        topology_transition_count: int = 0,
+        active_neighbors_by_node: Mapping[
+            str, tuple[str, ...]
+        ] | None = None,
     ) -> dict[str, NetworkModuleOutput]:
         """Convert final per-node posteriors to the shared formal output schema."""
 
@@ -99,6 +110,9 @@ class NetworkSchmidtHistory:
             node_id: _network_module_output(
                 self, node_id=node_id, processing_time=processing_time,
                 link_timeout=link_timeout,
+                topology_version=topology_version,
+                topology_transition_count=topology_transition_count,
+                active_neighbors_by_node=active_neighbors_by_node,
             )
             for node_id in self.node_ids
         }
@@ -127,6 +141,10 @@ def run_network_schmidt_filter(
     maximum_measurement_covariance_scale_by_modality: Mapping[str, float] | None = None,
     integrity_policy_by_modality: Mapping[
         str, MeasurementIntegrityPolicy
+    ] | None = None,
+    topology_version_by_timestamp: Mapping[float, int] | None = None,
+    active_neighbors_by_timestamp: Mapping[
+        float, Mapping[str, tuple[str, ...]]
     ] | None = None,
 ) -> NetworkSchmidtHistory:
     """Run one local multi-neighbor Schmidt filter at every topology node.
@@ -244,20 +262,46 @@ def run_network_schmidt_filter(
             for node_id in node_ids:
                 remaining = []
                 available = []
+                rejected = []
+                current_version = int(
+                    (topology_version_by_timestamp or {}).get(
+                        float(timestamp), 0
+                    )
+                )
+                current_active_neighbors = set(
+                    (active_neighbors_by_timestamp or {}).get(
+                        float(timestamp), {}
+                    ).get(node_id, topology.neighbors(node_id))
+                )
                 for message in pending_state_messages[node_id]:
                     arrival = message.timestamp if message.arrival_timestamp is None else message.arrival_timestamp
                     if float(arrival) <= float(timestamp):
-                        available.append((
-                            message,
-                            (expected_lineage_by_link or {}).get(
-                                (node_id, str(message.source_node_id))
-                            ),
-                        ))
+                        source_id = str(message.source_node_id)
+                        message_version = int(
+                            message.metadata.get("topology_version", 0)
+                        )
+                        if source_id not in current_active_neighbors:
+                            rejected.append((message, "inactive_topology_link"))
+                        elif message_version != current_version:
+                            rejected.append((message, "topology_version_mismatch"))
+                        else:
+                            available.append((
+                                message,
+                                (expected_lineage_by_link or {}).get(
+                                    (node_id, source_id)
+                                ),
+                            ))
                     else:
                         remaining.append(message)
                 outcomes = coordinators[node_id].apply_state_messages(tuple(available))
-                for (message, _), outcome in zip(available, outcomes):
-                    key = "accepted" if outcome.accepted else outcome.reason
+                recorded = [
+                    (message, outcome.accepted, outcome.reason)
+                    for (message, _), outcome in zip(available, outcomes)
+                ] + [
+                    (message, False, reason) for message, reason in rejected
+                ]
+                for message, accepted, reason in recorded:
+                    key = "accepted" if accepted else reason
                     refresh_diagnostics[key] = refresh_diagnostics.get(key, 0) + 1
                     checkpoints = coordinators[node_id].checkpoint_timestamps
                     refresh_diagnostic_records.append({
@@ -270,8 +314,8 @@ def run_network_schmidt_filter(
                         "lineage_id": message.lineage_id,
                         "information_ids": "|".join(message.information_ids),
                         "transport_event_count": len(message.transport_events),
-                        "accepted": outcome.accepted,
-                        "reason": outcome.reason,
+                        "accepted": accepted,
+                        "reason": reason,
                         "checkpoint_count": len(checkpoints),
                         "oldest_checkpoint": min(checkpoints) if checkpoints else None,
                         "newest_checkpoint": max(checkpoints) if checkpoints else None,
@@ -280,7 +324,14 @@ def run_network_schmidt_filter(
                         "resync_required_count": len(
                             coordinators[node_id].resynchronization_requirements
                         ),
+                        "resync_required_neighbors": tuple(sorted({
+                            neighbor
+                            for neighbor, _ in coordinators[
+                                node_id
+                            ].resynchronization_requirements
+                        })),
                         **message.metadata,
+                        "expected_topology_version": current_version,
                     })
                 pending_state_messages[node_id] = remaining
                 local_states[node_id] = coordinators[node_id].state
@@ -475,7 +526,9 @@ def run_network_schmidt_filter(
 
 def _network_module_output(
     history: NetworkSchmidtHistory, *, node_id: str, processing_time: float,
-    link_timeout: float | None,
+    link_timeout: float | None, topology_version: int,
+    topology_transition_count: int,
+    active_neighbors_by_node: Mapping[str, tuple[str, ...]] | None,
 ) -> NetworkModuleOutput:
     if link_timeout is not None and link_timeout <= 0.0:
         raise ValueError("link_timeout must be positive when provided.")
@@ -563,6 +616,14 @@ def _network_module_output(
             active_node_count=len(history.node_ids), status=status,
         ),
     )
+    configured_neighbors = tuple(sorted(
+        history.active_cross_covariance_history_by_node[node_id]
+    ))
+    active_neighbors = tuple(sorted(
+        (active_neighbors_by_node or {}).get(
+            node_id, configured_neighbors
+        )
+    ))
     diagnostics = NetworkRuntimeDiagnostics(
         node_id=node_id,
         neighbor_count=history.local_dimension_by_node[node_id] // 6 - 1,
@@ -581,6 +642,13 @@ def _network_module_output(
         maximum_resync_required_count=(
             replay.maximum_resync_required_count
         ),
+        current_topology_version=int(topology_version),
+        topology_transition_count=int(topology_transition_count),
+        active_neighbors=active_neighbors,
+        inactive_configured_neighbors=tuple(
+            neighbor for neighbor in configured_neighbors
+            if neighbor not in active_neighbors
+        ),
     )
     return NetworkModuleOutput(module_output, diagnostics)
 
@@ -598,6 +666,8 @@ def _link_runtime_diagnostics(
     ]
     last_receive = {neighbor: None for neighbor in configured}
     losses = {neighbor: 0 for neighbor in configured}
+    maximum_losses = {neighbor: 0 for neighbor in configured}
+    recovery_deliveries = {neighbor: 0 for neighbor in configured}
     resync = {neighbor: False for neighbor in configured}
     rejection_counts = {}
     for record in records:
@@ -613,10 +683,17 @@ def _link_runtime_diagnostics(
             losses[neighbor] = int(
                 record.get("consecutive_losses_before_delivery", 0)
             )
+            maximum_losses[neighbor] = max(
+                maximum_losses[neighbor], losses[neighbor]
+            )
+            if losses[neighbor] > 0:
+                recovery_deliveries[neighbor] += 1
         else:
             reason = str(record.get("reason", "unknown"))
             rejection_counts[reason] = rejection_counts.get(reason, 0) + 1
-        resync[neighbor] = bool(record.get("resync_required_count", 0))
+        resync[neighbor] = neighbor in set(
+            record.get("resync_required_neighbors", ())
+        )
     final_timestamp = float(history.timestamps[-1])
     health = {}
     for neighbor in configured:
@@ -636,6 +713,8 @@ def _link_runtime_diagnostics(
         "link_health_by_neighbor": health,
         "last_receive_timestamp_by_neighbor": last_receive,
         "losses_before_last_delivery_by_neighbor": losses,
+        "maximum_consecutive_losses_by_neighbor": maximum_losses,
+        "recovery_delivery_count_by_neighbor": recovery_deliveries,
         "resynchronization_required_by_neighbor": resync,
         "message_rejection_counts_by_reason": rejection_counts,
     }

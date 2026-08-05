@@ -158,6 +158,118 @@ def test_absolute_navigation_dropout_window_is_supported():
         assert all(np.isfinite(item.mean_nees) for item in phases.values())
 
 
+def test_multimodal_experiment_supports_directed_state_link_outage():
+    result = run_v14_three_satellite_federated_schmidt_ci_experiment(
+        seeds=1, duration=8.0, dt=2.0, ci_grid_points=7,
+        topology_type="ring",
+        communication_outage_windows_by_directed_link={
+            ("sat_b", "sat_a"): ((2.0, 4.0),),
+        },
+    )
+
+    diagnostics = result.representative_module_output_by_node[
+        "sat_b"
+    ].network_diagnostics
+    assert diagnostics.last_receive_timestamp_by_neighbor["sat_a"] == 8.0
+    assert diagnostics.losses_before_last_delivery_by_neighbor["sat_a"] == 0
+    assert diagnostics.maximum_consecutive_losses_by_neighbor["sat_a"] == 2
+    assert diagnostics.recovery_delivery_count_by_neighbor["sat_a"] == 1
+    assert diagnostics.current_topology_version == 0
+    assert set(result.phase_summary_by_architecture[
+        "sequential_schmidt"
+    ]) == {"pre_dropout", "dropout", "post_recovery"}
+
+
+def test_absolute_navigation_dropout_can_target_one_node():
+    result = run_v14_three_satellite_federated_schmidt_ci_experiment(
+        seeds=1, duration=8.0, dt=2.0, ci_grid_points=7,
+        absolute_navigation_dropout_windows_by_node={
+            "sat_b": ((2.0, 6.0),),
+        },
+    )
+
+    assert set(result.phase_summary_by_architecture[
+        "sequential_schmidt"
+    ]) == {"pre_dropout", "dropout", "post_recovery"}
+
+
+def test_multimodal_experiment_accepts_fixed_chain_topology():
+    result = run_v14_three_satellite_federated_schmidt_ci_experiment(
+        seeds=1, duration=4.0, dt=2.0, ci_grid_points=7,
+        topology_type="chain",
+    )
+
+    assert result.representative_module_output_by_node[
+        "sat_a"
+    ].network_diagnostics.neighbor_count == 1
+
+
+def test_runtime_topology_edge_schedule_suspends_observations_and_resumes():
+    result = run_v14_three_satellite_federated_schmidt_ci_experiment(
+        seeds=1, duration=8.0, dt=2.0, ci_grid_points=7,
+        topology_type="chain",
+        topology_inactive_windows_by_undirected_edge={
+            ("sat_a", "sat_b"): ((2.0, 4.0),),
+        },
+    )
+
+    assert result.topology_version_by_timestamp == {
+        0.0: 0, 2.0: 1, 4.0: 1, 6.0: 2, 8.0: 2,
+    }
+    assert result.active_neighbors_by_timestamp[2.0]["sat_a"] == ()
+    assert result.active_neighbors_by_timestamp[2.0]["sat_b"] == (
+        "sat_c",
+    )
+    assert result.active_neighbors_by_timestamp[6.0]["sat_a"] == (
+        "sat_b",
+    )
+    diagnostics = result.representative_module_output_by_node[
+        "sat_b"
+    ].network_diagnostics
+    assert diagnostics.maximum_consecutive_losses_by_neighbor["sat_a"] == 2
+    assert diagnostics.recovery_delivery_count_by_neighbor["sat_a"] == 1
+    assert diagnostics.current_topology_version == 2
+    assert diagnostics.topology_transition_count == 2
+    assert diagnostics.active_neighbors == ("sat_a", "sat_c")
+    assert diagnostics.inactive_configured_neighbors == ()
+
+
+def test_long_topology_separation_requires_explicit_resynchronization():
+    result = run_v14_three_satellite_federated_schmidt_ci_experiment(
+        seeds=1, duration=10.0, dt=2.0, ci_grid_points=7,
+        topology_type="chain", max_pinned_age=2.0,
+        topology_inactive_windows_by_undirected_edge={
+            ("sat_a", "sat_b"): ((2.0, 8.0),),
+        },
+    )
+
+    diagnostics = result.representative_module_output_by_node[
+        "sat_b"
+    ].network_diagnostics
+    assert diagnostics.maximum_resync_required_count >= 1
+    assert diagnostics.resynchronization_required_by_neighbor["sat_a"]
+    assert not diagnostics.resynchronization_required_by_neighbor["sat_c"]
+    assert diagnostics.message_rejection_counts_by_reason[
+        "resync_required"
+    ] >= 1
+
+
+def test_main_experiment_can_run_optional_online_resynchronization_backend():
+    result = run_v14_three_satellite_federated_schmidt_ci_experiment(
+        seeds=1, duration=12.0, dt=2.0, ci_grid_points=7,
+        topology_type="ring", max_pinned_age=2.0,
+        topology_inactive_windows_by_undirected_edge={
+            ("sat_a", "sat_b"): ((2.0, 8.0),),
+        },
+        online_resynchronization_backend=True,
+    )
+
+    online = result.online_resynchronization_summary
+    assert online is not None
+    assert online.resynchronization_count == 2
+    assert online.rejected_message_count == 0
+
+
 def test_experiment_accepts_shared_integrity_policy_by_modality():
     policy = MeasurementIntegrityPolicy(
         mode=INTEGRITY_MODE_PROPORTIONAL_WITH_HARD_GATE,

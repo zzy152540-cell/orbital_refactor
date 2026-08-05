@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from collections.abc import Mapping
+from dataclasses import dataclass
 from time import perf_counter
 
 import numpy as np
@@ -12,6 +13,13 @@ from cooperative.network_schmidt_runner import (
 )
 from experiments.v14_exact_transport_scale_scan import _build_case
 from experiments.v14_three_satellite_local_observation import _three_satellite_scenario
+from experiments.v14_online_topology_resynchronization import (
+    OnlineTopologyResynchronizationSummary,
+    run_v14_online_topology_resynchronization_experiment,
+)
+from experiments.v14_observation_faults import (
+    apply_observation_faults as _apply_observation_faults,
+)
 from orbital_core.ci_fusion import ci_fuse_posteriors
 from orbital_core.dynamics import (
     accel_two_body_j2,
@@ -23,7 +31,6 @@ from orbital_core.quality import quality_score_from_covariance
 from orbital_core.measurement_integrity import MeasurementIntegrityPolicy
 from interfaces.data_objects import FusionStatus, ModuleOutput, RuntimeStatus, StateOutput
 from orbital_core.metrics import compute_nees_history, compute_rmse
-from orbital_core.inter_satellite_model import RelativeMeasurementModel
 from scenarios.measurement_visibility import VisibilityConfig
 
 
@@ -61,6 +68,13 @@ class FederatedSchmidtCIResult:
     phase_summary_by_architecture: dict[
         str, dict[str, SchmidtArchitectureSummary]
     ]
+    topology_version_by_timestamp: dict[float, int]
+    active_neighbors_by_timestamp: dict[
+        float, dict[str, tuple[str, ...]]
+    ]
+    online_resynchronization_summary: (
+        OnlineTopologyResynchronizationSummary | None
+    )
 
 
 def run_v14_three_satellite_federated_schmidt_ci_experiment(
@@ -77,7 +91,20 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
     absolute_navigation_dropout_windows: tuple[
         tuple[float, float], ...
     ] = (),
+    absolute_navigation_dropout_windows_by_node: Mapping[
+        str, tuple[tuple[float, float], ...]
+    ] | None = None,
+    topology_type: str = "ring",
+    communication_outage_windows_by_directed_link: Mapping[
+        tuple[str, str], tuple[tuple[float, float], ...]
+    ] | None = None,
+    topology_inactive_windows_by_undirected_edge: Mapping[
+        tuple[str, str], tuple[tuple[float, float], ...]
+    ] | None = None,
     process_noise_acceleration: float = 1e-8,
+    max_pinned_age: float | None = None,
+    max_retained_events: int | None = None,
+    online_resynchronization_backend: bool = False,
     ci_objective: str = "trace",
     ci_grid_points: int = 31,
     radar_actual_noise_scale: float = 1.0,
@@ -108,6 +135,29 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
         raise ValueError("ci_grid_points must be at least two.")
     if radar_actual_noise_scale <= 0.0:
         raise ValueError("radar_actual_noise_scale must be positive.")
+    if online_resynchronization_backend:
+        topology_windows = (
+            topology_inactive_windows_by_undirected_edge or {}
+        )
+        if not topology_windows:
+            raise ValueError(
+                "Online resynchronization requires at least one inactive "
+                "topology edge window."
+            )
+        if max_pinned_age is None:
+            raise ValueError(
+                "Online resynchronization requires max_pinned_age."
+            )
+        if any((
+            optical_outlier_bias is not None,
+            bool(dropout_windows_by_modality),
+            bool(absolute_navigation_dropout_windows),
+            bool(absolute_navigation_dropout_windows_by_node),
+        )):
+            raise ValueError(
+                "Online resynchronization comparison currently supports "
+                "the nominal measurement path only."
+            )
     if optical_outlier_bias is not None and optical_outlier_window is None:
         raise ValueError("optical_outlier_bias requires optical_outlier_window.")
     if infrared_outlier_bias is not None and infrared_outlier_window is None:
@@ -124,6 +174,16 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
             raise ValueError(
                 "Absolute-navigation dropout windows require finite start <= end."
             )
+    for windows in (
+        absolute_navigation_dropout_windows_by_node or {}
+    ).values():
+        for start, end in windows:
+            if (
+                not np.isfinite(start) or not np.isfinite(end) or end < start
+            ):
+                raise ValueError(
+                    "Absolute-navigation dropout windows require finite start <= end."
+                )
     gate_thresholds = {
         str(modality): float(threshold)
         for modality, threshold in (nis_gate_threshold_by_modality or {}).items()
@@ -208,8 +268,22 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
     }
     all_modalities_unavailable_count = 0
     representative_outputs = {}
-    phase_masks = _absolute_navigation_phase_masks(
-        timestamps, absolute_navigation_dropout_windows
+    representative_topology_versions = {}
+    representative_active_neighbors = {}
+    phase_masks = _experiment_phase_masks(
+        timestamps,
+        absolute_navigation_dropout_windows=(
+            absolute_navigation_dropout_windows
+        ),
+        communication_outage_windows_by_directed_link=(
+            communication_outage_windows_by_directed_link
+        ),
+        absolute_navigation_dropout_windows_by_node=(
+            absolute_navigation_dropout_windows_by_node
+        ),
+        topology_inactive_windows_by_undirected_edge=(
+            topology_inactive_windows_by_undirected_edge
+        ),
     )
     phase_collected = {
         architecture: {phase: [] for phase in phase_masks}
@@ -225,10 +299,19 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
             absolute_navigation_dropout_windows=(
                 absolute_navigation_dropout_windows
             ),
+            absolute_navigation_dropout_windows_by_node=(
+                absolute_navigation_dropout_windows_by_node
+            ),
             process_noise_acceleration=process_noise_acceleration,
             packet_loss=0.0, delay=0.0, acknowledge_messages=True,
-            node_count=3, topology_type="ring",
+            node_count=3, topology_type=topology_type,
             visibility_by_modality=visibility,
+            communication_outage_windows_by_directed_link=(
+                communication_outage_windows_by_directed_link
+            ),
+            topology_inactive_windows_by_undirected_edge=(
+                topology_inactive_windows_by_undirected_edge
+            ),
             truth_initial_state_by_node=initial_truth,
             relative_modalities=SENSOR_MODALITIES,
         )
@@ -241,6 +324,15 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
             infrared_outlier_window=infrared_outlier_window,
             dropout_windows_by_modality=dropout_windows_by_modality,
         )
+        representative_topology_versions = dict(
+            case["topology_version_by_timestamp"]
+        )
+        representative_active_neighbors = {
+            timestamp: dict(by_node)
+            for timestamp, by_node in case[
+                "active_neighbors_by_timestamp"
+            ].items()
+        }
         sequential_started = perf_counter()
         sequential = _run_case(
             case, observations=case["observations"],
@@ -251,6 +343,8 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
                 maximum_covariance_scales
             ),
             integrity_policy_by_modality=integrity_policies,
+            max_pinned_age=max_pinned_age,
+            max_retained_events=max_retained_events,
         )
         sequential_seconds = perf_counter() - sequential_started
         collected["sequential_schmidt"].append(
@@ -282,6 +376,8 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
                     maximum_covariance_scales
                 ),
                 integrity_policy_by_modality=integrity_policies,
+                max_pinned_age=max_pinned_age,
+                max_retained_events=max_retained_events,
             )
             elapsed = perf_counter() - started
             local_seconds += elapsed
@@ -442,8 +538,35 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
             modality_validity_by_node=modality_validity_by_node,
             local_histories=local_histories,
             processing_time=local_seconds + ci_seconds,
+            topology_version=max(
+                case["topology_version_by_timestamp"].values()
+            ),
+            active_neighbors_by_node=case[
+                "active_neighbors_by_timestamp"
+            ][float(timestamps[-1])],
         )
 
+    online_summary = None
+    if online_resynchronization_backend:
+        online_summary = (
+            run_v14_online_topology_resynchronization_experiment(
+                seeds=seeds, duration=duration, dt=dt,
+                max_pinned_age=max_pinned_age,
+                topology_inactive_windows_by_undirected_edge=(
+                    topology_inactive_windows_by_undirected_edge
+                ),
+                topology_type=topology_type, maximum_range=maximum_range,
+                range_sigma=range_sigma,
+                range_rate_sigma=range_rate_sigma,
+                az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
+                absolute_sigma=absolute_sigma,
+                process_noise_acceleration=process_noise_acceleration,
+                radar_actual_noise_scale=radar_actual_noise_scale,
+                infrared_outlier_bias=infrared_outlier_bias,
+                infrared_outlier_window=infrared_outlier_window,
+                integrity_policy_by_modality=integrity_policies,
+            )
+        )
     return FederatedSchmidtCIResult(
         sequential_schmidt=_aggregate(
             "sequential_schmidt", collected["sequential_schmidt"]
@@ -484,18 +607,26 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
             }
             for architecture, by_phase in phase_collected.items()
         },
+        topology_version_by_timestamp=representative_topology_versions,
+        active_neighbors_by_timestamp=representative_active_neighbors,
+        online_resynchronization_summary=online_summary,
     )
 
 
 def _federated_module_outputs(
     *, timestamps, fused_state_by_node, fused_covariance_by_node,
     fusion_weights_by_node, modality_validity_by_node, local_histories,
-    processing_time,
+    processing_time, topology_version, active_neighbors_by_node,
 ):
     outputs = {}
     node_ids = list(fused_state_by_node)
     local_outputs = {
-        modality: history.to_module_outputs(processing_time=processing_time)
+        modality: history.to_module_outputs(
+            processing_time=processing_time,
+            topology_version=topology_version,
+            topology_transition_count=topology_version,
+            active_neighbors_by_node=active_neighbors_by_node,
+        )
         for modality, history in local_histories.items()
     }
     for node_id in node_ids:
@@ -585,6 +716,12 @@ def _federated_module_outputs(
             losses_before_last_delivery_by_neighbor=dict(
                 local_diagnostics[0].losses_before_last_delivery_by_neighbor
             ),
+            maximum_consecutive_losses_by_neighbor=dict(
+                local_diagnostics[0].maximum_consecutive_losses_by_neighbor
+            ),
+            recovery_delivery_count_by_neighbor=dict(
+                local_diagnostics[0].recovery_delivery_count_by_neighbor
+            ),
             resynchronization_required_by_neighbor=dict(
                 local_diagnostics[0].resynchronization_required_by_neighbor
             ),
@@ -609,6 +746,16 @@ def _federated_module_outputs(
                 item.maximum_resync_required_count
                 for item in local_diagnostics
             ),
+            current_topology_version=int(topology_version),
+            topology_transition_count=int(topology_version),
+            active_neighbors=tuple(sorted(
+                active_neighbors_by_node[node_id]
+            )),
+            inactive_configured_neighbors=tuple(
+                neighbor
+                for neighbor in local_diagnostics[0].configured_neighbors
+                if neighbor not in active_neighbors_by_node[node_id]
+            ),
         )
         outputs[node_id] = NetworkModuleOutput(module_output, diagnostics)
     return outputs
@@ -620,6 +767,7 @@ def _run_case(
     nis_inflation_threshold_by_modality,
     maximum_measurement_covariance_scale_by_modality,
     integrity_policy_by_modality,
+    max_pinned_age, max_retained_events,
 ):
     return run_network_schmidt_filter(
         timestamps=case["timestamps"],
@@ -640,6 +788,14 @@ def _run_case(
             maximum_measurement_covariance_scale_by_modality
         ),
         integrity_policy_by_modality=integrity_policy_by_modality,
+        max_pinned_age=max_pinned_age,
+        max_retained_events=max_retained_events,
+        topology_version_by_timestamp=case[
+            "topology_version_by_timestamp"
+        ],
+        active_neighbors_by_timestamp=case[
+            "active_neighbors_by_timestamp"
+        ],
     )
 
 
@@ -691,7 +847,34 @@ def _array_metrics(
     }
 
 
-def _absolute_navigation_phase_masks(timestamps, dropout_windows):
+def _experiment_phase_masks(
+    timestamps, *, absolute_navigation_dropout_windows,
+    communication_outage_windows_by_directed_link,
+    absolute_navigation_dropout_windows_by_node,
+    topology_inactive_windows_by_undirected_edge,
+):
+    dropout_windows = list(absolute_navigation_dropout_windows)
+    dropout_windows.extend(
+        window
+        for windows in (
+            absolute_navigation_dropout_windows_by_node or {}
+        ).values()
+        for window in windows
+    )
+    dropout_windows.extend(
+        window
+        for windows in (
+            topology_inactive_windows_by_undirected_edge or {}
+        ).values()
+        for window in windows
+    )
+    dropout_windows.extend(
+        window
+        for windows in (
+            communication_outage_windows_by_directed_link or {}
+        ).values()
+        for window in windows
+    )
     if not dropout_windows:
         return {}
     timestamps = np.asarray(timestamps, dtype=float)
@@ -744,66 +927,3 @@ def _validate_fault_windows(
     for start, end in windows:
         if not np.isfinite(start) or not np.isfinite(end) or end < start:
             raise ValueError("Fault windows require finite start <= end.")
-
-
-def _apply_observation_faults(
-    observations, *, truth, seed, radar_actual_noise_scale,
-    optical_outlier_bias, optical_outlier_window, dropout_windows_by_modality,
-    infrared_outlier_bias, infrared_outlier_window,
-):
-    rng = np.random.default_rng(20270104 + seed)
-    # Truth histories do not carry timestamps, while experiment epochs are
-    # uniformly indexed by the ordered observation timestamps.
-    ordered_timestamps = sorted({float(item.timestamp) for item in observations})
-    timestamp_to_index = {
-        timestamp: index for index, timestamp in enumerate(ordered_timestamps)
-    }
-    result = []
-    for observation in observations:
-        timestamp = float(observation.timestamp)
-        if any(
-            start <= timestamp <= end
-            for start, end in (dropout_windows_by_modality or {}).get(
-                observation.modality, ()
-            )
-        ):
-            continue
-        modified = observation
-        if observation.modality == "RADAR" and radar_actual_noise_scale != 1.0:
-            index = timestamp_to_index[timestamp]
-            model = RelativeMeasurementModel("RADAR", observation.frame)
-            ideal = model.predict(
-                truth[observation.observer_id][index],
-                truth[observation.target_id][index],
-            )
-            actual_noise = rng.multivariate_normal(
-                np.zeros(2),
-                observation.covariance * radar_actual_noise_scale**2,
-            )
-            modified = replace(observation, measurement=ideal + actual_noise)
-        if (
-            observation.modality == "OPTICAL"
-            and optical_outlier_bias is not None
-            and optical_outlier_window[0] <= timestamp <= optical_outlier_window[1]
-        ):
-            modified = replace(
-                modified,
-                measurement=(
-                    np.asarray(modified.measurement, dtype=float)
-                    + np.asarray(optical_outlier_bias, dtype=float)
-                ),
-            )
-        if (
-            observation.modality == "INFRARED"
-            and infrared_outlier_bias is not None
-            and infrared_outlier_window[0] <= timestamp <= infrared_outlier_window[1]
-        ):
-            modified = replace(
-                modified,
-                measurement=(
-                    np.asarray(modified.measurement, dtype=float)
-                    + np.asarray(infrared_outlier_bias, dtype=float)
-                ),
-            )
-        result.append(modified)
-    return result

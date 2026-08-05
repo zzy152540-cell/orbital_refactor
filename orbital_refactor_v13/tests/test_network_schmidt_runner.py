@@ -350,3 +350,49 @@ def test_formal_network_mode_replays_neighbor_state_messages():
     assert np.linalg.eigvalsh(
         history.joint_covariance_history_by_node["sat_02"][-1]
     ).min() >= -1e-8
+
+
+def test_delayed_state_message_is_rejected_after_topology_version_changes():
+    timestamps, states, covariances, _ = _case()
+    transition = np.eye(6)
+    event = CovarianceTransportEvent(
+        timestamp=0.0, state_estimate=states["sat_01"],
+        error_transition=transition,
+        independent_process_noise=np.zeros((6, 6)),
+    )
+    message = build_exact_transport_state_message(
+        source_node_id="sat_01", timestamp=0.0, reference_timestamp=0.0,
+        reference_state=states["sat_01"],
+        reference_covariance=covariances["sat_01"],
+        updated_state=states["sat_01"], error_transition=transition,
+        independent_process_noise=np.zeros((6, 6)),
+        lineage_id="sat01:0", transport_events=(event,),
+    )
+    message.arrival_timestamp = 1.0
+    message.metadata = {"topology_version": 0}
+
+    history = run_network_schmidt_filter(
+        timestamps=timestamps, initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=[],
+        consider_refresh_mode="exact_transport_event_replay",
+        state_messages_by_receiver={"sat_02": [message]},
+        topology_version_by_timestamp={0.0: 0, 1.0: 1},
+        active_neighbors_by_timestamp={
+            0.0: {
+                "sat_01": ("sat_02",),
+                "sat_02": ("sat_01", "sat_03"),
+                "sat_03": ("sat_02",),
+            },
+            1.0: {
+                "sat_01": ("sat_02",),
+                "sat_02": ("sat_01", "sat_03"),
+                "sat_03": ("sat_02",),
+            },
+        },
+        process_noise_acceleration=0.0,
+    )
+
+    assert history.refresh_diagnostics["topology_version_mismatch"] == 1
+    assert history.replay_performance_by_node["sat_02"].replay_count == 0

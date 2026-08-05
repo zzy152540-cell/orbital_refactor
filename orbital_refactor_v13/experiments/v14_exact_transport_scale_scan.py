@@ -334,6 +334,8 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 visibility_temporal_filter_by_modality=None,
                 communication_outage_windows_by_directed_link=None,
                 absolute_navigation_dropout_windows=(),
+                absolute_navigation_dropout_windows_by_node=None,
+                topology_inactive_windows_by_undirected_edge=None,
                 measurement_period_by_modality=None,
                 relative_modalities=("RANGE",)):
     rng = np.random.default_rng(20260830 + seed)
@@ -427,6 +429,15 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     communication_outages = _validated_communication_outages(
         communication_outage_windows_by_directed_link, edges=edges,
     )
+    topology_inactive_windows = _validated_topology_inactive_windows(
+        topology_inactive_windows_by_undirected_edge, topology=topology,
+    )
+    topology_versions, active_neighbors_by_timestamp = (
+        _topology_runtime_schedule(
+            timestamps, topology=topology,
+            inactive_windows=topology_inactive_windows,
+        )
+    )
     absolute_navigation_dropout_windows = tuple(
         (float(start), float(end))
         for start, end in absolute_navigation_dropout_windows
@@ -434,6 +445,25 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
     if any(
         not np.isfinite(start) or not np.isfinite(end) or end < start
         for start, end in absolute_navigation_dropout_windows
+    ):
+        raise ValueError(
+            "Absolute-navigation dropout windows require finite start <= end."
+        )
+    node_dropout_windows = {
+        str(node): tuple((float(start), float(end)) for start, end in windows)
+        for node, windows in (
+            absolute_navigation_dropout_windows_by_node or {}
+        ).items()
+    }
+    unknown_dropout_nodes = set(node_dropout_windows) - set(scenario.node_ids)
+    if unknown_dropout_nodes:
+        raise ValueError(
+            "Absolute-navigation dropout windows reference unknown nodes."
+        )
+    if any(
+        not np.isfinite(start) or not np.isfinite(end) or end < start
+        for windows in node_dropout_windows.values()
+        for start, end in windows
     ):
         raise ValueError(
             "Absolute-navigation dropout windows require finite start <= end."
@@ -482,7 +512,10 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
         for node in topology.node_ids:
             navigation_available = not any(
                 start <= float(timestamp) <= end
-                for start, end in absolute_navigation_dropout_windows
+                for start, end in (
+                    absolute_navigation_dropout_windows
+                    + node_dropout_windows.get(node, ())
+                )
             )
             update_transition = np.eye(6)
             update_noise = np.zeros((6, 6))
@@ -521,7 +554,11 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                 link_sequence[(receiver, source)] += 1
                 transmitted = (
                     None
-                    if _link_is_in_outage(
+                    if _topology_edge_is_inactive(
+                        topology_inactive_windows,
+                        first=receiver, second=source,
+                        timestamp=float(timestamp),
+                    ) or _link_is_in_outage(
                         communication_outages,
                         receiver=receiver,
                         source=source,
@@ -538,6 +575,9 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                             "consecutive_losses_before_delivery": consecutive_losses[(receiver, source)],
                             "reference_event_count": len(message.transport_events),
                             "ack_eligible": ack_eligible,
+                            "topology_version": topology_versions[
+                                float(timestamp)
+                            ],
                         },
                     )
                     consecutive_losses[(receiver, source)] = 0
@@ -549,6 +589,12 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
                     consecutive_losses[(receiver, source)] += 1
         for observer in topology.node_ids:
             for target in topology.neighbors(observer):
+                if _topology_edge_is_inactive(
+                    topology_inactive_windows,
+                    first=observer, second=target,
+                    timestamp=float(timestamp),
+                ):
+                    continue
                 range_noise = rng.normal(0.0, range_sigma)
                 if "RADAR" in relative_modalities and _measurement_is_due(
                     "RADAR", float(timestamp), measurement_periods
@@ -737,6 +783,8 @@ def _build_case(*, seed, duration, dt, range_sigma, absolute_sigma,
         "transmitted_messages": transmitted_messages,
         "lineages": {(receiver, source): f"{source}->{receiver}:0" for receiver, source in edges},
         "visibility_summary": visibility_summary,
+        "topology_version_by_timestamp": topology_versions,
+        "active_neighbors_by_timestamp": active_neighbors_by_timestamp,
     }
 
 
@@ -888,6 +936,67 @@ def _link_is_in_outage(outages, *, receiver, source, timestamp):
         start <= timestamp <= end
         for start, end in outages.get((str(receiver), str(source)), ())
     )
+
+
+def _validated_topology_inactive_windows(raw, *, topology):
+    configured_edges = {
+        tuple(sorted((node, neighbor)))
+        for node in topology.node_ids
+        for neighbor in topology.neighbors(node)
+    }
+    normalized = {}
+    for edge, raw_windows in (raw or {}).items():
+        if len(edge) != 2:
+            raise ValueError("Topology schedule keys must contain two nodes.")
+        key = tuple(sorted((str(edge[0]), str(edge[1]))))
+        if key not in configured_edges:
+            raise ValueError("Topology schedule references an unknown edge.")
+        windows = tuple((float(start), float(end)) for start, end in raw_windows)
+        if any(
+            not np.isfinite(start) or not np.isfinite(end) or end < start
+            for start, end in windows
+        ):
+            raise ValueError(
+                "Topology inactive windows require finite start <= end."
+            )
+        normalized[key] = windows
+    return normalized
+
+
+def _topology_edge_is_inactive(
+    inactive_windows, *, first, second, timestamp,
+):
+    key = tuple(sorted((str(first), str(second))))
+    return any(
+        start <= timestamp <= end
+        for start, end in inactive_windows.get(key, ())
+    )
+
+
+def _topology_runtime_schedule(timestamps, *, topology, inactive_windows):
+    versions = {}
+    active_neighbors = {}
+    previous_signature = None
+    version = 0
+    for timestamp in timestamps:
+        timestamp = float(timestamp)
+        current = {
+            node: tuple(
+                neighbor for neighbor in topology.neighbors(node)
+                if not _topology_edge_is_inactive(
+                    inactive_windows, first=node, second=neighbor,
+                    timestamp=timestamp,
+                )
+            )
+            for node in topology.node_ids
+        }
+        signature = tuple((node, current[node]) for node in topology.node_ids)
+        if previous_signature is not None and signature != previous_signature:
+            version += 1
+        versions[timestamp] = version
+        active_neighbors[timestamp] = current
+        previous_signature = signature
+    return versions, active_neighbors
 
 
 def _validated_measurement_periods(periods, *, modalities):
