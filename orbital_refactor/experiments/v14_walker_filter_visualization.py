@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from experiments.v14_exact_transport_scale_scan import _build_case
+from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
 from experiments.v14_walker_geometry_audit import run_v14_walker_geometry_audit
 from scenarios.measurement_visibility import VisibilityConfig
 
@@ -30,7 +30,7 @@ def generate_v14_walker_filter_visualization(
         for node, history in audit.scenario.truth_state_history_by_node.items()
     }
     modalities = ("RADAR", "INFRARED", "OPTICAL")
-    case = _build_case(
+    case = build_exact_transport_case(
         seed=seed, duration=duration, dt=dt,
         range_sigma=2.0, range_rate_sigma=0.05,
         az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,

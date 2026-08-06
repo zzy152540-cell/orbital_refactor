@@ -28,6 +28,9 @@ SINGLE_SATELLITE_SENSOR_CONTRACTS = {
     ),
 }
 
+# Canonical ordering used by physical multi-modal experiments and reports.
+PHYSICAL_SENSOR_MODALITIES = tuple(SINGLE_SATELLITE_SENSOR_CONTRACTS)
+
 
 _INTER_SATELLITE_COMPONENT_TO_SENSOR = {
     "RADAR": ("RADAR", "RANGE_RANGE_RATE"),

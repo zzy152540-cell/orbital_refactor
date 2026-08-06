@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from experiments.v14_exact_transport_scale_scan import _build_case, _metrics
+from experiments.network_filter_metrics import network_history_metrics
+from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
 from orbital_core.constants import R_EARTH
 from orbital_core.coordinates import dcm_to_quat_wxyz
 from orbital_core.metrics import compute_nees_history, compute_rmse
@@ -121,7 +122,7 @@ def run_v14_three_satellite_local_observation_experiment(
     visibility_summary = None
     for seed in range(seeds):
         built = {
-            "continuous": _build_case(
+            "continuous": build_exact_transport_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
                 radar_correlation=radar_correlation,
@@ -132,7 +133,7 @@ def run_v14_three_satellite_local_observation_experiment(
                 truth_initial_state_by_node=initial_truth,
                 relative_modalities=modalities,
             ),
-            "visibility_limited": _build_case(
+            "visibility_limited": build_exact_transport_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
                 radar_correlation=radar_correlation,
@@ -177,7 +178,7 @@ def run_v14_three_satellite_local_observation_experiment(
                     ),
                 )
                 collected[(case_name, mode)].append(
-                    _metrics(history, case["truth"], 0, 0.0)
+                    network_history_metrics(history, case["truth"], 0, 0.0)
                 )
                 collected_by_node[(case_name, mode)].append(
                     _metrics_by_node(history, case["truth"])
@@ -289,7 +290,7 @@ def run_v14_three_satellite_body_scheduling_experiment(
     edge_counts = {}
     for seed in range(seeds):
         cases = {
-            "eci_upper_bound": _build_case(
+            "eci_upper_bound": build_exact_transport_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
                 az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
@@ -301,7 +302,7 @@ def run_v14_three_satellite_body_scheduling_experiment(
                 truth_initial_state_by_node=initial_truth,
                 relative_modalities=modalities,
             ),
-            "body_scheduled": _build_case(
+            "body_scheduled": build_exact_transport_case(
                 seed=seed, duration=duration, dt=dt,
                 range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
                 az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
@@ -340,7 +341,9 @@ def run_v14_three_satellite_body_scheduling_experiment(
                 replay_history_window=10.0,
                 expected_lineage_by_link=case["lineages"],
             )
-            collected[case_name].append(_metrics(history, case["truth"], 0, 0.0))
+            collected[case_name].append(
+                network_history_metrics(history, case["truth"], 0, 0.0)
+            )
             collected_by_node[case_name].append(
                 _metrics_by_node(history, case["truth"])
             )

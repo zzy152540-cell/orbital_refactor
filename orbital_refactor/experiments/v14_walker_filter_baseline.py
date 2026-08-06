@@ -6,10 +6,14 @@ from time import perf_counter
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from experiments.v14_exact_transport_scale_scan import _build_case, _metrics
+from experiments.network_filter_metrics import network_history_metrics
+from experiments.summary_statistics import interval_coverage, mean_metric_dict
+from experiments.walker_filter_setup import (
+    WALKER_FILTER_MODALITIES,
+    build_walker_filter_case,
+)
 from experiments.v14_walker_geometry_audit import run_v14_walker_geometry_audit
 from orbital_core.metrics import compute_nees_history, compute_rmse
-from scenarios.measurement_visibility import VisibilityConfig
 
 NEES_95_DOF6 = (1.2373442458, 14.4493753354)
 
@@ -73,37 +77,22 @@ def run_v14_walker_filter_smoke(
         raise ValueError(
             "Walker 20/10/1 has no connected persistent topology at this range."
         )
-    initial_truth = {
-        node: history[0]
-        for node, history in audit.scenario.truth_state_history_by_node.items()
-    }
-    modalities = ("RADAR", "INFRARED", "OPTICAL")
-    visibility = {
-        modality: VisibilityConfig(maximum_range=maximum_range)
-        for modality in modalities
-    }
     values = []
     temporal_values = [[] for _ in range(len(boundaries) - 1)]
     counts_per_run = None
     for seed in range(seeds):
-        case = _build_case(
-            seed=seed, duration=duration, dt=dt,
-            range_sigma=2.0, range_rate_sigma=0.05,
-            az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
-            absolute_sigma=3.0, process_noise_acceleration=1e-8,
-            packet_loss=0.0, delay=0.0, acknowledge_messages=True,
-            node_count=20, topology_type="walker_persistent",
-            topology_override=audit.persistent_topology,
-            truth_initial_state_by_node=initial_truth,
-            visibility_by_modality=visibility,
-            relative_modalities=modalities,
+        case = build_walker_filter_case(
+            seed=seed, duration=duration, dt=dt, maximum_range=maximum_range,
+            topology=audit.persistent_topology,
+            truth_history_by_node=audit.scenario.truth_state_history_by_node,
+            topology_type="walker_persistent",
         )
         counts = {
             modality: sum(
                 observation.modality == modality
                 for observation in case["observations"]
             )
-            for modality in modalities
+            for modality in WALKER_FILTER_MODALITIES
         }
         counts_per_run = counts if counts_per_run is None else counts_per_run
         if counts != counts_per_run:
@@ -123,7 +112,7 @@ def run_v14_walker_filter_smoke(
             replay_history_window=10.0,
             expected_lineage_by_link=case["lineages"],
         )
-        values.append(_metrics(
+        values.append(network_history_metrics(
             history, case["truth"], len(case["transmitted_messages"]),
             perf_counter() - started,
         ))
@@ -145,8 +134,8 @@ def run_v14_walker_filter_smoke(
         mean_velocity_rmse=float(np.mean([value[1] for value in values])),
         mean_nees=float(np.mean([value[2] for value in values])),
         mean_nees_95_coverage=float(np.mean([value[3] for value in values])),
-        mean_nis_by_modality=_mean_dict([value[14] for value in values]),
-        mean_nis_95_coverage_by_modality=_mean_dict(
+        mean_nis_by_modality=mean_metric_dict([value[14] for value in values]),
+        mean_nis_95_coverage_by_modality=mean_metric_dict(
             [value[15] for value in values]
         ),
         observation_count_by_modality_per_run=counts_per_run or {},
@@ -180,9 +169,9 @@ def run_v14_walker_filter_smoke(
                 mean_nees=float(np.mean([
                     item for value in segment_values for item in value[3]
                 ])),
-                nees_95_coverage=_coverage(np.asarray([
+                nees_95_coverage=interval_coverage([
                     item for value in segment_values for item in value[3]
-                ]), NEES_95_DOF6),
+                ], NEES_95_DOF6),
                 mean_position_standard_deviation=float(np.mean([
                     item for value in segment_values for item in value[4]
                 ])),
@@ -193,14 +182,6 @@ def run_v14_walker_filter_smoke(
             for index, segment_values in enumerate(temporal_values)
         ),
     )
-
-
-def _mean_dict(values):
-    keys = sorted({key for value in values for key in value})
-    return {
-        key: float(np.mean([value[key] for value in values if key in value]))
-        for key in keys
-    }
 
 
 def _diagnostic_boundaries(duration, requested):
@@ -256,8 +237,3 @@ def _temporal_metrics(history, truth, *, start, end, include_end):
 
 def _pooled_rmse(segment_values, index):
     return compute_rmse(np.vstack([value[index] for value in segment_values]))
-
-
-def _coverage(values, interval):
-    lower, upper = interval
-    return float(np.mean((values >= lower) & (values <= upper)))

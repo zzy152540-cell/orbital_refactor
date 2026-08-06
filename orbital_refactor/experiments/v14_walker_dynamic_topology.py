@@ -8,7 +8,11 @@ import numpy as np
 from cooperative.topology import NetworkTopology, fully_connected_topology
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.network_schmidt_orchestrator import NetworkSchmidtOrchestrator
-from experiments.v14_exact_transport_scale_scan import _build_case, _metrics
+from experiments.network_filter_metrics import network_history_metrics
+from experiments.walker_filter_setup import (
+    build_walker_filter_case,
+    union_topology_from_epoch_records,
+)
 from experiments.v14_online_topology_resynchronization import (
     _items_by_timestamp, _metrics as _online_metrics,
     _source_updates_from_messages,
@@ -16,8 +20,8 @@ from experiments.v14_online_topology_resynchronization import (
 from experiments.v14_walker_geometry_audit import _component_sizes
 from orbital_core.constants import R_EARTH
 from scenarios.measurement_visibility import (
-    VisibilityConfig,
     generate_inter_satellite_observation_opportunities,
+    VisibilityConfig,
 )
 from scenarios.walker_scenario import (
     WalkerDeltaConfig,
@@ -202,35 +206,16 @@ def run_v14_walker_dynamic_filter_smoke(
         duration=duration, dt=dt, maximum_range=maximum_range,
         maximum_degree=maximum_degree,
     )
-    union_edges = set().union(*(
-        set(record.active_undirected_edges) for record in plan.epoch_records
-    ))
-    adjacency = {node: [] for node in plan.scenario.node_ids}
-    for left, right in sorted(union_edges):
-        adjacency[left].append(right)
-        adjacency[right].append(left)
-    union_topology = NetworkTopology(adjacency)
+    union_topology, union_edges = union_topology_from_epoch_records(
+        plan.scenario.node_ids, plan.epoch_records
+    )
     inactive_windows = _inactive_windows(plan, union_edges, dt=dt)
-    initial_truth = {
-        node: history[0]
-        for node, history in plan.scenario.truth_state_history_by_node.items()
-    }
-    modalities = ("RADAR", "INFRARED", "OPTICAL")
-    case = _build_case(
-        seed=seed, duration=duration, dt=dt,
-        range_sigma=2.0, range_rate_sigma=0.05,
-        az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
-        absolute_sigma=3.0, process_noise_acceleration=1e-8,
-        packet_loss=0.0, delay=0.0, acknowledge_messages=True,
-        node_count=20, topology_type="walker_dynamic_union",
-        topology_override=union_topology,
-        truth_initial_state_by_node=initial_truth,
-        visibility_by_modality={
-            modality: VisibilityConfig(maximum_range=maximum_range)
-            for modality in modalities
-        },
+    case = build_walker_filter_case(
+        seed=seed, duration=duration, dt=dt, maximum_range=maximum_range,
+        topology=union_topology,
+        truth_history_by_node=plan.scenario.truth_state_history_by_node,
+        topology_type="walker_dynamic_union",
         topology_inactive_windows_by_undirected_edge=inactive_windows,
-        relative_modalities=modalities,
     )
     started = perf_counter()
     history = run_network_schmidt_filter(
@@ -249,7 +234,7 @@ def run_v14_walker_dynamic_filter_smoke(
         topology_version_by_timestamp=case["topology_version_by_timestamp"],
         active_neighbors_by_timestamp=case["active_neighbors_by_timestamp"],
     )
-    metrics = _metrics(
+    metrics = network_history_metrics(
         history, case["truth"], len(case["transmitted_messages"]),
         perf_counter() - started,
     )
@@ -289,33 +274,14 @@ def run_v14_walker_online_dynamic_filter_smoke(
         duration=duration, dt=dt, maximum_range=maximum_range,
         maximum_degree=maximum_degree,
     )
-    union_edges = set().union(*(
-        set(record.active_undirected_edges) for record in plan.epoch_records
-    ))
-    adjacency = {node: [] for node in plan.scenario.node_ids}
-    for left, right in sorted(union_edges):
-        adjacency[left].append(right)
-        adjacency[right].append(left)
-    union_topology = NetworkTopology(adjacency)
-    initial_truth = {
-        node: history[0]
-        for node, history in plan.scenario.truth_state_history_by_node.items()
-    }
-    modalities = ("RADAR", "INFRARED", "OPTICAL")
-    case = _build_case(
-        seed=seed, duration=duration, dt=dt,
-        range_sigma=2.0, range_rate_sigma=0.05,
-        az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
-        absolute_sigma=3.0, process_noise_acceleration=1e-8,
-        packet_loss=0.0, delay=0.0, acknowledge_messages=True,
-        node_count=20, topology_type="walker_dynamic_union",
-        topology_override=union_topology,
-        truth_initial_state_by_node=initial_truth,
-        visibility_by_modality={
-            modality: VisibilityConfig(maximum_range=maximum_range)
-            for modality in modalities
-        },
-        relative_modalities=modalities,
+    union_topology, union_edges = union_topology_from_epoch_records(
+        plan.scenario.node_ids, plan.epoch_records
+    )
+    case = build_walker_filter_case(
+        seed=seed, duration=duration, dt=dt, maximum_range=maximum_range,
+        topology=union_topology,
+        truth_history_by_node=plan.scenario.truth_state_history_by_node,
+        topology_type="walker_dynamic_union",
     )
     source_updates = _source_updates_from_messages(
         case["transmitted_messages"], union_topology.node_ids,

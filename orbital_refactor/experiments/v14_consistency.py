@@ -13,17 +13,16 @@ from cooperative.dual_track_runner import (
 from cooperative.schmidt_consider import run_schmidt_consider_history
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.topology import chain_topology
+from experiments.consistency_metrics import fleet_consistency_metrics
 from interfaces.data_objects import ObservationMessage
+from experiments.summary_statistics import mean_metric_dict
 from orbital_core.constants import R_EARTH
 from orbital_core.measurements import measure_relative_range
-from orbital_core.metrics import compute_nees_history, compute_rmse
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.fleet_scenario import generate_fleet_scenario
 
 Array = np.ndarray
 
-NEES_95_DOF6 = (1.2373442458, 14.4493753354)
-NIS_95_DOF1 = (0.0009820691, 5.0238861873)
 STRATEGIES = (
     "single_endpoint",
     "single_endpoint_schmidt",
@@ -76,19 +75,9 @@ def run_v14_network_schmidt_monte_carlo(
             seed=seed, duration=duration, dt=dt, range_sigma=range_sigma,
             process_noise_acceleration=process_noise_acceleration,
         ))
-    summaries = {}
-    for strategy in ("network_approximate", "network_schmidt"):
-        selected = [run for run in runs if run.strategy == strategy]
-        summaries[strategy] = ConsistencySummary(
-            strategy=strategy, run_count=len(selected),
-            mean_position_rmse=float(np.mean([run.fleet_position_rmse for run in selected])),
-            mean_velocity_rmse=float(np.mean([run.fleet_velocity_rmse for run in selected])),
-            mean_nees=float(np.mean([run.mean_nees for run in selected])),
-            mean_nees_95_coverage=float(np.mean([run.nees_95_coverage for run in selected])),
-            mean_nis=float(np.mean([run.mean_nis for run in selected])),
-            mean_nis_95_coverage=float(np.mean([run.nis_95_coverage for run in selected])),
-        )
-    return V14ConsistencyResult(tuple(runs), summaries)
+    return V14ConsistencyResult(
+        tuple(runs), _summarize_runs(runs, ("network_approximate", "network_schmidt"))
+    )
 
 
 def run_v14_network_refresh_monte_carlo(
@@ -107,20 +96,8 @@ def run_v14_network_refresh_monte_carlo(
             refresh_modes=modes,
         )
         runs.extend(run for run in candidates if run.strategy.startswith("refresh_"))
-    summaries = {}
-    for mode in modes:
-        strategy = f"refresh_{mode}"
-        selected = [run for run in runs if run.strategy == strategy]
-        summaries[strategy] = ConsistencySummary(
-            strategy=strategy, run_count=len(selected),
-            mean_position_rmse=float(np.mean([run.fleet_position_rmse for run in selected])),
-            mean_velocity_rmse=float(np.mean([run.fleet_velocity_rmse for run in selected])),
-            mean_nees=float(np.mean([run.mean_nees for run in selected])),
-            mean_nees_95_coverage=float(np.mean([run.nees_95_coverage for run in selected])),
-            mean_nis=float(np.mean([run.mean_nis for run in selected])),
-            mean_nis_95_coverage=float(np.mean([run.nis_95_coverage for run in selected])),
-        )
-    return V14ConsistencyResult(tuple(runs), summaries)
+    strategies = tuple(f"refresh_{mode}" for mode in modes)
+    return V14ConsistencyResult(tuple(runs), _summarize_runs(runs, strategies))
 
 
 def run_v14_range_consistency_monte_carlo(
@@ -148,28 +125,32 @@ def run_v14_range_consistency_monte_carlo(
                     process_noise_acceleration=process_noise_acceleration,
                 )
             )
+    return V14ConsistencyResult(tuple(runs), _summarize_runs(runs, STRATEGIES))
+
+
+def _summarize_runs(runs, strategies):
     summaries = {}
-    for strategy in STRATEGIES:
+    for strategy in strategies:
         selected = [run for run in runs if run.strategy == strategy]
+        metric_names = (
+            "fleet_position_rmse", "fleet_velocity_rmse", "mean_nees",
+            "nees_95_coverage", "mean_nis", "nis_95_coverage",
+        )
+        means = mean_metric_dict([
+            {name: getattr(run, name) for name in metric_names}
+            for run in selected
+        ])
         summaries[strategy] = ConsistencySummary(
             strategy=strategy,
             run_count=len(selected),
-            mean_position_rmse=float(
-                np.mean([run.fleet_position_rmse for run in selected])
-            ),
-            mean_velocity_rmse=float(
-                np.mean([run.fleet_velocity_rmse for run in selected])
-            ),
-            mean_nees=float(np.mean([run.mean_nees for run in selected])),
-            mean_nees_95_coverage=float(
-                np.mean([run.nees_95_coverage for run in selected])
-            ),
-            mean_nis=float(np.mean([run.mean_nis for run in selected])),
-            mean_nis_95_coverage=float(
-                np.mean([run.nis_95_coverage for run in selected])
-            ),
+            mean_position_rmse=means["fleet_position_rmse"],
+            mean_velocity_rmse=means["fleet_velocity_rmse"],
+            mean_nees=means["mean_nees"],
+            mean_nees_95_coverage=means["nees_95_coverage"],
+            mean_nis=means["mean_nis"],
+            mean_nis_95_coverage=means["nis_95_coverage"],
         )
-    return V14ConsistencyResult(tuple(runs), summaries)
+    return summaries
 
 
 def _run_one(
@@ -265,39 +246,21 @@ def _run_one(
         estimate_by_node = history.posterior_state_history_by_node
         covariance_by_node = history.posterior_covariance_history_by_node
         nis_history_by_node = history.nis_history_by_node
-    position_errors = []
-    velocity_errors = []
-    nees_values = []
-    nis_values = []
-    for node_id in scenario.node_ids:
-        estimate = estimate_by_node[node_id]
-        truth = scenario.truth_state_history_by_node[node_id]
-        error = estimate - truth
-        position_errors.append(error[:, :3])
-        velocity_errors.append(error[:, 3:])
-        nees_values.extend(
-            compute_nees_history(
-                estimate,
-                truth,
-                covariance_by_node[node_id],
-            )
-        )
-        nis_values.extend(
-            value
-            for epoch in nis_history_by_node[node_id]
-            for value in epoch.values()
-        )
-    nees = np.asarray(nees_values, dtype=float)
-    nis = np.asarray(nis_values, dtype=float)
+    metrics = fleet_consistency_metrics(
+        truth=scenario.truth_state_history_by_node,
+        estimates=estimate_by_node,
+        covariances=covariance_by_node,
+        nis_history=nis_history_by_node,
+    )
     return ConsistencyRun(
         strategy=strategy,
         seed=seed,
-        fleet_position_rmse=compute_rmse(np.vstack(position_errors)),
-        fleet_velocity_rmse=compute_rmse(np.vstack(velocity_errors)),
-        mean_nees=float(np.mean(nees)),
-        nees_95_coverage=_coverage(nees, NEES_95_DOF6),
-        mean_nis=float(np.mean(nis)) if nis.size else float("nan"),
-        nis_95_coverage=_coverage(nis, NIS_95_DOF1),
+        fleet_position_rmse=metrics.position_rmse,
+        fleet_velocity_rmse=metrics.velocity_rmse,
+        mean_nees=metrics.mean_nees,
+        nees_95_coverage=metrics.nees_95_coverage,
+        mean_nis=metrics.mean_nis,
+        nis_95_coverage=metrics.nis_95_coverage,
     )
 
 
@@ -339,14 +302,6 @@ def _range_messages(
                 )
             )
     return messages
-
-
-def _coverage(values: Array, interval: tuple[float, float]) -> float:
-    values = np.asarray(values, dtype=float)
-    if values.size == 0:
-        return float("nan")
-    lower, upper = interval
-    return float(np.mean((values >= lower) & (values <= upper)))
 
 
 def _run_network_pair(
@@ -435,17 +390,16 @@ def _network_run_metrics(
     estimates: dict[str, Array], covariances: dict[str, Array],
     nis_history: dict[str, list[dict[str, float]]],
 ) -> ConsistencyRun:
-    position_errors = []; velocity_errors = []; nees_values = []; nis_values = []
-    for node_id in truth:
-        error = estimates[node_id] - truth[node_id]
-        position_errors.append(error[:, :3]); velocity_errors.append(error[:, 3:])
-        nees_values.extend(compute_nees_history(estimates[node_id], truth[node_id], covariances[node_id]))
-        nis_values.extend(value for epoch in nis_history[node_id] for value in epoch.values())
-    nees = np.asarray(nees_values); nis = np.asarray(nis_values)
+    metrics = fleet_consistency_metrics(
+        truth=truth, estimates=estimates, covariances=covariances,
+        nis_history=nis_history,
+    )
     return ConsistencyRun(
         strategy=strategy, seed=seed,
-        fleet_position_rmse=compute_rmse(np.vstack(position_errors)),
-        fleet_velocity_rmse=compute_rmse(np.vstack(velocity_errors)),
-        mean_nees=float(np.mean(nees)), nees_95_coverage=_coverage(nees, NEES_95_DOF6),
-        mean_nis=float(np.mean(nis)), nis_95_coverage=_coverage(nis, NIS_95_DOF1),
+        fleet_position_rmse=metrics.position_rmse,
+        fleet_velocity_rmse=metrics.velocity_rmse,
+        mean_nees=metrics.mean_nees,
+        nees_95_coverage=metrics.nees_95_coverage,
+        mean_nis=metrics.mean_nis,
+        nis_95_coverage=metrics.nis_95_coverage,
     )

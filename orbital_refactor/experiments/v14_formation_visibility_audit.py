@@ -9,7 +9,9 @@ from cooperative.topology import (
     chain_topology, fully_connected_topology, two_hop_chain_topology,
 )
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from experiments.v14_exact_transport_scale_scan import _build_case, _metrics
+from experiments.summary_statistics import mean_metric_dict
+from experiments.network_filter_metrics import network_history_metrics
+from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
 from orbital_core.constants import R_EARTH
 from orbital_core.metrics import compute_nees_history, compute_rmse
 from scenarios.fleet_scenario import (
@@ -209,7 +211,7 @@ def run_v14_physical_fleet_filter_baseline(
     nees_by_node: dict[str, list[float]] = {}
     observation_counts = None
     for seed in range(seeds):
-        case = _build_case(
+        case = build_exact_transport_case(
             seed=seed, duration=duration, dt=dt,
             range_sigma=2.0, range_rate_sigma=0.05,
             az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
@@ -246,7 +248,7 @@ def run_v14_physical_fleet_filter_baseline(
             replay_history_window=10.0,
             expected_lineage_by_link=case["lineages"],
         )
-        values.append(_metrics(
+        values.append(network_history_metrics(
             history, case["truth"], len(case["transmitted_messages"]),
             perf_counter() - started,
         ))
@@ -278,8 +280,8 @@ def run_v14_physical_fleet_filter_baseline(
             node: float(np.mean(node_values))
             for node, node_values in nees_by_node.items()
         },
-        mean_nis_by_modality=_mean_dict([value[14] for value in values]),
-        mean_nis_95_coverage_by_modality=_mean_dict(
+        mean_nis_by_modality=mean_metric_dict([value[14] for value in values]),
+        mean_nis_95_coverage_by_modality=mean_metric_dict(
             [value[15] for value in values]
         ),
         observation_count_by_modality_per_run=observation_counts or {},
@@ -403,11 +405,3 @@ def _is_connected(node_ids, edges) -> bool:
             reached.add(neighbor)
             pending.append(neighbor)
     return len(reached) == len(node_ids)
-
-
-def _mean_dict(values):
-    keys = sorted({key for value in values for key in value})
-    return {
-        key: float(np.mean([value[key] for value in values if key in value]))
-        for key in keys
-    }

@@ -6,15 +6,14 @@ import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.message_transport import MessageChannel
-from experiments.v14_exact_transport_scale_scan import _build_case
+from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
 from orbital_core.constants import R_EARTH
-from orbital_core.coordinates import dcm_to_quat_wxyz
-from orbital_core.attitude import (
-    quat_multiply_wxyz,
-    quat_normalize_wxyz,
-    small_angle_quaternion_wxyz,
+from experiments.attitude_profiles import (
+    perturb_attitude_history,
+    slew_target_pointing_attitude_history,
+    two_node_target_pointing_attitude_history,
 )
-from orbital_core.metrics import compute_nees_history, compute_rmse
+from experiments.dynamic_visibility_metrics import dynamic_visibility_run_metrics
 from scenarios.fleet_scenario import (
     DifferentialOrbitOffset,
     generate_differential_orbit_fleet_scenario,
@@ -199,13 +198,13 @@ def run_v14_dynamic_visibility_experiment(
     ):
         raise ValueError("FOV jitter and hysteresis require visibility_driver='fov'.")
     attitude_history = (
-        _two_node_target_pointing_attitude_history(
+        two_node_target_pointing_attitude_history(
             scenario.truth_state_history_by_node
         )
         if normalized_az_el_frame == "BODY" else None
     )
     if visibility_driver == "fov":
-        attitude_history = _slew_target_pointing_attitude_history(
+        attitude_history = slew_target_pointing_attitude_history(
             attitude_history,
             maximum_offset=2.0 * az_el_field_of_view_half_angle,
             transition_type=transition_type,
@@ -246,7 +245,7 @@ def run_v14_dynamic_visibility_experiment(
     dropped_observation_shares = 0
     for seed in range(seeds):
         estimated_attitude_history = (
-            _perturb_attitude_history(
+            perturb_attitude_history(
                 attitude_history, sigma=attitude_error_sigma, seed=seed,
             )
             if attitude_error_sigma > 0.0 else attitude_history
@@ -256,7 +255,7 @@ def run_v14_dynamic_visibility_experiment(
             if inflate_attitude_covariance else None
         )
         cases = {
-            "continuous_range": _build_case(
+            "continuous_range": build_exact_transport_case(
                 seed=seed, duration=duration, dt=dt, range_sigma=range_sigma,
                 range_rate_sigma=range_rate_sigma, az_el_sigma=az_el_sigma,
                 az_el_frame=normalized_az_el_frame,
@@ -271,7 +270,7 @@ def run_v14_dynamic_visibility_experiment(
                 truth_initial_state_by_node=initial_truth,
                 relative_modalities=relative_modalities,
             ),
-            "visibility_limited": _build_case(
+            "visibility_limited": build_exact_transport_case(
                 seed=seed, duration=duration, dt=dt, range_sigma=range_sigma,
                 range_rate_sigma=range_rate_sigma, az_el_sigma=az_el_sigma,
                 az_el_frame=normalized_az_el_frame,
@@ -355,19 +354,25 @@ def run_v14_dynamic_visibility_experiment(
                     ),
                 )
                 collected[(visibility_case, mode)].append(
-                    _run_metrics(history, case["truth"], transition_timestamp)
+                    dynamic_visibility_run_metrics(
+                        history, case["truth"], transition_timestamp
+                    )
                 )
     summaries = {}
     for key, values in collected.items():
         visibility_case, mode = key
-        accepted = sum(value[8] for value in values)
-        rejected = sum(value[9] for value in values)
-        transition_nis = [value[6] for value in values if value[6] is not None]
+        accepted = sum(value.accepted_messages for value in values)
+        rejected = sum(value.rejected_messages for value in values)
+        transition_nis = [
+            value.transition_nis for value in values
+            if value.transition_nis is not None
+        ]
         nis_modalities = sorted({
-            modality for value in values for modality in value[5]
+            modality for value in values for modality in value.mean_nis_by_modality
         })
         transition_modalities = sorted({
-            modality for value in values for modality in value[7]
+            modality for value in values
+            for modality in value.transition_nis_by_modality
         })
         summaries[key] = DynamicVisibilityRunSummary(
             transition_type=transition_type,
@@ -376,22 +381,30 @@ def run_v14_dynamic_visibility_experiment(
             mode=mode,
             run_count=len(values),
             transition_timestamp=transition_timestamp,
-            mean_pre_transition_position_rmse=float(np.mean([value[0] for value in values])),
-            mean_post_transition_position_rmse=float(np.mean([value[1] for value in values])),
-            mean_final_position_error=float(np.mean([value[2] for value in values])),
+            mean_pre_transition_position_rmse=float(np.mean([
+                value.pre_transition_position_rmse for value in values
+            ])),
+            mean_post_transition_position_rmse=float(np.mean([
+                value.post_transition_position_rmse for value in values
+            ])),
+            mean_final_position_error=float(np.mean([
+                value.final_position_error for value in values
+            ])),
             mean_pre_transition_velocity_rmse=float(
-                np.mean([value[11] for value in values])
+                np.mean([value.pre_transition_velocity_rmse for value in values])
             ),
             mean_post_transition_velocity_rmse=float(
-                np.mean([value[12] for value in values])
+                np.mean([value.post_transition_velocity_rmse for value in values])
             ),
-            mean_final_velocity_error=float(np.mean([value[13] for value in values])),
-            mean_nees=float(np.mean([value[3] for value in values])),
-            mean_nis=float(np.mean([value[4] for value in values])),
+            mean_final_velocity_error=float(np.mean([
+                value.final_velocity_error for value in values
+            ])),
+            mean_nees=float(np.mean([value.mean_nees for value in values])),
+            mean_nis=float(np.mean([value.mean_nis for value in values])),
             mean_nis_by_modality={
                 modality: float(np.mean([
-                    value[5][modality] for value in values
-                    if modality in value[5]
+                    value.mean_nis_by_modality[modality] for value in values
+                    if modality in value.mean_nis_by_modality
                 ]))
                 for modality in nis_modalities
             },
@@ -400,8 +413,8 @@ def run_v14_dynamic_visibility_experiment(
             ),
             mean_transition_nis_by_modality={
                 modality: float(np.mean([
-                    value[7][modality] for value in values
-                    if modality in value[7]
+                    value.transition_nis_by_modality[modality] for value in values
+                    if modality in value.transition_nis_by_modality
                 ]))
                 for modality in transition_modalities
             },
@@ -409,7 +422,7 @@ def run_v14_dynamic_visibility_experiment(
                 accepted / (accepted + rejected) if accepted + rejected else 0.0
             ),
             message_rejection_count=rejected,
-            psd_failure_count=sum(value[10] for value in values),
+            psd_failure_count=sum(value.psd_failure_count for value in values),
         )
     dropped_observation_shares = (
         attempted_observation_shares - delivered_observation_shares
@@ -560,81 +573,6 @@ def run_v14_observation_sharing_experiment(
     )
 
 
-def _run_metrics(history, truth, transition_timestamp):
-    pre_transition_errors = []
-    post_transition_errors = []
-    final_errors = []
-    pre_transition_velocity_errors = []
-    post_transition_velocity_errors = []
-    final_velocity_errors = []
-    nees = []
-    nis = []
-    nis_by_modality: dict[str, list[float]] = {}
-    psd_failures = 0
-    pre_transition_mask = history.timestamps < transition_timestamp
-    post_transition_mask = ~pre_transition_mask
-    transition_index = int(np.flatnonzero(
-        np.isclose(history.timestamps, transition_timestamp)
-    )[0])
-    for node_id in history.node_ids:
-        error = history.active_state_history_by_node[node_id] - truth[node_id]
-        pre_transition_errors.append(error[pre_transition_mask, :3])
-        post_transition_errors.append(error[post_transition_mask, :3])
-        final_errors.append(float(np.linalg.norm(error[-1, :3])))
-        pre_transition_velocity_errors.append(error[pre_transition_mask, 3:])
-        post_transition_velocity_errors.append(error[post_transition_mask, 3:])
-        final_velocity_errors.append(float(np.linalg.norm(error[-1, 3:])))
-        nees.extend(compute_nees_history(
-            history.active_state_history_by_node[node_id], truth[node_id],
-            history.active_covariance_history_by_node[node_id],
-        ))
-        for epoch in history.nis_history_by_node[node_id]:
-            for information_id, value in epoch.items():
-                nis.append(value)
-                modality = _modality_from_information_id(information_id)
-                nis_by_modality.setdefault(modality, []).append(value)
-        for covariance in history.joint_covariance_history_by_node[node_id]:
-            psd_failures += int(np.linalg.eigvalsh(covariance).min() < -1e-8)
-    accepted = int(history.refresh_diagnostics.get("accepted", 0))
-    rejected = sum(
-        value for key, value in history.refresh_diagnostics.items()
-        if key != "accepted"
-    )
-    transition_values = []
-    transition_by_modality: dict[str, list[float]] = {}
-    for epochs in history.nis_history_by_node.values():
-        for information_id, value in epochs[transition_index].items():
-            transition_values.append(value)
-            modality = _modality_from_information_id(information_id)
-            transition_by_modality.setdefault(modality, []).append(value)
-    return (
-        compute_rmse(np.vstack(pre_transition_errors)),
-        compute_rmse(np.vstack(post_transition_errors)),
-        float(np.mean(final_errors)), float(np.mean(nees)), float(np.mean(nis)),
-        {
-            modality: float(np.mean(values))
-            for modality, values in nis_by_modality.items()
-        },
-        (float(np.mean(transition_values)) if transition_values else None),
-        {
-            modality: float(np.mean(values))
-            for modality, values in transition_by_modality.items()
-        },
-        accepted, rejected, psd_failures,
-        compute_rmse(np.vstack(pre_transition_velocity_errors)),
-        compute_rmse(np.vstack(post_transition_velocity_errors)),
-        float(np.mean(final_velocity_errors)),
-    )
-
-
-def _modality_from_information_id(information_id):
-    if ":range_rate:" in information_id:
-        return "RANGE_RATE"
-    if ":az_el:" in information_id:
-        return "AZ_EL"
-    return "RANGE"
-
-
 def _prepare_observation_sharing(observations, *, delay, packet_loss, seed):
     source_ids = {str(item.observer_id) for item in observations}
     channel = MessageChannel(
@@ -658,64 +596,3 @@ def _prepare_observation_sharing(observations, *, delay, packet_loss, seed):
             ))
             delivered_count += 1
     return prepared, len(observations), delivered_count
-
-
-def _two_node_target_pointing_attitude_history(truth_by_node):
-    node_ids = tuple(truth_by_node)
-    if len(node_ids) != 2:
-        raise ValueError("Target-pointing attitude helper requires exactly two nodes.")
-    result = {}
-    for observer, target in (node_ids, tuple(reversed(node_ids))):
-        quaternions = []
-        for observer_state, target_state in zip(
-            truth_by_node[observer], truth_by_node[target]
-        ):
-            x_body_eci = target_state[:3] - observer_state[:3]
-            x_body_eci /= np.linalg.norm(x_body_eci)
-            reference = observer_state[:3] / np.linalg.norm(observer_state[:3])
-            z_body_eci = reference - np.dot(reference, x_body_eci) * x_body_eci
-            if np.linalg.norm(z_body_eci) < 1e-10:
-                reference = np.array([0.0, 0.0, 1.0])
-                z_body_eci = reference - np.dot(reference, x_body_eci) * x_body_eci
-            z_body_eci /= np.linalg.norm(z_body_eci)
-            y_body_eci = np.cross(z_body_eci, x_body_eci)
-            dcm_i2b = np.vstack((x_body_eci, y_body_eci, z_body_eci))
-            quaternions.append(dcm_to_quat_wxyz(dcm_i2b))
-        result[observer] = np.vstack(quaternions)
-    return result
-
-
-def _perturb_attitude_history(attitude_by_node, *, sigma, seed):
-    rng = np.random.default_rng(20261130 + seed)
-    result = {}
-    for node_id, history in attitude_by_node.items():
-        result[node_id] = np.vstack([
-            quat_normalize_wxyz(quat_multiply_wxyz(
-                small_angle_quaternion_wxyz(rng.normal(0.0, sigma, 3)),
-                quaternion,
-            ))
-            for quaternion in history
-        ])
-    return result
-
-
-def _slew_target_pointing_attitude_history(
-    attitude_by_node, *, maximum_offset, transition_type, jitter_amplitude=0.0,
-):
-    result = {}
-    for node_id, history in attitude_by_node.items():
-        fractions = np.linspace(0.0, 1.0, len(history))
-        if transition_type == "recovery":
-            fractions = fractions[::-1]
-        offsets = (
-            maximum_offset * fractions
-            + jitter_amplitude * np.sin(2.0 * np.pi * 12.0 * fractions)
-        )
-        result[node_id] = np.vstack([
-            quat_normalize_wxyz(quat_multiply_wxyz(
-                small_angle_quaternion_wxyz(np.array([0.0, 0.0, offset])),
-                quaternion,
-            ))
-            for quaternion, offset in zip(history, offsets)
-        ])
-    return result

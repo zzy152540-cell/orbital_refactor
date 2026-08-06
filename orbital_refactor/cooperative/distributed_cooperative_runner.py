@@ -6,6 +6,7 @@ from typing import Iterable, Mapping
 import numpy as np
 
 from cooperative.message_transport import MessageChannel, TypedMessageBuffer
+from cooperative.runner_utils import state_at_or_before, state_source_timestamp
 from cooperative.temporal_alignment import apply_delayed_cooperative_update
 from cooperative.topology import NetworkTopology
 from interfaces.data_objects import ObservationMessage, StateMessage, TargetEstimate
@@ -163,7 +164,7 @@ def run_distributed_cooperative_history(
                     message.target_node_id, []
                 )
                 archive.append(message)
-                archive.sort(key=_state_source_timestamp)
+                archive.sort(key=state_source_timestamp)
             received_state_history[node_id].append(
                 sorted({message.source_node_id for message in available_states})
             )
@@ -185,7 +186,7 @@ def run_distributed_cooperative_history(
                     if observation.observer_id == node_id
                     else observation.observer_id
                 )
-                neighbor = _state_at_or_before(
+                neighbor = state_at_or_before(
                     neighbor_state_archive[node_id].get(counterpart_id, []),
                     float(observation.timestamp),
                 )
@@ -258,26 +259,6 @@ def run_distributed_cooperative_history(
                 len(buffer) for buffer in observation_buffers.values()
             ),
         ),
-    )
-
-
-def _state_at_or_before(
-    messages: list[StateMessage],
-    timestamp: float,
-) -> StateMessage | None:
-    candidates = [
-        message
-        for message in messages
-        if _state_source_timestamp(message) <= float(timestamp) + 1e-12
-    ]
-    return max(candidates, key=_state_source_timestamp) if candidates else None
-
-
-def _state_source_timestamp(message: StateMessage) -> float:
-    return float(
-        message.timestamp
-        if message.source_timestamp is None
-        else message.source_timestamp
     )
 
 

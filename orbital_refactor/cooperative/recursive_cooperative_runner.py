@@ -7,6 +7,11 @@ import numpy as np
 
 from cooperative.cooperative_update import update_local_state
 from cooperative.message_transport import MessageChannel, TypedMessageBuffer
+from cooperative.runner_utils import (
+    state_at_or_before,
+    state_source_timestamp,
+    validated_initial_values,
+)
 from cooperative.temporal_alignment import align_state_message, propagate_state_covariance
 from cooperative.topology import NetworkTopology
 from interfaces.data_objects import ObservationMessage, StateMessage, TargetEstimate
@@ -88,8 +93,10 @@ def run_recursive_distributed_cooperative_filter(
             "observation_usage must be 'observer_only' or 'both_endpoints'."
         )
     node_ids = topology.node_ids
-    initial_states = _initial_values(initial_state_by_node, node_ids, (6,), "state")
-    initial_covariances = _initial_values(
+    initial_states = validated_initial_values(
+        initial_state_by_node, node_ids, (6,), "state"
+    )
+    initial_covariances = validated_initial_values(
         initial_covariance_by_node, node_ids, (6, 6), "covariance"
     )
     broadcast_states, broadcast_covariances = _optional_broadcast_histories(
@@ -214,7 +221,7 @@ def run_recursive_distributed_cooperative_filter(
                     message.target_node_id, []
                 )
                 archive.append(message)
-                archive.sort(key=_state_source_timestamp)
+                archive.sort(key=state_source_timestamp)
 
         for node_id in node_ids:
             earliest_replay: int | None = None
@@ -235,7 +242,7 @@ def run_recursive_distributed_cooperative_filter(
                     if observation.observer_id == node_id
                     else observation.observer_id
                 )
-                neighbor = _state_at_or_before(
+                neighbor = state_at_or_before(
                     state_archive[node_id].get(counterpart_id, []),
                     float(observation.timestamp),
                 )
@@ -401,23 +408,6 @@ def _group_observations(
     return result
 
 
-def _initial_values(
-    values: Mapping[str, Array],
-    node_ids: tuple[str, ...],
-    shape: tuple[int, ...],
-    name: str,
-) -> dict[str, Array]:
-    if set(values) != set(node_ids):
-        raise ValueError(f"Initial {name} keys must match topology node IDs.")
-    result = {}
-    for node_id, value in values.items():
-        array = np.asarray(value, dtype=float)
-        if array.shape != shape:
-            raise ValueError(f"Initial {name} for {node_id} must have shape {shape}.")
-        result[node_id] = array.copy()
-    return result
-
-
 def _optional_broadcast_histories(
     *,
     state_histories: Mapping[str, Array] | None,
@@ -445,23 +435,3 @@ def _optional_broadcast_histories(
         states[node_id] = state_values.copy()
         covariances[node_id] = covariance_values.copy()
     return states, covariances
-
-
-def _state_at_or_before(
-    messages: list[StateMessage],
-    timestamp: float,
-) -> StateMessage | None:
-    candidates = [
-        message
-        for message in messages
-        if _state_source_timestamp(message) <= float(timestamp) + 1e-12
-    ]
-    return max(candidates, key=_state_source_timestamp) if candidates else None
-
-
-def _state_source_timestamp(message: StateMessage) -> float:
-    return float(
-        message.timestamp
-        if message.source_timestamp is None
-        else message.source_timestamp
-    )

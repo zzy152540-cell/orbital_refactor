@@ -1,16 +1,21 @@
-from experiments.v14_exact_transport_scale_scan import _build_case
+from experiments.v14_exact_transport_scale_scan import (
+    RANGE_ONLY_BASELINE_MODALITIES,
+    _build_case,
+)
 from experiments.v14_exact_transport_scale_scan import run_v14_exact_transport_smoke_scan
 from experiments.v14_exact_transport_scale_scan import run_v14_exact_transport_topology_scan
 from scenarios.measurement_visibility import (
     VisibilityConfig,
     VisibilityTemporalFilterConfig,
 )
+from orbital_core.measurement_semantics import PHYSICAL_SENSOR_MODALITIES
 
 
 def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
     result = run_v14_exact_transport_smoke_scan(seeds=1, duration=8.0, dt=2.0)
     assert len(result.summary_by_scenario_and_mode) == 10
     ideal = result.summary_by_scenario_and_mode[("ideal", "exact_transport_event_replay")]
+    assert set(ideal.mean_nis_by_modality) == set(PHYSICAL_SENSOR_MODALITIES)
     assert ideal.message_acceptance_rate == 1.0
     assert ideal.psd_failure_count == 0
     assert ideal.mean_run_seconds > 0.0
@@ -60,10 +65,12 @@ def test_optional_visibility_filters_range_measurements_and_reports_summary():
     baseline = run_v14_exact_transport_smoke_scan(
         node_count=5, topology_type="star", seeds=1, duration=4.0, dt=2.0,
         scenario_names=("ideal",), modes=("propagate_only",),
+        relative_modalities=RANGE_ONLY_BASELINE_MODALITIES,
     )
     visible = run_v14_exact_transport_smoke_scan(
         node_count=5, topology_type="star", seeds=1, duration=4.0, dt=2.0,
         scenario_names=("ideal",), modes=("propagate_only",),
+        relative_modalities=RANGE_ONLY_BASELINE_MODALITIES,
         visibility_by_modality={
             "RANGE": VisibilityConfig(maximum_range=1500.0)
         },

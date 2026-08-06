@@ -10,11 +10,11 @@ from cooperative.network_schmidt_orchestrator import (
     NetworkSchmidtOrchestrator,
     TransportSourceUpdate,
 )
-from experiments.v14_exact_transport_scale_scan import (
-    _build_case,
-    _topology_runtime_schedule,
-    _validated_topology_inactive_windows,
+from experiments.scenario_controls import (
+    topology_runtime_schedule,
+    validate_topology_inactive_windows,
 )
+from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
 from experiments.v14_three_satellite_local_observation import (
     _three_satellite_scenario,
 )
@@ -109,7 +109,7 @@ def run_v14_online_topology_resynchronization_experiment(
                     scenario.truth_state_history_by_node.items()
                 )
             }
-        case = _build_case(
+        case = build_exact_transport_case(
             seed=seed, duration=duration, dt=dt,
             range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
             az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
@@ -129,7 +129,7 @@ def run_v14_online_topology_resynchronization_experiment(
             if inactive_edge is not None
             else tuple(case["topology"].node_ids[:2])
         )
-        inactive = _validated_topology_inactive_windows(
+        inactive = validate_topology_inactive_windows(
             topology_inactive_windows_by_undirected_edge
             if topology_inactive_windows_by_undirected_edge is not None
             else {selected_edge: (inactive_window,)},
@@ -141,7 +141,7 @@ def run_v14_online_topology_resynchronization_experiment(
             infrared_outlier_bias=infrared_outlier_bias,
             infrared_outlier_window=infrared_outlier_window,
         )
-        versions, active_neighbors = _topology_runtime_schedule(
+        versions, active_neighbors = topology_runtime_schedule(
             case["timestamps"], topology=case["topology"],
             inactive_windows=inactive,
         )

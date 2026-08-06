@@ -7,11 +7,18 @@ from time import perf_counter
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
-from cooperative.network_schmidt_runner import (
-    NetworkModuleOutput,
-    NetworkRuntimeDiagnostics,
+from cooperative.network_schmidt_runner import NetworkModuleOutput
+from experiments.federated_ci_outputs import (
+    build_federated_module_outputs as _federated_module_outputs,
 )
-from experiments.v14_exact_transport_scale_scan import _build_case
+from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
+from experiments.federated_ci_metrics import (
+    SchmidtArchitectureSummary,
+    aggregate_architecture_metrics as _aggregate,
+    array_metrics as _array_metrics,
+    experiment_phase_masks as _experiment_phase_masks,
+    history_metrics as _history_metrics,
+)
 from experiments.v14_three_satellite_local_observation import _three_satellite_scenario
 from experiments.v14_online_topology_resynchronization import (
     OnlineTopologyResynchronizationSummary,
@@ -20,35 +27,15 @@ from experiments.v14_online_topology_resynchronization import (
 from experiments.v14_observation_faults import (
     apply_observation_faults as _apply_observation_faults,
 )
-from orbital_core.ci_fusion import ci_fuse_posteriors
-from orbital_core.dynamics import (
-    accel_two_body_j2,
-    make_process_noise,
-    numerical_jacobian_discrete,
-    rk4_step_absolute,
-)
-from orbital_core.quality import quality_score_from_covariance
+from experiments.federated_ci_fusion import fuse_local_schmidt_histories
 from orbital_core.measurement_integrity import MeasurementIntegrityPolicy
-from interfaces.data_objects import FusionStatus, ModuleOutput, RuntimeStatus, StateOutput
-from orbital_core.metrics import compute_nees_history, compute_rmse
+from orbital_core.measurement_semantics import PHYSICAL_SENSOR_MODALITIES
 from scenarios.measurement_visibility import VisibilityConfig
 
 
-NEES_95_DOF6 = (1.2373442458, 14.4493753354)
-SENSOR_MODALITIES = ("RADAR", "INFRARED", "OPTICAL")
-
-
-@dataclass(frozen=True)
-class SchmidtArchitectureSummary:
-    architecture: str
-    run_count: int
-    mean_position_rmse: float
-    mean_velocity_rmse: float
-    mean_nees: float
-    mean_nees_95_coverage: float
-    mean_position_covariance_trace: float
-    mean_position_rmse_by_node: dict[str, float]
-    mean_runtime_seconds: float
+# Backward-compatible experiment name; the canonical definition belongs to
+# the physical measurement-semantics layer.
+SENSOR_MODALITIES = PHYSICAL_SENSOR_MODALITIES
 
 
 @dataclass(frozen=True)
@@ -291,7 +278,7 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
     }
 
     for seed in range(seeds):
-        case = _build_case(
+        case = build_exact_transport_case(
             seed=seed, duration=duration, dt=dt,
             range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
             az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
@@ -403,119 +390,43 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
                 )
 
         ci_started = perf_counter()
-        fused_state = {
-            node: np.zeros((len(timestamps), 6), dtype=float)
-            for node in scenario.node_ids
-        }
-        fused_covariance = {
-            node: np.zeros((len(timestamps), 6, 6), dtype=float)
-            for node in scenario.node_ids
-        }
-        fusion_weights_by_node = {node: [] for node in scenario.node_ids}
-        modality_validity_by_node = {node: [] for node in scenario.node_ids}
+        fusion_history = fuse_local_schmidt_histories(
+            timestamps=timestamps,
+            node_ids=scenario.node_ids,
+            local_histories=local_histories,
+            hard_thresholds=hard_thresholds,
+            ci_objective=ci_objective,
+            ci_grid_points=ci_grid_points,
+            process_noise_acceleration=process_noise_acceleration,
+        )
+        fused_state = fusion_history.state_by_node
+        fused_covariance = fusion_history.covariance_by_node
+        fusion_weights_by_node = fusion_history.weights_by_node
+        modality_validity_by_node = (
+            fusion_history.modality_validity_by_node
+        )
+        for modality in SENSOR_MODALITIES:
+            weights[modality].extend(
+                fusion_history.weight_samples_by_modality[modality]
+            )
+            exclusion_counts[modality] += (
+                fusion_history.exclusion_count_by_modality[modality]
+            )
+            prediction_only_exclusion_counts[modality] += (
+                fusion_history.prediction_only_exclusion_count_by_modality[
+                    modality
+                ]
+            )
         for node in scenario.node_ids:
-            for index in range(len(timestamps)):
-                participating = []
-                for modality in SENSOR_MODALITIES:
-                    threshold = hard_thresholds.get(modality)
-                    epoch_nis = {
-                        information_id: value
-                        for information_id, value in local_histories[
-                            modality
-                        ].nis_history_by_node[node][index].items()
-                        if local_histories[
-                            modality
-                        ].modality_history_by_node[node][index].get(
-                            information_id
-                        ) == modality
-                    }
-                    if not epoch_nis:
-                        prediction_only_exclusion_counts[modality] += 1
-                        continue
-                    accepted = any(
-                        threshold is None or value <= threshold
-                        for value in epoch_nis.values()
-                    )
-                    if not accepted:
-                        exclusion_counts[modality] += 1
-                        continue
-                    participating.append((
-                        modality,
-                        local_histories[modality]
-                        .active_state_history_by_node[node][index],
-                        local_histories[modality]
-                        .active_covariance_history_by_node[node][index],
-                    ))
-                if not participating:
-                    all_modalities_unavailable_count += 1
-                    navigation_track = local_histories[SENSOR_MODALITIES[0]]
-                    navigation_ids = {
-                        information_id
-                        for information_id, tracked_modality in (
-                            navigation_track.modality_history_by_node[
-                                node
-                            ][index].items()
-                        )
-                        if tracked_modality == "ABSOLUTE_POSITION"
-                    }
-                    if navigation_ids:
-                        fused_state[node][index] = local_histories[
-                            SENSOR_MODALITIES[0]
-                        ].active_state_history_by_node[node][index]
-                        fused_covariance[node][index] = local_histories[
-                            SENSOR_MODALITIES[0]
-                        ].active_covariance_history_by_node[node][index]
-                    elif index > 0:
-                        delta_time = float(
-                            timestamps[index] - timestamps[index - 1]
-                        )
-                        previous_state = fused_state[node][index - 1]
-                        transition = numerical_jacobian_discrete(
-                            lambda value: rk4_step_absolute(value, delta_time),
-                            previous_state,
-                        )
-                        fused_state[node][index] = rk4_step_absolute(
-                            previous_state, delta_time
-                        )
-                        fused_covariance[node][index] = (
-                            transition @ fused_covariance[node][index - 1]
-                            @ transition.T
-                            + make_process_noise(
-                                delta_time, process_noise_acceleration
-                            )
-                        )
-                    else:
-                        fused_state[node][index] = navigation_track.active_state_history_by_node[
-                            node
-                        ][index]
-                        fused_covariance[node][index] = navigation_track.active_covariance_history_by_node[
-                            node
-                        ][index]
-                    fusion_weights_by_node[node].append({})
-                    modality_validity_by_node[node].append({
-                        modality: False for modality in SENSOR_MODALITIES
-                    })
-                    continue
-                fusion = ci_fuse_posteriors(
-                    participating,
-                    objective=ci_objective,
-                    grid_points=ci_grid_points,
+            for modality in SENSOR_MODALITIES:
+                weights_by_node[node][modality].extend(
+                    fusion_history.weight_samples_by_node_and_modality[
+                        node
+                    ][modality]
                 )
-                fused_state[node][index] = fusion.state
-                fused_covariance[node][index] = fusion.covariance
-                fusion_weights_by_node[node].append(dict(fusion.weights))
-                modality_validity_by_node[node].append({
-                    modality: any(
-                        item[0] == modality for item in participating
-                    )
-                    for modality in SENSOR_MODALITIES
-                })
-                for modality in SENSOR_MODALITIES:
-                    weight = fusion.weights.get(modality, 0.0)
-                    weights[modality].append(weight)
-                    weights_by_node[node][modality].append(
-                        weight
-                    )
+        all_modalities_unavailable_count += (
+            fusion_history.all_modalities_unavailable_count
+        )
         ci_seconds = perf_counter() - ci_started
         collected["federated_ci"].append(
             _array_metrics(
@@ -613,154 +524,6 @@ def run_v14_three_satellite_federated_schmidt_ci_experiment(
     )
 
 
-def _federated_module_outputs(
-    *, timestamps, fused_state_by_node, fused_covariance_by_node,
-    fusion_weights_by_node, modality_validity_by_node, local_histories,
-    processing_time, topology_version, active_neighbors_by_node,
-):
-    outputs = {}
-    node_ids = list(fused_state_by_node)
-    local_outputs = {
-        modality: history.to_module_outputs(
-            processing_time=processing_time,
-            topology_version=topology_version,
-            topology_transition_count=topology_version,
-            active_neighbors_by_node=active_neighbors_by_node,
-        )
-        for modality, history in local_histories.items()
-    }
-    for node_id in node_ids:
-        state = fused_state_by_node[node_id][-1]
-        covariance = fused_covariance_by_node[node_id][-1]
-        weights = fusion_weights_by_node[node_id][-1]
-        valid_flags = modality_validity_by_node[node_id][-1]
-        active_modalities = [
-            modality for modality, valid in valid_flags.items() if valid
-        ]
-        abnormal_events = [
-            event
-            for modality in SENSOR_MODALITIES
-            for event in local_outputs[modality][
-                node_id
-            ].module_output.abnormal_events
-        ]
-        local_diagnostics = [
-            local_outputs[modality][node_id].network_diagnostics
-            for modality in SENSOR_MODALITIES
-        ]
-        observation_count = sum(
-            local_outputs[modality][
-                node_id
-            ].module_output.runtime_status.observation_count
-            for modality in SENSOR_MODALITIES
-        )
-        status = (
-            "DEGRADED" if any(
-                event.severity == "ERROR" for event in abnormal_events
-            )
-            else "OK" if active_modalities
-            else "NAVIGATION_ONLY" if any(
-                tracked_modality == "ABSOLUTE_POSITION"
-                for tracked_modality in local_histories[
-                    SENSOR_MODALITIES[0]
-                ].modality_history_by_node[node_id][-1].values()
-            )
-            else "PREDICTION_ONLY"
-        )
-        module_output = ModuleOutput(
-            state_output=StateOutput(
-                timestamp=float(timestamps[-1]), target_id=node_id,
-                position_estimate=state[:3].copy(),
-                velocity_estimate=state[3:].copy(),
-                acceleration_estimate=accel_two_body_j2(state[:3]),
-                covariance=covariance.copy(), valid_flag=True,
-                confidence_level=quality_score_from_covariance(covariance),
-            ),
-            fusion_status=FusionStatus(
-                modality_weights=dict(weights),
-                modality_valid_flags=dict(valid_flags),
-                active_nodes=node_ids,
-            ),
-            abnormal_events=abnormal_events,
-            runtime_status=RuntimeStatus(
-                processing_time=float(processing_time),
-                observation_count=observation_count,
-                active_modality_count=len(active_modalities),
-                active_node_count=len(node_ids), status=status,
-            ),
-        )
-        diagnostics = NetworkRuntimeDiagnostics(
-            node_id=node_id,
-            neighbor_count=local_diagnostics[0].neighbor_count,
-            replay_count=sum(item.replay_count for item in local_diagnostics),
-            replay_batch_count=sum(
-                item.replay_batch_count for item in local_diagnostics
-            ),
-            replay_fallback_count=sum(
-                item.replay_fallback_count for item in local_diagnostics
-            ),
-            maximum_replay_seconds=max(
-                item.maximum_replay_seconds for item in local_diagnostics
-            ),
-            maximum_retained_journal_count=max(
-                item.maximum_retained_journal_count
-                for item in local_diagnostics
-            ),
-            configured_neighbors=local_diagnostics[0].configured_neighbors,
-            link_health_by_neighbor=dict(
-                local_diagnostics[0].link_health_by_neighbor
-            ),
-            last_receive_timestamp_by_neighbor=dict(
-                local_diagnostics[0].last_receive_timestamp_by_neighbor
-            ),
-            losses_before_last_delivery_by_neighbor=dict(
-                local_diagnostics[0].losses_before_last_delivery_by_neighbor
-            ),
-            maximum_consecutive_losses_by_neighbor=dict(
-                local_diagnostics[0].maximum_consecutive_losses_by_neighbor
-            ),
-            recovery_delivery_count_by_neighbor=dict(
-                local_diagnostics[0].recovery_delivery_count_by_neighbor
-            ),
-            resynchronization_required_by_neighbor=dict(
-                local_diagnostics[0].resynchronization_required_by_neighbor
-            ),
-            message_rejection_counts_by_reason={
-                reason: sum(
-                    item.message_rejection_counts_by_reason.get(reason, 0)
-                    for item in local_diagnostics
-                )
-                for reason in {
-                    key for item in local_diagnostics
-                    for key in item.message_rejection_counts_by_reason
-                }
-            },
-            maximum_checkpoint_count=max(
-                item.maximum_checkpoint_count for item in local_diagnostics
-            ),
-            maximum_pinned_checkpoint_count=max(
-                item.maximum_pinned_checkpoint_count
-                for item in local_diagnostics
-            ),
-            maximum_resync_required_count=max(
-                item.maximum_resync_required_count
-                for item in local_diagnostics
-            ),
-            current_topology_version=int(topology_version),
-            topology_transition_count=int(topology_version),
-            active_neighbors=tuple(sorted(
-                active_neighbors_by_node[node_id]
-            )),
-            inactive_configured_neighbors=tuple(
-                neighbor
-                for neighbor in local_diagnostics[0].configured_neighbors
-                if neighbor not in active_neighbors_by_node[node_id]
-            ),
-        )
-        outputs[node_id] = NetworkModuleOutput(module_output, diagnostics)
-    return outputs
-
-
 def _run_case(
     case, *, observations, process_noise_acceleration,
     nis_gate_threshold_by_modality,
@@ -796,118 +559,6 @@ def _run_case(
         active_neighbors_by_timestamp=case[
             "active_neighbors_by_timestamp"
         ],
-    )
-
-
-def _history_metrics(history, truth, runtime_seconds):
-    return _array_metrics(
-        history.active_state_history_by_node,
-        history.active_covariance_history_by_node,
-        truth,
-        runtime_seconds=runtime_seconds,
-    )
-
-
-def _array_metrics(
-    states, covariances, truth, *, runtime_seconds, sample_mask=None,
-):
-    position_errors = []
-    velocity_errors = []
-    nees = []
-    position_traces = []
-    position_by_node = {}
-    if sample_mask is None:
-        sample_mask = slice(None)
-    for node in truth:
-        error = (states[node] - truth[node])[sample_mask]
-        position_errors.append(error[:, :3])
-        velocity_errors.append(error[:, 3:])
-        position_by_node[node] = compute_rmse(error[:, :3])
-        nees.extend(compute_nees_history(
-            states[node][sample_mask], truth[node][sample_mask],
-            covariances[node][sample_mask],
-        ))
-        position_traces.extend(
-            np.trace(
-                covariances[node][sample_mask, :3, :3], axis1=1, axis2=2
-            )
-        )
-    nees_array = np.asarray(nees, dtype=float)
-    return {
-        "position_rmse": compute_rmse(np.vstack(position_errors)),
-        "velocity_rmse": compute_rmse(np.vstack(velocity_errors)),
-        "nees": float(np.mean(nees_array)),
-        "nees_coverage": float(np.mean(
-            (nees_array >= NEES_95_DOF6[0])
-            & (nees_array <= NEES_95_DOF6[1])
-        )),
-        "position_trace": float(np.mean(position_traces)),
-        "position_by_node": position_by_node,
-        "runtime_seconds": float(runtime_seconds),
-    }
-
-
-def _experiment_phase_masks(
-    timestamps, *, absolute_navigation_dropout_windows,
-    communication_outage_windows_by_directed_link,
-    absolute_navigation_dropout_windows_by_node,
-    topology_inactive_windows_by_undirected_edge,
-):
-    dropout_windows = list(absolute_navigation_dropout_windows)
-    dropout_windows.extend(
-        window
-        for windows in (
-            absolute_navigation_dropout_windows_by_node or {}
-        ).values()
-        for window in windows
-    )
-    dropout_windows.extend(
-        window
-        for windows in (
-            topology_inactive_windows_by_undirected_edge or {}
-        ).values()
-        for window in windows
-    )
-    dropout_windows.extend(
-        window
-        for windows in (
-            communication_outage_windows_by_directed_link or {}
-        ).values()
-        for window in windows
-    )
-    if not dropout_windows:
-        return {}
-    timestamps = np.asarray(timestamps, dtype=float)
-    first_start = min(float(start) for start, _ in dropout_windows)
-    last_end = max(float(end) for _, end in dropout_windows)
-    masks = {
-        "pre_dropout": timestamps < first_start,
-        "dropout": np.asarray([
-            any(start <= timestamp <= end for start, end in dropout_windows)
-            for timestamp in timestamps
-        ], dtype=bool),
-        "post_recovery": timestamps > last_end,
-    }
-    return {name: mask for name, mask in masks.items() if np.any(mask)}
-
-
-def _aggregate(architecture, values):
-    nodes = tuple(values[0]["position_by_node"])
-    return SchmidtArchitectureSummary(
-        architecture=architecture,
-        run_count=len(values),
-        mean_position_rmse=float(np.mean([v["position_rmse"] for v in values])),
-        mean_velocity_rmse=float(np.mean([v["velocity_rmse"] for v in values])),
-        mean_nees=float(np.mean([v["nees"] for v in values])),
-        mean_nees_95_coverage=float(np.mean([v["nees_coverage"] for v in values])),
-        mean_position_covariance_trace=float(
-            np.mean([v["position_trace"] for v in values])
-        ),
-        mean_position_rmse_by_node={
-            node: float(np.mean([v["position_by_node"][node] for v in values]))
-            for node in nodes
-        },
-        mean_runtime_seconds=float(np.mean([v["runtime_seconds"] for v in values])),
     )
 
 
