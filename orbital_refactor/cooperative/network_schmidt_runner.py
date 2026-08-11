@@ -119,6 +119,8 @@ def run_network_schmidt_filter(
     active_neighbors_by_timestamp: Mapping[
         float, Mapping[str, tuple[str, ...]]
     ] | None = None,
+    relative_observation_order: tuple[str, ...] | None = None,
+    relative_observation_order_start_time: float | None = None,
 ) -> NetworkSchmidtHistory:
     """Run one local multi-neighbor Schmidt filter at every topology node.
 
@@ -176,6 +178,10 @@ def run_network_schmidt_filter(
                     maximum_measurement_covariance_scale_by_modality
                 ),
                 integrity_policy_by_modality=integrity_policy_by_modality,
+                relative_observation_order=relative_observation_order,
+                relative_observation_order_start_time=(
+                    relative_observation_order_start_time
+                ),
             )
             for node_id in node_ids
         }
@@ -191,6 +197,10 @@ def run_network_schmidt_filter(
         topology=topology,
         observation_usage=observation_usage,
         allow_delayed=(consider_refresh_mode == "exact_transport_event_replay"),
+        modality_update_order=relative_observation_order,
+        modality_update_order_start_time=(
+            relative_observation_order_start_time
+        ),
     )
     absolute_observations_by_time_and_node = _route_absolute_observations(
         absolute_position_observations, times=times, node_ids=set(node_ids),

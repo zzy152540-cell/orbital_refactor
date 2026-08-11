@@ -355,7 +355,17 @@ def build_exact_transport_case(
                 topology_inactive_windows_by_undirected_edge=None,
                 measurement_period_by_modality=None,
                 topology_override: NetworkTopology | None = None,
-                relative_modalities=("RANGE",)):
+                relative_modalities=("RANGE",),
+                future_noise_seed=None, future_noise_start_index=None):
+    if (future_noise_seed is None) != (future_noise_start_index is None):
+        raise ValueError(
+            "future_noise_seed and future_noise_start_index must be set together."
+        )
+    if (
+        future_noise_start_index is not None
+        and int(future_noise_start_index) < 0
+    ):
+        raise ValueError("future_noise_start_index cannot be negative.")
     rng = np.random.default_rng(20260830 + seed)
     range_rate_rng = np.random.default_rng(20260930 + seed)
     az_el_rng = np.random.default_rng(20261030 + seed)
@@ -447,6 +457,15 @@ def build_exact_transport_case(
     observations = []
     absolute_observations = []
     for index, timestamp in enumerate(timestamps):
+        if (
+            future_noise_start_index is not None
+            and index == int(future_noise_start_index)
+        ):
+            future_seed = int(future_noise_seed)
+            rng = np.random.default_rng(20260830 + future_seed)
+            range_rate_rng = np.random.default_rng(20260930 + future_seed)
+            az_el_rng = np.random.default_rng(20261030 + future_seed)
+            optical_rng = np.random.default_rng(20261130 + future_seed)
         absolute_observations.extend(state_simulator.advance_epoch(
             index=index,
             timestamp=timestamp,
