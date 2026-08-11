@@ -21,6 +21,8 @@ def route_relative_observations(
     topology: NetworkTopology,
     observation_usage: str,
     allow_delayed: bool = False,
+    modality_update_order: tuple[str, ...] | None = None,
+    modality_update_order_start_time: float | None = None,
 ) -> dict[float, dict[str, list[ObservationMessage]]]:
     """Validate and route relative observations by arrival epoch and owner."""
 
@@ -60,9 +62,19 @@ def route_relative_observations(
                     "Delayed shared observations require exact event replay."
                 )
             result[route_timestamp].setdefault(owner, []).append(observation)
+    modality_rank = {
+        modality: index
+        for index, modality in enumerate(modality_update_order or ())
+    }
     for per_owner in result.values():
         for owner, messages in per_owner.items():
-            messages.sort(key=lambda item: item.information_id)
+            messages.sort(key=lambda item: (
+                modality_rank.get(item.modality, len(modality_rank))
+                if modality_update_order_start_time is None
+                or float(item.timestamp) > modality_update_order_start_time
+                else 0,
+                item.information_id,
+            ))
             unique = {}
             for message in messages:
                 unique.setdefault(message.information_id, message)

@@ -6,6 +6,11 @@ from time import perf_counter
 import numpy as np
 
 from cooperative.topology import NetworkTopology, fully_connected_topology
+from cooperative.topology_policy import (
+    GraphEdgeFeature, GraphNodeFeature, GraphObservation,
+    LowChurnConnectedTreePolicy, TopologyAction, TopologyPolicy,
+    build_graph_observation,
+)
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.network_schmidt_orchestrator import NetworkSchmidtOrchestrator
 from experiments.network_filter_metrics import network_history_metrics
@@ -13,11 +18,16 @@ from experiments.walker_filter_setup import (
     build_walker_filter_case,
     union_topology_from_epoch_records,
 )
+from experiments.walker_graph_dataset import (
+    GraphTransition,
+    WalkerGraphDataset,
+    build_pre_walker_graph_observation,
+    build_walker_graph_outcome,
+)
 from experiments.v14_online_topology_resynchronization import (
     _items_by_timestamp, _metrics as _online_metrics,
     _source_updates_from_messages,
 )
-from experiments.v14_walker_geometry_audit import _component_sizes
 from orbital_core.constants import R_EARTH
 from scenarios.measurement_visibility import (
     generate_inter_satellite_observation_opportunities,
@@ -46,6 +56,7 @@ class WalkerDynamicTopologyPlan:
     scenario: WalkerDeltaScenario
     epoch_records: tuple[DynamicTopologyEpoch, ...]
     topology_by_timestamp: dict[float, NetworkTopology]
+    graph_observation_by_timestamp: dict[float, GraphObservation]
     topology_change_count: int
     added_edge_count: int
     removed_edge_count: int
@@ -104,11 +115,13 @@ class WalkerOnlineDynamicFilterResult:
     maximum_local_dimension: int
     packet_loss_rate: float
     communication_delay: float
+    graph_dataset: WalkerGraphDataset
 
 
 def build_v14_walker_dynamic_topology_plan(
     *, duration: float = 600.0, dt: float = 2.0,
     maximum_range: float = 7000e3, maximum_degree: int = 3,
+    topology_policy: TopologyPolicy | None = None,
 ) -> WalkerDynamicTopologyPlan:
     """Select a low-churn connected topology from Walker 20/5/3 LOS edges."""
 
@@ -116,6 +129,7 @@ def build_v14_walker_dynamic_topology_plan(
         raise ValueError("duration and dt must be positive.")
     if maximum_degree < 2:
         raise ValueError("maximum_degree must be at least two.")
+    policy = topology_policy or LowChurnConnectedTreePolicy(maximum_degree)
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
     scenario = generate_walker_delta_scenario(
         timestamps=timestamps,
@@ -146,12 +160,19 @@ def build_v14_walker_dynamic_topology_plan(
     version = 0
     records = []
     topology_by_timestamp = {}
-    for timestamp in timestamps:
+    graph_observation_by_timestamp = {}
+    for index, timestamp in enumerate(timestamps):
         candidate_ranges = candidates_by_timestamp[float(timestamp)]
-        selected = _select_connected_edges(
-            scenario.node_ids, candidate_ranges,
-            previous_edges=previous, maximum_degree=maximum_degree,
+        graph_observation = build_graph_observation(
+            timestamp=float(timestamp),
+            state_by_node={
+                node: scenario.truth_state_history_by_node[node][index]
+                for node in scenario.node_ids
+            },
+            candidate_distance_by_edge=candidate_ranges,
+            previous_active_edges=tuple(sorted(previous)),
         )
+        selected = set(policy.select(graph_observation).active_edges)
         added = selected - previous
         removed = previous - selected
         if records and (added or removed):
@@ -171,10 +192,12 @@ def build_v14_walker_dynamic_topology_plan(
         )
         records.append(record)
         topology_by_timestamp[float(timestamp)] = topology
+        graph_observation_by_timestamp[float(timestamp)] = graph_observation
         previous = selected
     return WalkerDynamicTopologyPlan(
         scenario=scenario, epoch_records=tuple(records),
         topology_by_timestamp=topology_by_timestamp,
+        graph_observation_by_timestamp=graph_observation_by_timestamp,
         topology_change_count=version,
         added_edge_count=sum(len(record.added_edges) for record in records[1:]),
         removed_edge_count=sum(len(record.removed_edges) for record in records[1:]),
@@ -267,6 +290,7 @@ def run_v14_walker_online_dynamic_filter_smoke(
     maximum_range: float = 7000e3, maximum_degree: int = 3,
     max_pinned_age: float = 20.0,
     packet_loss_rate: float = 0.0, communication_delay: float = 0.0,
+    topology_policy: TopologyPolicy | None = None,
 ) -> WalkerOnlineDynamicFilterResult:
     """Run the Walker plan through lifecycle-aware online orchestration."""
 
@@ -274,9 +298,24 @@ def run_v14_walker_online_dynamic_filter_smoke(
         duration=duration, dt=dt, maximum_range=maximum_range,
         maximum_degree=maximum_degree,
     )
-    union_topology, union_edges = union_topology_from_epoch_records(
-        plan.scenario.node_ids, plan.epoch_records
+    online_policy = topology_policy or LowChurnConnectedTreePolicy(
+        maximum_degree
     )
+    if topology_policy is None:
+        union_topology, union_edges = union_topology_from_epoch_records(
+            plan.scenario.node_ids, plan.epoch_records
+        )
+    else:
+        union_edges = {
+            edge.nodes
+            for observation in plan.graph_observation_by_timestamp.values()
+            for edge in observation.candidate_edges
+        }
+        union_adjacency = {node: [] for node in plan.scenario.node_ids}
+        for left, right in sorted(union_edges):
+            union_adjacency[left].append(right)
+            union_adjacency[right].append(left)
+        union_topology = NetworkTopology(union_adjacency)
     case = build_walker_filter_case(
         seed=seed, duration=duration, dt=dt, maximum_range=maximum_range,
         topology=union_topology,
@@ -310,24 +349,80 @@ def run_v14_walker_online_dynamic_filter_smoke(
     resynchronized = []
     minimum_eigenvalue = float("inf")
     psd_failures = 0
+    pre_graph_observations = []
+    topology_actions = []
+    graph_outcomes = []
+    previous_online_edges: set[tuple[str, str]] = set()
+    online_topology_change_count = 0
+    online_topology_version = 1
     for index, (timestamp, record) in enumerate(zip(
         case["timestamps"], plan.epoch_records
     )):
         timestamp = float(timestamp)
-        topology = plan.topology_by_timestamp[timestamp]
+        relative_observations = observations_by_time.get(timestamp, ())
+        prior_covariance_by_node = {
+            node: session.state.active_covariance
+            for node, session in orchestrator.sessions.items()
+        }
+        pre_graph_observations.append(build_pre_walker_graph_observation(
+            timestamp=timestamp,
+            plan_observation=plan.graph_observation_by_timestamp[timestamp],
+            state_by_node={
+                node: session.state.active_state
+                for node, session in orchestrator.sessions.items()
+            },
+            covariance_by_node=prior_covariance_by_node,
+            relative_observations=relative_observations,
+            packet_loss_rate=packet_loss_rate,
+            communication_delay=communication_delay,
+            previous_active_edges=tuple(sorted(previous_online_edges)),
+            estimation_dependency_edges={
+                tuple(sorted((node, neighbor)))
+                for node, session in orchestrator.sessions.items()
+                for neighbor in session.state.neighbor_ids
+            },
+        ))
+        action = online_policy.select(pre_graph_observations[-1])
+        selected_edges = set(action.active_edges)
+        unavailable = selected_edges - set(union_edges)
+        if unavailable:
+            raise ValueError(
+                "Online policy selected edges outside the configured union: "
+                f"{tuple(sorted(unavailable))}"
+            )
+        if index and selected_edges != previous_online_edges:
+            online_topology_change_count += 1
+            online_topology_version += 1
+        topology_actions.append(action)
+        adjacency = {node: [] for node in union_topology.node_ids}
+        for left, right in sorted(selected_edges):
+            adjacency[left].append(right)
+            adjacency[right].append(left)
+        topology = NetworkTopology(adjacency)
         active = {
             node: topology.neighbors(node) for node in topology.node_ids
         }
         result = orchestrator.step(
-            timestamp, topology_version=record.version + 1,
+            timestamp, topology_version=online_topology_version,
             active_neighbors_by_node=active,
             source_update_by_node={
                 node: source_updates[(node, timestamp)]
                 for node in union_topology.node_ids
             },
-            observations=observations_by_time.get(timestamp, ()),
+            observations=relative_observations,
             absolute_observations=absolute_by_time.get(timestamp, ()),
         )
+        graph_outcomes.append(build_walker_graph_outcome(
+            timestamp=timestamp,
+            step_result=result,
+            relative_observations=relative_observations,
+            prior_covariance_by_node=prior_covariance_by_node,
+            action=topology_actions[-1],
+            previous_active_edges=(
+                pre_graph_observations[-1].previous_active_edges
+            ),
+        ))
+        previous_online_edges = selected_edges
         rejected += result.rejected_message_count
         stale += result.stale_topology_message_count
         protocol_rejected += result.protocol_rejected_message_count
@@ -350,7 +445,8 @@ def run_v14_walker_online_dynamic_filter_smoke(
         for session in orchestrator.sessions.values()
     ]
     return WalkerOnlineDynamicFilterResult(
-        duration=duration, topology_change_count=plan.topology_change_count,
+        duration=duration,
+        topology_change_count=online_topology_change_count,
         configured_union_edge_count=len(union_edges),
         resynchronization_count=len(resynchronized),
         resynchronized_links=tuple(resynchronized),
@@ -382,49 +478,36 @@ def run_v14_walker_online_dynamic_filter_smoke(
         ),
         packet_loss_rate=packet_loss_rate,
         communication_delay=communication_delay,
+        graph_dataset=WalkerGraphDataset(
+            feature_version="v14.2-causal",
+            transitions=tuple(
+                GraphTransition(
+                    pre_observation=pre_graph_observations[index],
+                    action=topology_actions[index],
+                    outcome=graph_outcomes[index],
+                    next_pre_observation=(
+                        pre_graph_observations[index + 1]
+                        if index + 1 < len(pre_graph_observations)
+                        else None
+                    ),
+                )
+                for index in range(len(pre_graph_observations))
+            ),
+        ),
     )
 
 
 def _select_connected_edges(
     node_ids, candidate_ranges, *, previous_edges, maximum_degree,
 ):
-    nodes = tuple(node_ids)
-    if _component_sizes(nodes, candidate_ranges) != (len(nodes),):
-        raise ValueError("Candidate visibility graph is disconnected.")
-    parent = {node: node for node in nodes}
-    degree = {node: 0 for node in nodes}
-
-    def find(node):
-        while parent[node] != node:
-            parent[node] = parent[parent[node]]
-            node = parent[node]
-        return node
-
-    selected = set()
-    ranked = sorted(
-        candidate_ranges,
-        key=lambda edge: (
-            edge not in previous_edges, candidate_ranges[edge], edge,
-        ),
+    observation = GraphObservation(
+        0.0,
+        tuple(GraphNodeFeature(node, ()) for node in node_ids),
+        tuple(GraphEdgeFeature(edge, float(distance))
+              for edge, distance in sorted(candidate_ranges.items())),
+        tuple(sorted(previous_edges)),
     )
-    for left, right in ranked:
-        left_root = find(left)
-        right_root = find(right)
-        if left_root == right_root:
-            continue
-        if degree[left] >= maximum_degree or degree[right] >= maximum_degree:
-            continue
-        selected.add((left, right))
-        degree[left] += 1
-        degree[right] += 1
-        parent[right_root] = left_root
-        if len(selected) == len(nodes) - 1:
-            break
-    if len(selected) != len(nodes) - 1:
-        raise RuntimeError(
-            "Greedy degree-constrained selector could not form a spanning tree."
-        )
-    return selected
+    return set(LowChurnConnectedTreePolicy(maximum_degree).select(observation).active_edges)
 
 
 def _inactive_windows(plan, union_edges, *, dt):

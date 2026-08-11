@@ -81,6 +81,8 @@ class MultiNeighborReplayCoordinator:
         integrity_policy_by_modality: Mapping[
             str, MeasurementIntegrityPolicy
         ] | None = None,
+        relative_observation_order: tuple[str, ...] | None = None,
+        relative_observation_order_start_time: float | None = None,
     ) -> None:
         if history_window is not None and history_window < 0.0:
             raise ValueError("history_window cannot be negative.")
@@ -109,6 +111,14 @@ class MultiNeighborReplayCoordinator:
         }
         self.integrity_policy_by_modality = dict(
             integrity_policy_by_modality or {}
+        )
+        self.relative_observation_rank = {
+            modality: index
+            for index, modality in enumerate(relative_observation_order or ())
+        }
+        self.relative_observation_order_start_time = (
+            None if relative_observation_order_start_time is None
+            else float(relative_observation_order_start_time)
         )
         if not all(
             isinstance(value, MeasurementIntegrityPolicy)
@@ -491,7 +501,14 @@ class MultiNeighborReplayCoordinator:
             observations = sorted(
                 (item for item in self._observations.values()
                  if np.isclose(float(item.timestamp), timestamp)),
-                key=lambda item: item.information_id,
+                key=lambda item: (
+                    self.relative_observation_rank.get(
+                        item.modality, len(self.relative_observation_rank)
+                    ) if self.relative_observation_order_start_time is None
+                    or float(item.timestamp)
+                    > self.relative_observation_order_start_time else 0,
+                    item.information_id,
+                ),
             )
             absolute_observations = sorted(
                 (item for item in self._absolute_observations.values()

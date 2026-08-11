@@ -12,6 +12,25 @@ dependencies = [
   "scipy",
 ]
 
+[project.optional-dependencies]
+gnn = ["torch"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+  "adapters*",
+  "cooperative*",
+  "examples*",
+  "experiments*",
+  "exporters*",
+  "interfaces*",
+  "orbital_core*",
+  "pipelines*",
+  "scenarios*",
+  "visualization*",
+]
+exclude = ["tests*", "legacy*", "results*", "configs*"]
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]

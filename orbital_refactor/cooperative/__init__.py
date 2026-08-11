@@ -109,6 +109,16 @@ from cooperative.topology import (
     NetworkTopology, chain_topology, fully_connected_topology,
     ring_topology, star_topology, two_hop_chain_topology,
 )
+from cooperative.topology_policy import (
+    GraphEdgeFeature,
+    GraphNodeFeature,
+    GraphObservation,
+    LowChurnConnectedTreePolicy,
+    TopologyAction,
+    TopologyDecision,
+    TopologyPolicy,
+    build_graph_observation,
+)
 
 __all__ = [
     "CommunicationStats",
@@ -158,6 +168,14 @@ __all__ = [
     "ring_topology",
     "two_hop_chain_topology",
     "star_topology",
+    "GraphEdgeFeature",
+    "GraphNodeFeature",
+    "GraphObservation",
+    "LowChurnConnectedTreePolicy",
+    "TopologyAction",
+    "TopologyDecision",
+    "TopologyPolicy",
+    "build_graph_observation",
     "fuse_local_histories",
     "initialize_multi_neighbor_schmidt",
     "multi_neighbor_schmidt_predict",
