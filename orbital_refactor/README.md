@@ -1,10 +1,11 @@
 # Orbital Refactor
 
 `orbital-refactor` is a model-driven satellite state-estimation and
-cooperative-estimation research framework. The current V14 development line
-targets distributed, multi-modal, visibility-aware state estimation for
-satellite swarms under communication delay, packet loss, link failure, and
-dynamic topology.
+cooperative-estimation research framework. The completed V14 foundation targets
+distributed, multi-modal, visibility-aware state estimation for satellite
+swarms under communication delay, packet loss, link failure, and dynamic
+topology. The V15 development line builds a safe graph-learning control layer
+on top of that trusted estimator.
 
 The project retains the original scripts in `legacy/` as numerical-regression
 references while exposing reusable orbital dynamics, measurement, filtering,
@@ -12,11 +13,11 @@ communication, topology, and experiment components. Legacy EKF, covariance
 intersection (CI), NIS gating, and export behavior is preserved where
 regression compatibility is required.
 
-Current package version: `0.3.0` (Python 3.10 or newer).
+Current package version: `0.4.0` (Python 3.10 or newer).
 
-## V14 development status
+## V14 foundation and V15 transition
 
-The V14 architecture is organized into three layers:
+The architecture is organized into three layers:
 
 ```text
 trusted distributed estimation
@@ -91,59 +92,60 @@ The experimental learning infrastructure includes:
   learnability, supervised GNN scoring, and safe-action classification.
 
 The GNN code is currently a research prototype and diagnostic baseline. No
-trained GNN or RL policy is considered production-ready.
+trained GNN or RL policy is considered production-ready. V15 begins with a
+multi-step topology-control environment and self-supervised graph
+representation, not with an immediate production RL policy.
 
 ## Current validation findings
 
-Controlled three-satellite counterfactual experiments use a persistent link
-failure together with an absolute-navigation dropout on one satellite. Restoring
-an alternative link shows that topology recovery itself can be useful, but the
-measurement modalities do not yet behave consistently:
+The V14 consistency path now separates source prediction and update events,
+preserves event identity and covariance provenance, supports multi-neighbor
+Schmidt replay, bounds and pins history, and explicitly resynchronizes after
+history exhaustion. Online experiments with delay, packet loss and topology
+changes report zero protocol rejection; delayed messages from obsolete topology
+versions remain visible as a separate diagnostic class.
 
-| Relative measurements | Effect of restored link on the affected node |
-| --- | --- |
-| `RANGE` | position RMSE improves by about 3% |
-| `RANGE_RATE` | position RMSE degrades by about 3% |
-| `AZ_EL` | position RMSE degrades by about 4% |
-| all three modalities | covariance shrinks while RMSE degrades by about 5% |
+Five-node online counterfactual studies evaluate 27 legal/diagnostic local
+actions under heterogeneous per-edge loss and delay. A single future trajectory
+is not a stable action label: mean RMSE improvement can coexist with NEES
+degradation or negative lower-tail gain. Robust opportunity analysis therefore
+retains confidence bounds, safe-positive probability, consistency probability,
+P10, lower-tail mean and severe-loss probability.
 
-Per-node/per-modality NIS diagnostics do not support a simple "measurement
-noise is too small" explanation: `RANGE_RATE` is near nominal and `AZ_EL` NIS
-is low rather than high. Testing all six sequential update orders changes the
-result modestly but does not remove the negative multi-modal effect.
+The adaptive Monte Carlo evaluator screens all actions with five future-noise
+branches and extends only borderline actions to twenty while reusing the first
+five rollouts. In the current two-prefix five-node study, 7 of 54 actions were
+extended, neither group admitted a robust non-keep action, and the executed
+action-branch count fell from 1080 to 405 (62.5%). These results justify a safe
+`keep` fallback but do not establish that dynamic topology is generally
+unnecessary.
 
-The active investigation is therefore the statistical consistency of
-same-neighbor, same-epoch multi-modal updates. Candidate causes include repeated
-use of correlated prior information, missing measurement/error correlation,
-sequential relinearization, weak geometry/observability, and incomplete Schmidt
-cross-covariance representation.
+Covariance reduction alone is still not accepted as valid information gain.
+Future dense feedback must be qualified by observable consistency, provenance,
+freshness and resynchronization diagnostics.
 
-Until this issue is closed, covariance reduction alone must not be treated as
-valid information gain, topology reward, or a trustworthy GNN/RL label.
+## V15 development roadmap
 
-## Development roadmap
+The design baseline is documented in
+[`docs/gnn_rl_design_baseline.md`](docs/gnn_rl_design_baseline.md), including a
+complete Chinese version. V15 proceeds in this order:
 
-1. Add an experimental same-neighbor, same-epoch batch measurement update and
-   compare it with the existing sequential update.
-2. Compare block-diagonal and explicitly correlated joint measurement
-   covariance, including the physical joint `RADAR` range/range-rate model.
-3. Export raw, processed, and joint NIS; NEES; innovation covariance and sample
-   correlation; Jacobian singular values/condition numbers; RMSE; and covariance
-   changes.
-4. Re-run the controlled modality and topology counterfactuals and close the
-   multi-modal consistency issue.
-5. Rebuild deterministic topology baselines using future-window accuracy,
-   communication cost, delay, tail risk, and consistency-validated information
-   gain.
-6. Regenerate conditional Monte Carlo action targets and validate opportunity
-   and label stability across physical geometries, failures, and noise seeds.
-7. Train and validate the supervised GNN as an action-value/risk model before
-   introducing RL.
-8. Formulate graph RL as a constrained, risk-sensitive decision problem, with
-   estimation accuracy as the primary objective and communication, delay,
-   connectivity, and severe-loss probability as constraints.
-9. Scale validated behavior from three to five and ten satellites, then to the
-   20-satellite Walker scenario.
+1. Audit `GraphObservation` features as available, missing, simulation-only or
+   deployment-available, and freeze normalization/missing-value semantics.
+2. Implement a reproducible multi-step `TopologyControlEnvironment` around the
+   online orchestrator with legal-action masks, decomposed reward, constraint
+   costs and safety fallback.
+3. Compare always-keep, random-legal, deterministic, information-greedy and
+   counterfactual-oracle baselines; enrich scenarios if the oracle finds no
+   meaningful control opportunity.
+4. Calibrate consistency-qualified information gain and communication, delay,
+   replay, resynchronization, switching and tail-risk constraints.
+5. Pretrain a GNN encoder with physically valid self-supervised temporal,
+   masked-feature, visibility, link-risk and consistency-risk tasks.
+6. Introduce masked, constrained and risk-sensitive RL only after environment
+   closure; retain deterministic safety gates and `keep` fallback.
+7. Validate by held-out physical scenario, then move from five-node structured
+   actions to hierarchical ten- and twenty-satellite Walker decisions.
 
 ## Repository layout
 

@@ -42,6 +42,8 @@ class ShortHorizonActionRecord:
     nis_calibration_score_gain: float
     nis_sample_count_score_gain: float
     negative_anomaly_score_gain: float
+    communication_risk_score_gain: float = 0.0
+    resynchronization_cost: int = 0
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,12 @@ def run_short_horizon_counterfactual_study(
     horizon_epochs: tuple[int, ...] = (1, 3, 5),
     dt: float = 2.0,
     relative_modalities: tuple[str, ...] = ("RANGE",),
+    backend: str = "offline_replay",
+    packet_loss: float = 0.0,
+    communication_delay: float = 0.0,
+    packet_loss_by_edge: dict[UndirectedEdge, float] | None = None,
+    communication_delay_by_edge: dict[UndirectedEdge, float] | None = None,
+    future_batch_relative_observations: bool = False,
 ) -> ShortHorizonCounterfactualStudy:
     """Run a controlled action matrix and express every result versus keep."""
 
@@ -160,6 +168,16 @@ def run_short_horizon_counterfactual_study(
                         horizon_epochs=horizon,
                         dt=dt,
                         relative_modalities=relative_modalities,
+                        backend=backend,
+                        packet_loss=packet_loss,
+                        communication_delay=communication_delay,
+                        packet_loss_by_edge=packet_loss_by_edge,
+                        communication_delay_by_edge=(
+                            communication_delay_by_edge
+                        ),
+                        future_batch_relative_observations=(
+                            future_batch_relative_observations
+                        ),
                     )
                     decision_observations.append((
                         (node_count, seed, decision_epoch, horizon),
@@ -173,6 +191,22 @@ def run_short_horizon_counterfactual_study(
                     keep_score = range_topology_score(
                         result.decision_observation,
                         keep.action.topology,
+                    )
+                    edge_by_nodes = {
+                        edge.nodes: edge
+                        for edge in result.decision_observation.candidate_edges
+                    }
+
+                    def communication_risk(active_edges):
+                        return float(sum(
+                            edge_by_nodes[edge].packet_loss_rate
+                            + edge_by_nodes[edge].delay / dt
+                            + (0.0 if edge_by_nodes[edge].communication_available
+                               else 1.0)
+                            for edge in active_edges
+                        ))
+                    keep_communication_risk = communication_risk(
+                        keep.action.topology.active_edges
                     )
                     for rollout in result.rollouts:
                         metrics = rollout.metrics
@@ -269,6 +303,15 @@ def run_short_horizon_counterfactual_study(
                             negative_anomaly_score_gain=(
                                 action_score.negative_consecutive_anomaly_count
                                 - keep_score.negative_consecutive_anomaly_count
+                            ),
+                            communication_risk_score_gain=(
+                                communication_risk(
+                                    action.topology.active_edges
+                                ) - keep_communication_risk
+                            ),
+                            resynchronization_cost=(
+                                metrics.resynchronization_count
+                                - keep_metrics.resynchronization_count
                             ),
                         ))
     record_values = tuple(records)

@@ -54,6 +54,9 @@ class ExactTransportAccumulator:
             independent_process_noise=(noise.copy() if event_process_noise is None else
                                        np.asarray(event_process_noise, dtype=float).reshape(6, 6).copy()),
             information_ids=tuple(str(value) for value in information_ids),
+            event_id=f"{self.lineage_id}:transport:{float(timestamp):.12g}",
+            source_error_transition=transition.copy(),
+            source_process_noise=noise.copy(),
         ))
         self._steps.append((
             float(timestamp), transition.copy(), noise.copy(),

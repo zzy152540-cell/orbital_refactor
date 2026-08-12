@@ -8,6 +8,7 @@ import numpy as np
 from cooperative.multi_neighbor_schmidt import (
     MultiNeighborSchmidtState,
     initialize_multi_neighbor_schmidt,
+    multi_neighbor_schmidt_batch_update,
     multi_neighbor_schmidt_absolute_position_update,
     multi_neighbor_schmidt_predict,
     multi_neighbor_schmidt_update,
@@ -33,6 +34,10 @@ from cooperative.multi_neighbor_replay_coordinator import (
     MultiNeighborReplayCoordinator,
     ReplayPerformanceStats,
 )
+from cooperative.neighbor_measurement_quality import (
+    NeighborLinkQuality,
+    NeighborMeasurementQualityPolicy,
+)
 from orbital_core.dynamics import make_process_noise, numerical_jacobian_discrete, rk4_step_absolute
 from interfaces.data_objects import (
     AbsolutePositionObservation,
@@ -53,6 +58,7 @@ class NetworkSchmidtHistory:
     active_state_history_by_node: dict[str, Array]
     active_covariance_history_by_node: dict[str, Array]
     active_cross_covariance_history_by_node: dict[str, dict[str, Array]]
+    neighbor_state_history_by_node: dict[str, dict[str, Array]]
     joint_covariance_history_by_node: dict[str, Array]
     nis_history_by_node: dict[str, list[dict[str, float]]]
     local_dimension_by_node: dict[str, int]
@@ -63,6 +69,10 @@ class NetworkSchmidtHistory:
         str, list[dict[str, MeasurementIntegrityDiagnostics]]
     ]
     modality_history_by_node: dict[str, list[dict[str, str]]]
+    joint_nis_history_by_node: dict[str, list[tuple[dict[str, object], ...]]]
+    relative_update_history_by_node: dict[
+        str, list[tuple[dict[str, object], ...]]
+    ]
 
     @property
     def node_ids(self) -> list[str]:
@@ -121,6 +131,20 @@ def run_network_schmidt_filter(
     ] | None = None,
     relative_observation_order: tuple[str, ...] | None = None,
     relative_observation_order_start_time: float | None = None,
+    batch_relative_observations: bool = False,
+    batch_relative_observations_start_time: float | None = None,
+    neighbor_linearization_state_by_node_and_time: Mapping[
+        tuple[str, float], Array
+    ] | None = None,
+    neighbor_uncertainty_inflation_by_modality: Mapping[
+        str, float
+    ] | None = None,
+    neighbor_measurement_quality_policy: (
+        NeighborMeasurementQualityPolicy | None
+    ) = None,
+    neighbor_link_quality_by_node_and_time: Mapping[
+        tuple[str, str, float], NeighborLinkQuality
+    ] | None = None,
 ) -> NetworkSchmidtHistory:
     """Run one local multi-neighbor Schmidt filter at every topology node.
 
@@ -182,6 +206,22 @@ def run_network_schmidt_filter(
                 relative_observation_order_start_time=(
                     relative_observation_order_start_time
                 ),
+                batch_relative_observations=batch_relative_observations,
+                batch_relative_observations_start_time=(
+                    batch_relative_observations_start_time
+                ),
+                neighbor_linearization_state_by_node_and_time=(
+                    neighbor_linearization_state_by_node_and_time
+                ),
+                neighbor_uncertainty_inflation_by_modality=(
+                    neighbor_uncertainty_inflation_by_modality
+                ),
+                neighbor_measurement_quality_policy=(
+                    neighbor_measurement_quality_policy
+                ),
+                neighbor_link_quality_by_node_and_time=(
+                    neighbor_link_quality_by_node_and_time
+                ),
             )
             for node_id in node_ids
         }
@@ -226,9 +266,18 @@ def run_network_schmidt_filter(
         }
         for node_id in node_ids
     }
+    neighbor_states = {
+        node_id: {
+            neighbor_id: np.zeros((times.size, 6), dtype=float)
+            for neighbor_id in topology.neighbors(node_id)
+        }
+        for node_id in node_ids
+    }
     nis_history = {node_id: [] for node_id in node_ids}
     integrity_history = {node_id: [] for node_id in node_ids}
     modality_history = {node_id: [] for node_id in node_ids}
+    joint_nis_history = {node_id: [] for node_id in node_ids}
+    relative_update_history = {node_id: [] for node_id in node_ids}
     consecutive_anomalies = {node_id: {} for node_id in node_ids}
     refresh_diagnostics = {"accepted": 0, "reference_covariance_mismatch": 0,
                            "reference_mean_mismatch": 0}
@@ -371,6 +420,8 @@ def run_network_schmidt_filter(
             epoch_nis = {}
             epoch_integrity = {}
             epoch_modalities = {}
+            epoch_joint_nis = []
+            epoch_relative_updates = []
             current_observations = observations_by_time_and_owner[
                 float(timestamp)
             ].get(node_id, [])
@@ -425,7 +476,77 @@ def run_network_schmidt_filter(
                     epoch_modalities[observation.information_id] = (
                         "ABSOLUTE_POSITION"
                     )
-            for observation in current_observations:
+            observation_batches = _relative_observation_batches(
+                current_observations,
+                enabled=batch_relative_observations,
+                start_time=batch_relative_observations_start_time,
+            )
+            for observation_batch in observation_batches:
+                neighbor_id = _observation_counterpart(
+                    node_id, observation_batch[0]
+                )
+                neighbor_linearization_state = (
+                    neighbor_linearization_state_by_node_and_time or {}
+                ).get((neighbor_id, float(timestamp)))
+                dynamic_inflation_by_modality = {
+                    item.modality: _neighbor_inflation(
+                        modality=item.modality,
+                        node_id=node_id,
+                        neighbor_id=neighbor_id,
+                        timestamp=float(timestamp),
+                        fixed_by_modality=(
+                            neighbor_uncertainty_inflation_by_modality
+                        ),
+                        policy=neighbor_measurement_quality_policy,
+                        quality_by_node_and_time=(
+                            neighbor_link_quality_by_node_and_time
+                        ),
+                    )
+                    for item in observation_batch
+                }
+                if len(observation_batch) > 1:
+                    if consider_refresh_mode == "exact_transport_event_replay":
+                        update = coordinators[node_id].apply_observation_batch(
+                            observation_batch,
+                            neighbor_linearization_state=(
+                                neighbor_linearization_state
+                            ),
+                        )
+                        state = coordinators[node_id].state
+                    else:
+                        update = multi_neighbor_schmidt_batch_update(
+                            state, observation_batch,
+                            neighbor_linearization_state=(
+                                neighbor_linearization_state
+                            ),
+                            neighbor_uncertainty_inflation_by_modality=(
+                                dynamic_inflation_by_modality
+                            ),
+                        )
+                        state = update.state
+                    epoch_joint_nis.append({
+                        "observer_id": observation_batch[0].observer_id,
+                        "target_id": observation_batch[0].target_id,
+                        "information_ids": tuple(
+                            item.information_id for item in observation_batch
+                        ),
+                        "modalities": tuple(
+                            item.modality for item in observation_batch
+                        ),
+                        "dimension": int(update.innovation.size),
+                        "raw_nis": float(update.raw_nis),
+                        "processed_nis": float(update.nis),
+                        "measurement_covariance_scale": float(
+                            update.measurement_covariance_scale
+                        ),
+                    })
+                    epoch_relative_updates.append(
+                        _relative_update_record(
+                            update, observation_batch
+                        )
+                    )
+                    continue
+                observation = observation_batch[0]
                 if consider_refresh_mode == "exact_transport_event_replay":
                     value = coordinators[node_id].apply_delayed_observation(
                         observation
@@ -441,9 +562,31 @@ def run_network_schmidt_filter(
                         epoch_modalities[observation.information_id] = (
                             observation.modality
                         )
+                        update = coordinators[node_id].last_relative_update
+                        if (
+                            update is not None
+                            and observation.information_id
+                            in update.state.information_ids
+                            and np.isclose(
+                                observation.timestamp, timestamp
+                            )
+                        ):
+                            epoch_relative_updates.append(
+                                _relative_update_record(
+                                    update, (observation,)
+                                )
+                            )
                 else:
                     update = multi_neighbor_schmidt_update(
                         state, observation,
+                        neighbor_linearization_state=(
+                            neighbor_linearization_state
+                        ),
+                        neighbor_uncertainty_inflation=(
+                            dynamic_inflation_by_modality[
+                                observation.modality
+                            ]
+                        ),
                         nis_gate_threshold=(nis_gate_threshold_by_modality or {}).get(
                             observation.modality
                         ),
@@ -463,6 +606,9 @@ def run_network_schmidt_filter(
                     epoch_modalities[observation.information_id] = (
                         observation.modality
                     )
+                    epoch_relative_updates.append(
+                        _relative_update_record(update, (observation,))
+                    )
             for observation_id, integrity in tuple(epoch_integrity.items()):
                 modality = epoch_modalities[observation_id]
                 previous_count = consecutive_anomalies[node_id].get(modality, 0)
@@ -476,12 +622,19 @@ def run_network_schmidt_filter(
             active_covariances[node_id][index] = state.active_covariance
             joint_covariances[node_id][index] = state.joint_covariance
             for neighbor_id in state.neighbor_ids:
+                neighbor_states[node_id][neighbor_id][index] = (
+                    state.neighbor_state_by_id[neighbor_id]
+                )
                 active_cross_covariances[node_id][neighbor_id][index] = (
                     state.active_cross_covariance(neighbor_id)
                 )
             nis_history[node_id].append(epoch_nis)
             integrity_history[node_id].append(epoch_integrity)
             modality_history[node_id].append(epoch_modalities)
+            joint_nis_history[node_id].append(tuple(epoch_joint_nis))
+            relative_update_history[node_id].append(
+                tuple(epoch_relative_updates)
+            )
         previous_active = {
             node_id: (local_states[node_id].active_state.copy(),
                       local_states[node_id].active_covariance)
@@ -493,6 +646,7 @@ def run_network_schmidt_filter(
         active_state_history_by_node=active_states,
         active_covariance_history_by_node=active_covariances,
         active_cross_covariance_history_by_node=active_cross_covariances,
+        neighbor_state_history_by_node=neighbor_states,
         joint_covariance_history_by_node=joint_covariances,
         nis_history_by_node=nis_history,
         local_dimension_by_node={
@@ -506,4 +660,88 @@ def run_network_schmidt_filter(
         },
         integrity_history_by_node=integrity_history,
         modality_history_by_node=modality_history,
+        joint_nis_history_by_node=joint_nis_history,
+        relative_update_history_by_node=relative_update_history,
     )
+
+
+def _relative_update_record(update, observations):
+    return {
+        "observer_id": observations[0].observer_id,
+        "target_id": observations[0].target_id,
+        "information_ids": tuple(
+            item.information_id for item in observations
+        ),
+        "modalities": tuple(item.modality for item in observations),
+        "prior_active_state": update.prior_active_state.copy(),
+        "prior_neighbor_state": update.prior_neighbor_state.copy(),
+        "active_jacobian": update.active_jacobian.copy(),
+        "neighbor_jacobian": update.neighbor_jacobian.copy(),
+        "innovation": update.innovation.copy(),
+        "innovation_covariance": update.innovation_covariance.copy(),
+        "active_correction": update.active_correction.copy(),
+        "projected_neighbor_covariance": (
+            update.projected_neighbor_covariance.copy()
+        ),
+        "nominal_measurement_covariance": (
+            update.nominal_measurement_covariance.copy()
+        ),
+        "active_gain": update.active_gain.copy(),
+        "prior_active_covariance": update.prior_active_covariance.copy(),
+        "neighbor_uncertainty_inflation": float(
+            update.neighbor_uncertainty_inflation
+        ),
+        "skipped": bool(update.skipped),
+    }
+
+
+def _observation_counterpart(node_id, observation):
+    return (
+        str(observation.target_id)
+        if str(observation.observer_id) == str(node_id)
+        else str(observation.observer_id)
+    )
+
+
+def _neighbor_inflation(
+    *, modality, node_id, neighbor_id, timestamp, fixed_by_modality,
+    policy, quality_by_node_and_time,
+):
+    fixed = float((fixed_by_modality or {}).get(modality, 0.0))
+    if policy is None:
+        return fixed
+    quality = (quality_by_node_and_time or {}).get(
+        (node_id, neighbor_id, timestamp), NeighborLinkQuality()
+    )
+    dynamic = policy.inflation(
+        modality=modality,
+        age=quality.age,
+        consecutive_losses=quality.consecutive_losses,
+        resynchronization_required=quality.resynchronization_required,
+    )
+    return max(fixed, dynamic)
+
+
+def _relative_observation_batches(observations, *, enabled, start_time):
+    if not enabled:
+        return tuple((item,) for item in observations)
+    groups = []
+    current_key = None
+    current = []
+    for observation in observations:
+        use_batch = (
+            start_time is None or float(observation.timestamp) > float(start_time)
+        )
+        key = (
+            float(observation.timestamp),
+            str(observation.observer_id),
+            str(observation.target_id),
+        ) if use_batch else (observation.information_id,)
+        if current and key != current_key:
+            groups.append(tuple(current))
+            current = []
+        current_key = key
+        current.append(observation)
+    if current:
+        groups.append(tuple(current))
+    return tuple(groups)

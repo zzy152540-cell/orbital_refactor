@@ -81,6 +81,25 @@ def test_monte_carlo_dataset_validates_seed_axes():
         )
 
 
+def test_monte_carlo_online_backend_aggregates_future_branches():
+    dataset = build_monte_carlo_graph_action_dataset(
+        scenario_id="online",
+        prefix_seeds=(0,), future_noise_seeds=(100, 101),
+        decision_epochs=(1,), horizon_epochs=(1,),
+        relative_modalities=("RANGE", "RANGE_RATE", "AZ_EL"),
+        backend="online_orchestrator",
+        future_batch_relative_observations=True,
+        packet_loss_by_edge={("sat_01", "sat_03"): 0.2},
+        communication_delay_by_edge={("sat_01", "sat_03"): 1.0},
+    )
+
+    assert len(dataset.groups) == 1
+    assert all(
+        action.future_noise_seeds == (100, 101)
+        for action in dataset.groups[0].actions
+    )
+
+
 def test_monte_carlo_split_is_by_physical_scenario_not_noise_seed():
     baseline = build_monte_carlo_graph_action_dataset(
         scenario_id="baseline",

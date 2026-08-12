@@ -24,6 +24,8 @@ def test_short_horizon_study_records_actions_relative_to_keep():
     )
     assert keep.position_rmse_reduction == 0.0
     assert keep.transmitted_message_cost == 0
+    assert keep.communication_risk_score_gain == 0.0
+    assert keep.resynchronization_cost == 0
     assert by_kind["add"].mean_transmitted_message_cost > 0.0
     assert by_kind["swap"].mean_transmitted_message_cost == 0.0
     assert by_kind["remove"].mean_transmitted_message_cost < 0.0

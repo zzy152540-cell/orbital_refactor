@@ -106,6 +106,36 @@ def test_duplicate_message_is_idempotent_and_conflict_is_rejected():
     assert np.allclose(coordinator.state.joint_covariance, covariance)
 
 
+def test_prediction_only_transport_event_uses_event_identity_without_measurement_id():
+    state, _, _ = _case()
+    accumulator = ExactTransportAccumulator(
+        source_node_id="left", lineage_id="left:prediction-only",
+        reference_timestamp=0.0,
+        reference_state=state.neighbor_state_by_id["left"],
+        reference_covariance=state.neighbor_covariance("left"),
+    )
+    accumulator.append(
+        timestamp=0.0,
+        updated_state=state.neighbor_state_by_id["left"],
+        error_transition=np.eye(6),
+        independent_process_noise=np.zeros((6, 6)),
+        information_ids=(),
+    )
+    message = accumulator.build_message()
+    coordinator = MultiNeighborReplayCoordinator(state)
+
+    first = coordinator.apply_state_message(message)
+    duplicate = coordinator.apply_state_message(message)
+
+    assert first.accepted and duplicate.accepted
+    assert duplicate.replayed_event_count == 0
+    assert message.transport_events[0].information_ids == ()
+    assert message.transport_events[0].event_id is not None
+    assert coordinator.state.transport_information_ids == (
+        f"transport-event:{message.transport_events[0].event_id}",
+    )
+
+
 def test_event_bundle_must_reproduce_advertised_endpoint():
     from dataclasses import replace
 

@@ -10,17 +10,25 @@ from orbital_core.measurement_integrity import MeasurementIntegrityPolicy
 from cooperative.exact_transport_protocol import apply_exact_transport_state_message
 from cooperative.multi_neighbor_schmidt import (
     MultiNeighborSchmidtState,
+    MultiNeighborSchmidtUpdateResult,
+    multi_neighbor_schmidt_batch_update,
     multi_neighbor_schmidt_predict,
     multi_neighbor_schmidt_absolute_position_update,
     multi_neighbor_schmidt_update,
 )
 from cooperative.schmidt_refresh import refresh_consider_neighbor
+from cooperative.neighbor_measurement_quality import (
+    NeighborLinkQuality,
+    NeighborMeasurementQualityPolicy,
+)
 from interfaces.data_objects import (
     AbsolutePositionObservation,
     CovarianceTransportEvent,
     ObservationMessage,
     StateMessage,
 )
+
+Array = np.ndarray
 
 
 @dataclass(frozen=True)
@@ -83,6 +91,20 @@ class MultiNeighborReplayCoordinator:
         ] | None = None,
         relative_observation_order: tuple[str, ...] | None = None,
         relative_observation_order_start_time: float | None = None,
+        batch_relative_observations: bool = False,
+        batch_relative_observations_start_time: float | None = None,
+        neighbor_linearization_state_by_node_and_time: Mapping[
+            tuple[str, float], Array
+        ] | None = None,
+        neighbor_uncertainty_inflation_by_modality: Mapping[
+            str, float
+        ] | None = None,
+        neighbor_measurement_quality_policy: (
+            NeighborMeasurementQualityPolicy | None
+        ) = None,
+        neighbor_link_quality_by_node_and_time: Mapping[
+            tuple[str, str, float], NeighborLinkQuality
+        ] | None = None,
     ) -> None:
         if history_window is not None and history_window < 0.0:
             raise ValueError("history_window cannot be negative.")
@@ -120,6 +142,38 @@ class MultiNeighborReplayCoordinator:
             None if relative_observation_order_start_time is None
             else float(relative_observation_order_start_time)
         )
+        self.batch_relative_observations = bool(batch_relative_observations)
+        self.batch_relative_observations_start_time = (
+            None if batch_relative_observations_start_time is None
+            else float(batch_relative_observations_start_time)
+        )
+        self.neighbor_linearization_state_by_node_and_time = {
+            (str(node), float(timestamp)): np.asarray(
+                state, dtype=float
+            ).reshape(6).copy()
+            for (node, timestamp), state in (
+                neighbor_linearization_state_by_node_and_time or {}
+            ).items()
+        }
+        self.neighbor_uncertainty_inflation_by_modality = {
+            str(modality): float(value)
+            for modality, value in (
+                neighbor_uncertainty_inflation_by_modality or {}
+            ).items()
+        }
+        self.neighbor_measurement_quality_policy = (
+            neighbor_measurement_quality_policy
+        )
+        self.neighbor_link_quality_by_node_and_time = dict(
+            neighbor_link_quality_by_node_and_time or {}
+        )
+        if any(
+            not np.isfinite(value) or value < 0.0
+            for value in self.neighbor_uncertainty_inflation_by_modality.values()
+        ):
+            raise ValueError(
+                "Neighbor uncertainty inflation must be finite and nonnegative."
+            )
         if not all(
             isinstance(value, MeasurementIntegrityPolicy)
             for value in self.integrity_policy_by_modality.values()
@@ -145,6 +199,7 @@ class MultiNeighborReplayCoordinator:
         self._observations: dict[str, ObservationMessage] = {}
         self._absolute_observations: dict[str, AbsolutePositionObservation] = {}
         self.integrity_by_information_id = {}
+        self.last_relative_update: MultiNeighborSchmidtUpdateResult | None = None
         self._remote_events: dict[tuple[str, str], RemoteTransportEvent] = {}
         self._pinned_checkpoints: dict[tuple[str, str | None], tuple[float, MultiNeighborSchmidtState]] = {}
         self._resync_required: dict[tuple[str, str | None], str] = {}
@@ -166,12 +221,26 @@ class MultiNeighborReplayCoordinator:
         self._record_resource_peaks()
         return self.state
 
-    def apply_observation(self, observation: ObservationMessage) -> float:
+    def apply_observation(
+        self, observation: ObservationMessage, *,
+        neighbor_linearization_state: Array | None = None,
+    ) -> float:
         if not np.isclose(float(observation.timestamp), float(self.state.timestamp)):
             raise ValueError("Observation must be applied at the coordinator's current time.")
         self._observations[observation.information_id] = observation
+        if neighbor_linearization_state is None:
+            neighbor_linearization_state = (
+                self.neighbor_linearization_state_by_node_and_time.get((
+                    _counterpart(self.state, observation),
+                    float(observation.timestamp),
+                ))
+            )
         update = multi_neighbor_schmidt_update(
             self.state, observation,
+            neighbor_linearization_state=neighbor_linearization_state,
+            neighbor_uncertainty_inflation=(
+                self._neighbor_inflation(observation)
+            ),
             nis_gate_threshold=self.nis_gate_threshold_by_modality.get(
                 observation.modality
             ),
@@ -188,6 +257,7 @@ class MultiNeighborReplayCoordinator:
             ),
         )
         self.state = update.state
+        self.last_relative_update = update
         self.integrity_by_information_id[observation.information_id] = (
             update.integrity
         )
@@ -195,6 +265,47 @@ class MultiNeighborReplayCoordinator:
         self._enforce_resource_limits(float(self.state.timestamp))
         self._record_resource_peaks()
         return update.nis
+
+    def apply_observation_batch(
+        self, observations: tuple[ObservationMessage, ...], *,
+        neighbor_linearization_state: Array | None = None,
+    ) -> MultiNeighborSchmidtUpdateResult:
+        if not observations:
+            raise ValueError("Observation batch cannot be empty.")
+        if any(
+            not np.isclose(float(item.timestamp), float(self.state.timestamp))
+            for item in observations
+        ):
+            raise ValueError("Observation batch must be applied at current time.")
+        for observation in observations:
+            self._observations[observation.information_id] = observation
+        if neighbor_linearization_state is None:
+            neighbor_linearization_state = (
+                self.neighbor_linearization_state_by_node_and_time.get((
+                    _counterpart(self.state, observations[0]),
+                    float(observations[0].timestamp),
+                ))
+            )
+        update = multi_neighbor_schmidt_batch_update(
+            self.state, observations,
+            neighbor_linearization_state=neighbor_linearization_state,
+            neighbor_uncertainty_inflation_by_modality=(
+                {
+                    observation.modality: self._neighbor_inflation(observation)
+                    for observation in observations
+                }
+            ),
+        )
+        self.state = update.state
+        self.last_relative_update = update
+        for observation in observations:
+            self.integrity_by_information_id[observation.information_id] = (
+                update.integrity
+            )
+        self._posterior_states[float(observations[0].timestamp)] = self.state
+        self._enforce_resource_limits(float(self.state.timestamp))
+        self._record_resource_peaks()
+        return update
 
     def apply_delayed_observation(
         self, observation: ObservationMessage,
@@ -310,9 +421,10 @@ class MultiNeighborReplayCoordinator:
             failure = None
             for event in message.transport_events:
                 event_ids = tuple(str(value) for value in event.information_ids)
-                if not event_ids:
+                event_key = _transport_event_key(event)
+                if event_key is None:
                     failure = CoordinatorMessageResult(False, "missing_event_information_id"); break
-                key = (neighbor_id, "|".join(event_ids))
+                key = (neighbor_id, event_key)
                 existing = self._remote_events.get(key)
                 if existing is not None:
                     if not _same_event(existing.event, event):
@@ -477,11 +589,11 @@ class MultiNeighborReplayCoordinator:
                  if np.isclose(float(item.event.timestamp), timestamp)),
                 key=lambda item: (
                     item.neighbor_id,
-                    tuple(str(value) for value in item.event.information_ids),
+                    _transport_event_key(item.event) or "",
                 ),
             )
             for item in remote:
-                event_ids = tuple(str(value) for value in item.event.information_ids)
+                event_ids = _transport_event_tracking_ids(item.event)
                 used = set(event_ids) & set(current.transport_information_ids)
                 if used == set(event_ids):
                     continue
@@ -540,10 +652,52 @@ class MultiNeighborReplayCoordinator:
                         observation.information_id
                     ] = update.integrity
                     observation_count += 1
-            for observation in observations:
+            pending_observations = [
+                item for item in observations
+                if item.information_id not in current.information_ids
+            ]
+            batches = _relative_observation_batches(
+                pending_observations,
+                enabled=self.batch_relative_observations,
+                start_time=self.batch_relative_observations_start_time,
+            )
+            for batch in batches:
+                if len(batch) > 1:
+                    neighbor_id = _counterpart(current, batch[0])
+                    update = multi_neighbor_schmidt_batch_update(
+                        current, batch,
+                        neighbor_linearization_state=(
+                            self.neighbor_linearization_state_by_node_and_time.get(
+                                (neighbor_id, timestamp)
+                            )
+                        ),
+                        neighbor_uncertainty_inflation_by_modality=(
+                            {
+                                item.modality: self._neighbor_inflation(item)
+                                for item in batch
+                            }
+                        ),
+                    )
+                    current = update.state
+                    for observation in batch:
+                        nis_by_id[observation.information_id] = update.nis
+                        self.integrity_by_information_id[
+                            observation.information_id
+                        ] = update.integrity
+                        observation_count += 1
+                    continue
+                observation = batch[0]
                 if observation.information_id not in current.information_ids:
                     update = multi_neighbor_schmidt_update(
                         current, observation,
+                        neighbor_linearization_state=(
+                            self.neighbor_linearization_state_by_node_and_time.get(
+                                (_counterpart(current, observation), timestamp)
+                            )
+                        ),
+                        neighbor_uncertainty_inflation=(
+                            self._neighbor_inflation(observation)
+                        ),
                         nis_gate_threshold=self.nis_gate_threshold_by_modality.get(
                             observation.modality
                         ),
@@ -628,6 +782,29 @@ class MultiNeighborReplayCoordinator:
                 self._pinned_checkpoints.pop(link_key, None)
                 self._resync_required[link_key] = reason
 
+    def _neighbor_inflation(self, observation) -> float:
+        fixed = self.neighbor_uncertainty_inflation_by_modality.get(
+            observation.modality, 0.0
+        )
+        if self.neighbor_measurement_quality_policy is None:
+            return fixed
+        neighbor_id = _counterpart(self.state, observation)
+        quality = self.neighbor_link_quality_by_node_and_time.get(
+            (
+                self.state.active_node_id,
+                neighbor_id,
+                float(observation.timestamp),
+            ),
+            NeighborLinkQuality(),
+        )
+        dynamic = self.neighbor_measurement_quality_policy.inflation(
+            modality=observation.modality,
+            age=quality.age,
+            consecutive_losses=quality.consecutive_losses,
+            resynchronization_required=quality.resynchronization_required,
+        )
+        return max(fixed, dynamic)
+
     def _record_resource_peaks(self) -> None:
         performance = self.performance
         performance.maximum_remote_event_count = max(
@@ -657,14 +834,73 @@ class MultiNeighborReplayCoordinator:
         )
 
 
+def _relative_observation_batches(observations, *, enabled, start_time):
+    if not enabled:
+        return tuple((item,) for item in observations)
+    groups = []
+    current_key = None
+    current = []
+    for observation in observations:
+        use_batch = (
+            start_time is None or float(observation.timestamp) > float(start_time)
+        )
+        key = (
+            float(observation.timestamp),
+            str(observation.observer_id),
+            str(observation.target_id),
+        ) if use_batch else (observation.information_id,)
+        if current and key != current_key:
+            groups.append(tuple(current))
+            current = []
+        current_key = key
+        current.append(observation)
+    if current:
+        groups.append(tuple(current))
+    return tuple(groups)
+
+
+def _counterpart(state, observation):
+    return (
+        str(observation.target_id)
+        if str(observation.observer_id) == state.active_node_id
+        else str(observation.observer_id)
+    )
+
+
 def _same_event(left: CovarianceTransportEvent, right: CovarianceTransportEvent) -> bool:
     return (
         np.isclose(float(left.timestamp), float(right.timestamp))
+        and left.event_id == right.event_id
         and tuple(left.information_ids) == tuple(right.information_ids)
         and np.allclose(left.state_estimate, right.state_estimate)
         and np.allclose(left.error_transition, right.error_transition)
         and np.allclose(left.independent_process_noise, right.independent_process_noise)
+        and _optional_array_equal(
+            left.source_error_transition, right.source_error_transition
+        )
+        and _optional_array_equal(
+            left.source_process_noise, right.source_process_noise
+        )
     )
+
+
+def _transport_event_key(event: CovarianceTransportEvent) -> str | None:
+    if event.event_id is not None and str(event.event_id):
+        return f"event:{event.event_id}"
+    information_ids = tuple(str(value) for value in event.information_ids)
+    return f"information:{'|'.join(information_ids)}" if information_ids else None
+
+
+def _transport_event_tracking_ids(event: CovarianceTransportEvent) -> tuple[str, ...]:
+    if event.event_id is not None and str(event.event_id):
+        return (f"transport-event:{event.event_id}",)
+    return tuple(str(value) for value in event.information_ids)
+
+
+def _optional_array_equal(left, right) -> bool:
+    if left is None or right is None:
+        return left is None and right is None
+    return bool(np.allclose(left, right))
 
 
 def _same_observation(left: ObservationMessage, right: ObservationMessage) -> bool:

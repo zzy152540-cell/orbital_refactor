@@ -5,6 +5,17 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
+from cooperative.network_schmidt_orchestrator import (
+    NetworkSchmidtOrchestrator,
+)
+from cooperative.network_orchestrator_history import (
+    network_history_from_orchestrator,
+)
+from cooperative.neighbor_measurement_quality import (
+    build_neighbor_link_quality_schedule,
+    NeighborLinkQuality,
+    NeighborMeasurementQualityPolicy,
+)
 from cooperative.topology import chain_topology, fully_connected_topology
 from cooperative.topology_policy import (
     GraphObservation,
@@ -18,8 +29,15 @@ from experiments.edge_marginal_information import (
     TopologyRolloutMetrics,
     topology_rollout_metrics_from_history,
 )
+from experiments.relative_measurement_error_projection import (
+    RelativeUpdateTruthDecomposition,
+    relative_update_truth_decomposition,
+)
 from experiments.v14_exact_transport_scale_scan import (
     build_exact_transport_case,
+)
+from experiments.v14_online_topology_resynchronization import (
+    _source_updates_from_messages,
 )
 
 
@@ -60,6 +78,15 @@ class CounterfactualRollout:
         tuple[UndirectedEdge, tuple[tuple[str, int], ...]], ...
     ]
     observation_age_by_edge: tuple[tuple[UndirectedEdge, float], ...]
+    relative_update_truth_diagnostics: tuple[
+        RelativeUpdateTruthDecomposition, ...
+    ] = ()
+    neighbor_link_quality_history: tuple[
+        tuple[str, str, float, NeighborLinkQuality], ...
+    ] = ()
+    state_message_outcome_counts: tuple[
+        tuple[str, str, str, int], ...
+    ] = ()
 
 
 @dataclass(frozen=True)
@@ -73,21 +100,61 @@ class ShortHorizonCounterfactualResult:
     future_seed: int | None = None
 
 
+@dataclass(frozen=True)
+class OnlineCounterfactualBackendResult:
+    history: object
+    resynchronized_links: tuple[tuple[str, str, str], ...]
+    rejection_counts_by_reason: tuple[tuple[str, int], ...]
+    transmitted_message_count: int
+    dropped_message_count: int
+    transmitted_message_count_by_timestamp: tuple[tuple[float, int], ...] = ()
+    dropped_message_count_by_timestamp: tuple[tuple[float, int], ...] = ()
+
+
 def run_short_horizon_topology_counterfactual(
     *, node_count: int = 3, seed: int = 0, decision_epoch: int = 1,
     horizon_epochs: int = 3, dt: float = 2.0,
     relative_modalities: tuple[str, ...] = ("RANGE",),
     future_relative_update_order: tuple[str, ...] | None = None,
+    future_batch_relative_observations: bool = False,
+    future_relative_observations_enabled: bool = True,
+    future_state_messages_enabled: bool = True,
+    future_oracle_neighbor_linearization: bool = False,
+    future_neighbor_uncertainty_inflation_by_modality: dict[
+        str, float
+    ] | None = None,
+    future_neighbor_measurement_quality_policy: (
+        NeighborMeasurementQualityPolicy | None
+    ) = None,
+    future_neighbor_link_quality_by_node_and_time: dict[
+        tuple[str, str, float], NeighborLinkQuality
+    ] | None = None,
     future_seed: int | None = None,
+    packet_loss: float = 0.0,
+    communication_delay: float = 0.0,
+    packet_loss_by_edge: dict[UndirectedEdge, float] | None = None,
+    communication_delay_by_edge: dict[UndirectedEdge, float] | None = None,
     truth_initial_state_by_node: dict[str, np.ndarray] | None = None,
     inactive_edges_after_decision: tuple[UndirectedEdge, ...] = (),
     absolute_navigation_dropout_nodes_after_decision: tuple[str, ...] = (),
     disturbance_start_epoch: int | None = None,
+    backend: str = "offline_replay",
+    action_active_edges: tuple[tuple[UndirectedEdge, ...], ...] | None = None,
 ) -> ShortHorizonCounterfactualResult:
     """Evaluate legal topology actions after a shared deterministic prefix."""
 
     if node_count not in {3, 5}:
         raise ValueError("The controlled experiment supports 3 or 5 nodes.")
+    if backend not in {"offline_replay", "online_orchestrator"}:
+        raise ValueError("backend must be offline_replay or online_orchestrator.")
+    if backend == "online_orchestrator" and (
+        future_oracle_neighbor_linearization
+        or not future_state_messages_enabled
+    ):
+        raise ValueError(
+            "The online backend requires state messages and does not support "
+            "oracle neighbor linearization."
+        )
     if decision_epoch < 0 or horizon_epochs <= 0 or dt <= 0.0:
         raise ValueError("Decision epoch, horizon, and dt are invalid.")
     if future_relative_update_order is not None and (
@@ -127,11 +194,41 @@ def run_short_horizon_topology_counterfactual(
         raise ValueError("Inactive edges after decision must be unique.")
     if set(inactive_edges) - set(candidate_edges):
         raise ValueError("Inactive schedule references a non-candidate edge.")
+    loss_by_edge = {
+        normalized_undirected_edge(*edge): float(value)
+        for edge, value in (packet_loss_by_edge or {}).items()
+    }
+    delay_by_edge = {
+        normalized_undirected_edge(*edge): float(value)
+        for edge, value in (communication_delay_by_edge or {}).items()
+    }
+    if set(loss_by_edge) - set(candidate_edges) or set(delay_by_edge) - set(
+        candidate_edges
+    ):
+        raise ValueError("Per-edge communication settings reference a non-candidate edge.")
+    if any(not 0.0 <= value <= 1.0 for value in loss_by_edge.values()):
+        raise ValueError("Per-edge packet loss must be in [0, 1].")
+    if any(value < 0.0 for value in delay_by_edge.values()):
+        raise ValueError("Per-edge communication delay cannot be negative.")
     actions = build_counterfactual_actions(
         node_ids=node_ids,
         candidate_edges=candidate_edges,
         baseline_edges=baseline_edges,
     )
+    if action_active_edges is not None:
+        requested = tuple(
+            tuple(sorted(normalized_undirected_edge(*edge) for edge in edges))
+            for edges in action_active_edges
+        )
+        if len(set(requested)) != len(requested):
+            raise ValueError("Requested counterfactual actions must be unique.")
+        by_edges = {action.topology.active_edges: action for action in actions}
+        if set(requested) - set(by_edges):
+            raise ValueError("Requested counterfactual action is not legal.")
+        if baseline_edges not in requested:
+            raise ValueError("The keep action must be included.")
+        actions = tuple(by_edges[edges] for edges in requested)
+        actions = tuple(sorted(actions, key=lambda action: action.kind != "keep"))
     duration = float((decision_epoch + horizon_epochs) * dt)
     decision_time = float(decision_epoch * dt)
     disturbance_start_time = float(disturbance_epoch * dt)
@@ -140,7 +237,9 @@ def run_short_horizon_topology_counterfactual(
         range_sigma=2.0, range_rate_sigma=0.05,
         az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
         absolute_sigma=3.0, process_noise_acceleration=1e-8,
-        packet_loss=0.0, delay=0.0, acknowledge_messages=True,
+        packet_loss=(0.0 if backend == "online_orchestrator" else packet_loss),
+        delay=(0.0 if backend == "online_orchestrator" else communication_delay),
+        acknowledge_messages=True,
         node_count=node_count,
         topology_type="short_horizon_counterfactual_complete",
         topology_override=candidate_topology,
@@ -173,6 +272,30 @@ def run_short_horizon_topology_counterfactual(
             evaluation_start=evaluation_start,
             evaluation_stop=evaluation_stop,
             future_relative_update_order=future_relative_update_order,
+            future_batch_relative_observations=(
+                future_batch_relative_observations
+            ),
+            future_relative_observations_enabled=(
+                future_relative_observations_enabled
+            ),
+            future_state_messages_enabled=future_state_messages_enabled,
+            future_oracle_neighbor_linearization=(
+                future_oracle_neighbor_linearization
+            ),
+            future_neighbor_uncertainty_inflation_by_modality=(
+                future_neighbor_uncertainty_inflation_by_modality
+            ),
+            future_neighbor_measurement_quality_policy=(
+                future_neighbor_measurement_quality_policy
+            ),
+            future_neighbor_link_quality_by_node_and_time=(
+                future_neighbor_link_quality_by_node_and_time
+            ),
+            backend=backend,
+            packet_loss=packet_loss,
+            communication_delay=communication_delay,
+            packet_loss_by_edge=loss_by_edge,
+            communication_delay_by_edge=delay_by_edge,
         )
         for action in actions
     )
@@ -230,6 +353,14 @@ def run_short_horizon_topology_counterfactual(
             },
             communication_available_by_edge={
                 edge: edge not in set(inactive_edges)
+                for edge in candidate_edges
+            },
+            delay_by_edge={
+                edge: delay_by_edge.get(edge, communication_delay)
+                for edge in candidate_edges
+            },
+            packet_loss_rate_by_edge={
+                edge: loss_by_edge.get(edge, packet_loss)
                 for edge in candidate_edges
             },
             nis_by_modality_by_edge={
@@ -306,6 +437,103 @@ def build_counterfactual_actions(
     return tuple(values)
 
 
+def run_online_counterfactual_backend(
+    *, case, active_neighbors_by_timestamp, topology_version_by_timestamp,
+    observations, packet_loss, communication_delay,
+    batch_relative_observations=False,
+    neighbor_measurement_quality_policy=None,
+    neighbor_link_quality_by_node_and_time=None,
+    packet_loss_by_edge=None,
+    communication_delay_by_edge=None,
+):
+    """Run one action through the formal online topology lifecycle."""
+
+    source_updates = _source_updates_from_messages(
+        case["transmitted_messages"], case["topology"].node_ids
+    )
+    observations_by_time = _items_by_timestamp(observations)
+    absolute_by_time = _items_by_timestamp(case["absolute_observations"])
+    orchestrator = NetworkSchmidtOrchestrator(
+        initial_state_by_node=case["initial_states"],
+        initial_covariance_by_node=case["initial_covariances"],
+        topology=case["topology"],
+        initial_timestamp=float(case["timestamps"][0]),
+        process_noise_acceleration=1e-8,
+        history_window=10.0,
+        packet_loss_rate=packet_loss,
+        communication_delay=communication_delay,
+        packet_loss_rate_by_link={
+            (receiver, source): (packet_loss_by_edge or {}).get(
+                normalized_undirected_edge(receiver, source), packet_loss
+            )
+            for receiver in case["topology"].node_ids
+            for source in case["topology"].neighbors(receiver)
+        },
+        communication_delay_by_link={
+            (receiver, source): (communication_delay_by_edge or {}).get(
+                normalized_undirected_edge(receiver, source),
+                communication_delay,
+            )
+            for receiver in case["topology"].node_ids
+            for source in case["topology"].neighbors(receiver)
+        },
+        random_seed=20270101,
+        resynchronize_on_resume=True,
+        batch_relative_observations=batch_relative_observations,
+        neighbor_measurement_quality_policy=(
+            neighbor_measurement_quality_policy
+        ),
+        neighbor_link_quality_by_node_and_time=(
+            neighbor_link_quality_by_node_and_time
+        ),
+    )
+    resynchronized = []
+    rejection_counts = {}
+    transmitted = dropped = 0
+    transmitted_by_time = []
+    dropped_by_time = []
+    for index, timestamp in enumerate(case["timestamps"]):
+        timestamp = float(timestamp)
+        # Version zero describes the candidate union at construction. The
+        # action lifecycle starts at one so initially inactive candidate links
+        # are explicitly suspended before their first possible transmission.
+        version = int(topology_version_by_timestamp[timestamp]) + 1
+        result = orchestrator.step(
+            timestamp,
+            topology_version=version,
+            active_neighbors_by_node=active_neighbors_by_timestamp[timestamp],
+            source_update_by_node={
+                node: source_updates[(node, timestamp)]
+                for node in case["topology"].node_ids
+            },
+            observations=observations_by_time.get(timestamp, ()),
+            absolute_observations=absolute_by_time.get(timestamp, ()),
+        )
+        resynchronized.extend(result.resynchronized_links)
+        transmitted += result.transmitted_message_count
+        dropped += result.dropped_message_count
+        transmitted_by_time.append((timestamp, result.transmitted_message_count))
+        dropped_by_time.append((timestamp, result.dropped_message_count))
+        for reason, count in result.rejection_counts_by_reason.items():
+            rejection_counts[reason] = rejection_counts.get(reason, 0) + count
+    return OnlineCounterfactualBackendResult(
+        history=network_history_from_orchestrator(orchestrator),
+        resynchronized_links=tuple(resynchronized),
+        rejection_counts_by_reason=tuple(sorted(rejection_counts.items())),
+        transmitted_message_count=transmitted,
+        dropped_message_count=dropped,
+        transmitted_message_count_by_timestamp=tuple(transmitted_by_time),
+        dropped_message_count_by_timestamp=tuple(dropped_by_time),
+    )
+
+
+def _items_by_timestamp(items):
+    result = {}
+    for item in items:
+        result.setdefault(float(item.timestamp), []).append(item)
+    return result
+
+
 def _order_future_relative_observations(
     observations, *, decision_time, update_order,
 ):
@@ -350,6 +578,15 @@ def _run_action(
     *, case, node_ids, baseline_edges, action, decision_time,
     decision_epoch, evaluation_start, evaluation_stop,
     future_relative_update_order,
+    future_batch_relative_observations,
+    future_relative_observations_enabled,
+    future_state_messages_enabled,
+    future_oracle_neighbor_linearization,
+    future_neighbor_uncertainty_inflation_by_modality,
+    future_neighbor_measurement_quality_policy,
+    future_neighbor_link_quality_by_node_and_time,
+    backend, packet_loss, communication_delay,
+    packet_loss_by_edge, communication_delay_by_edge,
 ) -> CounterfactualRollout:
     baseline = set(baseline_edges)
     selected = set(action.topology.active_edges)
@@ -378,6 +615,10 @@ def _run_action(
 
     observations = [
         observation for observation in case["observations"]
+        if (
+            future_relative_observations_enabled
+            or float(observation.timestamp) <= decision_time
+        )
         if normalized_undirected_edge(
             observation.observer_id, observation.target_id
         ) in (
@@ -393,6 +634,11 @@ def _run_action(
     for receiver, messages in case["state_messages"].items():
         branch_messages = []
         for message in messages:
+            if (
+                not future_state_messages_enabled
+                and float(message.timestamp) > decision_time
+            ):
+                continue
             edges = (
                 baseline if message.timestamp <= decision_time else selected
             )
@@ -413,7 +659,30 @@ def _run_action(
                 metadata={**message.metadata, "topology_version": version},
             ))
         state_messages[receiver] = branch_messages
-    history = run_network_schmidt_filter(
+    online_result = None
+    if backend == "online_orchestrator":
+        online_result = run_online_counterfactual_backend(
+            case=case,
+            active_neighbors_by_timestamp=active_neighbors_by_timestamp,
+            topology_version_by_timestamp=topology_version_by_timestamp,
+            observations=observations,
+            packet_loss=packet_loss,
+            communication_delay=communication_delay,
+            packet_loss_by_edge=packet_loss_by_edge,
+            communication_delay_by_edge=communication_delay_by_edge,
+            batch_relative_observations=(
+                future_batch_relative_observations
+            ),
+            neighbor_measurement_quality_policy=(
+                future_neighbor_measurement_quality_policy
+            ),
+            neighbor_link_quality_by_node_and_time=(
+                future_neighbor_link_quality_by_node_and_time
+            ),
+        )
+        history = online_result.history
+    else:
+        history = run_network_schmidt_filter(
         timestamps=case["timestamps"],
         initial_state_by_node=case["initial_states"],
         initial_covariance_by_node=case["initial_covariances"],
@@ -430,12 +699,44 @@ def _run_action(
         active_neighbors_by_timestamp=active_neighbors_by_timestamp,
         relative_observation_order=future_relative_update_order,
         relative_observation_order_start_time=decision_time,
-    )
-    transmitted_in_window = sum(
-        evaluation_start <= _timestamp_index(case["timestamps"], message.timestamp)
-        < evaluation_stop
-        for messages in state_messages.values()
-        for message in messages
+        batch_relative_observations=future_batch_relative_observations,
+        batch_relative_observations_start_time=decision_time,
+        neighbor_linearization_state_by_node_and_time=(
+            {
+                (node, float(case["timestamps"][index])): case["truth"][
+                    node
+                ][index]
+                for node in node_ids
+                for index in range(decision_epoch + 1, len(case["timestamps"]))
+            }
+            if future_oracle_neighbor_linearization else None
+        ),
+        neighbor_uncertainty_inflation_by_modality=(
+            future_neighbor_uncertainty_inflation_by_modality
+        ),
+        neighbor_measurement_quality_policy=(
+            future_neighbor_measurement_quality_policy
+        ),
+        neighbor_link_quality_by_node_and_time=(
+            future_neighbor_link_quality_by_node_and_time
+        ),
+        )
+    transmitted_in_window = (
+        sum(
+            count
+            for timestamp, count
+            in online_result.transmitted_message_count_by_timestamp
+            if evaluation_start <= _timestamp_index(
+                case["timestamps"], timestamp
+            ) < evaluation_stop
+        )
+        if online_result is not None else sum(
+            evaluation_start <= _timestamp_index(
+                case["timestamps"], message.timestamp
+            ) < evaluation_stop
+            for messages in state_messages.values()
+            for message in messages
+        )
     )
     metrics = topology_rollout_metrics_from_history(
         history=history,
@@ -445,6 +746,10 @@ def _run_action(
         replay_count=sum(
             value.replay_count
             for value in history.replay_performance_by_node.values()
+        ),
+        resynchronization_count=(
+            0 if online_result is None
+            else len(online_result.resynchronized_links)
         ),
         start_index=evaluation_start,
         stop_index=evaluation_stop,
@@ -484,6 +789,18 @@ def _run_action(
         nis_sample_count_by_edge=sample_count,
         consecutive_anomaly_count_by_edge=anomaly_count,
         observation_age_by_edge=observation_age,
+        relative_update_truth_diagnostics=tuple(
+            record
+            for record in relative_update_truth_decomposition(
+                history=history, truth_by_node=case["truth"]
+            )
+            if decision_time < record.timestamp
+            <= float(case["timestamps"][evaluation_stop - 1])
+        ),
+        neighbor_link_quality_history=_link_quality_history(
+            history, node_ids
+        ),
+        state_message_outcome_counts=_state_message_outcome_counts(history),
     )
 
 
@@ -569,6 +886,43 @@ def _historical_edge_features(
             )
             for edge in candidate_edges
         )),
+    )
+
+
+def _link_quality_history(history, node_ids):
+    values = []
+    for receiver in node_ids:
+        schedule = build_neighbor_link_quality_schedule(
+            receiver_id=receiver,
+            timestamps=history.timestamps,
+            neighbor_ids=history.active_cross_covariance_history_by_node[
+                receiver
+            ],
+            message_records=history.refresh_diagnostic_records,
+        )
+        values.extend(
+            (receiver_id, neighbor_id, timestamp, quality)
+            for (
+                receiver_id, neighbor_id, timestamp
+            ), quality in schedule.items()
+        )
+    return tuple(sorted(values, key=lambda item: item[:3]))
+
+
+def _state_message_outcome_counts(history):
+    counts = {}
+    for record in history.refresh_diagnostic_records:
+        key = (
+            str(record.get("receiver_id")),
+            str(record.get("source_id")),
+            (
+                "accepted" if bool(record.get("accepted"))
+                else str(record.get("reason", "unknown"))
+            ),
+        )
+        counts[key] = counts.get(key, 0) + 1
+    return tuple(
+        (*key, count) for key, count in sorted(counts.items())
     )
 
 

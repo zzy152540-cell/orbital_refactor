@@ -35,10 +35,10 @@ def replay_transport_event_bundle(
             )
         ordered_events = sorted(
             remote_by_time.get(timestamp, []),
-            key=lambda item: (tuple(str(value) for value in item.information_ids),),
+            key=lambda item: (_transport_event_tracking_ids(item),),
         )
         for event in ordered_events:
-            event_ids = tuple(str(value) for value in event.information_ids)
+            event_ids = _transport_event_tracking_ids(event)
             already_used = set(event_ids) & set(current.transport_information_ids)
             if already_used:
                 if already_used == set(event_ids):
@@ -58,3 +58,9 @@ def replay_transport_event_bundle(
             if observation.information_id not in current.information_ids:
                 current = multi_neighbor_schmidt_update(current, observation).state
     return current
+
+
+def _transport_event_tracking_ids(event: CovarianceTransportEvent) -> tuple[str, ...]:
+    if event.event_id is not None and str(event.event_id):
+        return (f"transport-event:{event.event_id}",)
+    return tuple(str(value) for value in event.information_ids)

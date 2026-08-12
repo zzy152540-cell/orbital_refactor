@@ -10,6 +10,13 @@ from cooperative.multi_neighbor_replay_coordinator import (
     ResynchronizationBaseline,
 )
 from cooperative.multi_neighbor_schmidt import MultiNeighborSchmidtState
+from cooperative.multi_neighbor_schmidt import (
+    MultiNeighborSchmidtUpdateResult,
+)
+from cooperative.neighbor_measurement_quality import (
+    NeighborLinkQuality,
+    NeighborMeasurementQualityPolicy,
+)
 from interfaces.data_objects import (
     AbsolutePositionObservation,
     ObservationMessage,
@@ -24,6 +31,10 @@ class NetworkSchmidtStepResult:
     state: MultiNeighborSchmidtState
     message_results: tuple[CoordinatorMessageResult, ...]
     nis_by_information_id: dict[str, float]
+    relative_update_results: tuple[
+        tuple[tuple[ObservationMessage, ...], MultiNeighborSchmidtUpdateResult],
+        ...
+    ] = ()
 
 
 class NetworkSchmidtSession:
@@ -39,10 +50,18 @@ class NetworkSchmidtSession:
         integrity_policy_by_modality: Mapping[
             str, MeasurementIntegrityPolicy
         ] | None = None,
+        neighbor_measurement_quality_policy: (
+            NeighborMeasurementQualityPolicy | None
+        ) = None,
+        neighbor_link_quality_by_node_and_time: Mapping[
+            tuple[str, str, float], NeighborLinkQuality
+        ] | None = None,
+        batch_relative_observations: bool = False,
     ) -> None:
         if set(lineage_by_neighbor) != set(initial_state.neighbor_ids):
             raise ValueError("Lineage keys must match consider neighbors.")
         self.node_id = str(initial_state.active_node_id)
+        self.batch_relative_observations = bool(batch_relative_observations)
         self.coordinator = MultiNeighborReplayCoordinator(
             initial_state,
             process_noise_acceleration=process_noise_acceleration,
@@ -50,6 +69,12 @@ class NetworkSchmidtSession:
             max_pinned_age=max_pinned_age,
             max_retained_events=max_retained_events,
             integrity_policy_by_modality=integrity_policy_by_modality,
+            neighbor_measurement_quality_policy=(
+                neighbor_measurement_quality_policy
+            ),
+            neighbor_link_quality_by_node_and_time=(
+                neighbor_link_quality_by_node_and_time
+            ),
         )
         self.link_by_neighbor = {
             str(neighbor): LinkLifecycle(
@@ -137,21 +162,46 @@ class NetworkSchmidtSession:
             self._synchronize_resource_requirements()
 
         nis_by_information_id = {}
+        relative_update_results = []
         for observation in absolute_observations:
             value = self.coordinator.apply_delayed_absolute_observation(
                 observation
             )
             if value is not None:
                 nis_by_information_id[observation.information_id] = value
-        for observation in observations:
+        for observation_batch in _relative_observation_batches(
+            observations, enabled=self.batch_relative_observations
+        ):
+            if len(observation_batch) > 1:
+                update = self.coordinator.apply_observation_batch(
+                    observation_batch
+                )
+                for observation in observation_batch:
+                    nis_by_information_id[
+                        observation.information_id
+                    ] = update.nis
+                relative_update_results.append((
+                    observation_batch, update
+                ))
+                continue
+            observation = observation_batch[0]
             value = self.coordinator.apply_delayed_observation(observation)
             if value is not None:
                 nis_by_information_id[observation.information_id] = value
+                update = self.coordinator.last_relative_update
+                if (
+                    update is not None
+                    and observation.information_id
+                    in update.state.information_ids
+                    and float(observation.timestamp) == timestamp
+                ):
+                    relative_update_results.append(((observation,), update))
         self._synchronize_resource_requirements()
         return NetworkSchmidtStepResult(
             timestamp=timestamp, state=self.state,
             message_results=tuple(message_results),
             nis_by_information_id=nis_by_information_id,
+            relative_update_results=tuple(relative_update_results),
         )
 
     def _synchronize_resource_requirements(self) -> None:
@@ -164,3 +214,21 @@ class NetworkSchmidtSession:
             self.link_by_neighbor[neighbor] = (
                 lifecycle.require_resynchronization(reason=reason)
             )
+
+
+def _relative_observation_batches(observations, *, enabled):
+    values = tuple(observations)
+    if not enabled:
+        return tuple((item,) for item in values)
+    groups = []
+    for observation in values:
+        key = (
+            float(observation.timestamp),
+            str(observation.observer_id),
+            str(observation.target_id),
+        )
+        if not groups or groups[-1][0] != key:
+            groups.append((key, [observation]))
+        else:
+            groups[-1][1].append(observation)
+    return tuple(tuple(items) for _, items in groups)

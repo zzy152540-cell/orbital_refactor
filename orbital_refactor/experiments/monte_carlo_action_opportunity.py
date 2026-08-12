@@ -17,10 +17,19 @@ class RobustOpportunityCriteria:
     minimum_expected_gain: float = 0.0
     minimum_safe_positive_probability: float = 0.75
     minimum_tenth_percentile_gain: float = 0.0
+    minimum_mean_confidence_lower_bound: float = 0.0
+    minimum_lower_tail_mean_gain: float = 0.0
+    minimum_consistency_non_degrading_probability: float = 0.75
+    allowed_action_kinds: tuple[str, ...] = ("add", "swap")
 
     def __post_init__(self):
         if not 0.0 <= self.minimum_safe_positive_probability <= 1.0:
             raise ValueError("Safe-positive probability must be in [0, 1].")
+        if not 0.0 <= self.minimum_consistency_non_degrading_probability <= 1.0:
+            raise ValueError("Consistency probability must be in [0, 1].")
+        allowed = tuple(dict.fromkeys(self.allowed_action_kinds))
+        if not allowed or set(allowed) - {"add", "swap", "remove"}:
+            raise ValueError("Allowed actions must use add, swap, or remove.")
 
 
 @dataclass(frozen=True)
@@ -72,7 +81,8 @@ def _summarize(scope, groups, criteria):
     for group in groups:
         keep = _unique_keep(group)
         alternatives = [
-            action for action in group.actions if action.action_kind != "keep"
+            action for action in group.actions
+            if action.action_kind in criteria.allowed_action_kinds
         ]
         expected_positive.append(any(
             action.mean_position_rmse_reduction
@@ -124,6 +134,12 @@ def _is_robust(action: MonteCarloActionTarget, criteria):
         >= criteria.minimum_safe_positive_probability
         and action.tenth_percentile_position_rmse_reduction
         >= criteria.minimum_tenth_percentile_gain
+        and action.mean_position_rmse_reduction_confidence_interval[0]
+        >= criteria.minimum_mean_confidence_lower_bound
+        and action.lower_tail_mean_position_rmse_reduction
+        >= criteria.minimum_lower_tail_mean_gain
+        and action.consistency_non_degrading_probability
+        >= criteria.minimum_consistency_non_degrading_probability
     )
 
 

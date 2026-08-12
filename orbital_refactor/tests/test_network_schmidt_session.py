@@ -4,6 +4,11 @@ from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.link_lifecycle import LinkLifecycleState
 from cooperative.multi_neighbor_schmidt import initialize_multi_neighbor_schmidt
 from cooperative.network_schmidt_session import NetworkSchmidtSession
+from interfaces.data_objects import ObservationMessage
+from orbital_core.measurements import (
+    measure_relative_range,
+    measure_relative_range_rate,
+)
 
 
 def test_session_closes_long_separation_with_receiver_baseline_and_new_lineage():
@@ -71,3 +76,73 @@ def test_session_closes_long_separation_with_receiver_baseline_and_new_lineage()
     assert session.link_by_neighbor[
         "source"
     ].resynchronization_count == 1
+
+
+def test_session_exports_current_relative_update_result():
+    active = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    neighbor = active + np.array([1000.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="receiver",
+        active_state=active, active_covariance=np.eye(6),
+        neighbor_state_by_id={"source": neighbor},
+        neighbor_covariance_by_id={"source": np.eye(6)},
+    )
+    session = NetworkSchmidtSession(
+        state, lineage_by_neighbor={"source": "source->receiver:0"},
+        process_noise_acceleration=0.0,
+    )
+    observation = ObservationMessage(
+        message_id="range", observer_id="receiver", target_id="source",
+        timestamp=0.0, modality="RANGE",
+        measurement=np.array([
+            measure_relative_range(active, neighbor) + 1.0
+        ]),
+        covariance=np.array([[1.0]]),
+    )
+
+    result = session.step(0.0, observations=(observation,))
+
+    assert len(result.relative_update_results) == 1
+    observations, update = result.relative_update_results[0]
+    assert observations == (observation,)
+    assert update.prior_active_state is not None
+    assert update.active_gain is not None
+
+
+def test_session_batches_same_link_modalities_from_one_prior():
+    active = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    neighbor = active + np.array([1000.0, 0.0, 0.0, 0.1, 0.0, 0.0])
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="receiver",
+        active_state=active, active_covariance=np.eye(6),
+        neighbor_state_by_id={"source": neighbor},
+        neighbor_covariance_by_id={"source": np.eye(6)},
+    )
+    session = NetworkSchmidtSession(
+        state, lineage_by_neighbor={"source": "source->receiver:0"},
+        process_noise_acceleration=0.0,
+        batch_relative_observations=True,
+    )
+    observations = (
+        ObservationMessage(
+            message_id="range", observer_id="receiver",
+            target_id="source", timestamp=0.0, modality="RANGE",
+            measurement=np.array([
+                measure_relative_range(active, neighbor)
+            ]), covariance=np.array([[1.0]]),
+        ),
+        ObservationMessage(
+            message_id="rate", observer_id="receiver",
+            target_id="source", timestamp=0.0, modality="RANGE_RATE",
+            measurement=np.array([
+                measure_relative_range_rate(active, neighbor)
+            ]), covariance=np.array([[0.01]]),
+        ),
+    )
+
+    result = session.step(0.0, observations=observations)
+
+    assert len(result.relative_update_results) == 1
+    batch, update = result.relative_update_results[0]
+    assert batch == observations
+    assert update.innovation.shape == (2,)

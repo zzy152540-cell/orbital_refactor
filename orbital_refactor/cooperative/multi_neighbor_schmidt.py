@@ -67,6 +67,16 @@ class MultiNeighborSchmidtUpdateResult:
     skipped: bool = False
     raw_nis: float | None = None
     measurement_covariance_scale: float = 1.0
+    prior_active_state: Array | None = None
+    prior_neighbor_state: Array | None = None
+    active_jacobian: Array | None = None
+    neighbor_jacobian: Array | None = None
+    active_correction: Array | None = None
+    projected_neighbor_covariance: Array | None = None
+    nominal_measurement_covariance: Array | None = None
+    active_gain: Array | None = None
+    prior_active_covariance: Array | None = None
+    neighbor_uncertainty_inflation: float = 0.0
 
     @property
     def integrity(self) -> MeasurementIntegrityDiagnostics:
@@ -138,6 +148,8 @@ def multi_neighbor_schmidt_predict(
 def multi_neighbor_schmidt_update(
     state: MultiNeighborSchmidtState, observation: ObservationMessage, *,
     quaternion_i2b_wxyz: Array | None = None, regularization: float = 1e-9,
+    neighbor_linearization_state: Array | None = None,
+    neighbor_uncertainty_inflation: float = 0.0,
     nis_gate_threshold: float | None = None,
     nis_inflation_threshold: float | None = None,
     maximum_measurement_covariance_scale: float = 1.0,
@@ -156,7 +168,12 @@ def multi_neighbor_schmidt_update(
     if neighbor_id not in state.neighbor_ids:
         raise ValueError("Observation counterpart is not a consider neighbor.")
     active_is_observer = observer == state.active_node_id
-    neighbor_state = state.neighbor_state_by_id[neighbor_id]
+    stored_neighbor_state = state.neighbor_state_by_id[neighbor_id]
+    neighbor_state = (
+        stored_neighbor_state
+        if neighbor_linearization_state is None
+        else np.asarray(neighbor_linearization_state, dtype=float).reshape(6)
+    )
     observer_state = state.active_state if active_is_observer else neighbor_state
     target_state = neighbor_state if active_is_observer else state.active_state
     model = RelativeMeasurementModel(observation.modality, observation.frame)
@@ -171,6 +188,18 @@ def multi_neighbor_schmidt_update(
     if not 0.0 < float(observation.confidence) <= 1.0:
         raise ValueError("Observation confidence must be in (0, 1].")
     measurement_covariance = measurement_covariance / float(observation.confidence)
+    nominal_measurement_covariance = measurement_covariance.copy()
+    projected_neighbor_covariance = (
+        h_neighbor
+        @ state.neighbor_covariance(neighbor_id)
+        @ h_neighbor.T
+    )
+    if neighbor_uncertainty_inflation < 0.0:
+        raise ValueError("Neighbor uncertainty inflation cannot be negative.")
+    measurement_covariance = measurement_covariance + (
+        float(neighbor_uncertainty_inflation)
+        * projected_neighbor_covariance
+    )
     innovation = model.residual(measurement, prediction)
     jacobian = np.zeros((measurement.size, state.dimension), dtype=float)
     jacobian[:, :6] = h_active
@@ -199,6 +228,18 @@ def multi_neighbor_schmidt_update(
             state, innovation, innovation_covariance, nis, skipped=True,
             raw_nis=raw_nis,
             measurement_covariance_scale=covariance_scale,
+            prior_active_state=state.active_state.copy(),
+            prior_neighbor_state=stored_neighbor_state.copy(),
+            active_jacobian=h_active.copy(),
+            neighbor_jacobian=h_neighbor.copy(),
+            active_correction=np.zeros(6),
+            projected_neighbor_covariance=projected_neighbor_covariance.copy(),
+            nominal_measurement_covariance=nominal_measurement_covariance.copy(),
+            active_gain=np.zeros((6, measurement.size)),
+            prior_active_covariance=state.active_covariance,
+            neighbor_uncertainty_inflation=float(
+                neighbor_uncertainty_inflation
+            ),
         )
     gain = np.zeros((state.dimension, measurement.size), dtype=float)
     gain[:6] = (state.joint_covariance[:6] @ jacobian.T) @ np.linalg.pinv(innovation_covariance)
@@ -209,6 +250,218 @@ def multi_neighbor_schmidt_update(
         updated, innovation, innovation_covariance, nis,
         raw_nis=raw_nis,
         measurement_covariance_scale=covariance_scale,
+        prior_active_state=state.active_state.copy(),
+        prior_neighbor_state=stored_neighbor_state.copy(),
+        active_jacobian=h_active.copy(),
+        neighbor_jacobian=h_neighbor.copy(),
+        active_correction=gain[:6] @ innovation,
+        projected_neighbor_covariance=projected_neighbor_covariance.copy(),
+        nominal_measurement_covariance=nominal_measurement_covariance.copy(),
+        active_gain=gain[:6].copy(),
+        prior_active_covariance=state.active_covariance,
+        neighbor_uncertainty_inflation=float(
+            neighbor_uncertainty_inflation
+        ),
+    )
+
+
+def multi_neighbor_schmidt_batch_update(
+    state: MultiNeighborSchmidtState,
+    observations: Iterable[ObservationMessage],
+    *,
+    regularization: float = 1e-9,
+    integrity_policy: MeasurementIntegrityPolicy | None = None,
+    neighbor_linearization_state: Array | None = None,
+    neighbor_uncertainty_inflation_by_modality: Mapping[
+        str, float
+    ] | None = None,
+) -> MultiNeighborSchmidtUpdateResult:
+    """Jointly update one active-neighbor pair from one common prior.
+
+    The first diagnostic implementation assumes independent measurement noise
+    between observations and therefore constructs a block-diagonal joint
+    covariance. Every prediction and Jacobian is evaluated at the same prior
+    state; only one Joseph covariance update is performed.
+    """
+
+    values = tuple(observations)
+    if not values:
+        raise ValueError("At least one relative observation is required.")
+    if len({item.information_id for item in values}) != len(values):
+        raise ValueError("Batch observation information IDs must be unique.")
+    if set(item.information_id for item in values) & set(state.information_ids):
+        raise ValueError("A batch observation has already been used.")
+
+    reference = values[0]
+    timestamp = float(reference.timestamp)
+    endpoints = (str(reference.observer_id), str(reference.target_id))
+    if not np.isclose(timestamp, float(state.timestamp)):
+        raise ValueError("Observation and Schmidt state timestamps must match.")
+    if state.active_node_id not in endpoints:
+        raise ValueError("Observations must involve the active node.")
+    if any(
+        not np.isclose(float(item.timestamp), timestamp)
+        or (str(item.observer_id), str(item.target_id)) != endpoints
+        for item in values
+    ):
+        raise ValueError(
+            "Batch observations must share timestamp, observer, and target."
+        )
+
+    observer, target = endpoints
+    active_is_observer = observer == state.active_node_id
+    neighbor_id = target if active_is_observer else observer
+    if neighbor_id not in state.neighbor_ids:
+        raise ValueError("Observation counterpart is not a consider neighbor.")
+    stored_neighbor_state = state.neighbor_state_by_id[neighbor_id]
+    neighbor_state = (
+        stored_neighbor_state
+        if neighbor_linearization_state is None
+        else np.asarray(neighbor_linearization_state, dtype=float).reshape(6)
+    )
+    observer_state = state.active_state if active_is_observer else neighbor_state
+    target_state = neighbor_state if active_is_observer else state.active_state
+
+    innovations = []
+    jacobians = []
+    active_jacobians = []
+    neighbor_jacobians = []
+    covariances = []
+    nominal_covariances = []
+    projected_neighbor_covariances = []
+    inflation_factors = neighbor_uncertainty_inflation_by_modality or {}
+    for observation in values:
+        quaternion = (
+            observation.metadata.get("quaternion_i2b_wxyz")
+            if observation.frame.upper() == "BODY" else None
+        )
+        model = RelativeMeasurementModel(
+            observation.modality, observation.frame
+        )
+        prediction = model.predict(
+            observer_state, target_state,
+            quaternion_i2b_wxyz=quaternion,
+        )
+        observer_jacobian, target_jacobian = model.jacobians(
+            observer_state, target_state,
+            quaternion_i2b_wxyz=quaternion,
+        )
+        measurement = np.asarray(
+            observation.measurement, dtype=float
+        ).reshape(-1)
+        covariance = np.asarray(observation.covariance, dtype=float)
+        if covariance.shape != (measurement.size, measurement.size):
+            raise ValueError("Observation covariance has incompatible dimensions.")
+        if not 0.0 < float(observation.confidence) <= 1.0:
+            raise ValueError("Observation confidence must be in (0, 1].")
+        jacobian = np.zeros((measurement.size, state.dimension), dtype=float)
+        jacobian[:, :6] = (
+            observer_jacobian if active_is_observer else target_jacobian
+        )
+        jacobian[:, state.neighbor_slice(neighbor_id)] = (
+            target_jacobian if active_is_observer else observer_jacobian
+        )
+        innovations.append(model.residual(measurement, prediction))
+        jacobians.append(jacobian)
+        active_jacobians.append(jacobian[:, :6])
+        neighbor_jacobians.append(
+            jacobian[:, state.neighbor_slice(neighbor_id)]
+        )
+        factor = float(inflation_factors.get(observation.modality, 0.0))
+        if factor < 0.0:
+            raise ValueError("Neighbor uncertainty inflation cannot be negative.")
+        neighbor_jacobian = jacobian[:, state.neighbor_slice(neighbor_id)]
+        nominal_covariance = covariance / float(observation.confidence)
+        projected_neighbor_covariance = (
+            neighbor_jacobian
+            @ state.neighbor_covariance(neighbor_id)
+            @ neighbor_jacobian.T
+        )
+        nominal_covariances.append(nominal_covariance)
+        projected_neighbor_covariances.append(projected_neighbor_covariance)
+        covariances.append(
+            nominal_covariance
+            + factor
+            * projected_neighbor_covariance
+        )
+
+    innovation = np.concatenate(innovations)
+    jacobian = np.vstack(jacobians)
+    measurement_covariance = _block_diag(covariances)
+    predicted_measurement_covariance = (
+        jacobian @ state.joint_covariance @ jacobian.T
+    )
+    evaluation = evaluate_measurement_integrity(
+        innovation=innovation,
+        predicted_measurement_covariance=predicted_measurement_covariance,
+        measurement_covariance=measurement_covariance,
+        policy=integrity_policy or MeasurementIntegrityPolicy(
+            mode=INTEGRITY_MODE_NONE
+        ),
+        regularization=regularization,
+    )
+    effective_covariance = evaluation.effective_measurement_covariance
+    innovation_covariance = evaluation.innovation_covariance
+    raw_nis = float(evaluation.diagnostics.raw_nis)
+    nis = float(evaluation.diagnostics.processed_nis)
+    scale = evaluation.diagnostics.measurement_covariance_scale
+    if evaluation.skipped:
+        return MultiNeighborSchmidtUpdateResult(
+            state, innovation, innovation_covariance, nis,
+            skipped=True, raw_nis=raw_nis,
+            measurement_covariance_scale=scale,
+            prior_active_state=state.active_state.copy(),
+            prior_neighbor_state=stored_neighbor_state.copy(),
+            active_jacobian=np.vstack(active_jacobians),
+            neighbor_jacobian=np.vstack(neighbor_jacobians),
+            active_correction=np.zeros(6),
+            projected_neighbor_covariance=_block_diag(
+                projected_neighbor_covariances
+            ),
+            nominal_measurement_covariance=_block_diag(nominal_covariances),
+            active_gain=np.zeros((6, innovation.size)),
+            prior_active_covariance=state.active_covariance,
+            neighbor_uncertainty_inflation=float(max(
+                inflation_factors.get(item.modality, 0.0)
+                for item in values
+            )),
+        )
+    gain = np.zeros((state.dimension, innovation.size), dtype=float)
+    gain[:6] = (
+        state.joint_covariance[:6] @ jacobian.T
+    ) @ np.linalg.pinv(innovation_covariance)
+    residual = np.eye(state.dimension) - gain @ jacobian
+    covariance = (
+        residual @ state.joint_covariance @ residual.T
+        + gain @ effective_covariance @ gain.T
+    )
+    updated = replace(
+        state,
+        active_state=state.active_state + gain[:6] @ innovation,
+        joint_covariance=_symmetrize(covariance),
+        information_ids=(
+            *state.information_ids,
+            *(item.information_id for item in values),
+        ),
+    )
+    return MultiNeighborSchmidtUpdateResult(
+        updated, innovation, innovation_covariance, nis,
+        raw_nis=raw_nis, measurement_covariance_scale=scale,
+        prior_active_state=state.active_state.copy(),
+        prior_neighbor_state=stored_neighbor_state.copy(),
+        active_jacobian=np.vstack(active_jacobians),
+        neighbor_jacobian=np.vstack(neighbor_jacobians),
+        active_correction=gain[:6] @ innovation,
+        projected_neighbor_covariance=_block_diag(
+            projected_neighbor_covariances
+        ),
+        nominal_measurement_covariance=_block_diag(nominal_covariances),
+        active_gain=gain[:6].copy(),
+        prior_active_covariance=state.active_covariance,
+        neighbor_uncertainty_inflation=float(max(
+            inflation_factors.get(item.modality, 0.0)
+            for item in values
+        )),
     )
 
 

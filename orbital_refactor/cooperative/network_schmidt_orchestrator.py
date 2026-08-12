@@ -9,6 +9,10 @@ from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.link_lifecycle import LinkLifecycleState
 from cooperative.message_transport import MessageChannel
 from cooperative.multi_neighbor_schmidt import initialize_multi_neighbor_schmidt
+from cooperative.neighbor_measurement_quality import (
+    NeighborLinkQuality,
+    NeighborMeasurementQualityPolicy,
+)
 from cooperative.network_schmidt_session import (
     NetworkSchmidtSession,
     NetworkSchmidtStepResult,
@@ -42,6 +46,7 @@ class NetworkOrchestratorStepResult:
     dropped_message_count: int
     stale_topology_message_count: int
     protocol_rejected_message_count: int
+    message_diagnostic_records: tuple[dict[str, object], ...] = ()
 
 
 class NetworkSchmidtOrchestrator:
@@ -57,12 +62,21 @@ class NetworkSchmidtOrchestrator:
         max_retained_events: int | None = None,
         packet_loss_rate: float = 0.0,
         communication_delay: float = 0.0,
+        packet_loss_rate_by_link: Mapping[tuple[str, str], float] | None = None,
+        communication_delay_by_link: Mapping[tuple[str, str], float] | None = None,
         random_seed: int = 0,
         stop_and_wait: bool = True,
         resynchronize_on_resume: bool = False,
         integrity_policy_by_modality: Mapping[
             str, MeasurementIntegrityPolicy
         ] | None = None,
+        neighbor_measurement_quality_policy: (
+            NeighborMeasurementQualityPolicy | None
+        ) = None,
+        neighbor_link_quality_by_node_and_time: Mapping[
+            tuple[str, str, float], NeighborLinkQuality
+        ] | None = None,
+        batch_relative_observations: bool = False,
     ) -> None:
         self.topology = topology
         self.topology_version = 0
@@ -75,8 +89,11 @@ class NetworkSchmidtOrchestrator:
         self.pending_deliveries = {
             node: [] for node in topology.node_ids
         }
+        self.step_history: list[NetworkOrchestratorStepResult] = []
         self.stop_and_wait = bool(stop_and_wait)
         self.resynchronize_on_resume = bool(resynchronize_on_resume)
+        packet_loss_rate_by_link = packet_loss_rate_by_link or {}
+        communication_delay_by_link = communication_delay_by_link or {}
         for receiver in topology.node_ids:
             neighbor_states = {
                 neighbor: np.asarray(
@@ -108,6 +125,13 @@ class NetworkSchmidtOrchestrator:
                 max_pinned_age=max_pinned_age,
                 max_retained_events=max_retained_events,
                 integrity_policy_by_modality=integrity_policy_by_modality,
+                neighbor_measurement_quality_policy=(
+                    neighbor_measurement_quality_policy
+                ),
+                neighbor_link_quality_by_node_and_time=(
+                    neighbor_link_quality_by_node_and_time
+                ),
+                batch_relative_observations=batch_relative_observations,
             )
             for source, lineage in lineage_by_neighbor.items():
                 self.accumulators[(receiver, source)] = (
@@ -120,8 +144,14 @@ class NetworkSchmidtOrchestrator:
                 )
                 edge = (receiver, source)
                 self.channels[edge] = MessageChannel(
-                    packet_loss_rate={source: float(packet_loss_rate)},
-                    delay_by_source={source: float(communication_delay)},
+                    packet_loss_rate={source: float(
+                        packet_loss_rate_by_link.get(edge, packet_loss_rate)
+                    )},
+                    delay_by_source={source: float(
+                        communication_delay_by_link.get(
+                            edge, communication_delay
+                        )
+                    )},
                     random_seed=int(random_seed) + len(self.channels),
                 )
 
@@ -222,6 +252,7 @@ class NetworkSchmidtOrchestrator:
         accepted = rejected = 0
         stale_topology = protocol_rejected = 0
         rejection_counts = {}
+        message_diagnostic_records = []
         for receiver, session in self.sessions.items():
             deliveries = deliveries_by_receiver[receiver]
             messages = tuple(message for message, _ in deliveries)
@@ -234,6 +265,27 @@ class NetworkSchmidtOrchestrator:
             for (message, accumulator), outcome in zip(
                 deliveries, result.message_results
             ):
+                message_diagnostic_records.append({
+                    "receiver_id": receiver,
+                    "source_id": str(message.source_node_id),
+                    "current_timestamp": timestamp,
+                    "message_timestamp": float(message.timestamp),
+                    "reference_timestamp": message.reference_timestamp,
+                    "arrival_timestamp": message.arrival_timestamp,
+                    "lineage_id": message.lineage_id,
+                    "information_ids": "|".join(message.information_ids),
+                    "transport_event_count": len(message.transport_events),
+                    "accepted": bool(outcome.accepted),
+                    "reason": outcome.reason,
+                    "resync_required_neighbors": tuple(sorted(
+                        neighbor
+                        for neighbor, lifecycle
+                        in session.link_by_neighbor.items()
+                        if lifecycle.state
+                        == LinkLifecycleState.RESYNC_REQUIRED
+                    )),
+                    **message.metadata,
+                })
                 if outcome.accepted:
                     accepted += 1
                     accumulator.acknowledge(message)
@@ -251,7 +303,7 @@ class NetworkSchmidtOrchestrator:
             node: tuple(values)
             for node, values in active_neighbors_by_node.items()
         }
-        return NetworkOrchestratorStepResult(
+        output = NetworkOrchestratorStepResult(
             timestamp=timestamp, result_by_node=results,
             accepted_message_count=accepted,
             rejected_message_count=rejected,
@@ -261,7 +313,15 @@ class NetworkSchmidtOrchestrator:
             dropped_message_count=dropped_count,
             stale_topology_message_count=stale_topology,
             protocol_rejected_message_count=protocol_rejected,
+            message_diagnostic_records=tuple(
+                message_diagnostic_records
+            ),
         )
+        self.step_history.append(output)
+        return output
+
+    def history_snapshot(self) -> tuple[NetworkOrchestratorStepResult, ...]:
+        return tuple(self.step_history)
 
     def _apply_topology(
         self, *, topology_version: int,

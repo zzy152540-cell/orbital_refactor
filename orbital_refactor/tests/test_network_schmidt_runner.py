@@ -1,5 +1,9 @@
 import numpy as np
 
+from cooperative.neighbor_measurement_quality import (
+    NeighborLinkQuality,
+    NeighborMeasurementQualityPolicy,
+)
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.exact_transport_protocol import build_exact_transport_state_message
 from cooperative.topology import chain_topology, fully_connected_topology
@@ -86,7 +90,27 @@ def test_chain_network_builds_expected_local_schmidt_dimensions():
         "sat_01",
         "sat_03",
     }
+    assert set(history.neighbor_state_history_by_node["sat_02"]) == {
+        "sat_01",
+        "sat_03",
+    }
+    assert np.allclose(
+        history.neighbor_state_history_by_node["sat_02"]["sat_01"][0],
+        states["sat_01"],
+    )
+    assert history.neighbor_state_history_by_node[
+        "sat_02"
+    ]["sat_01"].shape == (timestamps.size, 6)
     assert len(history.nis_history_by_node["sat_01"][0]) == 3
+    relative_records = history.relative_update_history_by_node[
+        "sat_01"
+    ][0]
+    assert len(relative_records) == 3
+    assert relative_records[0]["prior_active_state"].shape == (6,)
+    assert relative_records[0]["prior_neighbor_state"].shape == (6,)
+    assert relative_records[0]["active_correction"].shape == (6,)
+    assert relative_records[0]["active_jacobian"].shape[1] == 6
+    assert relative_records[0]["neighbor_jacobian"].shape[1] == 6
     assert len(history.nis_history_by_node["sat_02"][0]) == 3
     assert history.nis_history_by_node["sat_03"][0] == {}
     first_integrity = next(
@@ -100,6 +124,42 @@ def test_chain_network_builds_expected_local_schmidt_dimensions():
         assert np.min(
             np.linalg.eigvalsh(history.joint_covariance_history_by_node[node_id][-1])
         ) >= -1e-8
+
+
+def test_network_runner_batches_same_directed_link_modalities():
+    timestamps, states, covariances, observations = _case()
+    sequential = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=observations,
+        process_noise_acceleration=0.0,
+    )
+    batched = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=observations,
+        process_noise_acceleration=0.0,
+        batch_relative_observations=True,
+    )
+
+    assert all(
+        epoch == () for values in sequential.joint_nis_history_by_node.values()
+        for epoch in values
+    )
+    records = batched.joint_nis_history_by_node["sat_01"][0]
+    assert len(records) == 1
+    assert set(records[0]["modalities"]) == {
+        "RANGE", "RANGE_RATE", "AZ_EL",
+    }
+    assert records[0]["dimension"] == 4
+    assert records[0]["raw_nis"] >= 0.0
+    assert np.linalg.eigvalsh(
+        batched.joint_covariance_history_by_node["sat_01"][0]
+    ).min() >= -1e-9
 
 
 def test_network_history_converts_each_satellite_to_formal_module_output():
@@ -284,6 +344,40 @@ def test_fully_connected_network_uses_eighteen_dimensions_at_every_node():
     for node_id in history.node_ids:
         assert history.active_state_history_by_node[node_id].shape == (2, 6)
         assert history.active_covariance_history_by_node[node_id].shape == (2, 6, 6)
+
+
+def test_quality_policy_uses_link_quality_at_observation_timestamp():
+    timestamps, states, covariances, observations = _case()
+    range_observations = [
+        observation for observation in observations
+        if observation.modality == "RANGE"
+        and observation.observer_id == "sat_01"
+    ]
+    history = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=range_observations,
+        process_noise_acceleration=0.0,
+        neighbor_measurement_quality_policy=(
+            NeighborMeasurementQualityPolicy(
+                base_inflation_by_modality={"RANGE": 4.0},
+                loss_inflation_per_packet=3.0,
+            )
+        ),
+        neighbor_link_quality_by_node_and_time={
+            ("sat_01", "sat_02", 0.0): NeighborLinkQuality(
+                consecutive_losses=2
+            ),
+            ("sat_01", "sat_02", 1.0): NeighborLinkQuality(
+                consecutive_losses=9
+            ),
+        },
+    )
+
+    record = history.relative_update_history_by_node["sat_01"][0][0]
+    assert record["neighbor_uncertainty_inflation"] == 10.0
 
 
 def test_synchronous_neighbor_refresh_modes_preserve_joint_psd():

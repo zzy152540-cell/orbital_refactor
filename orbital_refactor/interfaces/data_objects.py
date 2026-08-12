@@ -16,6 +16,9 @@ class CovarianceTransportEvent:
     error_transition: Array
     independent_process_noise: Array
     information_ids: tuple[str, ...] = ()
+    event_id: str | None = None
+    source_error_transition: Array | None = None
+    source_process_noise: Array | None = None
 
 
 @dataclass

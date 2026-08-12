@@ -4,6 +4,11 @@ from cooperative.network_schmidt_orchestrator import (
     NetworkSchmidtOrchestrator,
     TransportSourceUpdate,
 )
+from cooperative.network_orchestrator_history import (
+    network_history_from_orchestrator,
+)
+from interfaces.data_objects import ObservationMessage
+from orbital_core.measurements import measure_relative_range
 from cooperative.topology import chain_topology
 
 
@@ -64,6 +69,106 @@ def test_online_orchestrator_automatically_resynchronizes_long_suspension():
         .resynchronization_count == 1
         for session in orchestrator.sessions.values()
     )
+
+
+def test_online_orchestrator_resynchronizes_edge_first_enabled_at_decision():
+    states = {
+        "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        "b": np.array([7.001e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+    }
+    covariances = {node: np.eye(6) for node in states}
+    orchestrator = NetworkSchmidtOrchestrator(
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["a", "b"]),
+        process_noise_acceleration=0.0,
+        resynchronize_on_resume=True,
+    )
+
+    def updates(timestamp):
+        return {
+            node: TransportSourceUpdate(
+                state=value + np.array([timestamp, 0, 0, 0, 0, 0]),
+                error_transition=np.eye(6),
+                independent_process_noise=np.eye(6) * 0.01,
+                information_ids=(f"{node}:{timestamp}",),
+                event_error_transition=np.eye(6),
+                event_process_noise=np.eye(6) * 0.01,
+            )
+            for node, value in states.items()
+        }
+
+    inactive = {"a": (), "b": ()}
+    active = {"a": ("b",), "b": ("a",)}
+    orchestrator.step(
+        0.0, topology_version=1, active_neighbors_by_node=inactive,
+        source_update_by_node=updates(0.0),
+    )
+    orchestrator.step(
+        1.0, topology_version=1, active_neighbors_by_node=inactive,
+        source_update_by_node=updates(1.0),
+    )
+    enabled = orchestrator.step(
+        2.0, topology_version=2, active_neighbors_by_node=active,
+        source_update_by_node=updates(2.0),
+    )
+
+    assert enabled.accepted_message_count == 2
+    assert enabled.rejected_message_count == 0
+    assert len(enabled.resynchronized_links) == 2
+    assert all(
+        lineage.endswith(":resync:1")
+        for _, _, lineage in enabled.resynchronized_links
+    )
+
+
+def test_online_orchestrator_converts_to_shared_network_history():
+    states = {
+        "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        "b": np.array([7.001e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+    }
+    orchestrator = NetworkSchmidtOrchestrator(
+        initial_state_by_node=states,
+        initial_covariance_by_node={
+            node: np.eye(6) for node in states
+        },
+        topology=chain_topology(["a", "b"]),
+        process_noise_acceleration=0.0,
+    )
+    observation = ObservationMessage(
+        message_id="a-b-range", observer_id="a", target_id="b",
+        timestamp=0.0, modality="RANGE",
+        measurement=np.array([
+            measure_relative_range(states["a"], states["b"]) + 1.0
+        ]),
+        covariance=np.array([[1.0]]),
+    )
+    updates = {
+        node: TransportSourceUpdate(
+            state=value, error_transition=np.eye(6),
+            independent_process_noise=np.zeros((6, 6)),
+            information_ids=(f"{node}:0",),
+            event_error_transition=np.eye(6),
+            event_process_noise=np.zeros((6, 6)),
+        )
+        for node, value in states.items()
+    }
+    orchestrator.step(
+        0.0, topology_version=0,
+        active_neighbors_by_node={"a": ("b",), "b": ("a",)},
+        source_update_by_node=updates, observations=(observation,),
+    )
+
+    history = network_history_from_orchestrator(orchestrator)
+
+    assert np.array_equal(history.timestamps, [0.0])
+    assert history.active_state_history_by_node["a"].shape == (1, 6)
+    record = history.relative_update_history_by_node["a"][0][0]
+    assert record["observer_id"] == "a"
+    assert record["target_id"] == "b"
+    assert record["modalities"] == ("RANGE",)
+    assert history.refresh_diagnostics["accepted"] == 2
+    assert len(history.refresh_diagnostic_records) == 2
 
 
 def test_online_orchestrator_buffers_delay_and_reports_packet_loss():

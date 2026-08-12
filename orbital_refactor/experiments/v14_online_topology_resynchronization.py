@@ -279,8 +279,16 @@ def _source_updates_from_messages(messages, node_ids):
             key = (source, float(event.timestamp))
             updates.setdefault(key, TransportSourceUpdate(
                 state=event.state_estimate,
-                error_transition=message.error_transition,
-                independent_process_noise=message.accumulated_process_noise,
+                error_transition=(
+                    message.error_transition
+                    if event.source_error_transition is None
+                    else event.source_error_transition
+                ),
+                independent_process_noise=(
+                    message.accumulated_process_noise
+                    if event.source_process_noise is None
+                    else event.source_process_noise
+                ),
                 information_ids=event.information_ids,
                 event_error_transition=event.error_transition,
                 event_process_noise=event.independent_process_noise,

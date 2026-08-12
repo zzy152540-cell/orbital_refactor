@@ -3,6 +3,7 @@ import numpy as np
 from cooperative.multi_neighbor_schmidt import (
     add_consider_neighbor,
     initialize_multi_neighbor_schmidt,
+    multi_neighbor_schmidt_batch_update,
     multi_neighbor_schmidt_update,
     remove_consider_neighbor,
     run_multi_neighbor_schmidt_history,
@@ -135,6 +136,34 @@ def test_nis_adaptive_inflation_scales_covariance_before_extreme_gate():
     assert result.nis < result.raw_nis
 
 
+def test_neighbor_uncertainty_inflation_reduces_active_correction():
+    active, _, right = _states()
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="sat_02", active_state=active,
+        active_covariance=np.eye(6),
+        neighbor_state_by_id={"sat_03": right},
+        neighbor_covariance_by_id={"sat_03": 2.0 * np.eye(6)},
+    )
+    observation = _message(
+        "sat_02", "sat_03", "RANGE_RATE",
+        [measure_relative_range_rate(active, right) + 0.1],
+        [[0.01]], "rate-inflation",
+    )
+
+    baseline = multi_neighbor_schmidt_update(state, observation)
+    inflated = multi_neighbor_schmidt_update(
+        state, observation, neighbor_uncertainty_inflation=16.0,
+    )
+
+    assert np.linalg.norm(inflated.active_correction) < np.linalg.norm(
+        baseline.active_correction
+    )
+    with np.testing.assert_raises_regex(ValueError, "cannot be negative"):
+        multi_neighbor_schmidt_update(
+            state, observation, neighbor_uncertainty_inflation=-1.0,
+        )
+
+
 def test_two_neighbor_updates_preserve_joint_psd_and_create_cross_terms():
     active, left, right = _states()
     state = initialize_multi_neighbor_schmidt(
@@ -160,6 +189,63 @@ def test_two_neighbor_updates_preserve_joint_psd_and_create_cross_terms():
     assert np.linalg.norm(state.active_cross_covariance("sat_01")) > 0.0
     assert np.linalg.norm(state.active_cross_covariance("sat_03")) > 0.0
     assert np.min(np.linalg.eigvalsh(state.joint_covariance)) >= -1e-9
+
+
+def test_batch_update_uses_one_prior_and_one_joint_innovation():
+    active, _, right = _states()
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="sat_02", active_state=active,
+        active_covariance=np.eye(6),
+        neighbor_state_by_id={"sat_03": right},
+        neighbor_covariance_by_id={"sat_03": 2.0 * np.eye(6)},
+    )
+    observations = (
+        _message(
+            "sat_02", "sat_03", "RANGE",
+            [measure_relative_range(active, right) + 1.0],
+            [[4.0]], "batch-range",
+        ),
+        _message(
+            "sat_02", "sat_03", "RANGE_RATE",
+            [measure_relative_range_rate(active, right) + 0.01],
+            [[0.01]], "batch-rate",
+        ),
+        _message(
+            "sat_02", "sat_03", "AZ_EL",
+            measure_relative_az_el(active, right, frame="RTN")
+            + np.array([1e-4, -2e-4]),
+            np.eye(2) * 1e-6, "batch-angle",
+        ),
+    )
+
+    result = multi_neighbor_schmidt_batch_update(state, observations)
+
+    assert result.innovation.shape == (4,)
+    assert result.innovation_covariance.shape == (4, 4)
+    assert result.state.information_ids == tuple(
+        item.information_id for item in observations
+    )
+    assert np.linalg.eigvalsh(result.state.joint_covariance).min() >= -1e-9
+    assert result.nis >= 0.0
+
+
+def test_batch_update_rejects_mixed_links():
+    active, left, right = _states()
+    state = initialize_multi_neighbor_schmidt(
+        timestamp=0.0, active_node_id="sat_02", active_state=active,
+        active_covariance=np.eye(6),
+        neighbor_state_by_id={"sat_01": left, "sat_03": right},
+        neighbor_covariance_by_id={
+            "sat_01": np.eye(6), "sat_03": np.eye(6),
+        },
+    )
+    observations = (
+        _message("sat_02", "sat_01", "RANGE", [1000.0], [[1.0]], "left"),
+        _message("sat_02", "sat_03", "RANGE", [1200.0], [[1.0]], "right"),
+    )
+
+    with np.testing.assert_raises_regex(ValueError, "share timestamp"):
+        multi_neighbor_schmidt_batch_update(state, observations)
 
 
 def test_consider_neighbor_can_enter_and_leave_local_topology():

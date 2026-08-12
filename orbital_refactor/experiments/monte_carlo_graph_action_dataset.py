@@ -95,11 +95,26 @@ def build_monte_carlo_graph_action_dataset(
         "RANGE", "RANGE_RATE", "AZ_EL",
     ),
     future_relative_update_order: tuple[str, ...] | None = None,
+    future_batch_relative_observations: bool = False,
+    future_relative_observations_enabled: bool = True,
+    future_state_messages_enabled: bool = True,
+    future_oracle_neighbor_linearization: bool = False,
+    future_neighbor_uncertainty_inflation_by_modality: dict[
+        str, float
+    ] | None = None,
+    future_neighbor_measurement_quality_policy=None,
+    future_neighbor_link_quality_by_node_and_time=None,
     truth_initial_state_by_node: dict[str, np.ndarray] | None = None,
     severe_relative_loss_threshold: float = 0.05,
     inactive_edges_after_decision: tuple[UndirectedEdge, ...] = (),
     absolute_navigation_dropout_nodes_after_decision: tuple[str, ...] = (),
     disturbance_start_epoch: int | None = None,
+    packet_loss: float = 0.0,
+    communication_delay: float = 0.0,
+    packet_loss_by_edge: dict[UndirectedEdge, float] | None = None,
+    communication_delay_by_edge: dict[UndirectedEdge, float] | None = None,
+    backend: str = "offline_replay",
+    action_active_edges: tuple[tuple[UndirectedEdge, ...], ...] | None = None,
 ) -> MonteCarloGraphActionDataset:
     """Build conditional action targets from fixed-prefix future rollouts."""
 
@@ -125,6 +140,27 @@ def build_monte_carlo_graph_action_dataset(
                         future_relative_update_order=(
                             future_relative_update_order
                         ),
+                        future_batch_relative_observations=(
+                            future_batch_relative_observations
+                        ),
+                        future_relative_observations_enabled=(
+                            future_relative_observations_enabled
+                        ),
+                        future_state_messages_enabled=(
+                            future_state_messages_enabled
+                        ),
+                        future_oracle_neighbor_linearization=(
+                            future_oracle_neighbor_linearization
+                        ),
+                        future_neighbor_uncertainty_inflation_by_modality=(
+                            future_neighbor_uncertainty_inflation_by_modality
+                        ),
+                        future_neighbor_measurement_quality_policy=(
+                            future_neighbor_measurement_quality_policy
+                        ),
+                        future_neighbor_link_quality_by_node_and_time=(
+                            future_neighbor_link_quality_by_node_and_time
+                        ),
                         truth_initial_state_by_node=truth_initial_state_by_node,
                         inactive_edges_after_decision=(
                             inactive_edges_after_decision
@@ -133,6 +169,14 @@ def build_monte_carlo_graph_action_dataset(
                             absolute_navigation_dropout_nodes_after_decision
                         ),
                         disturbance_start_epoch=disturbance_start_epoch,
+                        packet_loss=packet_loss,
+                        communication_delay=communication_delay,
+                        packet_loss_by_edge=packet_loss_by_edge,
+                        communication_delay_by_edge=(
+                            communication_delay_by_edge
+                        ),
+                        backend=backend,
+                        action_active_edges=action_active_edges,
                     )
                     for future_seed in futures
                 )
@@ -161,6 +205,17 @@ def build_monte_carlo_graph_action_dataset(
         relative_modalities=tuple(relative_modalities),
         groups=tuple(groups),
     )
+
+
+def aggregate_monte_carlo_action_rollouts(
+    results, future_noise_seeds, severe_relative_loss_threshold=0.05,
+):
+    """Aggregate previously evaluated rollouts without rerunning them."""
+    futures = _unique_nonempty(future_noise_seeds, "future_noise_seeds")
+    results = tuple(results)
+    if len(results) != len(futures):
+        raise ValueError("Each future seed requires exactly one rollout result.")
+    return _aggregate_actions(results, futures, severe_relative_loss_threshold)
 
 
 def combine_monte_carlo_graph_action_datasets(

@@ -30,6 +30,7 @@ SCORE_FEATURES = (
     "nis_calibration_score_gain",
     "nis_sample_count_score_gain",
     "negative_anomaly_score_gain",
+    "communication_risk_score_gain",
 )
 FEATURE_NAMES = (
     "node_count", "decision_epoch", "horizon_epochs",

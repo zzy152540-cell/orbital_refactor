@@ -47,6 +47,7 @@ from cooperative.multi_neighbor_schmidt import (
     multi_neighbor_schmidt_absolute_position_update,
     multi_neighbor_schmidt_predict,
     multi_neighbor_schmidt_update,
+    multi_neighbor_schmidt_batch_update,
     remove_consider_neighbor,
     run_multi_neighbor_schmidt_history,
 )
@@ -180,6 +181,7 @@ __all__ = [
     "initialize_multi_neighbor_schmidt",
     "multi_neighbor_schmidt_predict",
     "multi_neighbor_schmidt_update",
+    "multi_neighbor_schmidt_batch_update",
     "remove_consider_neighbor",
     "run_multi_node_histories",
     "run_multi_neighbor_schmidt_history",
