@@ -1,13 +1,162 @@
 # Orbital Refactor
 
-This project restructures the original `orbital/` research code into reusable
-filters, adapters, pipelines, interfaces, and cooperative-estimation tools.
-The refactor preserves the numerical behavior of the original EKF, covariance
-intersection (CI), NIS gating, and experiment workflows wherever regression
-compatibility is required.
+`orbital-refactor` is a model-driven satellite state-estimation and
+cooperative-estimation research framework. The current V14 development line
+targets distributed, multi-modal, visibility-aware state estimation for
+satellite swarms under communication delay, packet loss, link failure, and
+dynamic topology.
 
-The original scripts are retained in `legacy/` as numerical-regression
-references. They are not the primary application interface.
+The project retains the original scripts in `legacy/` as numerical-regression
+references while exposing reusable orbital dynamics, measurement, filtering,
+communication, topology, and experiment components. Legacy EKF, covariance
+intersection (CI), NIS gating, and export behavior is preserved where
+regression compatibility is required.
+
+Current package version: `0.3.0` (Python 3.10 or newer).
+
+## V14 development status
+
+The V14 architecture is organized into three layers:
+
+```text
+trusted distributed estimation
+        -> deterministic cooperative topology policies
+        -> GNN/RL topology and resource decisions
+```
+
+The filter remains responsible for physically meaningful state estimation.
+GNNs are intended to encode dynamic inter-satellite relationships, and RL is a
+future decision layer for selecting communication and observation resources;
+neither is intended to replace orbital dynamics or the estimator.
+
+### Implemented estimation foundation
+
+- Two-body and J2 orbital propagation, RK4 integration, differential-orbit
+  fleets, and Python-generated Walker constellations.
+- Absolute ECI position navigation and inter-satellite `RANGE`, `RANGE_RATE`,
+  `AZ_EL`, `RADAR`, `INFRARED`, and `OPTICAL` measurement semantics.
+- ECI- and BODY-frame angular measurements, attitude histories, attitude
+  uncertainty, Earth occultation, range/FOV visibility, and temporal
+  visibility stabilization.
+- Centralized Fleet EKF validation baselines and distributed local filters.
+- Multi-neighbor Schmidt states containing one active local state, consider
+  neighbor states, and their joint/cross covariance blocks.
+- Observer-local relative-observation use by default; optional shared-delivery
+  paths remain available for controlled comparisons.
+- NIS integrity policies, soft covariance inflation, hard rejection, NEES,
+  RMSE, covariance, and per-node/per-modality diagnostics.
+
+CI is used only for multiple correlated estimates of the same physical state.
+It must not be used to directly fuse the different physical states of distinct
+satellites. The centralized Fleet EKF is a validation and small-scale baseline,
+not the intended final distributed architecture.
+
+### Covariance-safe communication and topology changes
+
+The current distributed path supports:
+
+- state/covariance messages with information provenance and lineage IDs;
+- exact covariance transport and multi-neighbor Schmidt event replay;
+- delay, packet loss, acknowledgements, and out-of-sequence events;
+- bounded replay history, pinned checkpoints, event/resource limits, and
+  explicit resynchronization after history exhaustion;
+- topology versions, inactive links, link restoration, message rejection
+  reasons, replay/resource peaks, and online topology changes.
+
+These mechanisms establish covariance-consistent communication behavior. They
+do not by themselves prove that every multi-modal measurement combination is
+statistically consistent.
+
+### Topology-policy and learning infrastructure
+
+The repository now provides unified `GraphObservation`, `TopologyAction`, and
+`TopologyPolicy` interfaces. A graph observation can describe node estimator
+health and edge geometry, modality, visibility, communication availability,
+packet loss, delay, information age, NIS, and resource state.
+
+The current deterministic baseline is `LowChurnConnectedTreePolicy`. It is an
+interpretable, low-switching connected-topology baseline, not a final optimized
+policy.
+
+The experimental learning infrastructure includes:
+
+- legal `keep`, `add`, `remove`, and `swap` topology actions;
+- fixed-prefix short-horizon counterfactual rollouts;
+- conditional Monte Carlo future-noise branches;
+- fleet- and node-level RMSE, covariance, NEES, NIS, communication, replay,
+  and resynchronization targets;
+- confidence intervals, positive/safe-positive gain probabilities, severe-loss
+  probability, P10, and lower-tail metrics;
+- graph tensorization, feature separability, label stability, action
+  learnability, supervised GNN scoring, and safe-action classification.
+
+The GNN code is currently a research prototype and diagnostic baseline. No
+trained GNN or RL policy is considered production-ready.
+
+## Current validation findings
+
+Controlled three-satellite counterfactual experiments use a persistent link
+failure together with an absolute-navigation dropout on one satellite. Restoring
+an alternative link shows that topology recovery itself can be useful, but the
+measurement modalities do not yet behave consistently:
+
+| Relative measurements | Effect of restored link on the affected node |
+| --- | --- |
+| `RANGE` | position RMSE improves by about 3% |
+| `RANGE_RATE` | position RMSE degrades by about 3% |
+| `AZ_EL` | position RMSE degrades by about 4% |
+| all three modalities | covariance shrinks while RMSE degrades by about 5% |
+
+Per-node/per-modality NIS diagnostics do not support a simple "measurement
+noise is too small" explanation: `RANGE_RATE` is near nominal and `AZ_EL` NIS
+is low rather than high. Testing all six sequential update orders changes the
+result modestly but does not remove the negative multi-modal effect.
+
+The active investigation is therefore the statistical consistency of
+same-neighbor, same-epoch multi-modal updates. Candidate causes include repeated
+use of correlated prior information, missing measurement/error correlation,
+sequential relinearization, weak geometry/observability, and incomplete Schmidt
+cross-covariance representation.
+
+Until this issue is closed, covariance reduction alone must not be treated as
+valid information gain, topology reward, or a trustworthy GNN/RL label.
+
+## Development roadmap
+
+1. Add an experimental same-neighbor, same-epoch batch measurement update and
+   compare it with the existing sequential update.
+2. Compare block-diagonal and explicitly correlated joint measurement
+   covariance, including the physical joint `RADAR` range/range-rate model.
+3. Export raw, processed, and joint NIS; NEES; innovation covariance and sample
+   correlation; Jacobian singular values/condition numbers; RMSE; and covariance
+   changes.
+4. Re-run the controlled modality and topology counterfactuals and close the
+   multi-modal consistency issue.
+5. Rebuild deterministic topology baselines using future-window accuracy,
+   communication cost, delay, tail risk, and consistency-validated information
+   gain.
+6. Regenerate conditional Monte Carlo action targets and validate opportunity
+   and label stability across physical geometries, failures, and noise seeds.
+7. Train and validate the supervised GNN as an action-value/risk model before
+   introducing RL.
+8. Formulate graph RL as a constrained, risk-sensitive decision problem, with
+   estimation accuracy as the primary objective and communication, delay,
+   connectivity, and severe-loss probability as constraints.
+9. Scale validated behavior from three to five and ten satellites, then to the
+   20-satellite Walker scenario.
+
+## Repository layout
+
+```text
+orbital_core/   dynamics, measurement models, EKF/CI, integrity, and metrics
+cooperative/    distributed filters, messages, replay, transport, and topology
+scenarios/      orbit, fleet, attitude, visibility, and Walker truth generation
+interfaces/     stable task, observation, state, and attitude data objects
+pipelines/      reusable single-satellite and fleet pipelines
+experiments/    V14 validation, counterfactual, Walker, topology, and GNN studies
+tests/          regression, numerical, communication, topology, and study tests
+legacy/         original numerical-reference scripts
+```
 
 ## Main interfaces
 
