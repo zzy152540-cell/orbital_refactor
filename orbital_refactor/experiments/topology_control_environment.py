@@ -81,6 +81,7 @@ class TopologyControlEnvironment:
         top_k_candidate_neighbors: int | None = None,
         scenario_type: str = "compact_fleet",
         walker_maximum_range: float = 7000e3,
+        randomize_stage1_conditions: bool = False,
     ) -> None:
         if scenario_type not in {"compact_fleet", "walker_20_5_3"}:
             raise ValueError("Unsupported topology environment scenario type.")
@@ -108,9 +109,11 @@ class TopologyControlEnvironment:
         self.top_k_candidate_neighbors = top_k_candidate_neighbors
         self.scenario_type = scenario_type
         self.walker_maximum_range = float(walker_maximum_range)
+        self.randomize_stage1_conditions = bool(randomize_stage1_conditions)
         self._case = self._orchestrator = None
 
     def reset(self, *, seed: int = 0) -> TopologyEnvironmentState:
+        self._episode_conditions = self._sample_episode_conditions(int(seed))
         candidate, baseline, self._case = self._build_case(int(seed))
         self._source_updates = _source_updates_from_messages(
             self._case["transmitted_messages"], candidate.node_ids
@@ -125,8 +128,8 @@ class TopologyControlEnvironment:
             topology=candidate,
             initial_timestamp=float(self._case["timestamps"][0]),
             process_noise_acceleration=1e-8, history_window=10.0,
-            packet_loss_rate=self.packet_loss,
-            communication_delay=self.communication_delay,
+            packet_loss_rate=self._episode_conditions["packet_loss"],
+            communication_delay=self._episode_conditions["communication_delay"],
             random_seed=int(seed) + 31000,
             resynchronize_on_resume=True,
             batch_relative_observations=True,
@@ -180,6 +183,9 @@ class TopologyControlEnvironment:
             node_count=self.node_count, topology_type="v15_environment_complete",
             topology_override=candidate, relative_modalities=self.relative_modalities,
             visibility_by_modality=self.visibility_by_modality,
+            absolute_navigation_dropout_windows_by_node=(
+                self._episode_conditions["navigation_dropout_by_node"]
+            ),
         )
         baseline = chain_topology(candidate.node_ids)
         return candidate, baseline, case
@@ -290,6 +296,16 @@ class TopologyControlEnvironment:
                     self.minimum_topology_dwell_decisions
                 ),
             },
+            additional_node_metrics_by_node={
+                node: {
+                    "absolute_navigation_available": float(
+                        not self._node_navigation_is_in_dropout(
+                            node, float(self._case["timestamps"][self._epoch_index])
+                        )
+                    )
+                }
+                for node in self._orchestrator.topology.node_ids
+            },
         )
         eligible = select_top_k_addition_edges(
             observation, top_k_per_node=self.top_k_candidate_neighbors,
@@ -318,6 +334,36 @@ class TopologyControlEnvironment:
             float(max(node_rmse)), float(np.mean(logdets)),
         )
 
+    def _sample_episode_conditions(self, seed):
+        if not self.randomize_stage1_conditions:
+            return {
+                "packet_loss": self.packet_loss,
+                "communication_delay": self.communication_delay,
+                "navigation_dropout_by_node": {},
+            }
+        if self.scenario_type != "compact_fleet":
+            raise ValueError("Stage 1 randomization currently supports compact fleets.")
+        rng = np.random.default_rng(20260901 + seed)
+        node = f"sat_{int(rng.integers(1, self.node_count + 1)):02d}"
+        start_epoch = int(rng.integers(1, max(2, self.episode_epochs // 2 + 1)))
+        end_epoch = int(rng.integers(
+            start_epoch + 1, self.episode_epochs + 1
+        ))
+        return {
+            "packet_loss": float(rng.uniform(0.0, 0.2)),
+            "communication_delay": float(rng.uniform(0.0, 2.0)),
+            "navigation_dropout_by_node": {
+                node: ((start_epoch * self.dt, end_epoch * self.dt),)
+            },
+        }
+
+    def _node_navigation_is_in_dropout(self, node, timestamp):
+        return any(
+            float(start) <= timestamp <= float(end)
+            for start, end in self._episode_conditions[
+                "navigation_dropout_by_node"
+            ].get(node, ())
+        )
     def _replay_total(self):
         return sum(session.coordinator.performance.replay_count
                    for session in self._orchestrator.sessions.values())

@@ -14,6 +14,7 @@ MODALITIES = ("RANGE", "RANGE_RATE", "RADAR", "AZ_EL", "INFRARED", "OPTICAL")
 NIS_DOF = {"RANGE": 1.0, "RANGE_RATE": 1.0, "RADAR": 2.0,
            "AZ_EL": 2.0, "INFRARED": 2.0, "OPTICAL": 2.0}
 NODE_METRICS = (
+    "absolute_navigation_available",
     "history_checkpoint_count", "pinned_checkpoint_count",
     "retained_journal_count", "pending_delivery_count",
     "resync_required_neighbor_count", "suspended_neighbor_count",

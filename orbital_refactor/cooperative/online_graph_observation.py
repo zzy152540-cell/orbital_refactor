@@ -28,6 +28,9 @@ def build_online_graph_observation(
     observation_age_by_edge=None,
     measurements: tuple[GraphMeasurementFeature, ...] = (),
     additional_graph_metrics: Mapping[str, float] | None = None,
+    additional_node_metrics_by_node: Mapping[
+        str, Mapping[str, float]
+    ] | None = None,
 ) -> GraphObservation:
     """Build a truth-free V15 policy snapshot from live orchestrator state."""
 
@@ -52,8 +55,13 @@ def build_online_graph_observation(
     }
     active = _active_edges(orchestrator.active_neighbors_by_node)
     step_totals = _step_totals(orchestrator.step_history)
+    additions = additional_node_metrics_by_node or {}
+    unknown = set(additions) - set(states)
+    if unknown:
+        raise ValueError("Additional node metrics reference unknown nodes.")
     estimator_metrics = {
-        node: _node_metrics(orchestrator, node) for node in states
+        node: {**_node_metrics(orchestrator, node), **additions.get(node, {})}
+        for node in states
     }
     graph_metrics = {
         "topology_version": float(orchestrator.topology_version),

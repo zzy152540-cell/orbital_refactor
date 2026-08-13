@@ -159,7 +159,10 @@ resynchronizations, which must be explicitly penalized during RL training.
 
 The design baseline is documented in
 [`docs/gnn_rl_design_baseline.md`](docs/gnn_rl_design_baseline.md), including a
-complete Chinese version. V15 proceeds in this order:
+complete Chinese version. The implementation-oriented current draft is
+[`docs/gnn_rl_algorithm_baseline_v1_zh.md`](docs/gnn_rl_algorithm_baseline_v1_zh.md);
+it freezes the proposed MPNN, hierarchical PPO, reward/cost and validation
+framework before PPO code is started. V15 proceeds in this order:
 
 1. Audit `GraphObservation` features as available, missing, simulation-only or
    deployment-available, and freeze normalization/missing-value semantics.

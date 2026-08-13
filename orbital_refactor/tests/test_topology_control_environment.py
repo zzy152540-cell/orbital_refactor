@@ -161,3 +161,32 @@ def test_walker_twenty_environment_uses_sparse_physical_candidates():
     result = environment.step(0)
     assert not result.terminated
     assert result.constraint_costs.transmitted_messages > 0.0
+
+
+def test_stage1_conditions_are_seeded_and_expose_navigation_availability():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=6, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    first = environment.reset(seed=7)
+    first_conditions = environment._episode_conditions
+    repeated = environment.reset(seed=7)
+    assert environment._episode_conditions == first_conditions
+    assert 0.0 <= first_conditions["packet_loss"] <= 0.2
+    assert 0.0 <= first_conditions["communication_delay"] <= 2.0
+    navigation_feature = repeated.policy_tensor.node_feature_names.index(
+        "log1p_absolute_navigation_available"
+    )
+    availability_mask = repeated.policy_tensor.node_feature_names.index(
+        "available_absolute_navigation_available"
+    )
+    assert (repeated.policy_tensor.node_features[:, availability_mask] == 1.0).all()
+    observed = [repeated.policy_tensor.node_features[:, navigation_feature].copy()]
+    state = repeated
+    while True:
+        step = environment.step(0)
+        state = step.state
+        observed.append(state.policy_tensor.node_features[:, navigation_feature].copy())
+        if step.terminated:
+            break
+    assert any((values == 0.0).any() for values in observed[1:])
