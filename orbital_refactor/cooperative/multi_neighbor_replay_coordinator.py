@@ -517,6 +517,14 @@ class MultiNeighborReplayCoordinator:
         return len(self._pinned_checkpoints)
 
     @property
+    def retained_journal_count(self) -> int:
+        return (
+            len(self._remote_events)
+            + len(self._observations)
+            + len(self._absolute_observations)
+        )
+
+    @property
     def oldest_pinned_timestamp(self) -> float | None:
         if not self._pinned_checkpoints:
             return None

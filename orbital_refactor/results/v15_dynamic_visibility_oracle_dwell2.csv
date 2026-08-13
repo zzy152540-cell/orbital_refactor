@@ -1,0 +1,2 @@
+﻿seed,policy,oracle_lookahead_steps,communication_weight,topology_switch_weight,resynchronization_weight,final_position_rmse,cumulative_task_reward,cumulative_penalized_return,transmitted_messages,dropped_messages,replay_count,resynchronization_count,topology_switch_count
+0,short_horizon_oracle,2,0.0,0.02,0.0,0.5940926679176097,2.1155496467814734,2.0355496467814733,69.0,10.0,71.0,8.0,4.0

@@ -1,0 +1,60 @@
+{
+  "training": {
+    "keep": {
+      "count": 36,
+      "mean_pred": -0.03784799399889178,
+      "std_pred": 0.004663805553856521,
+      "mean_target": 0.0,
+      "positive_target_rate": 0.0,
+      "selected_count": 0,
+      "oracle_count": 0
+    },
+    "add": {
+      "count": 324,
+      "mean_pred": -0.0019039838333372717,
+      "std_pred": 0.004883949198866491,
+      "mean_target": 0.0012684246298604147,
+      "positive_target_rate": 0.6141975308641975,
+      "selected_count": 36,
+      "oracle_count": 2
+    },
+    "swap": {
+      "count": 1548,
+      "mean_pred": -0.03925480404315223,
+      "std_pred": 0.009655738915331337,
+      "mean_target": 0.0004924932992466523,
+      "positive_target_rate": 0.5316537467700259,
+      "selected_count": 0,
+      "oracle_count": 34
+    }
+  },
+  "validation": {
+    "keep": {
+      "count": 12,
+      "mean_pred": -0.037847988617916904,
+      "std_pred": 0.004663807546721112,
+      "mean_target": 0.0,
+      "positive_target_rate": 0.0,
+      "selected_count": 0,
+      "oracle_count": 0
+    },
+    "add": {
+      "count": 108,
+      "mean_pred": -0.0019039675524389302,
+      "std_pred": 0.004883948552344101,
+      "mean_target": 0.001295713197106804,
+      "positive_target_rate": 0.5555555555555556,
+      "selected_count": 12,
+      "oracle_count": 2
+    },
+    "swap": {
+      "count": 516,
+      "mean_pred": -0.039254801600536175,
+      "std_pred": 0.00965573891456669,
+      "mean_target": -0.0003866172667650512,
+      "positive_target_rate": 0.4437984496124031,
+      "selected_count": 0,
+      "oracle_count": 10
+    }
+  }
+}

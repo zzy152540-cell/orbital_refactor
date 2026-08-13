@@ -1,0 +1,120 @@
+{
+  "selected_kinds": {
+    "swap": 12
+  },
+  "mean_gain": 0.00048153889333858263,
+  "median_gain": -0.0012503823381238566,
+  "positive_rate": 0.4166666666666667,
+  "mean_oracle_regret": 0.01237254614830797,
+  "oracle_in_top3_rate": 0.16666666666666666,
+  "rows": [
+    {
+      "seed": 6,
+      "epoch": 0,
+      "selected_kind": "swap",
+      "selected_gain": 0.0027425841343950985,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.026791016243172816,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 6,
+      "epoch": 5,
+      "selected_kind": "swap",
+      "selected_gain": -0.004536253715016092,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.003131263451859545,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 6,
+      "epoch": 10,
+      "selected_kind": "swap",
+      "selected_gain": 0.007695423464518014,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.007695423464518014,
+      "oracle_in_predicted_top3": true
+    },
+    {
+      "seed": 6,
+      "epoch": 15,
+      "selected_kind": "swap",
+      "selected_gain": 0.000313747080562643,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.007879502094961022,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 6,
+      "epoch": 20,
+      "selected_kind": "swap",
+      "selected_gain": -0.0042138209377650115,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.00849525143085128,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 6,
+      "epoch": 25,
+      "selected_kind": "swap",
+      "selected_gain": -0.0016553993898510422,
+      "oracle_kind": "add",
+      "oracle_gain": 0.004933319974176786,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 7,
+      "epoch": 0,
+      "selected_kind": "swap",
+      "selected_gain": 0.010557533127304453,
+      "oracle_kind": "add",
+      "oracle_gain": 0.04037571977526877,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 7,
+      "epoch": 5,
+      "selected_kind": "swap",
+      "selected_gain": -0.002220006932767138,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.015007676360102029,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 7,
+      "epoch": 10,
+      "selected_kind": "swap",
+      "selected_gain": 0.004392554513013569,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.007357848891173302,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 7,
+      "epoch": 15,
+      "selected_kind": "swap",
+      "selected_gain": -0.000845365286396671,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.0086689384838472,
+      "oracle_in_predicted_top3": true
+    },
+    {
+      "seed": 7,
+      "epoch": 20,
+      "selected_kind": "swap",
+      "selected_gain": -0.0030442581450165207,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.0123349677193898,
+      "oracle_in_predicted_top3": false
+    },
+    {
+      "seed": 7,
+      "epoch": 25,
+      "selected_kind": "swap",
+      "selected_gain": -0.0034082711929183107,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.011578092610438073,
+      "oracle_in_predicted_top3": false
+    }
+  ]
+}

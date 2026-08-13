@@ -1,0 +1,45 @@
+{
+  "best_epoch": 2,
+  "epochs_run": 42,
+  "initial_training": {
+    "group_count": 36,
+    "mean_loss": 0.2938891988661554,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.3055555555555556,
+    "mean_selected_position_rmse_reduction": 0.00039265811695562053,
+    "mean_oracle_regret": 0.012077931697907237,
+    "positive_selected_gain_rate": 0.19444444444444445,
+    "utility_correlation": -0.014394871473020135
+  },
+  "final_training": {
+    "group_count": 36,
+    "mean_loss": 0.29772229078743195,
+    "exact_action_match_rate": 0.027777777777777776,
+    "action_kind_match_rate": 0.05555555555555555,
+    "mean_selected_position_rmse_reduction": 0.0018707585000407158,
+    "mean_oracle_regret": 0.010599831314822141,
+    "positive_selected_gain_rate": 0.6944444444444444,
+    "utility_correlation": 0.07613212483224194
+  },
+  "initial_validation": {
+    "group_count": 12,
+    "mean_loss": 0.2753125603000323,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.3333333333333333,
+    "mean_selected_position_rmse_reduction": 0.00018089975189165367,
+    "mean_oracle_regret": 0.012673185357925831,
+    "positive_selected_gain_rate": 0.16666666666666666,
+    "utility_correlation": -0.07091789335118834
+  },
+  "best_validation": {
+    "group_count": 12,
+    "mean_loss": 0.27196397135655087,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.16666666666666666,
+    "mean_selected_position_rmse_reduction": 0.00013680383805573607,
+    "mean_oracle_regret": 0.012717281271761749,
+    "positive_selected_gain_rate": 0.3333333333333333,
+    "utility_correlation": 0.13943389052956018
+  },
+  "checkpoint": "results\\v15_walker_gnn_pilot_seed00_05_val06_07.pt"
+}

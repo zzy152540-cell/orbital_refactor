@@ -1,0 +1,145 @@
+{
+  "selected_kinds": {
+    "add": 12
+  },
+  "oracle_kinds": {
+    "swap": 10,
+    "add": 2
+  },
+  "rows": [
+    {
+      "seed": 6,
+      "epoch": 0,
+      "selected_kind": "add",
+      "selected_gain": 0.004063049709828626,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.026791016243172816
+    },
+    {
+      "seed": 6,
+      "epoch": 5,
+      "selected_kind": "add",
+      "selected_gain": -0.00013422870543933207,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.003131263451859545
+    },
+    {
+      "seed": 6,
+      "epoch": 10,
+      "selected_kind": "add",
+      "selected_gain": 0.00010371602460679252,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.007695423464518014
+    },
+    {
+      "seed": 6,
+      "epoch": 15,
+      "selected_kind": "add",
+      "selected_gain": 0.001022051794421719,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.007879502094961022
+    },
+    {
+      "seed": 6,
+      "epoch": 20,
+      "selected_kind": "add",
+      "selected_gain": 0.0008680363562086901,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.00849525143085128
+    },
+    {
+      "seed": 6,
+      "epoch": 25,
+      "selected_kind": "add",
+      "selected_gain": 0.0016798393807904155,
+      "oracle_kind": "add",
+      "oracle_gain": 0.004933319974176786
+    },
+    {
+      "seed": 7,
+      "epoch": 0,
+      "selected_kind": "add",
+      "selected_gain": 0.0009114464953363655,
+      "oracle_kind": "add",
+      "oracle_gain": 0.04037571977526877
+    },
+    {
+      "seed": 7,
+      "epoch": 5,
+      "selected_kind": "add",
+      "selected_gain": -0.0009929381190680875,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.015007676360102029
+    },
+    {
+      "seed": 7,
+      "epoch": 10,
+      "selected_kind": "add",
+      "selected_gain": -0.00037668989149342025,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.007357848891173302
+    },
+    {
+      "seed": 7,
+      "epoch": 15,
+      "selected_kind": "add",
+      "selected_gain": -0.0018952571262665918,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.0086689384838472
+    },
+    {
+      "seed": 7,
+      "epoch": 20,
+      "selected_kind": "add",
+      "selected_gain": -0.005587242317227958,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.0123349677193898
+    },
+    {
+      "seed": 7,
+      "epoch": 25,
+      "selected_kind": "add",
+      "selected_gain": -0.0010006881231412468,
+      "oracle_kind": "swap",
+      "oracle_gain": 0.011578092610438073
+    }
+  ],
+  "cross_seed_input_repetition": {
+    "0": {
+      "node_all_equal": false,
+      "edge_all_equal": false,
+      "global_all_equal": true,
+      "target_all_equal": false
+    },
+    "5": {
+      "node_all_equal": false,
+      "edge_all_equal": false,
+      "global_all_equal": true,
+      "target_all_equal": false
+    },
+    "10": {
+      "node_all_equal": false,
+      "edge_all_equal": false,
+      "global_all_equal": true,
+      "target_all_equal": false
+    },
+    "15": {
+      "node_all_equal": false,
+      "edge_all_equal": false,
+      "global_all_equal": true,
+      "target_all_equal": false
+    },
+    "20": {
+      "node_all_equal": false,
+      "edge_all_equal": false,
+      "global_all_equal": true,
+      "target_all_equal": false
+    },
+    "25": {
+      "node_all_equal": false,
+      "edge_all_equal": false,
+      "global_all_equal": true,
+      "target_all_equal": false
+    }
+  }
+}

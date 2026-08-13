@@ -2,8 +2,9 @@ import pytest
 
 from cooperative.topology_policy import (
     GraphEdgeFeature, GraphMeasurementFeature, GraphNodeFeature, GraphObservation,
+    GraphObservationProvenance,
     LowChurnConnectedTreePolicy,
-    build_graph_observation,
+    build_graph_observation, validate_deployment_graph_observation,
 )
 from experiments.v14_walker_dynamic_topology import (
     _select_connected_edges, build_v14_walker_dynamic_topology_plan,
@@ -108,3 +109,36 @@ def test_graph_observation_factory_accepts_filter_and_communication_features():
     assert edge.nis_sample_count_by_modality == (("RADAR", 3),)
     assert edge.consecutive_anomaly_count_by_modality == (("RADAR", 1),)
     assert observation.measurements[0].covariance[0][0] == 4.0
+
+
+def test_deployment_validation_requires_explicit_safe_provenance():
+    observation = build_graph_observation(
+        timestamp=0.0,
+        state_by_node={"a": [0.0] * 6, "b": [1.0] * 6},
+        candidate_distance_by_edge={("a", "b"): 1.0},
+    )
+    with pytest.raises(ValueError, match="not marked"):
+        validate_deployment_graph_observation(observation)
+
+    safe = build_graph_observation(
+        timestamp=0.0,
+        state_by_node={"a": [0.0] * 6, "b": [1.0] * 6},
+        candidate_distance_by_edge={("a", "b"): 1.0},
+        provenance=GraphObservationProvenance(
+            schema_version="v15.0-online",
+            state_source="estimator",
+            geometry_source="measurement",
+            online_decision_safe=True,
+        ),
+    )
+    validate_deployment_graph_observation(safe)
+
+
+def test_online_safe_provenance_rejects_truth_geometry():
+    with pytest.raises(ValueError, match="estimated or measured geometry"):
+        GraphObservationProvenance(
+            schema_version="v15.0-online",
+            state_source="estimator",
+            geometry_source="truth",
+            online_decision_safe=True,
+        )

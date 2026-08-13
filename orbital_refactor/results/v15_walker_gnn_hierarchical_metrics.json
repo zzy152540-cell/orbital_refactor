@@ -1,0 +1,53 @@
+{
+  "best_epoch": 1,
+  "epochs_run": 41,
+  "initial_training": {
+    "group_count": 36,
+    "mean_loss": 8.987633413738674,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.0,
+    "mean_selected_position_rmse_reduction": 0.0,
+    "mean_oracle_regret": 0.012470589814862857,
+    "positive_selected_gain_rate": 0.0,
+    "utility_correlation": -0.014394871473020135,
+    "conditional_action_match_rate": 0.05555555555555555,
+    "conditional_top3_match_rate": 0.1388888888888889
+  },
+  "final_training": {
+    "group_count": 36,
+    "mean_loss": 8.271611465348137,
+    "exact_action_match_rate": 0.027777777777777776,
+    "action_kind_match_rate": 0.9444444444444444,
+    "mean_selected_position_rmse_reduction": 0.0005116539485041156,
+    "mean_oracle_regret": 0.011958935866358742,
+    "positive_selected_gain_rate": 0.4166666666666667,
+    "utility_correlation": -0.02874603446671755,
+    "conditional_action_match_rate": 0.05555555555555555,
+    "conditional_top3_match_rate": 0.19444444444444445
+  },
+  "initial_validation": {
+    "group_count": 12,
+    "mean_loss": 8.812857866287231,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.0,
+    "mean_selected_position_rmse_reduction": 0.0,
+    "mean_oracle_regret": 0.012854085109817484,
+    "positive_selected_gain_rate": 0.0,
+    "utility_correlation": -0.07091789335118834,
+    "conditional_action_match_rate": 0.0,
+    "conditional_top3_match_rate": 0.08333333333333333
+  },
+  "best_validation": {
+    "group_count": 12,
+    "mean_loss": 8.225217660268148,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.8333333333333334,
+    "mean_selected_position_rmse_reduction": 0.0014923781121372788,
+    "mean_oracle_regret": 0.011361706997680207,
+    "positive_selected_gain_rate": 0.6666666666666666,
+    "utility_correlation": -0.08104639340228702,
+    "conditional_action_match_rate": 0.0,
+    "conditional_top3_match_rate": 0.16666666666666666
+  },
+  "checkpoint": "results\\v15_walker_gnn_hierarchical_seed00_05_val06_07.pt"
+}

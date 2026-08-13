@@ -73,6 +73,33 @@ class GraphEdgeFeature:
 
 
 @dataclass(frozen=True)
+class GraphObservationProvenance:
+    """Declare feature sources so policy inputs cannot hide truth leakage."""
+
+    schema_version: str = "v14-unspecified"
+    state_source: str = "unspecified"
+    geometry_source: str = "unspecified"
+    online_decision_safe: bool = False
+
+    def __post_init__(self) -> None:
+        allowed = {"estimator", "measurement", "configured", "truth", "unspecified"}
+        if not self.schema_version:
+            raise ValueError("Graph observation schema version cannot be empty.")
+        if self.state_source not in allowed:
+            raise ValueError("Unsupported graph state source.")
+        if self.geometry_source not in allowed:
+            raise ValueError("Unsupported graph geometry source.")
+        if self.online_decision_safe and (
+            self.state_source != "estimator"
+            or self.geometry_source not in {"estimator", "measurement"}
+        ):
+            raise ValueError(
+                "Online-safe observations require estimator states and "
+                "estimated or measured geometry."
+            )
+
+
+@dataclass(frozen=True)
 class GraphObservation:
     """One topology-decision snapshot, independent of policy implementation."""
 
@@ -83,6 +110,7 @@ class GraphObservation:
     estimation_dependency_edges: tuple[UndirectedEdge, ...] = ()
     graph_metrics: tuple[tuple[str, float], ...] = ()
     measurements: tuple[GraphMeasurementFeature, ...] = ()
+    provenance: GraphObservationProvenance = GraphObservationProvenance()
 
     def __post_init__(self) -> None:
         node_ids = tuple(node.node_id for node in self.nodes)
@@ -101,6 +129,18 @@ class GraphObservation:
         for measurement in self.measurements:
             if {measurement.observer_id, measurement.target_id} - node_set:
                 raise ValueError("Graph measurement references an unknown node.")
+
+
+def validate_deployment_graph_observation(
+    observation: GraphObservation,
+) -> None:
+    """Reject observations whose sources are unsafe or unspecified for policy use."""
+
+    provenance = observation.provenance
+    if not provenance.online_decision_safe:
+        raise ValueError("Graph observation is not marked online-decision safe.")
+    if "truth" in {provenance.state_source, provenance.geometry_source}:
+        raise ValueError("Deployment graph observation cannot use truth features.")
 
 
 @dataclass(frozen=True)
@@ -129,6 +169,7 @@ def build_graph_observation(
     *, timestamp, state_by_node, candidate_distance_by_edge,
     previous_active_edges=(), covariance_by_node=None,
     estimator_metrics_by_node=None, measurement_modalities_by_edge=None,
+    geometrically_visible_by_edge=None,
     communication_available_by_edge=None, delay_by_edge=None,
     packet_loss_rate_by_edge=None, nis_by_modality_by_edge=None,
     nis_sample_count_by_modality_by_edge=None,
@@ -136,12 +177,14 @@ def build_graph_observation(
     observation_age_by_edge=None, estimation_dependency_edges=(),
     graph_metrics=None,
     measurements=(),
+    provenance=None,
 ) -> GraphObservation:
     """Normalize estimator, visibility, and communication data for a policy."""
 
     covariance_by_node = covariance_by_node or {}
     estimator_metrics_by_node = estimator_metrics_by_node or {}
     measurement_modalities_by_edge = measurement_modalities_by_edge or {}
+    geometrically_visible_by_edge = geometrically_visible_by_edge or {}
     communication_available_by_edge = communication_available_by_edge or {}
     delay_by_edge = delay_by_edge or {}
     packet_loss_rate_by_edge = packet_loss_rate_by_edge or {}
@@ -188,6 +231,9 @@ def build_graph_observation(
         edges.append(GraphEdgeFeature(
             nodes=edge,
             distance=float(distance),
+            geometrically_visible=bool(edge_value(
+                geometrically_visible_by_edge, edge, True
+            )),
             measurement_modalities=tuple(sorted(
                 str(value) for value in edge_value(
                     measurement_modalities_by_edge, edge, ()
@@ -232,6 +278,10 @@ def build_graph_observation(
             (str(key), float(value)) for key, value in graph_metrics.items()
         )),
         measurements=tuple(measurements),
+        provenance=(
+            GraphObservationProvenance()
+            if provenance is None else provenance
+        ),
     )
 
 

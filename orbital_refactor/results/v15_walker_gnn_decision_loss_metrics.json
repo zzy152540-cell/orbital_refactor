@@ -1,0 +1,45 @@
+{
+  "best_epoch": 1,
+  "epochs_run": 41,
+  "initial_training": {
+    "group_count": 36,
+    "mean_loss": 4.165785153706868,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.3055555555555556,
+    "mean_selected_position_rmse_reduction": 0.00039265811695562053,
+    "mean_oracle_regret": 0.012077931697907237,
+    "positive_selected_gain_rate": 0.19444444444444445,
+    "utility_correlation": -0.014394871473020135
+  },
+  "final_training": {
+    "group_count": 36,
+    "mean_loss": 4.139090511533949,
+    "exact_action_match_rate": 0.05555555555555555,
+    "action_kind_match_rate": 0.9444444444444444,
+    "mean_selected_position_rmse_reduction": 0.0018508619694372896,
+    "mean_oracle_regret": 0.010619727845425567,
+    "positive_selected_gain_rate": 0.6388888888888888,
+    "utility_correlation": -0.013676281617537629
+  },
+  "initial_validation": {
+    "group_count": 12,
+    "mean_loss": 4.165165305137634,
+    "exact_action_match_rate": 0.0,
+    "action_kind_match_rate": 0.3333333333333333,
+    "mean_selected_position_rmse_reduction": 0.00018089975189165367,
+    "mean_oracle_regret": 0.012673185357925831,
+    "positive_selected_gain_rate": 0.16666666666666666,
+    "utility_correlation": -0.07091789335118834
+  },
+  "best_validation": {
+    "group_count": 12,
+    "mean_loss": 4.158542315165202,
+    "exact_action_match_rate": 0.08333333333333333,
+    "action_kind_match_rate": 0.8333333333333334,
+    "mean_selected_position_rmse_reduction": 0.0004815388868640487,
+    "mean_oracle_regret": 0.012372546222953437,
+    "positive_selected_gain_rate": 0.4166666666666667,
+    "utility_correlation": -0.06042471615419519
+  },
+  "checkpoint": "results\\v15_walker_gnn_decision_loss_seed00_05_val06_07.pt"
+}

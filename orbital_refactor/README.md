@@ -90,11 +90,21 @@ The experimental learning infrastructure includes:
   probability, P10, and lower-tail metrics;
 - graph tensorization, feature separability, label stability, action
   learnability, supervised GNN scoring, and safe-action classification.
+- deployment-safe normalized V15 policy tensors, Top-K candidate pruning, and
+  legal masked `keep`/`add`/`swap`/`remove` action spaces;
+- a reproducible Walker-20 multi-step control environment with visibility,
+  topology dwell, replay, resynchronization, communication and switch costs;
+- restartable counterfactual snapshot collection, compressed pickle-free NPZ
+  shards, schema-checked shard merging, and strict seed-disjoint splitting;
+- PyTorch graph-action pretraining with regression/ranking, decision-oriented
+  listwise, and hierarchical action-type/within-type objectives;
+- an online hierarchical GNN policy that reads no truth or future labels and
+  always maps its decision back through the current legal-action set.
 
-The GNN code is currently a research prototype and diagnostic baseline. No
-trained GNN or RL policy is considered production-ready. V15 begins with a
-multi-step topology-control environment and self-supervised graph
-representation, not with an immediate production RL policy.
+The GNN remains a research prototype and RL initialization candidate, not a
+production policy or an independent topology optimizer. Its current purpose is
+to provide a safe, useful initial graph representation and actor policy that RL
+can refine for long-horizon precision/resource trade-offs.
 
 ## Current validation findings
 
@@ -124,6 +134,27 @@ Covariance reduction alone is still not accepted as valid information gain.
 Future dense feedback must be qualified by observable consistency, provenance,
 freshness and resynchronization diagnostics.
 
+The current Walker-20 pilot dataset contains 48 online snapshots and 2544
+counterfactual legal-action labels over seeds 0--7 and decision epochs
+`0, 5, 10, 15, 20, 25`. Seeds 0--5 are used for training and 6--7 for strict
+validation. The labels are balanced between positive and negative RMSE changes,
+although the action set is dominated by `swap` combinations.
+
+Flat action-value GNNs tended to collapse to a single action type. A
+hierarchical PyTorch model that first chooses the action type and then ranks
+actions within that type achieved positive mean held-out gain, 66.7% positive
+selection rate and 83.3% action-type agreement. It exceeded always-keep and the
+current shortest-added-edge diagnostic baseline, but still remained far below
+the short-horizon oracle and did not reliably identify the exact best swap.
+
+The hierarchical checkpoint was therefore evaluated as an RL initializer,
+rather than tuned as a stand-alone oracle approximation. In ten-step online
+Walker episodes on unseen seeds 8--10 it produced no illegal-action fallback or
+filter divergence, selected both `keep` and `swap`, and changed final RMSE by
+-0.48% on average relative to always-keep; the worst observed degradation was
+0.31%. Each episode made four topology switches and incurred the associated
+resynchronizations, which must be explicitly penalized during RL training.
+
 ## V15 development roadmap
 
 The design baseline is documented in
@@ -140,12 +171,37 @@ complete Chinese version. V15 proceeds in this order:
    meaningful control opportunity.
 4. Calibrate consistency-qualified information gain and communication, delay,
    replay, resynchronization, switching and tail-risk constraints.
-5. Pretrain a GNN encoder with physically valid self-supervised temporal,
-   masked-feature, visibility, link-risk and consistency-risk tasks.
-6. Introduce masked, constrained and risk-sensitive RL only after environment
-   closure; retain deterministic safety gates and `keep` fallback.
+5. Use counterfactual supervision and, where useful, physically valid
+   self-supervised tasks to obtain a GNN that meets RL-initialization criteria;
+   do not require supervised exact-Oracle action matching.
+6. Introduce masked, constrained and risk-sensitive RL from the qualified
+   hierarchical checkpoint; include accuracy, communication, switching,
+   replay and resynchronization terms, and retain deterministic safety gates
+   plus a legal `keep` fallback.
 7. Validate by held-out physical scenario, then move from five-node structured
    actions to hierarchical ten- and twenty-satellite Walker decisions.
+
+The project is currently between steps 5 and 6: the Walker-20 hierarchical GNN
+has passed the initial short-episode safety/utility qualification, while full
+RL training and longer held-out closed-loop validation remain future work.
+
+### V15 snapshot collection and GNN environment
+
+Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
+environment. Collect one restartable Walker shard with:
+
+```bash
+python -m experiments.run_v15_snapshot_collection \
+  --seeds 0 --epochs 0 5 10 15 20 25 --lookahead 2 \
+  --output results/v15_walker_snapshot_seed00.npz
+```
+
+The checked-in pilot dataset is
+`results/v15_walker_snapshot_pilot_seed00_07.npz`. The corresponding qualified
+initialization candidate is
+`results/v15_walker_gnn_hierarchical_seed00_05_val06_07.pt`; its held-out and
+closed-loop metrics are stored alongside it as JSON. PyTorch is optional for
+the estimator and is only required for GNN training or inference.
 
 ## Repository layout
 

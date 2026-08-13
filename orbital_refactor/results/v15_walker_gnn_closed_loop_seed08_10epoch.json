@@ -1,0 +1,82 @@
+[
+  {
+    "policy_name": "always_keep",
+    "seed": 8,
+    "step_count": 10,
+    "cumulative_reward": 1.5237379873569616,
+    "final_position_rmse": 0.8978471459590905,
+    "final_worst_node_position_rmse": 1.8561523779476163,
+    "final_mean_covariance_logdet": -25.55713567584866,
+    "cumulative_costs": {
+      "transmitted_messages": 380.0,
+      "dropped_messages": 0.0,
+      "replay_count": 380.0,
+      "resynchronization_count": 0.0,
+      "topology_switch": 0.0,
+      "action_fallback": 0.0
+    },
+    "selected_action_kind_counts": [
+      [
+        "keep",
+        10
+      ]
+    ],
+    "fallback_reason_counts": []
+  },
+  {
+    "policy_name": "cost_aware_information_greedy",
+    "seed": 8,
+    "step_count": 10,
+    "cumulative_reward": 1.5324841684518318,
+    "final_position_rmse": 0.8891009648642205,
+    "final_worst_node_position_rmse": 1.8561523779476163,
+    "final_mean_covariance_logdet": -25.676990324177797,
+    "cumulative_costs": {
+      "transmitted_messages": 424.0,
+      "dropped_messages": 0.0,
+      "replay_count": 424.0,
+      "resynchronization_count": 8.0,
+      "topology_switch": 4.0,
+      "action_fallback": 0.0
+    },
+    "selected_action_kind_counts": [
+      [
+        "add",
+        4
+      ],
+      [
+        "keep",
+        6
+      ]
+    ],
+    "fallback_reason_counts": []
+  },
+  {
+    "policy_name": "hierarchical_gnn",
+    "seed": 8,
+    "step_count": 10,
+    "cumulative_reward": 1.5209265163998151,
+    "final_position_rmse": 0.9006586169162373,
+    "final_worst_node_position_rmse": 1.8561523779476163,
+    "final_mean_covariance_logdet": -25.550776548712786,
+    "cumulative_costs": {
+      "transmitted_messages": 380.0,
+      "dropped_messages": 0.0,
+      "replay_count": 380.0,
+      "resynchronization_count": 8.0,
+      "topology_switch": 4.0,
+      "action_fallback": 0.0
+    },
+    "selected_action_kind_counts": [
+      [
+        "keep",
+        6
+      ],
+      [
+        "swap",
+        4
+      ]
+    ],
+    "fallback_reason_counts": []
+  }
+]

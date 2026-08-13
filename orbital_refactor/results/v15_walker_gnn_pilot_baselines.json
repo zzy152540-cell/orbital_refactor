@@ -1,0 +1,38 @@
+{
+  "gnn": {
+    "mean_gain": 0.00013680382078119316,
+    "median_gain": -0.0006043371728196578,
+    "positive_rate": 0.3333333333333333,
+    "mean_oracle_regret": 0.01271728122086536
+  },
+  "keep": {
+    "mean_gain": 0.0,
+    "median_gain": 0.0,
+    "positive_rate": 0.0,
+    "mean_oracle_regret": 0.012854085041646554
+  },
+  "random_expected": {
+    "mean_gain": -9.364384333841447e-05,
+    "median_gain": -0.0006164153739661234,
+    "positive_rate": 0.4166666666666667,
+    "mean_oracle_regret": 0.012947728884984966
+  },
+  "shortest_added": {
+    "mean_gain": 0.0007189620245646825,
+    "median_gain": -0.00015907644867513282,
+    "positive_rate": 0.4166666666666667,
+    "mean_oracle_regret": 0.01213512301708187
+  },
+  "oracle": {
+    "mean_gain": 0.012854085041646554,
+    "positive_rate": 1.0
+  },
+  "selected_kinds": {
+    "gnn": {
+      "add": 12
+    },
+    "shortest_added": {
+      "add": 12
+    }
+  }
+}

@@ -1,0 +1,300 @@
+{
+  "rows": [
+    {
+      "policy_name": "always_keep",
+      "seed": 8,
+      "step_count": 10,
+      "cumulative_reward": 1.5237379873569616,
+      "final_position_rmse": 0.8978471459590905,
+      "final_worst_node_position_rmse": 1.8561523779476163,
+      "final_mean_covariance_logdet": -25.55713567584866,
+      "cumulative_costs": {
+        "transmitted_messages": 380.0,
+        "dropped_messages": 0.0,
+        "replay_count": 380.0,
+        "resynchronization_count": 0.0,
+        "topology_switch": 0.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "keep",
+          10
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "cost_aware_information_greedy",
+      "seed": 8,
+      "step_count": 10,
+      "cumulative_reward": 1.5324841684518318,
+      "final_position_rmse": 0.8891009648642205,
+      "final_worst_node_position_rmse": 1.8561523779476163,
+      "final_mean_covariance_logdet": -25.676990324177797,
+      "cumulative_costs": {
+        "transmitted_messages": 424.0,
+        "dropped_messages": 0.0,
+        "replay_count": 424.0,
+        "resynchronization_count": 8.0,
+        "topology_switch": 4.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "add",
+          4
+        ],
+        [
+          "keep",
+          6
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "hierarchical_gnn",
+      "seed": 8,
+      "step_count": 10,
+      "cumulative_reward": 1.5209265163998151,
+      "final_position_rmse": 0.9006586169162373,
+      "final_worst_node_position_rmse": 1.8561523779476163,
+      "final_mean_covariance_logdet": -25.550776548712786,
+      "cumulative_costs": {
+        "transmitted_messages": 380.0,
+        "dropped_messages": 0.0,
+        "replay_count": 380.0,
+        "resynchronization_count": 8.0,
+        "topology_switch": 4.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "keep",
+          6
+        ],
+        [
+          "swap",
+          4
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "always_keep",
+      "seed": 9,
+      "step_count": 10,
+      "cumulative_reward": 1.8169728722222431,
+      "final_position_rmse": 0.9183501332929374,
+      "final_worst_node_position_rmse": 1.523372202788693,
+      "final_mean_covariance_logdet": -25.557135707359826,
+      "cumulative_costs": {
+        "transmitted_messages": 380.0,
+        "dropped_messages": 0.0,
+        "replay_count": 380.0,
+        "resynchronization_count": 0.0,
+        "topology_switch": 0.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "keep",
+          10
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "cost_aware_information_greedy",
+      "seed": 9,
+      "step_count": 10,
+      "cumulative_reward": 1.8248114813486898,
+      "final_position_rmse": 0.9105115241664907,
+      "final_worst_node_position_rmse": 1.523372202788693,
+      "final_mean_covariance_logdet": -25.67528355695859,
+      "cumulative_costs": {
+        "transmitted_messages": 424.0,
+        "dropped_messages": 0.0,
+        "replay_count": 424.0,
+        "resynchronization_count": 8.0,
+        "topology_switch": 4.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "add",
+          4
+        ],
+        [
+          "keep",
+          6
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "hierarchical_gnn",
+      "seed": 9,
+      "step_count": 10,
+      "cumulative_reward": 1.8234802577774338,
+      "final_position_rmse": 0.9118427477377467,
+      "final_worst_node_position_rmse": 1.523372202788693,
+      "final_mean_covariance_logdet": -25.550776553484962,
+      "cumulative_costs": {
+        "transmitted_messages": 380.0,
+        "dropped_messages": 0.0,
+        "replay_count": 380.0,
+        "resynchronization_count": 8.0,
+        "topology_switch": 4.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "keep",
+          6
+        ],
+        [
+          "swap",
+          4
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "always_keep",
+      "seed": 10,
+      "step_count": 10,
+      "cumulative_reward": 1.9617118916552532,
+      "final_position_rmse": 0.7388864161168024,
+      "final_worst_node_position_rmse": 1.1804156002164796,
+      "final_mean_covariance_logdet": -25.557135748745655,
+      "cumulative_costs": {
+        "transmitted_messages": 380.0,
+        "dropped_messages": 0.0,
+        "replay_count": 380.0,
+        "resynchronization_count": 0.0,
+        "topology_switch": 0.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "keep",
+          10
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "cost_aware_information_greedy",
+      "seed": 10,
+      "step_count": 10,
+      "cumulative_reward": 1.9633449509730727,
+      "final_position_rmse": 0.737253356798983,
+      "final_worst_node_position_rmse": 1.1837940432726026,
+      "final_mean_covariance_logdet": -25.675283575198346,
+      "cumulative_costs": {
+        "transmitted_messages": 424.0,
+        "dropped_messages": 0.0,
+        "replay_count": 424.0,
+        "resynchronization_count": 8.0,
+        "topology_switch": 4.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "add",
+          4
+        ],
+        [
+          "keep",
+          6
+        ]
+      ],
+      "fallback_reason_counts": []
+    },
+    {
+      "policy_name": "hierarchical_gnn",
+      "seed": 10,
+      "step_count": 10,
+      "cumulative_reward": 1.96941289790117,
+      "final_position_rmse": 0.731185409870886,
+      "final_worst_node_position_rmse": 1.1804156002164796,
+      "final_mean_covariance_logdet": -25.55077661624783,
+      "cumulative_costs": {
+        "transmitted_messages": 380.0,
+        "dropped_messages": 0.0,
+        "replay_count": 380.0,
+        "resynchronization_count": 8.0,
+        "topology_switch": 4.0,
+        "action_fallback": 0.0
+      },
+      "selected_action_kind_counts": [
+        [
+          "keep",
+          6
+        ],
+        [
+          "swap",
+          4
+        ]
+      ],
+      "fallback_reason_counts": []
+    }
+  ],
+  "comparisons": [
+    {
+      "seed": 8,
+      "gnn_minus_keep_final_rmse": 0.0028114709571467333,
+      "gnn_relative_rmse_change": 0.003131346989073025,
+      "gnn_switches": 4.0,
+      "gnn_fallbacks": 0.0,
+      "gnn_actions": [
+        [
+          "keep",
+          6
+        ],
+        [
+          "swap",
+          4
+        ]
+      ]
+    },
+    {
+      "seed": 9,
+      "gnn_minus_keep_final_rmse": -0.006507385555190703,
+      "gnn_relative_rmse_change": -0.007085952644071747,
+      "gnn_switches": 4.0,
+      "gnn_fallbacks": 0.0,
+      "gnn_actions": [
+        [
+          "keep",
+          6
+        ],
+        [
+          "swap",
+          4
+        ]
+      ]
+    },
+    {
+      "seed": 10,
+      "gnn_minus_keep_final_rmse": -0.007701006245916409,
+      "gnn_relative_rmse_change": -0.010422449348018614,
+      "gnn_switches": 4.0,
+      "gnn_fallbacks": 0.0,
+      "gnn_actions": [
+        [
+          "keep",
+          6
+        ],
+        [
+          "swap",
+          4
+        ]
+      ]
+    }
+  ],
+  "mean_relative_rmse_change": -0.004792351667672445,
+  "worst_relative_rmse_change": 0.003131346989073025,
+  "total_fallbacks": 0.0
+}
