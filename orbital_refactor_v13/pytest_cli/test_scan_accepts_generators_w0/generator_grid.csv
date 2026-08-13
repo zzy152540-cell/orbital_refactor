@@ -1,0 +1,5 @@
+﻿seed,policy,communication_weight,topology_switch_weight,resynchronization_weight,final_position_rmse,cumulative_task_reward,cumulative_penalized_return,transmitted_messages,dropped_messages,replay_count,resynchronization_count,topology_switch_count
+0,keep,0.0,0.0,0.0,1.9037328501446749,0.7375506824802596,0.7375506824802596,8.0,0.0,8.0,0.0,0.0
+1,keep,0.0,0.0,0.0,1.1548761141954915,2.9245887659138714,2.9245887659138714,8.0,0.0,8.0,0.0,0.0
+0,keep,0.0,0.1,0.0,1.9037328501446749,0.7375506824802596,0.7375506824802596,8.0,0.0,8.0,0.0,0.0
+1,keep,0.0,0.1,0.0,1.1548761141954915,2.9245887659138714,2.9245887659138714,8.0,0.0,8.0,0.0,0.0

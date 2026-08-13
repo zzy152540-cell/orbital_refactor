@@ -1,0 +1,2 @@
+﻿seed,policy,communication_weight,topology_switch_weight,resynchronization_weight,final_position_rmse,cumulative_task_reward,cumulative_penalized_return,transmitted_messages,dropped_messages,replay_count,resynchronization_count,topology_switch_count
+1,short_horizon_oracle,0.0,0.25,0.0,1.1548761141954915,2.9245887659138714,2.9245887659138714,8.0,0.0,8.0,0.0,0.0
