@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from copy import deepcopy
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -103,6 +104,33 @@ class SnapshotGraphActionTrainingResult:
     initial_validation: SnapshotGraphActionEvaluation
     final_training: SnapshotGraphActionEvaluation
     best_validation: SnapshotGraphActionEvaluation
+
+
+def save_snapshot_action_checkpoint(
+    result: SnapshotGraphActionTrainingResult,
+    dataset: SnapshotActionTensorDataset,
+    output_path: str | Path,
+    *, configuration: dict,
+) -> Path:
+    """Save a warm-start-compatible hierarchical snapshot checkpoint."""
+
+    if configuration.get("loss_mode") != "hierarchical":
+        raise ValueError("PPO warm start requires a hierarchical checkpoint.")
+    if not dataset.groups:
+        raise ValueError("Checkpoint dataset cannot be empty.")
+    sample = torch_snapshot_action_group(dataset.groups[0])
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({
+        "model_state_dict": result.model.state_dict(),
+        "configuration": dict(configuration),
+        "feature_version": dataset.feature_version,
+        "node_feature_count": sample.node_features.shape[1],
+        "edge_feature_count": sample.candidate_edge_features.shape[1],
+        "global_feature_count": len(dataset.global_feature_names),
+        "action_feature_count": sample.action_features.shape[1],
+    }, path)
+    return path
 
 
 def torch_graph_action_group(

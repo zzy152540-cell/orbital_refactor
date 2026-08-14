@@ -1,6 +1,9 @@
 import numpy as np
 
-from experiments.topology_control_environment import TopologyControlEnvironment
+from experiments.topology_control_environment import (
+    CompactFleetScenarioDistribution,
+    TopologyControlEnvironment,
+)
 from scenarios.measurement_visibility import VisibilityConfig
 
 
@@ -190,3 +193,40 @@ def test_stage1_conditions_are_seeded_and_expose_navigation_availability():
         if step.terminated:
             break
     assert any((values == 0.0).any() for values in observed[1:])
+
+
+def test_compact_scenario_distribution_supports_seeded_five_node_faults():
+    distribution = CompactFleetScenarioDistribution(
+        packet_loss_range=(0.1, 0.1),
+        communication_delay_range=(1.5, 1.5),
+        navigation_dropout_node_count=2,
+    )
+    environment = TopologyControlEnvironment(
+        node_count=5, episode_epochs=6, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+        compact_scenario_distribution=distribution,
+    )
+    environment.reset(seed=12)
+    first = environment._episode_conditions
+    environment.reset(seed=12)
+    assert environment._episode_conditions == first
+    assert first["packet_loss"] == 0.1
+    assert first["communication_delay"] == 1.5
+    assert len(first["navigation_dropout_by_node"]) == 2
+
+
+def test_compact_scenario_distribution_samples_initial_topology_family():
+    distribution = CompactFleetScenarioDistribution(
+        initial_topology_types=("chain", "ring", "star"),
+    )
+    observed = set()
+    for seed in range(12):
+        environment = TopologyControlEnvironment(
+            node_count=5, episode_epochs=2, relative_modalities=("RANGE",),
+            randomize_stage1_conditions=True,
+            compact_scenario_distribution=distribution,
+        )
+        state = environment.reset(seed=seed)
+        observed.add(environment._episode_conditions["initial_topology_type"])
+        assert len(state.observation.previous_active_edges) in {4, 5}
+    assert observed == {"chain", "ring", "star"}

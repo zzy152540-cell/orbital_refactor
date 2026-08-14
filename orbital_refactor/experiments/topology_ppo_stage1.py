@@ -11,7 +11,10 @@ from experiments.topology_control_baselines import (
     InformationGreedyPolicy,
     run_topology_control_baseline_episode,
 )
-from experiments.topology_control_environment import TopologyControlEnvironment
+from experiments.topology_control_environment import (
+    CompactFleetScenarioDistribution,
+    TopologyControlEnvironment,
+)
 from experiments.topology_ppo import (
     PPOUpdateResult,
     TopologyActorCritic,
@@ -43,6 +46,8 @@ class Stage1PenaltyWeights:
 
 @dataclass(frozen=True)
 class Stage1Configuration:
+    node_count: int = 3
+    top_k_candidate_neighbors: int | None = None
     training_episodes: int = 40
     episode_epochs: int = 12
     decision_interval_epochs: int = 2
@@ -59,6 +64,43 @@ class Stage1Configuration:
     entropy_coefficient: float = 0.01
     cost_normalization: Stage1CostNormalization = Stage1CostNormalization()
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
+    scenario_distribution: CompactFleetScenarioDistribution = (
+        CompactFleetScenarioDistribution()
+    )
+
+
+@dataclass(frozen=True)
+class Stage1SeedSplit:
+    training: tuple[int, ...] = tuple(range(64))
+    validation: tuple[int, ...] = tuple(range(100, 116))
+    test: tuple[int, ...] = tuple(range(200, 216))
+
+    def validate(self) -> None:
+        groups = (self.training, self.validation, self.test)
+        if any(not group or len(set(group)) != len(group) for group in groups):
+            raise ValueError("Stage 1 seed groups must be unique and nonempty.")
+        if any(set(left) & set(right) for index, left in enumerate(groups)
+               for right in groups[index + 1:]):
+            raise ValueError("Stage 1 train/validation/test seeds must be disjoint.")
+
+
+FIVE_NODE_STAGE1_DISTRIBUTION = CompactFleetScenarioDistribution(
+    packet_loss_range=(0.0, 0.2),
+    communication_delay_range=(0.0, 2.0),
+    navigation_dropout_node_count=1,
+    initial_topology_types=("chain", "ring", "star"),
+)
+
+
+def five_node_stage1_configuration(**changes) -> Stage1Configuration:
+    """Return the frozen five-node distribution baseline for PPO pilots."""
+
+    baseline = Stage1Configuration(
+        node_count=5,
+        top_k_candidate_neighbors=2,
+        scenario_distribution=FIVE_NODE_STAGE1_DISTRIBUTION,
+    )
+    return replace(baseline, **changes)
 
 
 @dataclass(frozen=True)
@@ -133,19 +175,23 @@ class Stage1TrainingSeedRecord:
 
 def build_stage1_environment(configuration: Stage1Configuration):
     return TopologyControlEnvironment(
-        node_count=3, episode_epochs=configuration.episode_epochs,
+        node_count=configuration.node_count,
+        episode_epochs=configuration.episode_epochs,
         decision_interval_epochs=configuration.decision_interval_epochs,
         relative_modalities=("RANGE",),
         minimum_topology_dwell_decisions=(
             configuration.minimum_topology_dwell_decisions
         ),
         randomize_stage1_conditions=True,
+        top_k_candidate_neighbors=configuration.top_k_candidate_neighbors,
+        compact_scenario_distribution=configuration.scenario_distribution,
     )
 
 
 def train_stage1_ppo(
     configuration: Stage1Configuration = Stage1Configuration(),
     *, warm_start_checkpoint: str | None = None,
+    reset_warm_start_type_head: bool = True,
 ) -> Stage1TrainingResult:
     """Train multi-decision PPO over reproducible randomized fault episodes."""
 
@@ -159,7 +205,7 @@ def train_stage1_ppo(
         build_warm_started_actor_critic(
             warm_start_checkpoint,
             node_feature_count=group.node_features.shape[1],
-            reset_type_head=True,
+            reset_type_head=reset_warm_start_type_head,
         )
         if warm_start_checkpoint is not None
         else TopologyActorCritic(
@@ -440,6 +486,14 @@ def _validate_configuration(configuration):
     )
     if any(value <= 0 for value in positive):
         raise ValueError("Stage 1 horizons, seed count, and cost scales must be positive.")
+    if configuration.node_count not in {3, 5}:
+        raise ValueError("Stage 1 compact-fleet training supports 3 or 5 nodes.")
+    if (
+        configuration.top_k_candidate_neighbors is not None
+        and configuration.top_k_candidate_neighbors < 0
+    ):
+        raise ValueError("Stage 1 Top-K candidate count cannot be negative.")
+    configuration.scenario_distribution.validate(configuration.node_count)
     weights = configuration.penalty_weights
     if min(weights.communication, weights.topology_switch, weights.resynchronization) < 0:
         raise ValueError("Stage 1 penalty weights must be nonnegative.")

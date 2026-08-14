@@ -6,7 +6,12 @@ import numpy as np
 
 from cooperative.network_schmidt_orchestrator import NetworkSchmidtOrchestrator
 from cooperative.online_graph_observation import build_online_graph_observation
-from cooperative.topology import chain_topology, fully_connected_topology
+from cooperative.topology import (
+    chain_topology,
+    fully_connected_topology,
+    ring_topology,
+    star_topology,
+)
 from cooperative.topology_action_space import (
     ResolvedTopologyAction,
     TopologyActionSpace,
@@ -68,6 +73,35 @@ class TopologyEnvironmentStep:
     diagnostics: tuple[tuple[str, float], ...]
 
 
+@dataclass(frozen=True)
+class CompactFleetScenarioDistribution:
+    """Seeded Stage-1 disturbance distribution for compact fleets."""
+
+    packet_loss_range: tuple[float, float] = (0.0, 0.2)
+    communication_delay_range: tuple[float, float] = (0.0, 2.0)
+    navigation_dropout_node_count: int = 1
+    initial_topology_types: tuple[str, ...] = ("chain",)
+
+    def validate(self, node_count: int) -> None:
+        loss_low, loss_high = self.packet_loss_range
+        delay_low, delay_high = self.communication_delay_range
+        if not (0.0 <= loss_low <= loss_high <= 1.0):
+            raise ValueError("Packet-loss range must lie within [0, 1].")
+        if not (0.0 <= delay_low <= delay_high):
+            raise ValueError("Communication-delay range must be nonnegative.")
+        if not 0 <= self.navigation_dropout_node_count <= node_count:
+            raise ValueError("Navigation-dropout count exceeds fleet size.")
+        supported = {"chain", "ring", "star"}
+        if (
+            not self.initial_topology_types
+            or set(self.initial_topology_types) - supported
+            or len(set(self.initial_topology_types)) != len(
+                self.initial_topology_types
+            )
+        ):
+            raise ValueError("Initial topology types must be unique supported names.")
+
+
 class TopologyControlEnvironment:
     """Minimal truth-safe observation / truth-aware training environment."""
 
@@ -82,6 +116,7 @@ class TopologyControlEnvironment:
         scenario_type: str = "compact_fleet",
         walker_maximum_range: float = 7000e3,
         randomize_stage1_conditions: bool = False,
+        compact_scenario_distribution: CompactFleetScenarioDistribution | None = None,
     ) -> None:
         if scenario_type not in {"compact_fleet", "walker_20_5_3"}:
             raise ValueError("Unsupported topology environment scenario type.")
@@ -110,6 +145,10 @@ class TopologyControlEnvironment:
         self.scenario_type = scenario_type
         self.walker_maximum_range = float(walker_maximum_range)
         self.randomize_stage1_conditions = bool(randomize_stage1_conditions)
+        self.compact_scenario_distribution = (
+            compact_scenario_distribution or CompactFleetScenarioDistribution()
+        )
+        self.compact_scenario_distribution.validate(self.node_count)
         self._case = self._orchestrator = None
 
     def reset(self, *, seed: int = 0) -> TopologyEnvironmentState:
@@ -187,7 +226,10 @@ class TopologyControlEnvironment:
                 self._episode_conditions["navigation_dropout_by_node"]
             ),
         )
-        baseline = chain_topology(candidate.node_ids)
+        baseline = _compact_initial_topology(
+            candidate.node_ids,
+            self._episode_conditions["initial_topology_type"],
+        )
         return candidate, baseline, case
 
     def step(self, action_id: int) -> TopologyEnvironmentStep:
@@ -340,21 +382,38 @@ class TopologyControlEnvironment:
                 "packet_loss": self.packet_loss,
                 "communication_delay": self.communication_delay,
                 "navigation_dropout_by_node": {},
+                "initial_topology_type": "chain",
             }
         if self.scenario_type != "compact_fleet":
             raise ValueError("Stage 1 randomization currently supports compact fleets.")
         rng = np.random.default_rng(20260901 + seed)
-        node = f"sat_{int(rng.integers(1, self.node_count + 1)):02d}"
+        distribution = self.compact_scenario_distribution
+        topology_types = distribution.initial_topology_types
+        initial_topology_type = (
+            topology_types[0]
+            if len(topology_types) == 1
+            else str(rng.choice(topology_types))
+        )
+        dropout_count = distribution.navigation_dropout_node_count
+        dropout_indices = rng.choice(
+            self.node_count, size=dropout_count, replace=False
+        )
         start_epoch = int(rng.integers(1, max(2, self.episode_epochs // 2 + 1)))
         end_epoch = int(rng.integers(
             start_epoch + 1, self.episode_epochs + 1
         ))
         return {
-            "packet_loss": float(rng.uniform(0.0, 0.2)),
-            "communication_delay": float(rng.uniform(0.0, 2.0)),
+            "packet_loss": float(rng.uniform(*distribution.packet_loss_range)),
+            "communication_delay": float(rng.uniform(
+                *distribution.communication_delay_range
+            )),
             "navigation_dropout_by_node": {
-                node: ((start_epoch * self.dt, end_epoch * self.dt),)
+                f"sat_{int(index) + 1:02d}": (
+                    (start_epoch * self.dt, end_epoch * self.dt),
+                )
+                for index in dropout_indices
             },
+            "initial_topology_type": initial_topology_type,
         }
 
     def _node_navigation_is_in_dropout(self, node, timestamp):
@@ -378,6 +437,15 @@ def _topology_edges(topology):
         tuple(sorted((node, neighbor)))
         for node in topology.node_ids for neighbor in topology.neighbors(node)
     }))
+
+
+def _compact_initial_topology(node_ids, topology_type):
+    builders = {
+        "chain": chain_topology,
+        "ring": ring_topology,
+        "star": star_topology,
+    }
+    return builders[topology_type](node_ids)
 
 
 def _topology_from_edges(node_ids, edges):

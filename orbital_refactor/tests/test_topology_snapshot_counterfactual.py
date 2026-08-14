@@ -1,3 +1,5 @@
+import torch
+
 from experiments.topology_control_baselines import AlwaysKeepPolicy
 from experiments.topology_control_environment import TopologyControlEnvironment
 from experiments.topology_snapshot_counterfactual import (
@@ -15,6 +17,7 @@ from experiments.graph_action_gnn import (
     overfit_single_snapshot_action_group,
     torch_snapshot_action_group,
     train_snapshot_action_network,
+    save_snapshot_action_checkpoint,
 )
 
 
@@ -126,6 +129,33 @@ def test_snapshot_dataset_training_keeps_validation_seed_disjoint():
     assert 0 <= result.best_epoch <= result.epochs_run <= 40
     assert result.best_validation.mean_loss <= result.initial_validation.mean_loss
     assert result.best_validation.mean_oracle_regret >= 0.0
+
+
+def test_hierarchical_snapshot_checkpoint_is_warm_start_compatible(tmp_path):
+    dataset = build_topology_snapshot_tensor_dataset(
+        TopologyControlEnvironment(
+            node_count=3, episode_epochs=2, relative_modalities=("RANGE",),
+        ), seeds=(0, 1), decision_epochs=(0,),
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+    )
+    split = split_topology_snapshot_dataset_by_seed(
+        dataset, training_seeds=(0,), validation_seeds=(1,),
+    )
+    result = train_snapshot_action_network(
+        split.training, split.validation, epochs=1, patience=1,
+        hidden_size=16, loss_mode="hierarchical",
+    )
+    path = save_snapshot_action_checkpoint(
+        result, split.training, tmp_path / "initializer.pt",
+        configuration={
+            "hidden_size": 16, "message_passing_steps": 2,
+            "explicit_action_pairing": True, "loss_mode": "hierarchical",
+        },
+    )
+    assert path.exists()
+    checkpoint = torch.load(path, map_location="cpu", weights_only=True)
+    assert checkpoint["configuration"]["loss_mode"] == "hierarchical"
+    assert checkpoint["node_feature_count"] == len(dataset.node_feature_names)
 
 
 def test_snapshot_dataset_round_trip_is_pickle_free_and_exact(tmp_path):

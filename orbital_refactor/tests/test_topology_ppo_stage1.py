@@ -1,12 +1,15 @@
 import numpy as np
+from pathlib import Path
 
 from experiments.topology_ppo import collect_topology_rollout
 from experiments.topology_ppo_stage1 import (
     Stage1Configuration,
+    Stage1SeedSplit,
     apply_stage1_penalties,
     build_stage1_environment,
     compare_stage1_training_seeds,
     evaluate_stage1_policies,
+    five_node_stage1_configuration,
     scan_stage1_penalty_sensitivity,
     train_stage1_ppo,
 )
@@ -29,6 +32,44 @@ def test_stage1_penalties_are_normalized_and_do_not_double_count_replay():
         )
         np.testing.assert_allclose(adjusted.reward, expected)
         assert adjusted.costs == original.costs
+
+
+def test_stage1_environment_configuration_selects_fleet_and_candidate_bound():
+    configuration = Stage1Configuration(
+        node_count=5, top_k_candidate_neighbors=1, training_episodes=1,
+    )
+    environment = build_stage1_environment(configuration)
+    state = environment.reset(seed=0)
+    assert environment.node_count == 5
+    assert environment.top_k_candidate_neighbors == 1
+    assert len(state.observation.nodes) == 5
+
+
+def test_five_node_baseline_freezes_distribution_and_disjoint_seed_split():
+    configuration = five_node_stage1_configuration(training_episodes=1)
+    assert configuration.node_count == 5
+    assert configuration.top_k_candidate_neighbors == 2
+    assert configuration.scenario_distribution.initial_topology_types == (
+        "chain", "ring", "star",
+    )
+    split = Stage1SeedSplit()
+    split.validate()
+    assert not set(split.training) & set(split.validation)
+    assert not set(split.validation) & set(split.test)
+
+
+def test_stage1_warm_start_can_preserve_same_task_type_head():
+    configuration = Stage1Configuration(
+        training_episodes=1, episode_epochs=2, update_epochs=1,
+    )
+    checkpoint = Path(
+        "results/v15_walker_gnn_hierarchical_seed00_05_val06_07.pt"
+    )
+    result = train_stage1_ppo(
+        configuration, warm_start_checkpoint=str(checkpoint),
+        reset_warm_start_type_head=False,
+    )
+    assert len(result.diagnostics) == 1
 
 
 def test_stage1_training_cycles_randomized_seeds_and_records_two_level_entropy():
