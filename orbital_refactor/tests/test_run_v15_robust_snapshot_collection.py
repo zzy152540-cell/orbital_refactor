@@ -15,6 +15,8 @@ def test_robust_snapshot_collection_cli_writes_restartable_shard(tmp_path):
     ])
     assert result == output
     dataset = load_topology_snapshot_tensor_dataset(output)
-    assert dataset.feature_version == "v15.1-noise-robust-snapshot-action-value"
+    assert dataset.feature_version == (
+        "v15.4-noise-robust-moments-snapshot-action-value"
+    )
     assert len(dataset.groups) == 1
     assert dataset.groups[0].seed == 30

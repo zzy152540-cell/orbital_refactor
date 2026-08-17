@@ -106,6 +106,32 @@ class SnapshotGraphActionTrainingResult:
     best_validation: SnapshotGraphActionEvaluation
 
 
+@dataclass(frozen=True)
+class SnapshotMomentEvaluation:
+    group_count: int
+    action_count: int
+    mean_loss: float
+    mean_gain_rmse: float
+    standard_deviation_rmse: float
+    mean_gain_correlation: float | None
+    standard_deviation_correlation: float | None
+    negative_gain_precision: float
+    negative_gain_recall: float
+    positive_gain_recall: float
+
+
+@dataclass(frozen=True)
+class SnapshotMomentTrainingResult:
+    model: "GraphActionValueNetwork"
+    target_scale: float
+    best_epoch: int
+    epochs_run: int
+    initial_training: SnapshotMomentEvaluation
+    initial_validation: SnapshotMomentEvaluation
+    final_training: SnapshotMomentEvaluation
+    best_validation: SnapshotMomentEvaluation
+
+
 def save_snapshot_action_checkpoint(
     result: SnapshotGraphActionTrainingResult,
     dataset: SnapshotActionTensorDataset,
@@ -587,6 +613,331 @@ def train_snapshot_action_network(
             model, validation.groups, validation_groups, loss_mode=loss_mode
         ),
     )
+
+
+def train_snapshot_moment_network(
+    training: SnapshotActionTensorDataset,
+    validation: SnapshotActionTensorDataset,
+    *,
+    epochs: int = 200,
+    learning_rate: float = 1e-3,
+    hidden_size: int = 32,
+    message_passing_steps: int = 2,
+    patience: int = 40,
+    random_seed: int = 0,
+    explicit_action_pairing: bool = True,
+    standard_deviation_weight: float = 1.0,
+    mean_sign_weight: float = 0.0,
+    training_action_weights=None,
+    validation_action_weights=None,
+) -> SnapshotMomentTrainingResult:
+    """Fit separate robust gain mean and standard-deviation targets offline.
+
+    The two moments use one scale fixed from the training conditions.  Unlike
+    per-group utility normalization, this preserves the zero-gain boundary
+    across states and therefore permits an honest sign-calibration check.
+    """
+
+    if epochs <= 0 or patience <= 0 or learning_rate <= 0.0:
+        raise ValueError("Training epochs, patience, and learning rate must be positive.")
+    if standard_deviation_weight < 0.0:
+        raise ValueError("Standard-deviation weight cannot be negative.")
+    if mean_sign_weight < 0.0:
+        raise ValueError("Mean-sign weight cannot be negative.")
+    if not training.groups or not validation.groups:
+        raise ValueError("Training and validation snapshot sets must be nonempty.")
+    required = {
+        "position_rmse_reduction_mean_vs_keep",
+        "position_rmse_reduction_standard_deviation",
+    }
+    if not required.issubset(training.target_names):
+        raise ValueError("Moment training requires separate mean and deviation targets.")
+    if training.target_names != validation.target_names:
+        raise ValueError("Moment training and validation target schemas differ.")
+    training_seeds = {group.seed for group in training.groups}
+    validation_seeds = {group.seed for group in validation.groups}
+    if training_seeds & validation_seeds:
+        raise ValueError("Snapshot training and validation seeds must be disjoint.")
+    schemas = (
+        training.node_feature_names, training.edge_feature_names,
+        training.global_feature_names, training.action_feature_names,
+    )
+    if schemas != (
+        validation.node_feature_names, validation.edge_feature_names,
+        validation.global_feature_names, validation.action_feature_names,
+    ):
+        raise ValueError("Snapshot training and validation schemas differ.")
+
+    mean_index = training.target_names.index(
+        "position_rmse_reduction_mean_vs_keep"
+    )
+    deviation_index = training.target_names.index(
+        "position_rmse_reduction_standard_deviation"
+    )
+    target_scale = max(
+        max(float(np.max(np.abs(group.targets[:, mean_index])))
+            for group in training.groups),
+        max(float(np.max(group.targets[:, deviation_index]))
+            for group in training.groups),
+        1e-3,
+    )
+    torch.manual_seed(random_seed)
+    training_groups = tuple(torch_snapshot_action_group(group)
+                            for group in training.groups)
+    validation_groups = tuple(torch_snapshot_action_group(group)
+                              for group in validation.groups)
+    training_weights = _snapshot_moment_action_weights(
+        training.groups, training_action_weights
+    )
+    validation_weights = _snapshot_moment_action_weights(
+        validation.groups, validation_action_weights
+    )
+    sample = training_groups[0]
+    model = GraphActionValueNetwork(
+        node_feature_count=sample.node_features.shape[1],
+        candidate_edge_feature_count=sample.candidate_edge_features.shape[1],
+        measurement_feature_count=sample.measurement_features.shape[1],
+        action_feature_count=sample.action_features.shape[1],
+        hidden_size=hidden_size, message_passing_steps=message_passing_steps,
+        explicit_action_pairing=explicit_action_pairing,
+    )
+    evaluation = lambda groups, tensors, weights: evaluate_snapshot_moment_network(
+        model, groups, tensors, target_scale=target_scale,
+        standard_deviation_weight=standard_deviation_weight,
+        mean_sign_weight=mean_sign_weight,
+        action_weights=weights,
+    )
+    initial_training = evaluation(
+        training.groups, training_groups, training_weights
+    )
+    initial_validation = evaluation(
+        validation.groups, validation_groups, validation_weights
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    best_state, best_epoch = deepcopy(model.state_dict()), 0
+    best_loss, stale, epochs_run = initial_validation.mean_loss, 0, 0
+    for epoch in range(1, epochs + 1):
+        model.train()
+        for index in torch.randperm(len(training_groups)).tolist():
+            optimizer.zero_grad()
+            values = training_groups[index]
+            prediction = model(values)
+            loss = _snapshot_moment_loss(
+                prediction, values.targets[:, mean_index],
+                values.targets[:, deviation_index], target_scale=target_scale,
+                standard_deviation_weight=standard_deviation_weight,
+                mean_sign_weight=mean_sign_weight,
+                action_weights=training_weights[index],
+            )
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            optimizer.step()
+        metrics = evaluation(
+            validation.groups, validation_groups, validation_weights
+        )
+        epochs_run = epoch
+        if metrics.mean_loss < best_loss - 1e-7:
+            best_loss, best_epoch = metrics.mean_loss, epoch
+            best_state, stale = deepcopy(model.state_dict()), 0
+        else:
+            stale += 1
+            if stale >= patience:
+                break
+    model.load_state_dict(best_state)
+    return SnapshotMomentTrainingResult(
+        model=model, target_scale=target_scale, best_epoch=best_epoch,
+        epochs_run=epochs_run,
+        initial_training=initial_training,
+        initial_validation=initial_validation,
+        final_training=evaluation(
+            training.groups, training_groups, training_weights
+        ),
+        best_validation=evaluation(
+            validation.groups, validation_groups, validation_weights
+        ),
+    )
+
+
+def build_snapshot_focus_action_weights(
+    model,
+    dataset: SnapshotActionTensorDataset,
+    *,
+    focused_action_weight: float,
+    hierarchical: bool = True,
+):
+    """Mark actions chosen by one frozen policy without coupling model roles."""
+
+    if focused_action_weight < 1.0:
+        raise ValueError("Focused action weight must be at least one.")
+    weights = []
+    model.eval()
+    with torch.no_grad():
+        for group in dataset.groups:
+            values = torch_snapshot_action_group(group)
+            output = model(values)
+            predicted = output.utility.cpu().numpy()
+            selected = (
+                _select_snapshot_action(output, values, predicted)
+                if hierarchical else int(np.argmax(predicted))
+            )
+            group_weights = np.ones(len(group.action_kinds), dtype=float)
+            group_weights[selected] = focused_action_weight
+            weights.append(group_weights)
+    return tuple(weights)
+
+
+def evaluate_snapshot_moment_network(
+    model,
+    numpy_groups,
+    torch_groups,
+    *,
+    target_scale: float,
+    standard_deviation_weight: float = 1.0,
+    mean_sign_weight: float = 0.0,
+    action_weights=None,
+) -> SnapshotMomentEvaluation:
+    """Evaluate absolute gain sign and uncertainty without selecting actions."""
+
+    if target_scale <= 0.0:
+        raise ValueError("Moment target scale must be positive.")
+    if len(numpy_groups) != len(torch_groups):
+        raise ValueError("NumPy and Torch snapshot groups must align.")
+    if not numpy_groups:
+        raise ValueError("Moment evaluation groups must be nonempty.")
+    mean_index = numpy_groups[0].target_names.index(
+        "position_rmse_reduction_mean_vs_keep"
+    )
+    deviation_index = numpy_groups[0].target_names.index(
+        "position_rmse_reduction_standard_deviation"
+    )
+    weights = _snapshot_moment_action_weights(numpy_groups, action_weights)
+    losses, actual_means, actual_deviations = [], [], []
+    predicted_means, predicted_deviations = [], []
+    model.eval()
+    with torch.no_grad():
+        for group, values, group_weights in zip(
+            numpy_groups, torch_groups, weights
+        ):
+            prediction = model(values)
+            losses.append(float(_snapshot_moment_loss(
+                prediction, values.targets[:, mean_index],
+                values.targets[:, deviation_index], target_scale=target_scale,
+                standard_deviation_weight=standard_deviation_weight,
+                mean_sign_weight=mean_sign_weight,
+                action_weights=group_weights,
+            )))
+            actual_means.extend(group.targets[:, mean_index].tolist())
+            actual_deviations.extend(group.targets[:, deviation_index].tolist())
+            predicted_means.extend(
+                (prediction.utility * target_scale).cpu().tolist()
+            )
+            predicted_deviations.extend(
+                (functional.softplus(prediction.risk_logit) * target_scale)
+                .cpu().tolist()
+            )
+    actual_means = np.asarray(actual_means)
+    actual_deviations = np.asarray(actual_deviations)
+    predicted_means = np.asarray(predicted_means)
+    predicted_deviations = np.asarray(predicted_deviations)
+    actual_negative = actual_means < 0.0
+    predicted_negative = predicted_means < 0.0
+    true_negative = np.sum(actual_negative & predicted_negative)
+    predicted_negative_count = np.sum(predicted_negative)
+    actual_negative_count = np.sum(actual_negative)
+    actual_positive = actual_means > 0.0
+    return SnapshotMomentEvaluation(
+        group_count=len(numpy_groups), action_count=len(actual_means),
+        mean_loss=float(np.mean(losses)),
+        mean_gain_rmse=float(np.sqrt(np.mean(
+            np.square(predicted_means - actual_means)
+        ))),
+        standard_deviation_rmse=float(np.sqrt(np.mean(
+            np.square(predicted_deviations - actual_deviations)
+        ))),
+        mean_gain_correlation=_finite_correlation(
+            actual_means, predicted_means
+        ),
+        standard_deviation_correlation=_finite_correlation(
+            actual_deviations, predicted_deviations
+        ),
+        negative_gain_precision=(
+            float(true_negative / predicted_negative_count)
+            if predicted_negative_count else 0.0
+        ),
+        negative_gain_recall=(
+            float(true_negative / actual_negative_count)
+            if actual_negative_count else 1.0
+        ),
+        positive_gain_recall=(
+            float(np.mean(predicted_means[actual_positive] > 0.0))
+            if np.any(actual_positive) else 1.0
+        ),
+    )
+
+
+def _snapshot_moment_loss(
+    prediction,
+    mean_target,
+    deviation_target,
+    *,
+    target_scale,
+    standard_deviation_weight,
+    mean_sign_weight=0.0,
+    action_weights=None,
+):
+    normalized_mean = mean_target / target_scale
+    normalized_deviation = deviation_target / target_scale
+    mean_errors = functional.smooth_l1_loss(
+        prediction.utility, normalized_mean, reduction="none"
+    )
+    deviation_errors = functional.smooth_l1_loss(
+        functional.softplus(prediction.risk_logit), normalized_deviation,
+        reduction="none",
+    )
+    if action_weights is None:
+        mean_loss = mean_errors.mean()
+        deviation_loss = deviation_errors.mean()
+        sign_loss = functional.binary_cross_entropy_with_logits(
+            prediction.utility / 0.1, (mean_target >= 0.0).to(mean_target.dtype)
+        )
+    else:
+        normalized_weights = action_weights / action_weights.mean()
+        mean_loss = (mean_errors * normalized_weights).mean()
+        deviation_loss = (deviation_errors * normalized_weights).mean()
+        sign_errors = functional.binary_cross_entropy_with_logits(
+            prediction.utility / 0.1, (mean_target >= 0.0).to(mean_target.dtype),
+            reduction="none",
+        )
+        sign_loss = (sign_errors * normalized_weights).mean()
+    return (
+        mean_loss + standard_deviation_weight * deviation_loss
+        + mean_sign_weight * sign_loss
+    )
+
+
+def _snapshot_moment_action_weights(groups, action_weights):
+    if action_weights is None:
+        return tuple(torch.ones(len(group.action_kinds)) for group in groups)
+    values = tuple(action_weights)
+    if len(values) != len(groups):
+        raise ValueError("Moment action weights must align with snapshot groups.")
+    tensors = []
+    for group, weights in zip(groups, values):
+        tensor = torch.as_tensor(
+            np.asarray(weights, dtype=float), dtype=torch.float32
+        )
+        if tensor.ndim != 1 or len(tensor) != len(group.action_kinds):
+            raise ValueError("Moment action weights must align with group actions.")
+        if not torch.all(torch.isfinite(tensor)) or torch.any(tensor <= 0.0):
+            raise ValueError("Moment action weights must be finite and positive.")
+        tensors.append(tensor)
+    return tuple(tensors)
+
+
+def _finite_correlation(actual, predicted):
+    if np.ptp(actual) <= 0.0 or np.ptp(predicted) <= 0.0:
+        return None
+    return float(np.corrcoef(actual, predicted)[0, 1])
 
 
 def evaluate_snapshot_action_network(

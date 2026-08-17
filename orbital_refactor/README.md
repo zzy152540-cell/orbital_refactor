@@ -184,9 +184,21 @@ framework before PPO code is started. V15 proceeds in this order:
 7. Validate by held-out physical scenario, then move from five-node structured
    actions to hierarchical ten- and twenty-satellite Walker decisions.
 
-The project is currently between steps 5 and 6: the Walker-20 hierarchical GNN
-has passed the initial short-episode safety/utility qualification, while full
-RL training and longer held-out closed-loop validation remain future work.
+The project has entered step 6. Hierarchical masked PPO and a frozen
+LCB-reference advantage gate have been implemented and exercised in multi-step
+closed-loop studies. Noise-augmented long-window supervision improves mean
+gain and training-seed robustness, but the current gate has not established
+condition-wise non-degradation: one unseen condition remained harmful for both
+the reference and gated policies.
+
+Robust snapshot datasets now preserve gain mean and standard deviation in
+addition to their composite LCB. A separate offline moment model can apply
+per-action emphasis and mean-sign calibration, but the first reference-action
+safety study remained initialization-sensitive. It is therefore a diagnostic
+research interface, not a deployed absolute `keep` gate. The operational
+baseline remains the relative PPO-versus-LCB advantage gate plus legal `keep`
+fallback; the next qualification step is broader condition-distribution
+coverage without retuning on previously held-out seeds.
 
 ### V15 snapshot collection and GNN environment
 

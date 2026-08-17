@@ -67,6 +67,10 @@ SNAPSHOT_TARGET_NAMES = (
     "position_rmse_reduction_vs_keep", "transmitted_messages",
     "replay_count", "resynchronization_count", "topology_switch_count",
 )
+ROBUST_SNAPSHOT_TARGET_NAMES = SNAPSHOT_TARGET_NAMES + (
+    "position_rmse_reduction_mean_vs_keep",
+    "position_rmse_reduction_standard_deviation",
+)
 SNAPSHOT_ACTION_FEATURE_NAMES = (
     "action_keep", "action_add", "action_swap", "action_remove",
     "active_edge_count", "added_edge_count", "removed_edge_count",
@@ -195,11 +199,20 @@ def build_noise_robust_topology_snapshot_tensor_dataset(
                     )
                 target_rows.append(group.targets)
             stacked_targets = np.stack(target_rows)
-            robust_targets = np.mean(stacked_targets, axis=0)
+            mean_targets = np.mean(stacked_targets, axis=0)
+            gain_standard_deviation = np.std(
+                stacked_targets[:, :, 0], axis=0
+            )
+            robust_targets = mean_targets.copy()
             robust_targets[:, 0] -= (
                 gain_standard_deviation_penalty
-                * np.std(stacked_targets[:, :, 0], axis=0)
+                * gain_standard_deviation
             )
+            robust_targets = np.column_stack((
+                robust_targets,
+                mean_targets[:, 0],
+                gain_standard_deviation,
+            ))
             inputs = samples if include_all_noise_observations else samples[:1]
             groups.extend(replace(
                 group,
@@ -207,25 +220,26 @@ def build_noise_robust_topology_snapshot_tensor_dataset(
                 observation_seed=(
                     noise_seed if include_all_noise_observations else -1
                 ),
+                target_names=ROBUST_SNAPSHOT_TARGET_NAMES,
                 targets=_readonly(robust_targets),
             ) for noise_seed, (group, _) in zip(noises, inputs))
     reference = groups[0]
     return SnapshotActionTensorDataset(
         feature_version=(
-            "v15.3-noise-augmented-lcb-snapshot-action-value"
+            "v15.4-noise-augmented-lcb-moments-snapshot-action-value"
             if include_all_noise_observations
             and gain_standard_deviation_penalty > 0.0
-            else "v15.3-noise-augmented-snapshot-action-value"
+            else "v15.4-noise-augmented-moments-snapshot-action-value"
             if include_all_noise_observations
-            else "v15.1-noise-robust-snapshot-action-value"
+            else "v15.4-noise-robust-moments-snapshot-action-value"
             if gain_standard_deviation_penalty == 0.0
-            else "v15.2-noise-robust-lcb-snapshot-action-value"
+            else "v15.4-noise-robust-lcb-moments-snapshot-action-value"
         ),
         node_feature_names=reference.policy_tensor.node_feature_names,
         edge_feature_names=reference.policy_tensor.edge_feature_names,
         global_feature_names=reference.policy_tensor.global_feature_names,
         action_feature_names=SNAPSHOT_ACTION_FEATURE_NAMES,
-        target_names=SNAPSHOT_TARGET_NAMES,
+        target_names=ROBUST_SNAPSHOT_TARGET_NAMES,
         groups=tuple(groups),
     )
 
@@ -267,11 +281,16 @@ def augment_noise_robust_snapshot_inputs(
             groups.append(replace(
                 current,
                 observation_seed=noise_seed,
+                target_names=dataset.target_names,
                 targets=reference.targets,
             ))
     reference = groups[0]
     return SnapshotActionTensorDataset(
-        feature_version="v15.3-noise-augmented-lcb-snapshot-action-value",
+        feature_version=(
+            "v15.4-noise-augmented-lcb-moments-snapshot-action-value"
+            if "position_rmse_reduction_mean_vs_keep" in dataset.target_names
+            else "v15.3-noise-augmented-lcb-snapshot-action-value"
+        ),
         node_feature_names=reference.policy_tensor.node_feature_names,
         edge_feature_names=reference.policy_tensor.edge_feature_names,
         global_feature_names=reference.policy_tensor.global_feature_names,

@@ -20,6 +20,8 @@ from experiments.graph_action_gnn import (
     overfit_single_snapshot_action_group,
     torch_snapshot_action_group,
     train_snapshot_action_network,
+    train_snapshot_moment_network,
+    build_snapshot_focus_action_weights,
     save_snapshot_action_checkpoint,
     load_snapshot_action_value_checkpoint,
     save_snapshot_action_value_checkpoint,
@@ -74,14 +76,17 @@ def test_noise_robust_dataset_averages_targets_and_splits_by_condition():
         environment, condition_seeds=(30, 31), noise_seeds=(0, 1),
         decision_epochs=(0,), baseline_policy=AlwaysKeepPolicy(),
     )
-    assert dataset.feature_version == "v15.1-noise-robust-snapshot-action-value"
+    assert dataset.feature_version == (
+        "v15.4-noise-robust-moments-snapshot-action-value"
+    )
     assert tuple(group.seed for group in dataset.groups) == (30, 31)
     left = tuple(build_topology_action_snapshot_tensor(
         environment, seed=noise_seed, condition_seed=30, decision_epoch=0,
         baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
     )[0].targets for noise_seed in (0, 1))
     expected = (left[0] + left[1]) / 2.0
-    assert np.allclose(dataset.groups[0].targets, expected)
+    assert np.allclose(dataset.groups[0].targets[:, :5], expected)
+    np.testing.assert_allclose(dataset.groups[0].targets[:, 5], expected[:, 0])
     split = split_topology_snapshot_dataset_by_seed(
         dataset, training_seeds=(30,), validation_seeds=(31,),
     )
@@ -104,9 +109,15 @@ def test_noise_robust_dataset_can_use_lower_confidence_gain_targets():
     )[0].targets for noise_seed in (0, 1)))
     expected_gain = samples[:, :, 0].mean(0) - samples[:, :, 0].std(0)
     assert dataset.feature_version == (
-        "v15.2-noise-robust-lcb-snapshot-action-value"
+        "v15.4-noise-robust-lcb-moments-snapshot-action-value"
     )
     np.testing.assert_allclose(dataset.groups[0].targets[:, 0], expected_gain)
+    np.testing.assert_allclose(
+        dataset.groups[0].targets[:, 5], samples[:, :, 0].mean(0)
+    )
+    np.testing.assert_allclose(
+        dataset.groups[0].targets[:, 6], samples[:, :, 0].std(0)
+    )
 
 
 def test_noise_robust_dataset_can_augment_inputs_without_condition_leakage():
@@ -121,7 +132,7 @@ def test_noise_robust_dataset_can_augment_inputs_without_condition_leakage():
         include_all_noise_observations=True,
     )
     assert dataset.feature_version == (
-        "v15.3-noise-augmented-lcb-snapshot-action-value"
+        "v15.4-noise-augmented-lcb-moments-snapshot-action-value"
     )
     assert tuple(group.seed for group in dataset.groups) == (30, 30, 31, 31)
     assert tuple(group.observation_seed for group in dataset.groups) == (0, 1, 0, 1)
@@ -249,6 +260,49 @@ def test_snapshot_dataset_training_keeps_validation_seed_disjoint():
     assert result.best_validation.mean_oracle_regret >= 0.0
 
 
+def test_snapshot_moment_training_uses_separate_mean_and_deviation_targets():
+    dataset = build_noise_robust_topology_snapshot_tensor_dataset(
+        TopologyControlEnvironment(
+            node_count=3, episode_epochs=2, relative_modalities=("RANGE",),
+        ),
+        condition_seeds=(0, 1), noise_seeds=(0, 1), decision_epochs=(0,),
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+        gain_standard_deviation_penalty=1.0,
+    )
+    split = split_topology_snapshot_dataset_by_seed(
+        dataset, training_seeds=(0,), validation_seeds=(1,),
+    )
+    result = train_snapshot_moment_network(
+        split.training, split.validation, epochs=3, patience=2,
+        hidden_size=8, learning_rate=2e-3, random_seed=0,
+    )
+
+    assert result.target_scale > 0.0
+    assert 0 <= result.best_epoch <= result.epochs_run <= 3
+    assert result.best_validation.action_count > 0
+    assert np.isfinite(result.best_validation.mean_gain_rmse)
+    assert np.isfinite(result.best_validation.standard_deviation_rmse)
+    assert 0.0 <= result.best_validation.negative_gain_recall <= 1.0
+    weights = build_snapshot_focus_action_weights(
+        result.model, split.training, focused_action_weight=4.0,
+        hierarchical=False,
+    )
+    assert len(weights) == len(split.training.groups)
+    assert all(np.count_nonzero(group_weights == 4.0) == 1
+               for group_weights in weights)
+    weighted = train_snapshot_moment_network(
+        split.training, split.validation, epochs=1, patience=1,
+        hidden_size=8, random_seed=0,
+        mean_sign_weight=0.1,
+        training_action_weights=weights,
+        validation_action_weights=build_snapshot_focus_action_weights(
+            result.model, split.validation, focused_action_weight=4.0,
+            hierarchical=False,
+        ),
+    )
+    assert np.isfinite(weighted.best_validation.mean_loss)
+
+
 def test_hierarchical_snapshot_checkpoint_is_warm_start_compatible(tmp_path):
     dataset = build_topology_snapshot_tensor_dataset(
         TopologyControlEnvironment(
@@ -303,6 +357,8 @@ def test_auxiliary_action_value_checkpoint_round_trips_exactly(tmp_path):
         expected = result.model(group).utility
         actual = loaded(group).utility
     torch.testing.assert_close(actual, expected)
+
+
 
 
 def test_snapshot_dataset_round_trip_is_pickle_free_and_exact(tmp_path):
