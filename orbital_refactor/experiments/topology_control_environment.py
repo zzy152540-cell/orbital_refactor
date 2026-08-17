@@ -112,6 +112,7 @@ class TopologyControlEnvironment:
         packet_loss: float = 0.0, communication_delay: float = 0.0,
         visibility_by_modality=None,
         minimum_topology_dwell_decisions: int = 0,
+        maximum_topology_switches_per_episode: int | None = None,
         top_k_candidate_neighbors: int | None = None,
         scenario_type: str = "compact_fleet",
         walker_maximum_range: float = 7000e3,
@@ -128,6 +129,11 @@ class TopologyControlEnvironment:
             raise ValueError("Environment horizon and time step must be positive.")
         if minimum_topology_dwell_decisions < 0:
             raise ValueError("Minimum topology dwell cannot be negative.")
+        if (
+            maximum_topology_switches_per_episode is not None
+            and maximum_topology_switches_per_episode < 0
+        ):
+            raise ValueError("Maximum topology switches cannot be negative.")
         self.node_count = int(node_count)
         self.episode_epochs = int(episode_epochs)
         self.decision_interval_epochs = int(decision_interval_epochs)
@@ -138,6 +144,10 @@ class TopologyControlEnvironment:
         self.visibility_by_modality = visibility_by_modality
         self.minimum_topology_dwell_decisions = int(
             minimum_topology_dwell_decisions
+        )
+        self.maximum_topology_switches_per_episode = (
+            None if maximum_topology_switches_per_episode is None
+            else int(maximum_topology_switches_per_episode)
         )
         if top_k_candidate_neighbors is not None and top_k_candidate_neighbors < 0:
             raise ValueError("Top-K candidate neighbors cannot be negative.")
@@ -151,8 +161,12 @@ class TopologyControlEnvironment:
         self.compact_scenario_distribution.validate(self.node_count)
         self._case = self._orchestrator = None
 
-    def reset(self, *, seed: int = 0) -> TopologyEnvironmentState:
-        self._episode_conditions = self._sample_episode_conditions(int(seed))
+    def reset(
+        self, *, seed: int = 0, condition_seed: int | None = None,
+    ) -> TopologyEnvironmentState:
+        condition_seed = int(seed if condition_seed is None else condition_seed)
+        self._episode_conditions = self._sample_episode_conditions(condition_seed)
+        self._condition_seed = condition_seed
         candidate, baseline, self._case = self._build_case(int(seed))
         self._source_updates = _source_updates_from_messages(
             self._case["transmitted_messages"], candidate.node_ids
@@ -178,6 +192,7 @@ class TopologyControlEnvironment:
         self._epoch_index = 0
         self._cooldown_remaining = 0
         self._decisions_since_switch = 0
+        self._topology_switch_count = 0
         self._last_metrics = None
         initial_step = self._advance_one_epoch()
         self._last_metrics = self._metrics()
@@ -240,6 +255,7 @@ class TopologyControlEnvironment:
         selected = resolution.executed_action.topology.active_edges
         switched = tuple(selected) != tuple(self._active_edges)
         if switched:
+            self._topology_switch_count += 1
             self._topology_version += 1
             self._active_edges = tuple(selected)
             self._cooldown_remaining = self.minimum_topology_dwell_decisions
@@ -337,6 +353,11 @@ class TopologyControlEnvironment:
                 "minimum_topology_dwell_decisions": float(
                     self.minimum_topology_dwell_decisions
                 ),
+                "topology_switch_count": float(self._topology_switch_count),
+                "topology_switch_budget_remaining": float(
+                    -1 if self._remaining_topology_switch_budget() is None
+                    else self._remaining_topology_switch_budget()
+                ),
             },
             additional_node_metrics_by_node={
                 node: {
@@ -357,6 +378,9 @@ class TopologyControlEnvironment:
             policy_tensor=tensorize_v15_policy_observation(observation),
             action_space=build_topology_action_space(
                 observation, cooldown_remaining=self._cooldown_remaining,
+                topology_switches_remaining=(
+                    self._remaining_topology_switch_budget()
+                ),
                 eligible_addition_edges=eligible,
             ),
         )
@@ -374,6 +398,14 @@ class TopologyControlEnvironment:
         return (
             float(np.sqrt(np.mean(np.asarray(errors) ** 2))),
             float(max(node_rmse)), float(np.mean(logdets)),
+        )
+
+    def _remaining_topology_switch_budget(self):
+        maximum = self.maximum_topology_switches_per_episode
+        return (
+            None
+            if maximum is None
+            else max(0, maximum - self._topology_switch_count)
         )
 
     def _sample_episode_conditions(self, seed):

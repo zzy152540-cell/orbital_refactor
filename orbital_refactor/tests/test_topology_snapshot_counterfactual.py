@@ -39,6 +39,27 @@ def test_snapshot_counterfactual_labels_all_legal_actions_without_mutation(tmp_p
     assert len(path.read_text(encoding="utf-8-sig").splitlines()) == 5
 
 
+def test_snapshot_counterfactual_can_hold_scenario_conditions_fixed():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    left = evaluate_topology_action_snapshot(
+        environment, seed=1, condition_seed=70, decision_epoch=0,
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+    )
+    left_conditions = environment._episode_conditions
+    right = evaluate_topology_action_snapshot(
+        environment, seed=2, condition_seed=70, decision_epoch=0,
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+    )
+    assert environment._episode_conditions == left_conditions
+    assert any(
+        a.final_position_rmse != b.final_position_rmse
+        for a, b in zip(left, right)
+    )
+
+
 def test_snapshot_counterfactual_rejects_epoch_beyond_horizon():
     environment = TopologyControlEnvironment(
         node_count=3, episode_epochs=1, relative_modalities=("RANGE",),

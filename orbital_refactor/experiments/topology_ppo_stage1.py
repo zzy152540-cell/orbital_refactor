@@ -52,6 +52,7 @@ class Stage1Configuration:
     episode_epochs: int = 12
     decision_interval_epochs: int = 2
     minimum_topology_dwell_decisions: int = 1
+    maximum_topology_switches_per_episode: int | None = None
     environment_seed_count: int = 8
     rollout_batch_episodes: int = 8
     minibatch_size: int = 16
@@ -181,6 +182,9 @@ def build_stage1_environment(configuration: Stage1Configuration):
         relative_modalities=("RANGE",),
         minimum_topology_dwell_decisions=(
             configuration.minimum_topology_dwell_decisions
+        ),
+        maximum_topology_switches_per_episode=(
+            configuration.maximum_topology_switches_per_episode
         ),
         randomize_stage1_conditions=True,
         top_k_candidate_neighbors=configuration.top_k_candidate_neighbors,
@@ -493,6 +497,11 @@ def _validate_configuration(configuration):
         and configuration.top_k_candidate_neighbors < 0
     ):
         raise ValueError("Stage 1 Top-K candidate count cannot be negative.")
+    if (
+        configuration.maximum_topology_switches_per_episode is not None
+        and configuration.maximum_topology_switches_per_episode < 0
+    ):
+        raise ValueError("Stage 1 topology-switch budget cannot be negative.")
     configuration.scenario_distribution.validate(configuration.node_count)
     weights = configuration.penalty_weights
     if min(weights.communication, weights.topology_switch, weights.resynchronization) < 0:

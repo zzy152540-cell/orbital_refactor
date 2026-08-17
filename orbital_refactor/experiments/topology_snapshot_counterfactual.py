@@ -75,13 +75,13 @@ SNAPSHOT_ACTION_FEATURE_NAMES = (
 def evaluate_topology_action_snapshot(
     environment: TopologyControlEnvironment, *, seed: int,
     decision_epoch: int, baseline_policy: EnvironmentPolicy,
-    lookahead_steps: int = 2,
+    lookahead_steps: int = 2, condition_seed: int | None = None,
 ) -> tuple[SnapshotActionValueRecord, ...]:
     """Label every legal action at one causal online-environment snapshot."""
 
     if decision_epoch < 0 or lookahead_steps < 1:
         raise ValueError("Decision epoch and lookahead must be nonnegative/positive.")
-    state = environment.reset(seed=seed)
+    state = environment.reset(seed=seed, condition_seed=condition_seed)
     for _ in range(decision_epoch):
         result = environment.step(baseline_policy.select_action(state))
         if result.terminated or result.truncated:

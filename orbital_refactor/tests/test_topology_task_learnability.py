@@ -4,6 +4,7 @@ from experiments.topology_ppo_stage1 import Stage1Configuration
 from experiments.topology_task_learnability import (
     audit_stage1_task_learnability,
     audit_stage1_horizon_stability,
+    audit_noise_conditioned_actions,
 )
 
 
@@ -59,3 +60,20 @@ def test_horizon_stability_audit_reports_action_agreement():
     assert sum(
         count for _, count in audit.kind_transition_counts_one_to_longest
     ) == 2
+
+
+def test_noise_conditioned_audit_separates_conditions_from_noise():
+    configuration = Stage1Configuration(
+        training_episodes=1, episode_epochs=3, decision_interval_epochs=1,
+    )
+    audits = audit_noise_conditioned_actions(
+        configuration, condition_seeds=(30, 31), noise_seeds=(0, 1),
+    )
+    assert tuple(item.condition_seed for item in audits) == (30, 31)
+    assert all(item.noise_sample_count == 2 for item in audits)
+    assert all(item.unique_oracle_action_count >= 1 for item in audits)
+    assert all(np.isfinite(item.robust_action_mean_gain) for item in audits)
+    assert all(
+        0.0 <= item.robust_action_positive_fraction <= 1.0
+        for item in audits
+    )

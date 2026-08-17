@@ -53,6 +53,18 @@ class TopologyHorizonStabilityAudit:
     kind_transition_counts_one_to_longest: tuple[tuple[str, int], ...]
 
 
+@dataclass(frozen=True)
+class NoiseConditionedActionAudit:
+    condition_seed: int
+    noise_sample_count: int
+    unique_oracle_action_count: int
+    oracle_mean_gain: float
+    robust_action_signature: str
+    robust_action_mean_gain: float
+    robust_action_positive_fraction: float
+    robust_to_oracle_gain_ratio: float
+
+
 def audit_stage1_task_learnability(
     configuration: Stage1Configuration,
     *, seeds,
@@ -203,6 +215,72 @@ def audit_stage1_horizon_stability(
         action_agreement_by_horizon_pair=tuple(agreements),
         kind_transition_counts_one_to_longest=tuple(sorted(transitions.items())),
     )
+
+
+def audit_noise_conditioned_actions(
+    configuration: Stage1Configuration,
+    *, condition_seeds, noise_seeds, decision_epoch: int = 0,
+    lookahead_steps: int = 1, minimum_meaningful_gain: float = 1.0e-3,
+) -> tuple[NoiseConditionedActionAudit, ...]:
+    """Compare per-noise Oracle labels with one robust expected-gain action."""
+
+    conditions = tuple(int(seed) for seed in condition_seeds)
+    noises = tuple(int(seed) for seed in noise_seeds)
+    if not conditions or len(set(conditions)) != len(conditions):
+        raise ValueError("Condition seeds must be unique and nonempty.")
+    if not noises or len(set(noises)) != len(noises):
+        raise ValueError("Noise seeds must be unique and nonempty.")
+    if decision_epoch < 0 or lookahead_steps < 1:
+        raise ValueError("Decision epoch/lookahead must be nonnegative/positive.")
+    if minimum_meaningful_gain < 0.0:
+        raise ValueError("Minimum meaningful gain cannot be negative.")
+    audits = []
+    for condition_seed in conditions:
+        gains_by_signature = {}
+        oracle_signatures, oracle_gains = [], []
+        for noise_seed in noises:
+            records = evaluate_topology_action_snapshot(
+                build_stage1_environment(configuration), seed=noise_seed,
+                condition_seed=condition_seed, decision_epoch=decision_epoch,
+                baseline_policy=AlwaysKeepPolicy(),
+                lookahead_steps=lookahead_steps,
+            )
+            best = max(records, key=lambda record: (
+                record.position_rmse_reduction_vs_keep, -record.action_id
+            ))
+            oracle_signatures.append(_action_signature(best))
+            oracle_gains.append(best.position_rmse_reduction_vs_keep)
+            current = {
+                _action_signature(record): record.position_rmse_reduction_vs_keep
+                for record in records
+            }
+            if gains_by_signature and set(current) != set(gains_by_signature):
+                raise ValueError(
+                    "Fixed scenario conditions produced different action spaces."
+                )
+            for signature, gain in current.items():
+                gains_by_signature.setdefault(signature, []).append(float(gain))
+        robust_signature, robust_gains = max(
+            gains_by_signature.items(),
+            key=lambda item: (float(np.mean(item[1])), item[0]),
+        )
+        oracle_mean = float(np.mean(oracle_gains))
+        robust_mean = float(np.mean(robust_gains))
+        audits.append(NoiseConditionedActionAudit(
+            condition_seed=condition_seed,
+            noise_sample_count=len(noises),
+            unique_oracle_action_count=len(set(oracle_signatures)),
+            oracle_mean_gain=oracle_mean,
+            robust_action_signature=robust_signature,
+            robust_action_mean_gain=robust_mean,
+            robust_action_positive_fraction=float(np.mean(
+                np.asarray(robust_gains) > minimum_meaningful_gain
+            )),
+            robust_to_oracle_gain_ratio=(
+                robust_mean / oracle_mean if oracle_mean > 0.0 else 0.0
+            ),
+        ))
+    return tuple(audits)
 
 
 def _penalized_gain(record, keep, configuration):

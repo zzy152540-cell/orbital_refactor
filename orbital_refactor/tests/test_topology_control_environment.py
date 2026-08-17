@@ -148,6 +148,33 @@ def test_environment_enforces_dwell_then_restores_topology_actions():
     )
 
 
+def test_environment_masks_changes_after_episode_switch_budget_is_used():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=4, relative_modalities=("RANGE",),
+        maximum_topology_switches_per_episode=1,
+    )
+    state = environment.reset(seed=0)
+    add_id = next(action.action_id for action in state.action_space.actions
+                  if action.kind == "add")
+    state = environment.step(add_id).state
+    metrics = dict(state.observation.graph_metrics)
+    assert metrics["topology_switch_count"] == 1.0
+    assert metrics["topology_switch_budget_remaining"] == 0.0
+    assert all(
+        allowed == (action.kind == "keep")
+        for action, allowed in zip(
+            state.action_space.actions, state.action_space.legal_mask
+        )
+    )
+    assert all(
+        reason == "topology_switch_budget_exhausted"
+        for action, reason in zip(
+            state.action_space.actions,
+            state.action_space.rejection_reason_by_action,
+        ) if action.kind != "keep"
+    )
+
+
 def test_walker_twenty_environment_uses_sparse_physical_candidates():
     environment = TopologyControlEnvironment(
         node_count=20, episode_epochs=2,
@@ -193,6 +220,22 @@ def test_stage1_conditions_are_seeded_and_expose_navigation_availability():
         if step.terminated:
             break
     assert any((values == 0.0).any() for values in observed[1:])
+
+
+def test_condition_seed_is_independent_from_filter_noise_seed():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    first = environment.reset(seed=1, condition_seed=44)
+    first_conditions = environment._episode_conditions
+    second = environment.reset(seed=2, condition_seed=44)
+    assert environment._episode_conditions == first_conditions
+    assert environment._condition_seed == 44
+    assert not np.allclose(
+        first.policy_tensor.node_features,
+        second.policy_tensor.node_features,
+    )
 
 
 def test_compact_scenario_distribution_supports_seeded_five_node_faults():

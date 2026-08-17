@@ -54,6 +54,7 @@ def build_topology_action_space(
     observation: GraphObservation,
     *, edge_risk_gate: EdgeRiskGate | None = None,
     cooldown_remaining: int = 0,
+    topology_switches_remaining: int | None = None,
     allow_emergency_invisible_removal: bool = True,
     eligible_addition_edges: tuple[UndirectedEdge, ...] | None = None,
 ) -> TopologyActionSpace:
@@ -62,6 +63,9 @@ def build_topology_action_space(
     validate_deployment_graph_observation(observation)
     if cooldown_remaining < 0:
         raise ValueError("Topology cooldown cannot be negative.")
+    if topology_switches_remaining is not None and topology_switches_remaining < 0:
+        raise ValueError("Remaining topology-switch budget cannot be negative.")
+    budget_exhausted = topology_switches_remaining == 0
     node_ids = tuple(node.node_id for node in observation.nodes)
     candidates = tuple(edge.nodes for edge in observation.candidate_edges)
     candidate_set = set(candidates)
@@ -98,6 +102,8 @@ def build_topology_action_space(
         allowed, reason = _edge_allowed(by_edge[added], edge_risk_gate)
         if cooldown_remaining > 0:
             allowed, reason = False, "minimum_dwell_time"
+        if budget_exhausted:
+            allowed, reason = False, "topology_switch_budget_exhausted"
         legal.append(allowed)
         reasons.append(reason)
         for removed in baseline:
@@ -125,8 +131,11 @@ def build_topology_action_space(
             and not by_edge[removed].geometrically_visible
         )
         allowed = cooldown_remaining == 0 or emergency
+        reason = None if allowed else "minimum_dwell_time"
+        if budget_exhausted and not emergency:
+            allowed, reason = False, "topology_switch_budget_exhausted"
         legal.append(allowed)
-        reasons.append(None if allowed else "minimum_dwell_time")
+        reasons.append(reason)
     mask = np.asarray(legal, dtype=bool)
     mask.setflags(write=False)
     return TopologyActionSpace(
