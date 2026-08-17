@@ -233,11 +233,15 @@ class BaselineEpisodeSummary:
 def run_topology_control_baseline_episode(
     environment: TopologyControlEnvironment,
     policy: EnvironmentPolicy,
-    *, seed: int,
+    *, seed: int, condition_seed: int | None = None,
 ) -> BaselineEpisodeSummary:
     """Run one policy without exposing truth-based reward to action selection."""
 
-    state = environment.reset(seed=seed)
+    state = (
+        environment.reset(seed=seed)
+        if condition_seed is None
+        else environment.reset(seed=seed, condition_seed=condition_seed)
+    )
     rewards = []
     costs = []
     kinds = Counter()

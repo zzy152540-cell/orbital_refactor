@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from experiments.topology_control_baselines import AlwaysKeepPolicy
@@ -5,6 +6,7 @@ from experiments.topology_control_environment import TopologyControlEnvironment
 from experiments.topology_snapshot_counterfactual import (
     build_topology_snapshot_tensor_dataset,
     build_online_snapshot_action_tensor,
+    build_noise_robust_topology_snapshot_tensor_dataset,
     build_topology_action_snapshot_tensor,
     evaluate_topology_action_snapshot,
     export_snapshot_action_values,
@@ -58,6 +60,50 @@ def test_snapshot_counterfactual_can_hold_scenario_conditions_fixed():
         a.final_position_rmse != b.final_position_rmse
         for a, b in zip(left, right)
     )
+
+
+def test_noise_robust_dataset_averages_targets_and_splits_by_condition():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    dataset = build_noise_robust_topology_snapshot_tensor_dataset(
+        environment, condition_seeds=(30, 31), noise_seeds=(0, 1),
+        decision_epochs=(0,), baseline_policy=AlwaysKeepPolicy(),
+    )
+    assert dataset.feature_version == "v15.1-noise-robust-snapshot-action-value"
+    assert tuple(group.seed for group in dataset.groups) == (30, 31)
+    left = tuple(build_topology_action_snapshot_tensor(
+        environment, seed=noise_seed, condition_seed=30, decision_epoch=0,
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+    )[0].targets for noise_seed in (0, 1))
+    expected = (left[0] + left[1]) / 2.0
+    assert np.allclose(dataset.groups[0].targets, expected)
+    split = split_topology_snapshot_dataset_by_seed(
+        dataset, training_seeds=(30,), validation_seeds=(31,),
+    )
+    assert len(split.training.groups) == len(split.validation.groups) == 1
+
+
+def test_noise_robust_dataset_can_use_lower_confidence_gain_targets():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    dataset = build_noise_robust_topology_snapshot_tensor_dataset(
+        environment, condition_seeds=(30,), noise_seeds=(0, 1),
+        decision_epochs=(0,), baseline_policy=AlwaysKeepPolicy(),
+        gain_standard_deviation_penalty=1.0,
+    )
+    samples = np.stack(tuple(build_topology_action_snapshot_tensor(
+        environment, seed=noise_seed, condition_seed=30, decision_epoch=0,
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+    )[0].targets for noise_seed in (0, 1)))
+    expected_gain = samples[:, :, 0].mean(0) - samples[:, :, 0].std(0)
+    assert dataset.feature_version == (
+        "v15.2-noise-robust-lcb-snapshot-action-value"
+    )
+    np.testing.assert_allclose(dataset.groups[0].targets[:, 0], expected_gain)
 
 
 def test_snapshot_counterfactual_rejects_epoch_beyond_horizon():

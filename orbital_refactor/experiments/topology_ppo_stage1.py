@@ -57,6 +57,8 @@ class Stage1Configuration:
     rollout_batch_episodes: int = 8
     minibatch_size: int = 16
     environment_seed_offset: int = 0
+    condition_seed_offset: int | None = None
+    condition_seed_count: int | None = None
     policy_seed: int = 0
     learning_rate: float = 3.0e-4
     update_epochs: int = 4
@@ -104,10 +106,31 @@ def five_node_stage1_configuration(**changes) -> Stage1Configuration:
     return replace(baseline, **changes)
 
 
+def five_node_robust_ppo_configuration(**changes) -> Stage1Configuration:
+    """Return the accepted low-variance PPO pilot configuration."""
+
+    baseline = five_node_stage1_configuration(
+        training_episodes=64,
+        episode_epochs=6,
+        decision_interval_epochs=2,
+        environment_seed_count=8,
+        condition_seed_offset=40,
+        condition_seed_count=4,
+        rollout_batch_episodes=32,
+        minibatch_size=16,
+        update_epochs=4,
+        policy_seed=0,
+        learning_rate=1.0e-4,
+        maximum_topology_switches_per_episode=1,
+    )
+    return replace(baseline, **changes)
+
+
 @dataclass(frozen=True)
 class Stage1EpisodeDiagnostic:
     episode: int
     environment_seed: int
+    condition_seed: int
     task_return: float
     penalized_return: float
     final_position_rmse: float
@@ -202,7 +225,15 @@ def train_stage1_ppo(
     _validate_configuration(configuration)
     torch.manual_seed(configuration.policy_seed)
     environment = build_stage1_environment(configuration)
-    state = environment.reset(seed=configuration.environment_seed_offset)
+    initial_condition_seed = (
+        configuration.environment_seed_offset
+        if configuration.condition_seed_offset is None
+        else configuration.condition_seed_offset
+    )
+    state = environment.reset(
+        seed=configuration.environment_seed_offset,
+        condition_seed=initial_condition_seed,
+    )
     snapshot, _ = build_online_snapshot_action_tensor(state)
     group = torch_snapshot_action_group(snapshot)
     model = (
@@ -240,8 +271,10 @@ def train_stage1_ppo(
                 configuration.environment_seed_offset
                 + episode % configuration.environment_seed_count
             )
+            condition_seed = _stage1_condition_seed(configuration, episode)
             rollout = collect_topology_rollout(
-                environment, model, seed=environment_seed, generator=generator,
+                environment, model, seed=environment_seed,
+                condition_seed=condition_seed, generator=generator,
             )
             penalized = apply_stage1_penalties(rollout, configuration)
             batch.append(prepare_topology_rollout(
@@ -250,7 +283,7 @@ def train_stage1_ppo(
                 normalize_advantages=False,
             ))
             batch_metadata.append((
-                episode, environment_seed, rollout, penalized,
+                episode, environment_seed, condition_seed, rollout, penalized,
                 float(environment._metrics()[0]),
             ))
         update = update_topology_ppo(
@@ -262,7 +295,8 @@ def train_stage1_ppo(
             generator=generator,
         )
         for (
-            episode, environment_seed, rollout, penalized, final_rmse
+            episode, environment_seed, condition_seed, rollout, penalized,
+            final_rmse
         ) in batch_metadata:
             costs = rollout.cost_matrix.sum(dim=0)
             entropies = np.asarray([
@@ -274,6 +308,7 @@ def train_stage1_ppo(
             ).distribution.type_probabilities.detach().cpu().numpy()
             diagnostics.append(Stage1EpisodeDiagnostic(
                 episode=episode, environment_seed=environment_seed,
+                condition_seed=condition_seed,
                 task_return=float(rollout.rewards.sum().item()),
                 penalized_return=float(penalized.rewards.sum().item()),
                 final_position_rmse=final_rmse,
@@ -502,7 +537,32 @@ def _validate_configuration(configuration):
         and configuration.maximum_topology_switches_per_episode < 0
     ):
         raise ValueError("Stage 1 topology-switch budget cannot be negative.")
+    if (
+        configuration.condition_seed_count is not None
+        and configuration.condition_seed_count <= 0
+    ):
+        raise ValueError("Stage 1 condition-seed count must be positive.")
+    if (
+        (configuration.condition_seed_offset is None)
+        != (configuration.condition_seed_count is None)
+    ):
+        raise ValueError(
+            "Stage 1 condition-seed offset and count must be set together."
+        )
     configuration.scenario_distribution.validate(configuration.node_count)
     weights = configuration.penalty_weights
     if min(weights.communication, weights.topology_switch, weights.resynchronization) < 0:
         raise ValueError("Stage 1 penalty weights must be nonnegative.")
+
+
+def _stage1_condition_seed(configuration, episode):
+    if configuration.condition_seed_offset is None:
+        return (
+            configuration.environment_seed_offset
+            + episode % configuration.environment_seed_count
+        )
+    return (
+        configuration.condition_seed_offset
+        + (episode // configuration.environment_seed_count)
+        % configuration.condition_seed_count
+    )

@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import json
 from copy import deepcopy
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Iterable
 
@@ -135,11 +135,11 @@ def _evaluate_current_snapshot(
 def build_topology_action_snapshot_tensor(
     environment: TopologyControlEnvironment, *, seed: int,
     decision_epoch: int, baseline_policy: EnvironmentPolicy,
-    lookahead_steps: int = 2,
+    lookahead_steps: int = 2, condition_seed: int | None = None,
 ) -> tuple[SnapshotActionTensorGroup, tuple[SnapshotActionValueRecord, ...]]:
     """Build one no-truth input group aligned with causal future labels."""
 
-    state = environment.reset(seed=seed)
+    state = environment.reset(seed=seed, condition_seed=condition_seed)
     for _ in range(decision_epoch):
         result = environment.step(baseline_policy.select_action(state))
         if result.terminated or result.truncated:
@@ -148,6 +148,74 @@ def build_topology_action_snapshot_tensor(
     return _build_current_snapshot_tensor(
         environment, state, seed=seed, decision_epoch=decision_epoch,
         lookahead_steps=lookahead_steps,
+    )
+
+
+def build_noise_robust_topology_snapshot_tensor_dataset(
+    environment: TopologyControlEnvironment, *, condition_seeds: Iterable[int],
+    noise_seeds: Iterable[int], decision_epochs: Iterable[int],
+    baseline_policy: EnvironmentPolicy, lookahead_steps: int = 1,
+    gain_standard_deviation_penalty: float = 0.0,
+) -> SnapshotActionTensorDataset:
+    """Average action targets over noise while splitting by scenario condition."""
+
+    conditions = tuple(int(value) for value in condition_seeds)
+    noises = tuple(int(value) for value in noise_seeds)
+    epochs = tuple(sorted(int(value) for value in decision_epochs))
+    if not conditions or len(set(conditions)) != len(conditions):
+        raise ValueError("Robust-dataset condition seeds must be unique/nonempty.")
+    if not noises or len(set(noises)) != len(noises):
+        raise ValueError("Robust-dataset noise seeds must be unique/nonempty.")
+    if not epochs or len(set(epochs)) != len(epochs) or min(epochs) < 0:
+        raise ValueError("Robust-dataset decision epochs must be unique/nonnegative.")
+    if lookahead_steps < 1:
+        raise ValueError("Robust-dataset lookahead must be positive.")
+    if gain_standard_deviation_penalty < 0.0:
+        raise ValueError("Gain standard-deviation penalty cannot be negative.")
+    groups = []
+    for condition_seed in conditions:
+        for decision_epoch in epochs:
+            samples = tuple(build_topology_action_snapshot_tensor(
+                deepcopy(environment), seed=noise_seed,
+                condition_seed=condition_seed, decision_epoch=decision_epoch,
+                baseline_policy=baseline_policy,
+                lookahead_steps=lookahead_steps,
+            ) for noise_seed in noises)
+            representative, representative_records = samples[0]
+            signatures = tuple(_record_signature(record)
+                               for record in representative_records)
+            target_rows = []
+            for group, records in samples:
+                current = tuple(_record_signature(record) for record in records)
+                if current != signatures or group.action_kinds != representative.action_kinds:
+                    raise ValueError(
+                        "Fixed conditions produced incompatible robust action spaces."
+                    )
+                target_rows.append(group.targets)
+            stacked_targets = np.stack(target_rows)
+            robust_targets = np.mean(stacked_targets, axis=0)
+            robust_targets[:, 0] -= (
+                gain_standard_deviation_penalty
+                * np.std(stacked_targets[:, :, 0], axis=0)
+            )
+            groups.append(replace(
+                representative,
+                seed=condition_seed,
+                targets=_readonly(robust_targets),
+            ))
+    reference = groups[0]
+    return SnapshotActionTensorDataset(
+        feature_version=(
+            "v15.1-noise-robust-snapshot-action-value"
+            if gain_standard_deviation_penalty == 0.0
+            else "v15.2-noise-robust-lcb-snapshot-action-value"
+        ),
+        node_feature_names=reference.policy_tensor.node_feature_names,
+        edge_feature_names=reference.policy_tensor.edge_feature_names,
+        global_feature_names=reference.policy_tensor.global_feature_names,
+        action_feature_names=SNAPSHOT_ACTION_FEATURE_NAMES,
+        target_names=SNAPSHOT_TARGET_NAMES,
+        groups=tuple(groups),
     )
 
 
@@ -494,6 +562,10 @@ def export_snapshot_action_values(
 
 def _edges_text(edges):
     return ";".join(f"{left}|{right}" for left, right in edges)
+
+
+def _record_signature(record):
+    return (record.action_kind, record.added_edges, record.removed_edges)
 
 
 def _edge_mask(edge_index, selected):

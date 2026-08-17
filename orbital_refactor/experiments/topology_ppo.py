@@ -230,6 +230,7 @@ def collect_topology_rollout(
     model: TopologyActorCritic,
     *,
     seed: int,
+    condition_seed: int | None = None,
     deterministic: bool = False,
     generator: torch.Generator | None = None,
 ) -> TopologyRollout:
@@ -240,7 +241,11 @@ def collect_topology_rollout(
         build_online_snapshot_action_tensor,
     )
 
-    state = environment.reset(seed=seed)
+    state = (
+        environment.reset(seed=seed)
+        if condition_seed is None
+        else environment.reset(seed=seed, condition_seed=condition_seed)
+    )
     transitions = []
     while True:
         snapshot, action_ids = build_online_snapshot_action_tensor(state)

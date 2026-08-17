@@ -10,6 +10,7 @@ from experiments.topology_ppo_stage1 import (
     compare_stage1_training_seeds,
     evaluate_stage1_policies,
     five_node_stage1_configuration,
+    five_node_robust_ppo_configuration,
     scan_stage1_penalty_sensitivity,
     train_stage1_ppo,
 )
@@ -58,6 +59,17 @@ def test_five_node_baseline_freezes_distribution_and_disjoint_seed_split():
     assert not set(split.validation) & set(split.test)
 
 
+def test_five_node_robust_ppo_baseline_uses_low_variance_updates():
+    configuration = five_node_robust_ppo_configuration()
+    assert configuration.node_count == 5
+    assert configuration.maximum_topology_switches_per_episode == 1
+    assert configuration.condition_seed_offset == 40
+    assert configuration.condition_seed_count == 4
+    assert configuration.environment_seed_count == 8
+    assert configuration.rollout_batch_episodes == 32
+    assert configuration.learning_rate == 1.0e-4
+
+
 def test_stage1_warm_start_can_preserve_same_task_type_head():
     configuration = Stage1Configuration(
         training_episodes=1, episode_epochs=2, update_epochs=1,
@@ -80,6 +92,7 @@ def test_stage1_training_cycles_randomized_seeds_and_records_two_level_entropy()
     )
     result = train_stage1_ppo(configuration)
     assert tuple(item.environment_seed for item in result.diagnostics) == (0, 1, 0)
+    assert tuple(item.condition_seed for item in result.diagnostics) == (0, 1, 0)
     assert all(
         np.isfinite(item.task_return)
         and np.isfinite(item.penalized_return)
@@ -92,6 +105,21 @@ def test_stage1_training_cycles_randomized_seeds_and_records_two_level_entropy()
         <= item.update.transition_count
         and item.update.epochs_run == 1
         for item in result.diagnostics
+    )
+
+
+def test_stage1_training_cycles_cartesian_condition_and_noise_seeds():
+    configuration = Stage1Configuration(
+        training_episodes=5, episode_epochs=2, decision_interval_epochs=1,
+        environment_seed_count=2, condition_seed_offset=40,
+        condition_seed_count=2, rollout_batch_episodes=2, update_epochs=1,
+    )
+    result = train_stage1_ppo(configuration)
+    assert tuple(item.environment_seed for item in result.diagnostics) == (
+        0, 1, 0, 1, 0,
+    )
+    assert tuple(item.condition_seed for item in result.diagnostics) == (
+        40, 40, 41, 41, 40,
     )
     assert all(
         item.penalized_return <= item.task_return + 1e-7
