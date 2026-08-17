@@ -7,6 +7,7 @@ from experiments.topology_snapshot_counterfactual import (
     build_topology_snapshot_tensor_dataset,
     build_online_snapshot_action_tensor,
     build_noise_robust_topology_snapshot_tensor_dataset,
+    augment_noise_robust_snapshot_inputs,
     build_topology_action_snapshot_tensor,
     evaluate_topology_action_snapshot,
     export_snapshot_action_values,
@@ -106,6 +107,54 @@ def test_noise_robust_dataset_can_use_lower_confidence_gain_targets():
         "v15.2-noise-robust-lcb-snapshot-action-value"
     )
     np.testing.assert_allclose(dataset.groups[0].targets[:, 0], expected_gain)
+
+
+def test_noise_robust_dataset_can_augment_inputs_without_condition_leakage():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    dataset = build_noise_robust_topology_snapshot_tensor_dataset(
+        environment, condition_seeds=(30, 31), noise_seeds=(0, 1),
+        decision_epochs=(0,), baseline_policy=AlwaysKeepPolicy(),
+        gain_standard_deviation_penalty=1.0,
+        include_all_noise_observations=True,
+    )
+    assert dataset.feature_version == (
+        "v15.3-noise-augmented-lcb-snapshot-action-value"
+    )
+    assert tuple(group.seed for group in dataset.groups) == (30, 30, 31, 31)
+    assert tuple(group.observation_seed for group in dataset.groups) == (0, 1, 0, 1)
+    np.testing.assert_allclose(
+        dataset.groups[0].targets, dataset.groups[1].targets
+    )
+    split = split_topology_snapshot_dataset_by_seed(
+        dataset, training_seeds=(30,), validation_seeds=(31,),
+    )
+    assert len(split.training.groups) == len(split.validation.groups) == 2
+
+
+def test_existing_robust_targets_can_be_noise_augmented_without_relabeling():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+    )
+    robust = build_noise_robust_topology_snapshot_tensor_dataset(
+        environment, condition_seeds=(30, 31), noise_seeds=(0, 1),
+        decision_epochs=(0,), baseline_policy=AlwaysKeepPolicy(),
+        gain_standard_deviation_penalty=1.0,
+    )
+    augmented = augment_noise_robust_snapshot_inputs(
+        environment, robust, noise_seeds=(0, 1),
+        baseline_policy=AlwaysKeepPolicy(),
+    )
+    assert len(augmented.groups) == 4
+    for index, reference in enumerate(robust.groups):
+        pair = augmented.groups[2 * index:2 * index + 2]
+        assert {group.observation_seed for group in pair} == {0, 1}
+        assert all(group.seed == reference.seed for group in pair)
+        assert all(np.array_equal(group.targets, reference.targets)
+                   for group in pair)
 
 
 def test_snapshot_counterfactual_rejects_epoch_beyond_horizon():

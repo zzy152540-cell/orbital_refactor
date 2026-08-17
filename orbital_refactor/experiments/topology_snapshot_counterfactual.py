@@ -43,6 +43,7 @@ class SnapshotActionTensorGroup:
     removed_edge_mask: np.ndarray
     target_names: tuple[str, ...]
     targets: np.ndarray
+    observation_seed: int = -1
 
 
 @dataclass(frozen=True)
@@ -156,6 +157,7 @@ def build_noise_robust_topology_snapshot_tensor_dataset(
     noise_seeds: Iterable[int], decision_epochs: Iterable[int],
     baseline_policy: EnvironmentPolicy, lookahead_steps: int = 1,
     gain_standard_deviation_penalty: float = 0.0,
+    include_all_noise_observations: bool = False,
 ) -> SnapshotActionTensorDataset:
     """Average action targets over noise while splitting by scenario condition."""
 
@@ -198,15 +200,24 @@ def build_noise_robust_topology_snapshot_tensor_dataset(
                 gain_standard_deviation_penalty
                 * np.std(stacked_targets[:, :, 0], axis=0)
             )
-            groups.append(replace(
-                representative,
+            inputs = samples if include_all_noise_observations else samples[:1]
+            groups.extend(replace(
+                group,
                 seed=condition_seed,
+                observation_seed=(
+                    noise_seed if include_all_noise_observations else -1
+                ),
                 targets=_readonly(robust_targets),
-            ))
+            ) for noise_seed, (group, _) in zip(noises, inputs))
     reference = groups[0]
     return SnapshotActionTensorDataset(
         feature_version=(
-            "v15.1-noise-robust-snapshot-action-value"
+            "v15.3-noise-augmented-lcb-snapshot-action-value"
+            if include_all_noise_observations
+            and gain_standard_deviation_penalty > 0.0
+            else "v15.3-noise-augmented-snapshot-action-value"
+            if include_all_noise_observations
+            else "v15.1-noise-robust-snapshot-action-value"
             if gain_standard_deviation_penalty == 0.0
             else "v15.2-noise-robust-lcb-snapshot-action-value"
         ),
@@ -215,6 +226,57 @@ def build_noise_robust_topology_snapshot_tensor_dataset(
         global_feature_names=reference.policy_tensor.global_feature_names,
         action_feature_names=SNAPSHOT_ACTION_FEATURE_NAMES,
         target_names=SNAPSHOT_TARGET_NAMES,
+        groups=tuple(groups),
+    )
+
+
+def augment_noise_robust_snapshot_inputs(
+    environment: TopologyControlEnvironment,
+    dataset: SnapshotActionTensorDataset,
+    *,
+    noise_seeds: Iterable[int],
+    baseline_policy: EnvironmentPolicy,
+) -> SnapshotActionTensorDataset:
+    """Pair fixed robust targets with every compatible noisy online input."""
+
+    noises = tuple(int(value) for value in noise_seeds)
+    if not noises or len(set(noises)) != len(noises):
+        raise ValueError("Noise-augmentation seeds must be unique/nonempty.")
+    if not dataset.groups:
+        raise ValueError("Noise augmentation requires a nonempty dataset.")
+    groups = []
+    for reference in dataset.groups:
+        for noise_seed in noises:
+            branch = deepcopy(environment)
+            state = branch.reset(
+                seed=noise_seed, condition_seed=reference.seed
+            )
+            for _ in range(reference.decision_epoch):
+                step = branch.step(baseline_policy.select_action(state))
+                if step.terminated or step.truncated:
+                    raise ValueError("Decision epoch lies beyond the episode horizon.")
+                state = step.state
+            current, _ = build_online_snapshot_action_tensor(
+                state, seed=reference.seed,
+                decision_epoch=reference.decision_epoch,
+            )
+            if not _snapshot_action_spaces_match(reference, current):
+                raise ValueError(
+                    "Noise augmentation produced an incompatible action space."
+                )
+            groups.append(replace(
+                current,
+                observation_seed=noise_seed,
+                targets=reference.targets,
+            ))
+    reference = groups[0]
+    return SnapshotActionTensorDataset(
+        feature_version="v15.3-noise-augmented-lcb-snapshot-action-value",
+        node_feature_names=reference.policy_tensor.node_feature_names,
+        edge_feature_names=reference.policy_tensor.edge_feature_names,
+        global_feature_names=reference.policy_tensor.global_feature_names,
+        action_feature_names=dataset.action_feature_names,
+        target_names=dataset.target_names,
         groups=tuple(groups),
     )
 
@@ -412,7 +474,9 @@ def merge_topology_snapshot_tensor_datasets(
         ):
             raise ValueError("Snapshot dataset shard schemas differ.")
         for group in dataset.groups:
-            identity = (group.seed, group.decision_epoch)
+            identity = (
+                group.seed, group.decision_epoch, group.observation_seed
+            )
             if identity in identities:
                 raise ValueError(f"Duplicate snapshot group {identity}.")
             identities.add(identity)
@@ -453,7 +517,9 @@ def save_topology_snapshot_tensor_dataset(
         prefix = f"group_{index:05d}_"
         tensor = group.policy_tensor
         arrays.update({
-            prefix + "identity": np.asarray((group.seed, group.decision_epoch)),
+            prefix + "identity": np.asarray((
+                group.seed, group.decision_epoch, group.observation_seed,
+            )),
             prefix + "node_ids": np.asarray(tensor.node_ids),
             prefix + "node_features": tensor.node_features,
             prefix + "candidate_edges": np.asarray(tensor.candidate_edges),
@@ -510,6 +576,7 @@ def load_topology_snapshot_tensor_dataset(
                 removed_edge_mask=_readonly(archive[prefix + "removed_edge_mask"]),
                 target_names=tuple(manifest["target_names"]),
                 targets=_readonly(archive[prefix + "targets"]),
+                observation_seed=(int(identity[2]) if len(identity) > 2 else -1),
             ))
     dataset = SnapshotActionTensorDataset(
         feature_version=str(manifest["feature_version"]),
@@ -566,6 +633,15 @@ def _edges_text(edges):
 
 def _record_signature(record):
     return (record.action_kind, record.added_edges, record.removed_edges)
+
+
+def _snapshot_action_spaces_match(left, right):
+    return left.action_kinds == right.action_kinds and all(
+        np.array_equal(getattr(left, name), getattr(right, name))
+        for name in (
+            "active_edge_mask", "added_edge_mask", "removed_edge_mask",
+        )
+    )
 
 
 def _edge_mask(edge_index, selected):

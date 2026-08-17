@@ -26,6 +26,7 @@ def main(argv=None) -> Path:
     parser.add_argument("--decision-interval", type=int, default=2)
     parser.add_argument("--maximum-switches", type=int, default=1)
     parser.add_argument("--gain-std-penalty", type=float, default=0.0)
+    parser.add_argument("--include-all-noise-observations", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     maximum_epoch = max(arguments.epochs)
@@ -45,6 +46,9 @@ def main(argv=None) -> Path:
         baseline_policy=AlwaysKeepPolicy(),
         lookahead_steps=arguments.lookahead,
         gain_standard_deviation_penalty=arguments.gain_std_penalty,
+        include_all_noise_observations=(
+            arguments.include_all_noise_observations
+        ),
     )
     path = save_topology_snapshot_tensor_dataset(dataset, arguments.output)
     print(
