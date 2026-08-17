@@ -233,8 +233,38 @@ def collect_topology_rollout(
     condition_seed: int | None = None,
     deterministic: bool = False,
     generator: torch.Generator | None = None,
+    reference_model: TopologyActorCritic | None = None,
+    minimum_policy_override_margin: float | None = None,
+    override_value_model: nn.Module | None = None,
+    minimum_predicted_override_advantage: float | None = None,
 ) -> TopologyRollout:
     """Collect one episode from the existing truth-safe topology environment."""
+
+    margin_gate = minimum_policy_override_margin is not None
+    value_gate = (
+        override_value_model is not None
+        or minimum_predicted_override_advantage is not None
+    )
+    if reference_model is None and (margin_gate or value_gate):
+        raise ValueError("Conservative rollout requires a reference model.")
+    if (override_value_model is None) != (
+        minimum_predicted_override_advantage is None
+    ):
+        raise ValueError("Advantage gate requires a value model and threshold.")
+    if margin_gate and value_gate:
+        raise ValueError("Select one conservative rollout gate at a time.")
+    if reference_model is not None and not (margin_gate or value_gate):
+        raise ValueError("Reference model requires a conservative gate.")
+    if (margin_gate or value_gate) and not deterministic:
+        raise ValueError("Conservative rollout is deterministic evaluation only.")
+    if minimum_policy_override_margin is not None:
+        if minimum_policy_override_margin < 0.0:
+            raise ValueError("Policy override margin cannot be negative.")
+    if (
+        minimum_predicted_override_advantage is not None
+        and minimum_predicted_override_advantage < 0.0
+    ):
+        raise ValueError("Predicted override advantage cannot be negative.")
 
     from experiments.graph_action_gnn import torch_snapshot_action_group
     from experiments.topology_snapshot_counterfactual import (
@@ -256,6 +286,19 @@ def collect_topology_rollout(
                 output.distribution.mode() if deterministic
                 else output.distribution.sample(generator=generator)
             )
+            if reference_model is not None:
+                reference = reference_model(group)
+                if override_value_model is not None:
+                    action_values = override_value_model(group).utility
+                    selected = advantage_gated_policy_action_index(
+                        output.distribution, reference.distribution,
+                        action_values, minimum_predicted_override_advantage,
+                    )
+                else:
+                    selected = conservative_policy_action_index(
+                        output.distribution, reference.distribution,
+                        minimum_policy_override_margin,
+                    )
         action_index = int(selected.item())
         environment_action_id = int(action_ids[action_index])
         step = environment.step(environment_action_id)
@@ -289,6 +332,60 @@ def collect_topology_rollout(
                 model(torch_snapshot_action_group(snapshot)).value.item()
             )
     return TopologyRollout(tuple(transitions), final_value)
+
+
+def conservative_policy_action_index(
+    policy: HierarchicalActionDistribution,
+    reference: HierarchicalActionDistribution,
+    minimum_override_margin: float,
+) -> Tensor:
+    """Use a changed policy action only when its top-two margin is sufficient."""
+
+    if minimum_override_margin < 0.0:
+        raise ValueError("Policy override margin cannot be negative.")
+    if policy.action_log_probabilities.shape != (
+        reference.action_log_probabilities.shape
+    ):
+        raise ValueError("Policy and reference action spaces must align.")
+    selected = policy.mode()
+    reference_selected = reference.mode()
+    if selected.item() == reference_selected.item():
+        return selected
+    values = torch.topk(
+        policy.action_log_probabilities,
+        k=min(2, len(policy.action_log_probabilities)),
+    ).values
+    margin = values[0] - values[1] if len(values) == 2 else values.new_tensor(float("inf"))
+    return selected if margin.item() >= minimum_override_margin else reference_selected
+
+
+def advantage_gated_policy_action_index(
+    policy: HierarchicalActionDistribution,
+    reference: HierarchicalActionDistribution,
+    predicted_action_values: Tensor,
+    minimum_predicted_advantage: float,
+) -> Tensor:
+    """Override a reference action only with sufficient predicted advantage."""
+
+    if minimum_predicted_advantage < 0.0:
+        raise ValueError("Predicted override advantage cannot be negative.")
+    if policy.action_log_probabilities.shape != (
+        reference.action_log_probabilities.shape
+    ) or predicted_action_values.shape != policy.action_log_probabilities.shape:
+        raise ValueError("Policy, reference, and predicted values must align.")
+    selected = policy.mode()
+    reference_selected = reference.mode()
+    if selected.item() == reference_selected.item():
+        return selected
+    advantage = (
+        predicted_action_values[selected]
+        - predicted_action_values[reference_selected]
+    )
+    return (
+        selected
+        if advantage.item() >= minimum_predicted_advantage
+        else reference_selected
+    )
 
 
 def prepare_topology_rollout(

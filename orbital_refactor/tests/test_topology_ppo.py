@@ -4,10 +4,12 @@ from pathlib import Path
 
 from experiments.topology_ppo import (
     TopologyActorCritic,
+    advantage_gated_policy_action_index,
     build_warm_started_actor_critic,
     clipped_ppo_loss,
     collect_topology_rollout,
     combine_prepared_topology_rollouts,
+    conservative_policy_action_index,
     generalized_advantage_estimate,
     hierarchical_action_distribution,
     prepare_topology_rollout,
@@ -326,3 +328,35 @@ def test_critic_updates_when_a_minibatch_has_no_actor_choice():
         not torch.equal(old, new.detach())
         for old, new in zip(before, model.critic.parameters())
     )
+
+
+def test_conservative_policy_gate_requires_margin_to_override_reference():
+    kinds = torch.tensor([0, 0], dtype=torch.long)
+    legal = torch.ones(2, dtype=torch.bool)
+    type_logits = torch.zeros(4)
+    policy = hierarchical_action_distribution(
+        type_logits, torch.tensor([1.0, 0.98]), kinds, legal,
+    )
+    reference = hierarchical_action_distribution(
+        type_logits, torch.tensor([0.0, 1.0]), kinds, legal,
+    )
+    assert conservative_policy_action_index(policy, reference, 0.05).item() == 1
+    assert conservative_policy_action_index(policy, reference, 0.01).item() == 0
+
+
+def test_advantage_gate_requires_predicted_gain_to_override_reference():
+    kinds = torch.tensor([0, 0], dtype=torch.long)
+    legal = torch.ones(2, dtype=torch.bool)
+    type_logits = torch.zeros(4)
+    policy = hierarchical_action_distribution(
+        type_logits, torch.tensor([1.0, 0.0]), kinds, legal,
+    )
+    reference = hierarchical_action_distribution(
+        type_logits, torch.tensor([0.0, 1.0]), kinds, legal,
+    )
+    assert advantage_gated_policy_action_index(
+        policy, reference, torch.tensor([0.2, 0.1]), 0.05,
+    ).item() == 0
+    assert advantage_gated_policy_action_index(
+        policy, reference, torch.tensor([0.12, 0.1]), 0.05,
+    ).item() == 1

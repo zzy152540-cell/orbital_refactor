@@ -133,6 +133,61 @@ def save_snapshot_action_checkpoint(
     return path
 
 
+def save_snapshot_action_value_checkpoint(
+    result: SnapshotGraphActionTrainingResult,
+    dataset: SnapshotActionTensorDataset,
+    output_path: str | Path,
+    *,
+    configuration: dict,
+) -> Path:
+    """Save an auxiliary action-value model without PPO warm-start semantics."""
+
+    if configuration.get("loss_mode") not in {
+        "regression_ranking", "decision",
+    }:
+        raise ValueError("Auxiliary value checkpoint requires a value loss mode.")
+    if not dataset.groups:
+        raise ValueError("Checkpoint dataset cannot be empty.")
+    sample = torch_snapshot_action_group(dataset.groups[0])
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save({
+        "checkpoint_role": "topology_override_value",
+        "model_state_dict": result.model.state_dict(),
+        "configuration": dict(configuration),
+        "feature_version": dataset.feature_version,
+        "node_feature_count": sample.node_features.shape[1],
+        "edge_feature_count": sample.candidate_edge_features.shape[1],
+        "action_feature_count": sample.action_features.shape[1],
+    }, path)
+    return path
+
+
+def load_snapshot_action_value_checkpoint(
+    checkpoint_path: str | Path,
+) -> "GraphActionValueNetwork":
+    """Load a frozen auxiliary topology override-value model."""
+
+    checkpoint = torch.load(
+        Path(checkpoint_path), map_location="cpu", weights_only=True
+    )
+    if checkpoint.get("checkpoint_role") != "topology_override_value":
+        raise ValueError("Checkpoint is not a topology override-value model.")
+    configuration = checkpoint["configuration"]
+    model = GraphActionValueNetwork(
+        node_feature_count=int(checkpoint["node_feature_count"]),
+        candidate_edge_feature_count=int(checkpoint["edge_feature_count"]),
+        measurement_feature_count=int(checkpoint["edge_feature_count"]),
+        action_feature_count=int(checkpoint["action_feature_count"]),
+        hidden_size=int(configuration["hidden_size"]),
+        message_passing_steps=int(configuration["message_passing_steps"]),
+        explicit_action_pairing=bool(configuration["explicit_action_pairing"]),
+    )
+    model.load_state_dict(checkpoint["model_state_dict"])
+    model.eval()
+    return model
+
+
 def torch_graph_action_group(
     group: GraphActionTensorGroup,
     *,

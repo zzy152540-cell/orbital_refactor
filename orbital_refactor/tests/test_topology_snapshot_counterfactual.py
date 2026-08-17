@@ -20,6 +20,8 @@ from experiments.graph_action_gnn import (
     torch_snapshot_action_group,
     train_snapshot_action_network,
     save_snapshot_action_checkpoint,
+    load_snapshot_action_value_checkpoint,
+    save_snapshot_action_value_checkpoint,
 )
 
 
@@ -223,6 +225,35 @@ def test_hierarchical_snapshot_checkpoint_is_warm_start_compatible(tmp_path):
     checkpoint = torch.load(path, map_location="cpu", weights_only=True)
     assert checkpoint["configuration"]["loss_mode"] == "hierarchical"
     assert checkpoint["node_feature_count"] == len(dataset.node_feature_names)
+
+
+def test_auxiliary_action_value_checkpoint_round_trips_exactly(tmp_path):
+    dataset = build_topology_snapshot_tensor_dataset(
+        TopologyControlEnvironment(
+            node_count=3, episode_epochs=2, relative_modalities=("RANGE",),
+        ), seeds=(0, 1), decision_epochs=(0,),
+        baseline_policy=AlwaysKeepPolicy(), lookahead_steps=1,
+    )
+    split = split_topology_snapshot_dataset_by_seed(
+        dataset, training_seeds=(0,), validation_seeds=(1,),
+    )
+    result = train_snapshot_action_network(
+        split.training, split.validation, epochs=1, patience=1,
+        hidden_size=16, loss_mode="decision",
+    )
+    path = save_snapshot_action_value_checkpoint(
+        result, split.training, tmp_path / "value.pt",
+        configuration={
+            "hidden_size": 16, "message_passing_steps": 2,
+            "explicit_action_pairing": True, "loss_mode": "decision",
+        },
+    )
+    loaded = load_snapshot_action_value_checkpoint(path)
+    group = torch_snapshot_action_group(split.validation.groups[0])
+    with torch.no_grad():
+        expected = result.model(group).utility
+        actual = loaded(group).utility
+    torch.testing.assert_close(actual, expected)
 
 
 def test_snapshot_dataset_round_trip_is_pickle_free_and_exact(tmp_path):

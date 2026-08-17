@@ -62,6 +62,7 @@ class Stage1Configuration:
     policy_seed: int = 0
     learning_rate: float = 3.0e-4
     update_epochs: int = 4
+    target_kl: float | None = 0.02
     gamma: float = 0.99
     gae_lambda: float = 0.95
     entropy_coefficient: float = 0.01
@@ -291,6 +292,7 @@ def train_stage1_ppo(
             combine_prepared_topology_rollouts(tuple(batch)),
             update_epochs=configuration.update_epochs,
             entropy_coefficient=configuration.entropy_coefficient,
+            target_kl=configuration.target_kl,
             minibatch_size=configuration.minibatch_size,
             generator=generator,
         )
@@ -527,6 +529,8 @@ def _validate_configuration(configuration):
         raise ValueError("Stage 1 horizons, seed count, and cost scales must be positive.")
     if configuration.node_count not in {3, 5}:
         raise ValueError("Stage 1 compact-fleet training supports 3 or 5 nodes.")
+    if configuration.target_kl is not None and configuration.target_kl <= 0.0:
+        raise ValueError("Stage 1 target KL must be positive when enabled.")
     if (
         configuration.top_k_candidate_neighbors is not None
         and configuration.top_k_candidate_neighbors < 0

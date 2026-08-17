@@ -68,6 +68,17 @@ def test_five_node_robust_ppo_baseline_uses_low_variance_updates():
     assert configuration.environment_seed_count == 8
     assert configuration.rollout_batch_episodes == 32
     assert configuration.learning_rate == 1.0e-4
+    assert configuration.target_kl == 0.02
+
+
+def test_stage1_configuration_forwards_target_kl_to_ppo_update():
+    configuration = Stage1Configuration(
+        training_episodes=2, episode_epochs=4, decision_interval_epochs=2,
+        rollout_batch_episodes=2, minibatch_size=2, update_epochs=4,
+        learning_rate=1.0e-2, target_kl=1.0e-12,
+    )
+    result = train_stage1_ppo(configuration)
+    assert result.diagnostics[-1].update.stopped_early
 
 
 def test_stage1_warm_start_can_preserve_same_task_type_head():
