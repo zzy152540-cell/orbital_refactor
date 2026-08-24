@@ -299,6 +299,19 @@ contains genuine later topology-control opportunities while exposing a clear
 distribution shift for the old initializer. These conditions are development
 prescan evidence and must not become a later formal-confirmation set.
 
+The first shared mixed-scale PPO pilot used six training episodes from
+conditions 400--405 and one update batch containing 60 transitions: 30 from
+five nodes, 20 from ten nodes, and 10 from twenty nodes. Communication and
+resynchronization penalties are normalized by fleet size (and communication
+also by decision-window length), while RMSE reward and switch cost retain their
+existing semantics. The update had nonzero gradient norm 1.5846, approximate KL
+0.000317, and did not stop early. Sampled training actions included swap and
+remove at every scale. On the first untouched development conditions 420--422,
+the deterministic policy still used only add/keep but improved over keep by
+0.01497, 0.00822, and 0.00278 m for 5, 10, and 20 nodes. This establishes an
+end-to-end mixed-scale PPO training path, not statistical performance; the
+three development conditions must not be used to tune a larger pilot.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
