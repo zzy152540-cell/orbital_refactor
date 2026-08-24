@@ -81,6 +81,7 @@ class CompactFleetScenarioDistribution:
     communication_delay_range: tuple[float, float] = (0.0, 2.0)
     navigation_dropout_node_count: int = 1
     initial_topology_types: tuple[str, ...] = ("chain",)
+    link_condition_mode: str = "homogeneous"
 
     def validate(self, node_count: int) -> None:
         loss_low, loss_high = self.packet_loss_range
@@ -100,6 +101,10 @@ class CompactFleetScenarioDistribution:
             )
         ):
             raise ValueError("Initial topology types must be unique supported names.")
+        if self.link_condition_mode not in {
+            "homogeneous", "undirected_independent",
+        }:
+            raise ValueError("Unsupported compact-fleet link-condition mode.")
 
 
 class TopologyControlEnvironment:
@@ -183,6 +188,12 @@ class TopologyControlEnvironment:
             process_noise_acceleration=1e-8, history_window=10.0,
             packet_loss_rate=self._episode_conditions["packet_loss"],
             communication_delay=self._episode_conditions["communication_delay"],
+            packet_loss_rate_by_link=self._episode_conditions[
+                "packet_loss_rate_by_link"
+            ],
+            communication_delay_by_link=self._episode_conditions[
+                "communication_delay_by_link"
+            ],
             random_seed=int(seed) + 31000,
             resynchronize_on_resume=True,
             batch_relative_observations=True,
@@ -413,6 +424,8 @@ class TopologyControlEnvironment:
             return {
                 "packet_loss": self.packet_loss,
                 "communication_delay": self.communication_delay,
+                "packet_loss_rate_by_link": {},
+                "communication_delay_by_link": {},
                 "navigation_dropout_by_node": {},
                 "initial_topology_type": "chain",
             }
@@ -434,11 +447,32 @@ class TopologyControlEnvironment:
         end_epoch = int(rng.integers(
             start_epoch + 1, self.episode_epochs + 1
         ))
+        packet_loss = float(rng.uniform(*distribution.packet_loss_range))
+        communication_delay = float(rng.uniform(
+            *distribution.communication_delay_range
+        ))
+        packet_loss_by_link, delay_by_link = {}, {}
+        if distribution.link_condition_mode == "undirected_independent":
+            node_ids = tuple(
+                f"sat_{index + 1:02d}" for index in range(self.node_count)
+            )
+            for left_index, left in enumerate(node_ids):
+                for right in node_ids[left_index + 1:]:
+                    edge_loss = float(rng.uniform(
+                        *distribution.packet_loss_range
+                    ))
+                    edge_delay = float(rng.uniform(
+                        *distribution.communication_delay_range
+                    ))
+                    packet_loss_by_link[left, right] = edge_loss
+                    packet_loss_by_link[right, left] = edge_loss
+                    delay_by_link[left, right] = edge_delay
+                    delay_by_link[right, left] = edge_delay
         return {
-            "packet_loss": float(rng.uniform(*distribution.packet_loss_range)),
-            "communication_delay": float(rng.uniform(
-                *distribution.communication_delay_range
-            )),
+            "packet_loss": packet_loss,
+            "communication_delay": communication_delay,
+            "packet_loss_rate_by_link": packet_loss_by_link,
+            "communication_delay_by_link": delay_by_link,
             "navigation_dropout_by_node": {
                 f"sat_{int(index) + 1:02d}": (
                     (start_epoch * self.dt, end_epoch * self.dt),

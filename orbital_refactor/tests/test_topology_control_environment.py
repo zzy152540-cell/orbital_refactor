@@ -258,6 +258,34 @@ def test_compact_scenario_distribution_supports_seeded_five_node_faults():
     assert len(first["navigation_dropout_by_node"]) == 2
 
 
+def test_compact_distribution_can_expose_seeded_heterogeneous_links():
+    distribution = CompactFleetScenarioDistribution(
+        link_condition_mode="undirected_independent",
+    )
+    environment = TopologyControlEnvironment(
+        node_count=5, episode_epochs=2, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+        compact_scenario_distribution=distribution,
+    )
+    first_state = environment.reset(seed=3, condition_seed=91)
+    first = environment._episode_conditions
+    repeated_state = environment.reset(seed=4, condition_seed=91)
+
+    assert environment._episode_conditions == first
+    loss_by_link = first["packet_loss_rate_by_link"]
+    delay_by_link = first["communication_delay_by_link"]
+    assert len(loss_by_link) == len(delay_by_link) == 20
+    assert loss_by_link["sat_01", "sat_02"] == loss_by_link[
+        "sat_02", "sat_01"
+    ]
+    assert len(set(loss_by_link.values())) > 1
+    assert len(set(delay_by_link.values())) > 1
+    assert len({edge.packet_loss_rate
+                for edge in first_state.observation.candidate_edges}) > 1
+    assert len({edge.delay
+                for edge in repeated_state.observation.candidate_edges}) > 1
+
+
 def test_compact_scenario_distribution_samples_initial_topology_family():
     distribution = CompactFleetScenarioDistribution(
         initial_topology_types=("chain", "ring", "star"),

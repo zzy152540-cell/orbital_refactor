@@ -200,6 +200,15 @@ baseline remains the relative PPO-versus-LCB advantage gate plus legal `keep`
 fallback; the next qualification step is broader condition-distribution
 coverage without retuning on previously held-out seeds.
 
+The compact five-node environment also provides an explicit opt-in
+`undirected_independent` communication distribution. It samples packet loss
+and delay per undirected candidate link while preserving the original
+homogeneous distribution and all filter/GNN interfaces. A paired four-condition
+pre-scan retained robust non-keep oracle opportunities but exposed a clear
+generalization failure of the homogeneous LCB checkpoint. This distribution is
+therefore the next training dimension; pre-scan conditions 76--79 are excluded
+from subsequent fitting and formal evaluation.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

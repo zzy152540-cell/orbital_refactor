@@ -6,6 +6,7 @@ from pathlib import Path
 from experiments.topology_control_baselines import AlwaysKeepPolicy
 from experiments.topology_ppo_stage1 import (
     build_stage1_environment,
+    five_node_heterogeneous_link_configuration,
     five_node_stage1_configuration,
 )
 from experiments.topology_snapshot_counterfactual import (
@@ -27,12 +28,18 @@ def main(argv=None) -> Path:
     parser.add_argument("--maximum-switches", type=int, default=1)
     parser.add_argument("--gain-std-penalty", type=float, default=0.0)
     parser.add_argument("--include-all-noise-observations", action="store_true")
+    parser.add_argument("--heterogeneous-links", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     maximum_epoch = max(arguments.epochs)
     if arguments.episode_epochs <= maximum_epoch:
         parser.error("--episode-epochs must exceed every decision epoch.")
-    configuration = five_node_stage1_configuration(
+    configuration_factory = (
+        five_node_heterogeneous_link_configuration
+        if arguments.heterogeneous_links
+        else five_node_stage1_configuration
+    )
+    configuration = configuration_factory(
         training_episodes=1,
         episode_epochs=arguments.episode_epochs,
         decision_interval_epochs=arguments.decision_interval,

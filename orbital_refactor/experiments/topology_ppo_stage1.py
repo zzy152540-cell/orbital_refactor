@@ -95,6 +95,14 @@ FIVE_NODE_STAGE1_DISTRIBUTION = CompactFleetScenarioDistribution(
     initial_topology_types=("chain", "ring", "star"),
 )
 
+FIVE_NODE_HETEROGENEOUS_LINK_DISTRIBUTION = CompactFleetScenarioDistribution(
+    packet_loss_range=(0.0, 0.2),
+    communication_delay_range=(0.0, 2.0),
+    navigation_dropout_node_count=1,
+    initial_topology_types=("chain", "ring", "star"),
+    link_condition_mode="undirected_independent",
+)
+
 
 def five_node_stage1_configuration(**changes) -> Stage1Configuration:
     """Return the frozen five-node distribution baseline for PPO pilots."""
@@ -103,6 +111,15 @@ def five_node_stage1_configuration(**changes) -> Stage1Configuration:
         node_count=5,
         top_k_candidate_neighbors=2,
         scenario_distribution=FIVE_NODE_STAGE1_DISTRIBUTION,
+    )
+    return replace(baseline, **changes)
+
+
+def five_node_heterogeneous_link_configuration(**changes) -> Stage1Configuration:
+    """Return a link-informative condition distribution without changing V15 I/O."""
+
+    baseline = five_node_stage1_configuration(
+        scenario_distribution=FIVE_NODE_HETEROGENEOUS_LINK_DISTRIBUTION,
     )
     return replace(baseline, **changes)
 

@@ -11,6 +11,7 @@ def test_robust_snapshot_collection_cli_writes_restartable_shard(tmp_path):
         "--noise-seeds", "0", "1",
         "--epochs", "0",
         "--episode-epochs", "3",
+        "--heterogeneous-links",
         "--output", str(output),
     ])
     assert result == output
@@ -20,3 +21,7 @@ def test_robust_snapshot_collection_cli_writes_restartable_shard(tmp_path):
     )
     assert len(dataset.groups) == 1
     assert dataset.groups[0].seed == 30
+    packet_loss_index = dataset.edge_feature_names.index("packet_loss_rate")
+    assert len(set(dataset.groups[0].policy_tensor.edge_features[
+        :, packet_loss_index
+    ])) > 1

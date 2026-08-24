@@ -9,6 +9,7 @@ from experiments.topology_ppo_stage1 import (
     build_stage1_environment,
     compare_stage1_training_seeds,
     evaluate_stage1_policies,
+    five_node_heterogeneous_link_configuration,
     five_node_stage1_configuration,
     five_node_robust_ppo_configuration,
     scan_stage1_penalty_sensitivity,
@@ -57,6 +58,19 @@ def test_five_node_baseline_freezes_distribution_and_disjoint_seed_split():
     split.validate()
     assert not set(split.training) & set(split.validation)
     assert not set(split.validation) & set(split.test)
+
+
+def test_five_node_heterogeneous_link_configuration_is_explicit_opt_in():
+    baseline = five_node_stage1_configuration()
+    expanded = five_node_heterogeneous_link_configuration()
+
+    assert baseline.scenario_distribution.link_condition_mode == "homogeneous"
+    assert (
+        expanded.scenario_distribution.link_condition_mode
+        == "undirected_independent"
+    )
+    assert expanded.node_count == baseline.node_count == 5
+    assert expanded.top_k_candidate_neighbors == baseline.top_k_candidate_neighbors
 
 
 def test_five_node_robust_ppo_baseline_uses_low_variance_updates():
