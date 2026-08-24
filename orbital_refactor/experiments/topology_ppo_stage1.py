@@ -51,6 +51,7 @@ class Stage1Configuration:
     walker_maximum_range: float = 7000e3
     walker_plane_count: int = 5
     walker_phasing: int = 3
+    treat_horizon_as_truncation: bool = False
     top_k_candidate_neighbors: int | None = None
     training_episodes: int = 40
     episode_epochs: int = 12
@@ -364,6 +365,7 @@ def build_stage1_environment(configuration: Stage1Configuration):
         walker_maximum_range=configuration.walker_maximum_range,
         walker_plane_count=configuration.walker_plane_count,
         walker_phasing=configuration.walker_phasing,
+        treat_horizon_as_truncation=configuration.treat_horizon_as_truncation,
     )
 
 

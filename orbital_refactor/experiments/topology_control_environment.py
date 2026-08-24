@@ -153,6 +153,7 @@ class TopologyControlEnvironment:
         walker_maximum_range: float = 7000e3,
         walker_plane_count: int = 5,
         walker_phasing: int = 3,
+        treat_horizon_as_truncation: bool = False,
         randomize_stage1_conditions: bool = False,
         compact_scenario_distribution: CompactFleetScenarioDistribution | None = None,
     ) -> None:
@@ -203,6 +204,7 @@ class TopologyControlEnvironment:
         self.walker_maximum_range = float(walker_maximum_range)
         self.walker_plane_count = int(walker_plane_count)
         self.walker_phasing = int(walker_phasing)
+        self.treat_horizon_as_truncation = bool(treat_horizon_as_truncation)
         self.randomize_stage1_conditions = bool(randomize_stage1_conditions)
         self.compact_scenario_distribution = (
             compact_scenario_distribution or CompactFleetScenarioDistribution()
@@ -375,12 +377,14 @@ class TopologyControlEnvironment:
             topology_switch=float(switched),
             action_fallback=float(resolution.used_fallback),
         )
-        terminated = self._epoch_index + 1 >= len(self._case["timestamps"])
+        horizon_reached = self._epoch_index + 1 >= len(self._case["timestamps"])
+        terminated = horizon_reached and not self.treat_horizon_as_truncation
+        truncated = horizon_reached and self.treat_horizon_as_truncation
         state = self._state(last_step)
         return TopologyEnvironmentStep(
             state=state, reward=reward_terms.task_reward,
             reward_terms=reward_terms, constraint_costs=costs,
-            terminated=terminated, truncated=False,
+            terminated=terminated, truncated=truncated,
             action_resolution=resolution,
             diagnostics=(
                 ("position_rmse", after[0]),

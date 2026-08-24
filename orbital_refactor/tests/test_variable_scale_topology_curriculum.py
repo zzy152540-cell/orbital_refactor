@@ -31,6 +31,7 @@ def test_shared_actor_accepts_each_curriculum_graph_size():
     states = []
     for condition_seed in (0, 1, 2):
         configuration = curriculum.configuration_for_condition(condition_seed)
+        assert configuration.treat_horizon_as_truncation
         environment = build_stage1_environment(configuration)
         state = environment.reset(seed=0, condition_seed=condition_seed)
         assert len(state.observation.nodes) == configuration.node_count

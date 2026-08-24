@@ -69,6 +69,19 @@ def test_environment_requires_reset_and_terminates_at_horizon():
     assert not result.truncated
 
 
+def test_environment_can_treat_finite_training_window_as_truncation():
+    environment = TopologyControlEnvironment(
+        node_count=3,
+        episode_epochs=1,
+        relative_modalities=("RANGE",),
+        treat_horizon_as_truncation=True,
+    )
+    environment.reset(seed=0)
+    result = environment.step(0)
+    assert not result.terminated
+    assert result.truncated
+
+
 def test_environment_masks_new_edges_without_current_visible_measurements():
     environment = TopologyControlEnvironment(
         node_count=3, episode_epochs=2, relative_modalities=("RANGE",),

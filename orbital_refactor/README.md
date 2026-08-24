@@ -361,12 +361,12 @@ value standard deviation was only 0.06--0.07; explained variance was about
 fell from about 2.18 at decision 0 to -0.03 at decision 9, while random Critic
 value rose from 0.267 to 0.416 and warm Critic value from 0.210 to 0.342. The
 Critic has therefore learned the horizon direction backwards, rather than only
-missing a fleet-scale offset. The environment currently labels the artificial
-30-epoch window boundary as terminal. Because operational topology control is
-a continuing task, the next controlled change should mark training-window ends
-as truncations and bootstrap the final value, before adding an explicit
-remaining-horizon feature or changing network capacity. Conditions 600--606
-are consumed diagnostic evidence.
+missing a fleet-scale offset. Variable-scale training now labels its artificial
+window boundary as truncated and bootstraps the final value; legacy experiments
+retain terminal boundaries by default. This changes the return construction,
+not the environment physics or reward. A fresh controlled retraining is still
+required before claiming that it improves Critic calibration. Conditions
+600--606 are consumed diagnostic evidence.
 
 ### V15 snapshot collection and GNN environment
 

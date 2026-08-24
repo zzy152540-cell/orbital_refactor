@@ -60,6 +60,7 @@ class VariableScaleTopologyCurriculum:
                 self.maximum_topology_switches_per_episode
             ),
             top_k_candidate_neighbors=self.top_k_candidate_neighbors,
+            treat_horizon_as_truncation=True,
         )
         if node_count == 5:
             configuration = five_node_stratified_physical_configuration(

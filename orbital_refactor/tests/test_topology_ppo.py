@@ -22,10 +22,13 @@ from experiments.topology_snapshot_counterfactual import (
 from experiments.graph_action_gnn import torch_snapshot_action_group
 
 
-def _actor_critic_and_state(*, episode_epochs=3):
+def _actor_critic_and_state(
+    *, episode_epochs=3, treat_horizon_as_truncation=False,
+):
     environment = TopologyControlEnvironment(
         node_count=3, episode_epochs=episode_epochs,
         relative_modalities=("RANGE",),
+        treat_horizon_as_truncation=treat_horizon_as_truncation,
     )
     state = environment.reset(seed=0)
     snapshot, _ = build_online_snapshot_action_tensor(state)
@@ -168,6 +171,23 @@ def test_rollout_uses_legal_environment_actions_and_records_costs():
         for transition in rollout.transitions
     )
     assert rollout.final_value == 0.0
+
+
+def test_rollout_bootstraps_value_at_truncated_training_window():
+    environment, _, _, model = _actor_critic_and_state(
+        episode_epochs=1, treat_horizon_as_truncation=True,
+    )
+    with torch.no_grad():
+        for parameter in model.critic.parameters():
+            parameter.zero_()
+        model.critic[-1].bias.fill_(1.0)
+    rollout = collect_topology_rollout(
+        environment, model, seed=2,
+        generator=torch.Generator().manual_seed(11),
+    )
+    assert not rollout.transitions[-1].terminated
+    assert rollout.transitions[-1].truncated
+    assert rollout.final_value == 1.0
 
 
 def test_prepare_and_update_ppo_on_variable_action_graphs():
