@@ -192,6 +192,29 @@ def five_node_stratified_physical_configuration(**changes) -> Stage1Configuratio
     return replace(baseline, **changes)
 
 
+def five_node_stratified_physical_ppo_configuration(
+    **changes,
+) -> Stage1Configuration:
+    """Return the frozen PPO budget for the 24-by-4 physical curriculum."""
+
+    baseline = five_node_stratified_physical_configuration(
+        training_episodes=96,
+        episode_epochs=6,
+        decision_interval_epochs=2,
+        environment_seed_count=4,
+        environment_seed_offset=0,
+        condition_seed_offset=200,
+        condition_seed_count=24,
+        rollout_batch_episodes=32,
+        minibatch_size=16,
+        update_epochs=4,
+        policy_seed=0,
+        learning_rate=1.0e-4,
+        maximum_topology_switches_per_episode=1,
+    )
+    return replace(baseline, **changes)
+
+
 def five_node_robust_ppo_configuration(**changes) -> Stage1Configuration:
     """Return the accepted low-variance PPO pilot configuration."""
 
@@ -213,6 +236,20 @@ def five_node_robust_ppo_configuration(**changes) -> Stage1Configuration:
 
 
 @dataclass(frozen=True)
+class Stage1ActionKindDiagnostic:
+    action_kind: str
+    transition_count: int
+    actor_transition_count: int
+    mean_advantage: float
+    positive_advantage_fraction: float
+    mean_task_reward: float
+    mean_penalized_reward: float
+    mean_transmitted_messages: float
+    mean_resynchronization_count: float
+    mean_topology_switch: float
+
+
+@dataclass(frozen=True)
 class Stage1EpisodeDiagnostic:
     episode: int
     environment_seed: int
@@ -228,6 +265,26 @@ class Stage1EpisodeDiagnostic:
     type_entropy: float
     conditional_entropy: float
     initial_type_probabilities: tuple[float, ...]
+    action_kind_diagnostics: tuple[Stage1ActionKindDiagnostic, ...]
+    update: PPOUpdateResult
+
+
+@dataclass(frozen=True)
+class Stage1BatchActionDiagnostic:
+    action_kind: str
+    transition_count: int
+    actor_transition_count: int
+    mean_normalized_advantage: float
+    positive_normalized_advantage_fraction: float
+
+
+@dataclass(frozen=True)
+class Stage1BatchDiagnostic:
+    batch_start: int
+    batch_end: int
+    type_probabilities_before_update: tuple[float, ...]
+    type_probabilities_after_update: tuple[float, ...]
+    action_diagnostics: tuple[Stage1BatchActionDiagnostic, ...]
     update: PPOUpdateResult
 
 
@@ -235,6 +292,7 @@ class Stage1EpisodeDiagnostic:
 class Stage1TrainingResult:
     model: TopologyActorCritic
     diagnostics: tuple[Stage1EpisodeDiagnostic, ...]
+    batch_diagnostics: tuple[Stage1BatchDiagnostic, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -341,7 +399,7 @@ def train_stage1_ppo(
     )
     optimizer = torch.optim.Adam(model.parameters(), lr=configuration.learning_rate)
     generator = torch.Generator().manual_seed(configuration.policy_seed + 2000)
-    diagnostics = []
+    diagnostics, batch_diagnostics = [], []
     for batch_start in range(
         0, configuration.training_episodes,
         configuration.rollout_batch_episodes,
@@ -363,26 +421,42 @@ def train_stage1_ppo(
                 condition_seed=condition_seed, generator=generator,
             )
             penalized = apply_stage1_penalties(rollout, configuration)
-            batch.append(prepare_topology_rollout(
+            prepared = prepare_topology_rollout(
                 penalized, gamma=configuration.gamma,
                 gae_lambda=configuration.gae_lambda,
                 normalize_advantages=False,
-            ))
+            )
+            batch.append(prepared)
             batch_metadata.append((
                 episode, environment_seed, condition_seed, rollout, penalized,
+                prepared,
                 float(environment._metrics()[0]),
             ))
+        combined = combine_prepared_topology_rollouts(tuple(batch))
+        probabilities_before = _stage1_mean_type_probabilities(model, combined)
+        action_diagnostics = _stage1_batch_action_diagnostics(combined)
         update = update_topology_ppo(
             model, optimizer,
-            combine_prepared_topology_rollouts(tuple(batch)),
+            combined,
             update_epochs=configuration.update_epochs,
             entropy_coefficient=configuration.entropy_coefficient,
             target_kl=configuration.target_kl,
             minibatch_size=configuration.minibatch_size,
             generator=generator,
         )
+        batch_diagnostics.append(Stage1BatchDiagnostic(
+            batch_start=batch_start,
+            batch_end=batch_end,
+            type_probabilities_before_update=probabilities_before,
+            type_probabilities_after_update=_stage1_mean_type_probabilities(
+                model, combined,
+            ),
+            action_diagnostics=action_diagnostics,
+            update=update,
+        ))
         for (
             episode, environment_seed, condition_seed, rollout, penalized,
+            prepared,
             final_rmse
         ) in batch_metadata:
             costs = rollout.cost_matrix.sum(dim=0)
@@ -405,9 +479,104 @@ def train_stage1_ppo(
                 type_entropy=float(entropies[:, 0].mean()),
                 conditional_entropy=float(entropies[:, 1].mean()),
                 initial_type_probabilities=tuple(float(value) for value in initial_types),
+                action_kind_diagnostics=_stage1_action_kind_diagnostics(
+                    rollout, penalized, prepared,
+                ),
                 update=update,
             ))
-    return Stage1TrainingResult(model, tuple(diagnostics))
+    return Stage1TrainingResult(
+        model=model,
+        diagnostics=tuple(diagnostics),
+        batch_diagnostics=tuple(batch_diagnostics),
+    )
+
+
+def _stage1_mean_type_probabilities(model, prepared):
+    indices = [
+        index for index, allowed in enumerate(prepared.actor_mask)
+        if bool(allowed)
+    ]
+    if not indices:
+        return (1.0, 0.0, 0.0, 0.0)
+    with torch.no_grad():
+        probabilities = torch.stack(tuple(
+            model(prepared.transitions[index].group).distribution.type_probabilities
+            for index in indices
+        ))
+    return tuple(float(value) for value in probabilities.mean(dim=0))
+
+
+def _stage1_batch_action_diagnostics(prepared):
+    names = ("keep", "add", "swap", "remove")
+    records = []
+    for kind_index, name in enumerate(names):
+        indices = [
+            index for index, transition in enumerate(prepared.transitions)
+            if int(transition.group.action_kind_index[
+                transition.action_index
+            ].item()) == kind_index
+        ]
+        if not indices:
+            continue
+        advantages = prepared.advantages[indices].detach().cpu().numpy()
+        records.append(Stage1BatchActionDiagnostic(
+            action_kind=name,
+            transition_count=len(indices),
+            actor_transition_count=sum(
+                bool(prepared.actor_mask[index]) for index in indices
+            ),
+            mean_normalized_advantage=float(np.mean(advantages)),
+            positive_normalized_advantage_fraction=float(np.mean(
+                advantages > 0.0
+            )),
+        ))
+    return tuple(records)
+
+
+def _stage1_action_kind_diagnostics(rollout, penalized, prepared):
+    """Summarize causal rewards, costs, and GAE by executed action type."""
+
+    if not (
+        len(rollout.transitions)
+        == len(penalized.transitions)
+        == len(prepared.transitions)
+        == len(prepared.advantages)
+    ):
+        raise ValueError("Stage 1 diagnostic rollouts must align.")
+    names = ("keep", "add", "swap", "remove")
+    records = []
+    for kind_index, name in enumerate(names):
+        indices = [
+            index for index, transition in enumerate(rollout.transitions)
+            if int(transition.group.action_kind_index[
+                transition.action_index
+            ].item()) == kind_index
+        ]
+        if not indices:
+            continue
+        advantages = prepared.advantages[indices].detach().cpu().numpy()
+        costs = np.asarray([
+            rollout.transitions[index].costs for index in indices
+        ], dtype=float)
+        records.append(Stage1ActionKindDiagnostic(
+            action_kind=name,
+            transition_count=len(indices),
+            actor_transition_count=sum(
+                bool(prepared.actor_mask[index]) for index in indices
+            ),
+            mean_advantage=float(np.mean(advantages)),
+            positive_advantage_fraction=float(np.mean(advantages > 0.0)),
+            mean_task_reward=float(np.mean([
+                rollout.transitions[index].reward for index in indices
+            ])),
+            mean_penalized_reward=float(np.mean([
+                penalized.transitions[index].reward for index in indices
+            ])),
+            mean_transmitted_messages=float(np.mean(costs[:, 0])),
+            mean_resynchronization_count=float(np.mean(costs[:, 3])),
+            mean_topology_switch=float(np.mean(costs[:, 4])),
+        ))
+    return tuple(records)
 
 
 def apply_stage1_penalties(rollout, configuration):

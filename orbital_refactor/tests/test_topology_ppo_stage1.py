@@ -13,6 +13,7 @@ from experiments.topology_ppo_stage1 import (
     five_node_heterogeneous_link_configuration,
     five_node_randomized_physical_configuration,
     five_node_stratified_physical_configuration,
+    five_node_stratified_physical_ppo_configuration,
     five_node_stage1_configuration,
     five_node_robust_ppo_configuration,
     scan_stage1_penalty_sensitivity,
@@ -128,6 +129,18 @@ def test_stratified_physical_configuration_balances_frozen_training_split():
     assert set(family_counts.values()) == {8}
 
 
+def test_stratified_physical_ppo_budget_covers_training_cartesian_product():
+    configuration = five_node_stratified_physical_ppo_configuration()
+
+    assert configuration.training_episodes == 96
+    assert configuration.environment_seed_count == 4
+    assert configuration.condition_seed_offset == 200
+    assert configuration.condition_seed_count == 24
+    assert configuration.rollout_batch_episodes == 32
+    assert configuration.learning_rate == 1.0e-4
+    assert configuration.maximum_topology_switches_per_episode == 1
+
+
 def test_five_node_robust_ppo_baseline_uses_low_variance_updates():
     configuration = five_node_robust_ppo_configuration()
     assert configuration.node_count == 5
@@ -185,6 +198,29 @@ def test_stage1_training_cycles_randomized_seeds_and_records_two_level_entropy()
         <= item.update.transition_count
         and item.update.epochs_run == 1
         for item in result.diagnostics
+    )
+    assert all(
+        sum(value.transition_count for value in item.action_kind_diagnostics)
+        == 2
+        and all(
+            value.actor_transition_count <= value.transition_count
+            and 0.0 <= value.positive_advantage_fraction <= 1.0
+            and value.mean_penalized_reward <= value.mean_task_reward + 1e-7
+            for value in item.action_kind_diagnostics
+        )
+        for item in result.diagnostics
+    )
+    assert len(result.batch_diagnostics) == 1
+    batch = result.batch_diagnostics[0]
+    assert np.isclose(sum(batch.type_probabilities_before_update), 1.0)
+    assert np.isclose(sum(batch.type_probabilities_after_update), 1.0)
+    assert sum(
+        value.transition_count for value in batch.action_diagnostics
+    ) == 6
+    assert all(
+        value.actor_transition_count <= value.transition_count
+        and 0.0 <= value.positive_normalized_advantage_fraction <= 1.0
+        for value in batch.action_diagnostics
     )
 
 

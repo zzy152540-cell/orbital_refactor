@@ -54,6 +54,7 @@ def test_hierarchical_distribution_masks_actions_and_normalizes_two_levels():
     expected_types = torch.softmax(torch.tensor([0.0, 1.0]), dim=0)
     torch.testing.assert_close(distribution.type_probabilities[:2], expected_types)
     torch.testing.assert_close(probabilities[1:].sum(), expected_types[1])
+    assert distribution.mode().item() == 2
     assert distribution.type_entropy > 0.0
     assert distribution.conditional_entropy > 0.0
 
@@ -67,6 +68,20 @@ def test_hierarchical_distribution_single_keep_is_deterministic():
     assert distribution.sample(generator=torch.Generator().manual_seed(3)).item() == 0
     assert distribution.log_prob(0).item() == 0.0
     assert distribution.entropy.item() == 0.0
+
+
+def test_hierarchical_mode_selects_type_before_member_without_count_bias():
+    distribution = hierarchical_action_distribution(
+        type_logits=torch.tensor([0.0, 1.0, -10.0, -10.0]),
+        conditional_action_logits=torch.zeros(5),
+        action_kind_index=torch.tensor([0, 1, 1, 1, 1]),
+        legal_mask=torch.ones(5, dtype=torch.bool),
+    )
+    probabilities = distribution.action_log_probabilities.exp()
+
+    assert probabilities[0] > probabilities[1]
+    assert distribution.type_probabilities[1] > distribution.type_probabilities[0]
+    assert distribution.mode().item() in {1, 2, 3, 4}
 
 
 def test_gae_stops_at_true_terminal_and_returns_value_targets():

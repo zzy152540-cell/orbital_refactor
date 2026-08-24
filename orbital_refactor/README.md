@@ -224,6 +224,28 @@ The inspected pre-scan remains reproducible with random family assignment.
 Formal fitting uses a separate seed-cycled configuration so the 24 training
 conditions contain eight examples of each family and every eight-condition
 evaluation block contains all three families without reward-based seed choice.
+The frozen hierarchical GNN seed 0 was fitted only on conditions 200--223 and
+selected on 224--231. In paired closed-loop selection runs it improved final
+RMSE over always-keep by 0.01429 m on average (26/32 runs improved). Its first
+use on development conditions 232--239 retained a 0.00767 m mean improvement
+(20/32 improved), with no illegal fallback or divergence. The policy always
+used one initial add followed by keep, so this passes only the PPO-initializer
+gate; it is not evidence of a complete adaptive topology policy. Conditions
+240--247 remain sealed for one-time formal confirmation.
+A controlled PPO ablation preserved the supervised action-type head while
+keeping the 96-episode budget, policy seed, rewards, and conditions unchanged.
+Batch diagnostics showed PPO consistently increased the add-type probability
+(ending near 0.579), while normalized add/swap advantages were positive and
+keep advantages negative. The apparent all-keep result was instead caused by
+deterministic decoding: global joint-probability argmax favored the singleton
+keep action after add probability was divided among several candidate edges.
+Hierarchical mode now selects the most probable type first and then its best
+member; sampling and PPO log-probabilities are unchanged. Re-evaluating the same
+saved weights gave the warm start a 0.00636 m development improvement (19/32
+runs improved), whereas random initialization degraded by 0.02239 m on average
+(5/32 improved, worst degradation 0.14876 m). GNN pretraining therefore improves
+the current PPO initializer, although weak Critic explained variance and the
+warm policy's fixed initial-add behavior remain open limitations.
 
 ### V15 snapshot collection and GNN environment
 

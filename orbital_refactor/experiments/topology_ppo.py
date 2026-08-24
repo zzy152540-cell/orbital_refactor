@@ -19,6 +19,7 @@ class HierarchicalActionDistribution:
 
     action_log_probabilities: Tensor
     type_probabilities: Tensor
+    action_kind_index: Tensor
     type_entropy: Tensor
     conditional_entropy: Tensor
 
@@ -31,7 +32,13 @@ class HierarchicalActionDistribution:
         return torch.multinomial(probabilities, 1, generator=generator).squeeze(0)
 
     def mode(self) -> Tensor:
-        return self.action_log_probabilities.argmax()
+        selected_type = self.type_probabilities.argmax()
+        members = torch.nonzero(
+            self.action_kind_index == selected_type, as_tuple=False
+        ).squeeze(1)
+        if not len(members):
+            raise ValueError("Selected action type has no legal member.")
+        return members[self.action_log_probabilities[members].argmax()]
 
     def log_prob(self, action_index: Tensor | int) -> Tensor:
         return self.action_log_probabilities[action_index]
@@ -673,6 +680,7 @@ def hierarchical_action_distribution(
     return HierarchicalActionDistribution(
         action_log_probabilities=action_log_probabilities,
         type_probabilities=type_probabilities,
+        action_kind_index=action_kind_index,
         type_entropy=type_entropy,
         conditional_entropy=conditional_entropy,
     )
