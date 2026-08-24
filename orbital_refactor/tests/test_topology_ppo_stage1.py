@@ -3,6 +3,7 @@ from pathlib import Path
 
 from experiments.topology_ppo import collect_topology_rollout
 from experiments.topology_ppo_stage1 import (
+    RandomizedPhysicalConditionSplit,
     Stage1Configuration,
     Stage1SeedSplit,
     apply_stage1_penalties,
@@ -11,6 +12,7 @@ from experiments.topology_ppo_stage1 import (
     evaluate_stage1_policies,
     five_node_heterogeneous_link_configuration,
     five_node_randomized_physical_configuration,
+    five_node_stratified_physical_configuration,
     five_node_stage1_configuration,
     five_node_robust_ppo_configuration,
     scan_stage1_penalty_sensitivity,
@@ -85,6 +87,45 @@ def test_five_node_randomized_physical_configuration_combines_geometry_and_links
         "differential_along_track",
         "two_plane_cluster",
     )
+
+
+def test_randomized_physical_condition_split_quarantines_prescan():
+    split = RandomizedPhysicalConditionSplit()
+    split.validate()
+
+    assert split.prescan == tuple(range(112, 120))
+    assert split.training == tuple(range(200, 224))
+    assert split.selection == tuple(range(224, 232))
+    assert split.development == tuple(range(232, 240))
+    assert split.formal_confirmation == tuple(range(240, 248))
+    groups = (
+        split.prescan,
+        split.training,
+        split.selection,
+        split.development,
+        split.formal_confirmation,
+    )
+    assert all(
+        not set(left) & set(right)
+        for index, left in enumerate(groups)
+        for right in groups[index + 1:]
+    )
+
+
+def test_stratified_physical_configuration_balances_frozen_training_split():
+    configuration = five_node_stratified_physical_configuration()
+    distribution = configuration.scenario_distribution
+    split = RandomizedPhysicalConditionSplit()
+
+    assert distribution.physical_family_assignment_mode == "seed_cycle"
+    family_counts = {
+        family: sum(
+            seed % len(distribution.physical_scenario_families) == index
+            for seed in split.training
+        )
+        for index, family in enumerate(distribution.physical_scenario_families)
+    }
+    assert set(family_counts.values()) == {8}
 
 
 def test_five_node_robust_ppo_baseline_uses_low_variance_updates():

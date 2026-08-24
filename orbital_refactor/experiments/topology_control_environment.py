@@ -87,6 +87,7 @@ class CompactFleetScenarioDistribution:
     initial_topology_types: tuple[str, ...] = ("chain",)
     link_condition_mode: str = "homogeneous"
     physical_scenario_families: tuple[str, ...] = ()
+    physical_family_assignment_mode: str = "random"
 
     def validate(self, node_count: int) -> None:
         loss_low, loss_high = self.packet_loss_range
@@ -119,6 +120,8 @@ class CompactFleetScenarioDistribution:
             raise ValueError("Unsupported or duplicate physical scenario family.")
         if self.physical_scenario_families and node_count != 5:
             raise ValueError("Randomized physical scenario families require five nodes.")
+        if self.physical_family_assignment_mode not in {"random", "seed_cycle"}:
+            raise ValueError("Unsupported physical family-assignment mode.")
 
 
 class TopologyControlEnvironment:
@@ -494,6 +497,7 @@ class TopologyControlEnvironment:
         physical_scenario = (
             sample_five_satellite_physical_scenario(
                 seed, families=distribution.physical_scenario_families,
+                family_assignment_mode=distribution.physical_family_assignment_mode,
             )
             if distribution.physical_scenario_families else None
         )

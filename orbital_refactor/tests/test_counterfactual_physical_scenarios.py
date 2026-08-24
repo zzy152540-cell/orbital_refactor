@@ -1,6 +1,7 @@
 import numpy as np
 
 from experiments.counterfactual_physical_scenarios import (
+    FIVE_NODE_PHYSICAL_FAMILIES,
     build_three_satellite_counterfactual_scenarios,
     sample_five_satellite_physical_scenario,
 )
@@ -72,6 +73,16 @@ def test_randomized_five_node_physical_scenario_is_seed_reproducible():
     assert first.semi_major_axis * (1.0 - first.eccentricity) > R_EARTH
     assert all(np.isfinite(state).all()
                for state in first.truth_initial_state_by_node().values())
+
+
+def test_seed_cycle_assigns_physical_families_without_reward_selection():
+    families = tuple(
+        sample_five_satellite_physical_scenario(
+            seed, family_assignment_mode="seed_cycle",
+        ).family
+        for seed in range(6)
+    )
+    assert families == 2 * FIVE_NODE_PHYSICAL_FAMILIES
 
 
 def test_randomized_five_node_families_span_geometry_and_orbit_planes():

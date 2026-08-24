@@ -88,6 +88,38 @@ class Stage1SeedSplit:
             raise ValueError("Stage 1 train/validation/test seeds must be disjoint.")
 
 
+@dataclass(frozen=True)
+class RandomizedPhysicalConditionSplit:
+    """Frozen condition seeds for the five-node physical curriculum.
+
+    Conditions 112--119 were inspected during curriculum pre-scan and are
+    therefore explicitly quarantined from fitting and confirmation.
+    """
+
+    prescan: tuple[int, ...] = tuple(range(112, 120))
+    training: tuple[int, ...] = tuple(range(200, 224))
+    selection: tuple[int, ...] = tuple(range(224, 232))
+    development: tuple[int, ...] = tuple(range(232, 240))
+    formal_confirmation: tuple[int, ...] = tuple(range(240, 248))
+
+    def validate(self) -> None:
+        groups = (
+            self.prescan,
+            self.training,
+            self.selection,
+            self.development,
+            self.formal_confirmation,
+        )
+        if any(not group or len(set(group)) != len(group) for group in groups):
+            raise ValueError("Physical condition groups must be unique and nonempty.")
+        if any(
+            set(left) & set(right)
+            for index, left in enumerate(groups)
+            for right in groups[index + 1:]
+        ):
+            raise ValueError("Physical condition groups must be mutually disjoint.")
+
+
 FIVE_NODE_STAGE1_DISTRIBUTION = CompactFleetScenarioDistribution(
     packet_loss_range=(0.0, 0.2),
     communication_delay_range=(0.0, 2.0),
@@ -116,6 +148,11 @@ FIVE_NODE_RANDOMIZED_PHYSICAL_DISTRIBUTION = CompactFleetScenarioDistribution(
     ),
 )
 
+FIVE_NODE_STRATIFIED_PHYSICAL_DISTRIBUTION = replace(
+    FIVE_NODE_RANDOMIZED_PHYSICAL_DISTRIBUTION,
+    physical_family_assignment_mode="seed_cycle",
+)
+
 
 def five_node_stage1_configuration(**changes) -> Stage1Configuration:
     """Return the frozen five-node distribution baseline for PPO pilots."""
@@ -142,6 +179,15 @@ def five_node_randomized_physical_configuration(**changes) -> Stage1Configuratio
 
     baseline = five_node_stage1_configuration(
         scenario_distribution=FIVE_NODE_RANDOMIZED_PHYSICAL_DISTRIBUTION,
+    )
+    return replace(baseline, **changes)
+
+
+def five_node_stratified_physical_configuration(**changes) -> Stage1Configuration:
+    """Return the frozen, family-balanced physical training curriculum."""
+
+    baseline = five_node_stage1_configuration(
+        scenario_distribution=FIVE_NODE_STRATIFIED_PHYSICAL_DISTRIBUTION,
     )
     return replace(baseline, **changes)
 

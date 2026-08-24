@@ -9,6 +9,7 @@ from experiments.topology_ppo_stage1 import (
     five_node_heterogeneous_link_configuration,
     five_node_randomized_physical_configuration,
     five_node_stage1_configuration,
+    five_node_stratified_physical_configuration,
 )
 from experiments.topology_snapshot_counterfactual import (
     build_noise_robust_topology_snapshot_tensor_dataset,
@@ -34,6 +35,9 @@ def main(argv=None) -> Path:
     distribution.add_argument(
         "--randomized-physical-scenarios", action="store_true"
     )
+    distribution.add_argument(
+        "--stratified-physical-scenarios", action="store_true"
+    )
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     maximum_epoch = max(arguments.epochs)
@@ -44,6 +48,8 @@ def main(argv=None) -> Path:
         configuration_factory = five_node_heterogeneous_link_configuration
     if arguments.randomized_physical_scenarios:
         configuration_factory = five_node_randomized_physical_configuration
+    if arguments.stratified_physical_scenarios:
+        configuration_factory = five_node_stratified_physical_configuration
     configuration = configuration_factory(
         training_episodes=1,
         episode_epochs=arguments.episode_epochs,

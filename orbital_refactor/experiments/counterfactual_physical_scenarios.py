@@ -62,6 +62,7 @@ def sample_five_satellite_physical_scenario(
     seed: int,
     *,
     families: tuple[str, ...] = FIVE_NODE_PHYSICAL_FAMILIES,
+    family_assignment_mode: str = "random",
 ) -> RandomizedFleetPhysicalScenario:
     """Sample one reproducible five-satellite orbit condition.
 
@@ -75,8 +76,14 @@ def sample_five_satellite_physical_scenario(
     unknown = set(families) - set(FIVE_NODE_PHYSICAL_FAMILIES)
     if unknown:
         raise ValueError(f"Unsupported physical scenario families: {sorted(unknown)}")
+    if family_assignment_mode not in {"random", "seed_cycle"}:
+        raise ValueError("Unsupported physical family-assignment mode.")
     rng = np.random.default_rng(20260917 + int(seed))
-    family = str(rng.choice(families))
+    family = (
+        str(rng.choice(families))
+        if family_assignment_mode == "random"
+        else families[int(seed) % len(families)]
+    )
     semi_major_axis = float(R_EARTH + rng.uniform(550e3, 850e3))
     eccentricity = float(rng.uniform(0.0, 0.002))
     inclination = float(np.deg2rad(rng.uniform(20.0, 70.0)))

@@ -216,6 +216,14 @@ Keplerian elements, while condition and observation-noise seeds remain
 separate. An eight-condition pre-scan found robust non-keep opportunities in
 all three families; conditions 112--119 are reserved as development evidence
 and excluded from training and formal confirmation.
+The randomized-physical condition split is frozen in code: conditions 200--223
+are training, 224--231 model selection, 232--239 development, and 240--247
+one-time formal confirmation. Conditions 112--119 remain quarantined as
+inspected pre-scan evidence.
+The inspected pre-scan remains reproducible with random family assignment.
+Formal fitting uses a separate seed-cycled configuration so the 24 training
+conditions contain eight examples of each family and every eight-condition
+evaluation block contains all three families without reward-based seed choice.
 
 ### V15 snapshot collection and GNN environment
 

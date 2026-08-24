@@ -36,3 +36,13 @@ def test_robust_collection_rejects_two_condition_distributions(tmp_path):
             "--heterogeneous-links", "--randomized-physical-scenarios",
             "--output", str(tmp_path / "invalid.npz"),
         ])
+
+
+def test_robust_collection_rejects_random_and_stratified_physical_modes(tmp_path):
+    with pytest.raises(SystemExit):
+        main([
+            "--condition-seeds", "1", "--noise-seeds", "0",
+            "--randomized-physical-scenarios",
+            "--stratified-physical-scenarios",
+            "--output", str(tmp_path / "invalid.npz"),
+        ])
