@@ -312,6 +312,21 @@ the deterministic policy still used only add/keep but improved over keep by
 end-to-end mixed-scale PPO training path, not statistical performance; the
 three development conditions must not be used to tune a larger pilot.
 
+The first complete 20-condition scale cycle then trained random and warm-start
+PPO on the identical 440--459 schedule (8 five-node, 7 ten-node, and 5 twenty-
+node episodes). On six untouched development conditions 460, 461, 462, 463,
+464, and 466, random initialization improved 5/6 episodes by 0.01365 m on
+average with worst degradation 0.01044 m. Warm start improved 4/6 by 0.02132 m
+on average but degraded by as much as 0.02990 m: both five-node cases regressed,
+while both twenty-node cases improved strongly. Both deterministic policies
+still selected only add/keep, despite sampled training trajectories containing
+swap/remove. Critic explained variance remained weak (about 0.014 random and
+0.009 warm). Warm start therefore improves mean cross-scale performance but is
+not yet the safer initializer. A single 20-episode batch provides only one PPO
+update; the next experiment must use multiple rollout/update batches so changed
+policies generate subsequent experience. These six conditions are now consumed
+development diagnostics and cannot be reused for model selection.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

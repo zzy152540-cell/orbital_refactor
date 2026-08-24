@@ -1,0 +1,471 @@
+{
+  "configuration": {
+    "curriculum": {
+      "decision_interval_epochs": 3,
+      "episode_epochs": 30,
+      "maximum_topology_switches_per_episode": 5,
+      "minimum_topology_dwell_decisions": 1,
+      "node_count_cycle": [
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5
+      ],
+      "top_k_candidate_neighbors": 3
+    },
+    "entropy_coefficient": 0.01,
+    "environment_seed_count": 4,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0001,
+    "minibatch_size": 32,
+    "penalty_weights": {
+      "communication": 0.0025,
+      "resynchronization": 0.001,
+      "topology_switch": 0.001
+    },
+    "policy_seed": 0,
+    "rollout_batch_episodes": 20,
+    "target_kl": 0.02,
+    "training_condition_seed_count": 20,
+    "training_condition_seed_offset": 440,
+    "training_episodes": 20,
+    "update_epochs": 4
+  },
+  "evaluation_conditions": [
+    460,
+    461,
+    462,
+    463,
+    464,
+    466
+  ],
+  "random_init": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 20,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            8
+          ],
+          [
+            10,
+            7
+          ],
+          [
+            20,
+            5
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            80
+          ],
+          [
+            10,
+            70
+          ],
+          [
+            20,
+            50
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 127,
+          "advantage_mean": 0.12631049752235413,
+          "advantage_standard_deviation": 1.1860085725784302,
+          "approximate_kl": 3.15189354296308e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.248744249343872,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.01373910903930664,
+          "final_loss": 0.0688154399394989,
+          "gradient_norm": 0.6293657422065735,
+          "policy_loss": -0.12331906706094742,
+          "positive_advantage_fraction": 0.29133859276771545,
+          "stopped_early": false,
+          "transition_count": 200,
+          "value_loss": 0.42924389243125916
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 460,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.49385121931719234,
+        "model_final_position_rmse": 0.5042952923369272,
+        "model_rmse_improvement": -0.010444073019734823,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 461,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.8092630785405548,
+        "model_final_position_rmse": 0.7966901121773055,
+        "model_rmse_improvement": 0.012572966363249338,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 462,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7629422564390862,
+        "model_final_position_rmse": 0.7612193725728511,
+        "model_rmse_improvement": 0.001722883866235092,
+        "node_count": 20,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 463,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.5170545232094582,
+        "model_final_position_rmse": 0.5041628054927605,
+        "model_rmse_improvement": 0.012891717716697726,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 464,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.5258896384197499,
+        "model_final_position_rmse": 0.47052883519069566,
+        "model_rmse_improvement": 0.055360803229054234,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 466,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6680384344291991,
+        "model_final_position_rmse": 0.6582578990345286,
+        "model_rmse_improvement": 0.009780535394670498,
+        "node_count": 20,
+        "topology_switches": 5.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "add": 2,
+          "keep": 18
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.033966884796151786,
+        "worst_rmse_improvement": 0.012572966363249338
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.005751709630452795,
+        "worst_rmse_improvement": 0.001722883866235092
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": 0.0012238223484814514,
+        "worst_rmse_improvement": -0.010444073019734823
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 42,
+          "remove": 7,
+          "swap": 11
+        },
+        "episode_count": 7,
+        "mean_penalized_return": 2.2392475264413014,
+        "mean_task_return": 2.26472840990339,
+        "mean_topology_switches": 4.0
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 9,
+          "keep": 28,
+          "remove": 5,
+          "swap": 8
+        },
+        "episode_count": 5,
+        "mean_penalized_return": 2.2628042221069338,
+        "mean_task_return": 2.2900527000427244,
+        "mean_topology_switches": 4.4
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 21,
+          "keep": 45,
+          "remove": 9,
+          "swap": 5
+        },
+        "episode_count": 8,
+        "mean_penalized_return": 2.004964143037796,
+        "mean_task_return": 2.0342432856559753,
+        "mean_topology_switches": 4.375
+      }
+    }
+  },
+  "warm_start": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 20,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            8
+          ],
+          [
+            10,
+            7
+          ],
+          [
+            20,
+            5
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            80
+          ],
+          [
+            10,
+            70
+          ],
+          [
+            20,
+            50
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 116,
+          "advantage_mean": 0.1484411060810089,
+          "advantage_standard_deviation": 1.2205694913864136,
+          "approximate_kl": 0.0009649048442952335,
+          "clip_fraction": 0.0,
+          "entropy": 1.7641643285751343,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.009494423866271973,
+          "final_loss": -0.08785945177078247,
+          "gradient_norm": 2.865840435028076,
+          "policy_loss": -0.6635146737098694,
+          "positive_advantage_fraction": 0.26724138855934143,
+          "stopped_early": false,
+          "transition_count": 200,
+          "value_loss": 1.186593770980835
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 460,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.49385121931719234,
+        "model_final_position_rmse": 0.5237517553824655,
+        "model_rmse_improvement": -0.02990053606527321,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 461,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.8092630785405548,
+        "model_final_position_rmse": 0.7966901121773055,
+        "model_rmse_improvement": 0.012572966363249338,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 462,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7629422564390862,
+        "model_final_position_rmse": 0.7015709415461912,
+        "model_rmse_improvement": 0.061371314892895046,
+        "node_count": 20,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 463,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.5170545232094582,
+        "model_final_position_rmse": 0.5189459536235658,
+        "model_rmse_improvement": -0.0018914304141075533,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 464,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.5258896384197499,
+        "model_final_position_rmse": 0.47052883519069566,
+        "model_rmse_improvement": 0.055360803229054234,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 466,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6680384344291991,
+        "model_final_position_rmse": 0.6376331018850742,
+        "model_rmse_improvement": 0.03040533254412492,
+        "node_count": 20,
+        "topology_switches": 5.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "add": 2,
+          "keep": 18
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.033966884796151786,
+        "worst_rmse_improvement": 0.012572966363249338
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.04588832371850998,
+        "worst_rmse_improvement": 0.03040533254412492
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": -0.01589598323969038,
+        "worst_rmse_improvement": -0.02990053606527321
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 11,
+          "keep": 41,
+          "remove": 7,
+          "swap": 11
+        },
+        "episode_count": 7,
+        "mean_penalized_return": 2.2430668898991177,
+        "mean_task_return": 2.268980996949332,
+        "mean_topology_switches": 4.142857142857143
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 15,
+          "keep": 26,
+          "remove": 1,
+          "swap": 8
+        },
+        "episode_count": 5,
+        "mean_penalized_return": 2.261489725112915,
+        "mean_task_return": 2.2903496742248537,
+        "mean_topology_switches": 4.8
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 25,
+          "keep": 41,
+          "remove": 3,
+          "swap": 11
+        },
+        "episode_count": 8,
+        "mean_penalized_return": 2.006206974387169,
+        "mean_task_return": 2.0397361367940903,
+        "mean_topology_switches": 4.875
+      }
+    }
+  }
+}
