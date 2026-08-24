@@ -103,6 +103,19 @@ FIVE_NODE_HETEROGENEOUS_LINK_DISTRIBUTION = CompactFleetScenarioDistribution(
     link_condition_mode="undirected_independent",
 )
 
+FIVE_NODE_RANDOMIZED_PHYSICAL_DISTRIBUTION = CompactFleetScenarioDistribution(
+    packet_loss_range=(0.0, 0.2),
+    communication_delay_range=(0.0, 2.0),
+    navigation_dropout_node_count=1,
+    initial_topology_types=("chain", "ring", "star"),
+    link_condition_mode="undirected_independent",
+    physical_scenario_families=(
+        "compact_along_track",
+        "differential_along_track",
+        "two_plane_cluster",
+    ),
+)
+
 
 def five_node_stage1_configuration(**changes) -> Stage1Configuration:
     """Return the frozen five-node distribution baseline for PPO pilots."""
@@ -120,6 +133,15 @@ def five_node_heterogeneous_link_configuration(**changes) -> Stage1Configuration
 
     baseline = five_node_stage1_configuration(
         scenario_distribution=FIVE_NODE_HETEROGENEOUS_LINK_DISTRIBUTION,
+    )
+    return replace(baseline, **changes)
+
+
+def five_node_randomized_physical_configuration(**changes) -> Stage1Configuration:
+    """Return the first geometry- and link-randomized five-node curriculum."""
+
+    baseline = five_node_stage1_configuration(
+        scenario_distribution=FIVE_NODE_RANDOMIZED_PHYSICAL_DISTRIBUTION,
     )
     return replace(baseline, **changes)
 

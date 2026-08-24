@@ -286,6 +286,42 @@ def test_compact_distribution_can_expose_seeded_heterogeneous_links():
                 for edge in repeated_state.observation.candidate_edges}) > 1
 
 
+def test_compact_distribution_can_randomize_five_node_orbit_geometry():
+    distribution = CompactFleetScenarioDistribution(
+        link_condition_mode="undirected_independent",
+        physical_scenario_families=("differential_along_track",),
+    )
+    environment = TopologyControlEnvironment(
+        node_count=5, episode_epochs=3, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+        compact_scenario_distribution=distribution,
+    )
+    first = environment.reset(seed=1, condition_seed=88)
+    first_conditions = environment._episode_conditions
+    first_truth = np.stack([
+        values[0] for values in environment._case["truth"].values()
+    ])
+    second = environment.reset(seed=2, condition_seed=88)
+    second_truth = np.stack([
+        values[0] for values in environment._case["truth"].values()
+    ])
+
+    assert environment._episode_conditions == first_conditions
+    assert first_conditions["physical_scenario_family"] == (
+        "differential_along_track"
+    )
+    assert len(first_conditions["truth_initial_states"]) == 5
+    first_distances = np.asarray([
+        edge.distance for edge in first.observation.candidate_edges
+    ])
+    second_distances = np.asarray([
+        edge.distance for edge in second.observation.candidate_edges
+    ])
+    np.testing.assert_allclose(first_truth, second_truth)
+    np.testing.assert_allclose(first_distances, second_distances, rtol=1e-3)
+    assert first_distances.max() > 20e3
+
+
 def test_compact_scenario_distribution_samples_initial_topology_family():
     distribution = CompactFleetScenarioDistribution(
         initial_topology_types=("chain", "ring", "star"),

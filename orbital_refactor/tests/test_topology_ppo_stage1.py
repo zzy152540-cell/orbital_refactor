@@ -10,6 +10,7 @@ from experiments.topology_ppo_stage1 import (
     compare_stage1_training_seeds,
     evaluate_stage1_policies,
     five_node_heterogeneous_link_configuration,
+    five_node_randomized_physical_configuration,
     five_node_stage1_configuration,
     five_node_robust_ppo_configuration,
     scan_stage1_penalty_sensitivity,
@@ -71,6 +72,19 @@ def test_five_node_heterogeneous_link_configuration_is_explicit_opt_in():
     )
     assert expanded.node_count == baseline.node_count == 5
     assert expanded.top_k_candidate_neighbors == baseline.top_k_candidate_neighbors
+
+
+def test_five_node_randomized_physical_configuration_combines_geometry_and_links():
+    configuration = five_node_randomized_physical_configuration()
+    distribution = configuration.scenario_distribution
+
+    assert configuration.node_count == 5
+    assert distribution.link_condition_mode == "undirected_independent"
+    assert distribution.physical_scenario_families == (
+        "compact_along_track",
+        "differential_along_track",
+        "two_plane_cluster",
+    )
 
 
 def test_five_node_robust_ppo_baseline_uses_low_variance_updates():

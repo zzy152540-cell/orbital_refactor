@@ -209,6 +209,14 @@ generalization failure of the homogeneous LCB checkpoint. This distribution is
 therefore the next training dimension; pre-scan conditions 76--79 are excluded
 from subsequent fitting and formal evaluation.
 
+The first geometry-randomized five-node curriculum now samples three physically
+parameterized orbit families: compact along-track, differential along-track,
+and a two-plane local cluster. Initial truth states are generated from valid
+Keplerian elements, while condition and observation-noise seeds remain
+separate. An eight-condition pre-scan found robust non-keep opportunities in
+all three families; conditions 112--119 are reserved as development evidence
+and excluded from training and formal confirmation.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

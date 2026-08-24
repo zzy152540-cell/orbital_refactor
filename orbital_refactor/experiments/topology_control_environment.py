@@ -31,6 +31,10 @@ from experiments.v14_walker_dynamic_topology import (
 from experiments.walker_filter_setup import (
     build_walker_filter_case,
 )
+from experiments.counterfactual_physical_scenarios import (
+    FIVE_NODE_PHYSICAL_FAMILIES,
+    sample_five_satellite_physical_scenario,
+)
 
 
 @dataclass(frozen=True)
@@ -82,6 +86,7 @@ class CompactFleetScenarioDistribution:
     navigation_dropout_node_count: int = 1
     initial_topology_types: tuple[str, ...] = ("chain",)
     link_condition_mode: str = "homogeneous"
+    physical_scenario_families: tuple[str, ...] = ()
 
     def validate(self, node_count: int) -> None:
         loss_low, loss_high = self.packet_loss_range
@@ -105,6 +110,15 @@ class CompactFleetScenarioDistribution:
             "homogeneous", "undirected_independent",
         }:
             raise ValueError("Unsupported compact-fleet link-condition mode.")
+        if (
+            len(set(self.physical_scenario_families))
+            != len(self.physical_scenario_families)
+            or set(self.physical_scenario_families)
+            - set(FIVE_NODE_PHYSICAL_FAMILIES)
+        ):
+            raise ValueError("Unsupported or duplicate physical scenario family.")
+        if self.physical_scenario_families and node_count != 5:
+            raise ValueError("Randomized physical scenario families require five nodes.")
 
 
 class TopologyControlEnvironment:
@@ -239,6 +253,7 @@ class TopologyControlEnvironment:
         candidate = fully_connected_topology(tuple(
             f"sat_{index + 1:02d}" for index in range(self.node_count)
         ))
+        randomized_truth = self._episode_conditions["truth_initial_states"]
         case = build_exact_transport_case(
             seed=int(seed), duration=self.episode_epochs * self.dt, dt=self.dt,
             range_sigma=2.0, range_rate_sigma=0.05,
@@ -250,6 +265,12 @@ class TopologyControlEnvironment:
             visibility_by_modality=self.visibility_by_modality,
             absolute_navigation_dropout_windows_by_node=(
                 self._episode_conditions["navigation_dropout_by_node"]
+            ),
+            truth_initial_state_by_node=(
+                None if not randomized_truth else {
+                    node: np.asarray(state, dtype=float)
+                    for node, state in randomized_truth
+                }
             ),
         )
         baseline = _compact_initial_topology(
@@ -428,6 +449,8 @@ class TopologyControlEnvironment:
                 "communication_delay_by_link": {},
                 "navigation_dropout_by_node": {},
                 "initial_topology_type": "chain",
+                "physical_scenario_family": "legacy_compact",
+                "truth_initial_states": (),
             }
         if self.scenario_type != "compact_fleet":
             raise ValueError("Stage 1 randomization currently supports compact fleets.")
@@ -468,6 +491,12 @@ class TopologyControlEnvironment:
                     packet_loss_by_link[right, left] = edge_loss
                     delay_by_link[left, right] = edge_delay
                     delay_by_link[right, left] = edge_delay
+        physical_scenario = (
+            sample_five_satellite_physical_scenario(
+                seed, families=distribution.physical_scenario_families,
+            )
+            if distribution.physical_scenario_families else None
+        )
         return {
             "packet_loss": packet_loss,
             "communication_delay": communication_delay,
@@ -480,6 +509,14 @@ class TopologyControlEnvironment:
                 for index in dropout_indices
             },
             "initial_topology_type": initial_topology_type,
+            "physical_scenario_family": (
+                "legacy_compact" if physical_scenario is None
+                else physical_scenario.family
+            ),
+            "truth_initial_states": (
+                () if physical_scenario is None
+                else physical_scenario.truth_initial_states
+            ),
         }
 
     def _node_navigation_is_in_dropout(self, node, timestamp):
