@@ -1,0 +1,137 @@
+{
+  "condition_seeds": [
+    240,
+    241,
+    242,
+    243,
+    244,
+    245,
+    246,
+    247
+  ],
+  "decoder": "hierarchical_type_then_member_mode",
+  "noise_seeds": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "random_init_aggregate": {
+    "fallbacks": 0.0,
+    "improved_episode_count": 28,
+    "mean_rmse_improvement": -0.004349406393922788,
+    "total_episode_count": 96,
+    "worst_rmse_improvement": -0.24337315060433573
+  },
+  "records": [
+    {
+      "bundle": "results\\v15_stratified_physical_ppo_batch_audit_seed00.pt",
+      "policy_seed": 0,
+      "random_init": {
+        "action_kind_counts": {
+          "add": 15,
+          "keep": 73,
+          "remove": 8
+        },
+        "episode_count": 32,
+        "fallbacks": 0.0,
+        "improved_episode_count": 12,
+        "mean_keep_rmse": 1.1336430936791368,
+        "mean_model_rmse": 1.1447066057279822,
+        "mean_rmse_improvement": -0.011063512048845592,
+        "resynchronizations": 30.0,
+        "topology_switches": 23.0,
+        "worst_rmse_improvement": -0.24337315060433573
+      },
+      "warm_start": {
+        "action_kind_counts": {
+          "add": 32,
+          "keep": 64
+        },
+        "episode_count": 32,
+        "fallbacks": 0.0,
+        "improved_episode_count": 20,
+        "mean_keep_rmse": 1.1336430936791368,
+        "mean_model_rmse": 1.1259216684192146,
+        "mean_rmse_improvement": 0.007721425259922244,
+        "resynchronizations": 64.0,
+        "topology_switches": 32.0,
+        "worst_rmse_improvement": -0.02351688387137285
+      }
+    },
+    {
+      "bundle": "results\\v15_stratified_physical_ppo_multiseed_seed01.pt",
+      "policy_seed": 1,
+      "random_init": {
+        "action_kind_counts": {
+          "keep": 96
+        },
+        "episode_count": 32,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_keep_rmse": 1.1336430936791368,
+        "mean_model_rmse": 1.1336430936791368,
+        "mean_rmse_improvement": 0.0,
+        "resynchronizations": 0.0,
+        "topology_switches": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "warm_start": {
+        "action_kind_counts": {
+          "add": 32,
+          "keep": 64
+        },
+        "episode_count": 32,
+        "fallbacks": 0.0,
+        "improved_episode_count": 21,
+        "mean_keep_rmse": 1.1336430936791368,
+        "mean_model_rmse": 1.1277823061629726,
+        "mean_rmse_improvement": 0.005860787516164326,
+        "resynchronizations": 64.0,
+        "topology_switches": 32.0,
+        "worst_rmse_improvement": -0.02351688387137285
+      }
+    },
+    {
+      "bundle": "results\\v15_stratified_physical_ppo_multiseed_seed02.pt",
+      "policy_seed": 2,
+      "random_init": {
+        "action_kind_counts": {
+          "keep": 64,
+          "swap": 32
+        },
+        "episode_count": 32,
+        "fallbacks": 0.0,
+        "improved_episode_count": 16,
+        "mean_keep_rmse": 1.1336430936791368,
+        "mean_model_rmse": 1.1356278008120595,
+        "mean_rmse_improvement": -0.0019847071329227722,
+        "resynchronizations": 64.0,
+        "topology_switches": 32.0,
+        "worst_rmse_improvement": -0.16747762754724227
+      },
+      "warm_start": {
+        "action_kind_counts": {
+          "add": 32,
+          "keep": 64
+        },
+        "episode_count": 32,
+        "fallbacks": 0.0,
+        "improved_episode_count": 19,
+        "mean_keep_rmse": 1.1336430936791368,
+        "mean_model_rmse": 1.127285223079987,
+        "mean_rmse_improvement": 0.006357870599149853,
+        "resynchronizations": 64.0,
+        "topology_switches": 32.0,
+        "worst_rmse_improvement": -0.023882827448735267
+      }
+    }
+  ],
+  "warm_start_aggregate": {
+    "fallbacks": 0.0,
+    "improved_episode_count": 60,
+    "mean_rmse_improvement": 0.006646694458412141,
+    "total_episode_count": 96,
+    "worst_rmse_improvement": -0.023882827448735267
+  }
+}

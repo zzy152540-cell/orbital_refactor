@@ -231,7 +231,7 @@ use on development conditions 232--239 retained a 0.00767 m mean improvement
 (20/32 improved), with no illegal fallback or divergence. The policy always
 used one initial add followed by keep, so this passes only the PPO-initializer
 gate; it is not evidence of a complete adaptive topology policy. Conditions
-240--247 remain sealed for one-time formal confirmation.
+240--247 were subsequently consumed exactly once for formal confirmation.
 A controlled PPO ablation preserved the supervised action-type head while
 keeping the 96-episode budget, policy seed, rewards, and conditions unchanged.
 Batch diagnostics showed PPO consistently increased the add-type probability
@@ -254,6 +254,16 @@ degradation 0.03266 m. Random initialization averaged -0.00786 m, improved only
 20/96 episodes, and degraded by as much as 0.14876 m. This passes the frozen
 multi-seed initializer gate. Configuration and all three seeds must now remain
 fixed before the one-time 240--247 formal confirmation.
+That frozen confirmation reproduced the development conclusion. Across policy
+seeds 0, 1, and 2, warm-start PPO improved over keep by 0.00772, 0.00586, and
+0.00636 m respectively. The pooled improvement was 0.00665 m, with 60/96
+episodes improved, no illegal fallback, and worst degradation 0.02388 m.
+Random initialization averaged -0.00435 m, improved 28/96 episodes, and
+degraded by as much as 0.24337 m. Every warm-start seed retained one initial
+add followed by keep. The formal result therefore confirms the GNN as a stable
+PPO initializer, but does not establish a mature adaptive-topology policy.
+Conditions 240--247 are now consumed and must not be used for tuning or another
+confirmation claim.
 
 ### V15 snapshot collection and GNN environment
 
