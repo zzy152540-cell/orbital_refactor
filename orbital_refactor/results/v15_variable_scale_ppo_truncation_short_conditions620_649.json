@@ -1,0 +1,660 @@
+{
+  "comparison_role": "aligned_actor_multibatch_initialization_ablation",
+  "configuration": {
+    "curriculum": {
+      "decision_interval_epochs": 3,
+      "episode_epochs": 30,
+      "maximum_topology_switches_per_episode": 5,
+      "minimum_topology_dwell_decisions": 1,
+      "node_count_cycle": [
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5
+      ],
+      "top_k_candidate_neighbors": 3
+    },
+    "entropy_coefficient": 0.01,
+    "environment_seed_count": 4,
+    "explicit_action_pairing": true,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0001,
+    "minibatch_size": 32,
+    "penalty_weights": {
+      "communication": 0.0025,
+      "resynchronization": 0.001,
+      "topology_switch": 0.001
+    },
+    "policy_seed": 0,
+    "rollout_batch_episodes": 10,
+    "target_kl": 0.02,
+    "training_condition_seed_count": 30,
+    "training_condition_seed_offset": 620,
+    "training_episodes": 30,
+    "update_epochs": 4
+  },
+  "evaluation_conditions": [
+    680,
+    681,
+    682,
+    683,
+    684,
+    686
+  ],
+  "random_init": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 66,
+          "advantage_mean": 0.11102808266878128,
+          "advantage_standard_deviation": 1.1481425762176514,
+          "approximate_kl": 4.629293925972888e-06,
+          "clip_fraction": 0.0,
+          "entropy": 2.380789041519165,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.01224374771118164,
+          "final_loss": -0.49885058403015137,
+          "gradient_norm": 2.5003015995025635,
+          "policy_loss": -1.4596214294433594,
+          "positive_advantage_fraction": 0.3030303120613098,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 1.9691574573516846
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 65,
+          "advantage_mean": 0.1365600824356079,
+          "advantage_standard_deviation": 1.1692699193954468,
+          "approximate_kl": 1.1265277862548828e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.653223991394043,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.01896953582763672,
+          "final_loss": 0.5489571690559387,
+          "gradient_norm": 0.5225451588630676,
+          "policy_loss": 0.559537410736084,
+          "positive_advantage_fraction": 0.3384615480899811,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.031903933733701706
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 64,
+          "advantage_mean": 0.13387969136238098,
+          "advantage_standard_deviation": 1.167773723602295,
+          "approximate_kl": 1.0728836059570312e-06,
+          "clip_fraction": 0.0,
+          "entropy": 2.5651376247406006,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.04187822341918945,
+          "final_loss": 0.5815504789352417,
+          "gradient_norm": 1.546134114265442,
+          "policy_loss": 0.3513626754283905,
+          "positive_advantage_fraction": 0.296875,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.5116782784461975
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 680,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7229761332047498,
+        "model_final_position_rmse": 0.7229761332047498,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 681,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6216998968511962,
+        "model_final_position_rmse": 0.6216998968511962,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 682,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7684873873689548,
+        "model_final_position_rmse": 0.7684873873689548,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 683,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6484822704846183,
+        "model_final_position_rmse": 0.6484822704846183,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 684,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6312328629478458,
+        "model_final_position_rmse": 0.6312328629478458,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 686,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6923972073946449,
+        "model_final_position_rmse": 0.6923972073946449,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "20": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "5": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 17,
+          "keep": 66,
+          "remove": 14,
+          "swap": 13
+        },
+        "episode_count": 11,
+        "mean_penalized_return": 2.1786140528592197,
+        "mean_task_return": 2.203689791939475,
+        "mean_topology_switches": 4.0
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 9,
+          "keep": 48,
+          "remove": 2,
+          "swap": 11
+        },
+        "episode_count": 7,
+        "mean_penalized_return": 2.2794853959764754,
+        "mean_task_return": 2.304330621446882,
+        "mean_topology_switches": 3.142857142857143
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 21,
+          "keep": 69,
+          "remove": 9,
+          "swap": 21
+        },
+        "episode_count": 12,
+        "mean_penalized_return": 1.9466889003912609,
+        "mean_task_return": 1.9748666087786357,
+        "mean_topology_switches": 4.25
+      }
+    }
+  },
+  "warm_start": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 60,
+          "advantage_mean": 0.12222473323345184,
+          "advantage_standard_deviation": 1.1870757341384888,
+          "approximate_kl": 0.0,
+          "clip_fraction": 0.0,
+          "entropy": 0.0,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.010101914405822754,
+          "final_loss": 0.12437142431735992,
+          "gradient_norm": 1.0517476797103882,
+          "policy_loss": 0.0,
+          "positive_advantage_fraction": 0.28333333134651184,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.24874284863471985
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 60,
+          "advantage_mean": 0.15557760000228882,
+          "advantage_standard_deviation": 1.203967571258545,
+          "approximate_kl": 1.0460615158081055e-05,
+          "clip_fraction": 0.0,
+          "entropy": 1.9322911500930786,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.01288461685180664,
+          "final_loss": 0.3096040189266205,
+          "gradient_norm": 1.5193140506744385,
+          "policy_loss": 0.313539981842041,
+          "positive_advantage_fraction": 0.3333333432674408,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.030773891136050224
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": 0.10482165962457657,
+          "advantage_standard_deviation": 1.1912422180175781,
+          "approximate_kl": 0.0025488436222076416,
+          "clip_fraction": 0.0,
+          "entropy": 2.763356924057007,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.036805152893066406,
+          "final_loss": -0.020130395889282227,
+          "gradient_norm": 5.649964332580566,
+          "policy_loss": -0.7935750484466553,
+          "positive_advantage_fraction": 0.2786885201931,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 1.602156400680542
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 680,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7229761332047498,
+        "model_final_position_rmse": 0.7118157107158725,
+        "model_rmse_improvement": 0.011160422488877386,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 681,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6216998968511962,
+        "model_final_position_rmse": 0.6179180989043002,
+        "model_rmse_improvement": 0.003781797946896037,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 682,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7684873873689548,
+        "model_final_position_rmse": 0.7639157658824054,
+        "model_rmse_improvement": 0.0045716214865494376,
+        "node_count": 20,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 683,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6484822704846183,
+        "model_final_position_rmse": 0.6355796937885659,
+        "model_rmse_improvement": 0.012902576696052326,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 684,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6312328629478458,
+        "model_final_position_rmse": 0.6468752229173852,
+        "model_rmse_improvement": -0.015642359969539443,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 686,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6923972073946449,
+        "model_final_position_rmse": 0.688966631673117,
+        "model_rmse_improvement": 0.0034305757215279398,
+        "node_count": 20,
+        "topology_switches": 5.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "add": 2,
+          "keep": 18
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": -0.005930281011321703,
+        "worst_rmse_improvement": -0.015642359969539443
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.004001098604038689,
+        "worst_rmse_improvement": 0.0034305757215279398
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.012031499592464856,
+        "worst_rmse_improvement": 0.011160422488877386
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 23,
+          "keep": 71,
+          "remove": 13,
+          "swap": 3
+        },
+        "episode_count": 11,
+        "mean_penalized_return": 2.1830842820080845,
+        "mean_task_return": 2.2082690325650303,
+        "mean_topology_switches": 3.5454545454545454
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 25,
+          "keep": 35,
+          "remove": 2,
+          "swap": 8
+        },
+        "episode_count": 7,
+        "mean_penalized_return": 2.2841999190194264,
+        "mean_task_return": 2.312736851828439,
+        "mean_topology_switches": 5.0
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 34,
+          "keep": 61,
+          "remove": 1,
+          "swap": 24
+        },
+        "episode_count": 12,
+        "mean_penalized_return": 1.9376452565193176,
+        "mean_task_return": 1.9695925811926525,
+        "mean_topology_switches": 4.916666666666667
+      }
+    }
+  }
+}

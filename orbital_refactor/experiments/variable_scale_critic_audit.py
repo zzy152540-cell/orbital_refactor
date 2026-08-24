@@ -54,6 +54,7 @@ def audit_variable_scale_critic(
         )
         monte_carlo_returns = _discounted_returns(
             penalized.rewards.detach().cpu().numpy(), gamma,
+            final_value=penalized.final_value,
         )
         for decision_index, transition in enumerate(penalized.transitions):
             kind_index = int(
@@ -88,9 +89,9 @@ def audit_variable_scale_critic(
     }
 
 
-def _discounted_returns(rewards, gamma):
+def _discounted_returns(rewards, gamma, *, final_value=0.0):
     returns = np.empty_like(rewards, dtype=float)
-    accumulator = 0.0
+    accumulator = float(final_value)
     for index in range(len(rewards) - 1, -1, -1):
         accumulator = float(rewards[index]) + gamma * accumulator
         returns[index] = accumulator

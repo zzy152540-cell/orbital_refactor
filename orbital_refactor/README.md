@@ -368,6 +368,17 @@ not the environment physics or reward. A fresh controlled retraining is still
 required before claiming that it improves Critic calibration. Conditions
 600--606 are consumed diagnostic evidence.
 
+A 30-episode controlled retraining on fresh conditions 620--649 tested that
+change, with independent policy evaluation on 680--686 and a frozen-Critic
+audit on 700--706. Training explained variance still declined to about -0.04.
+The independent audit remained negative (about -0.104 random and -0.099 warm),
+with target/value correlations of -0.62 and -0.69. Warm start improved 5/6
+evaluation episodes by 0.00337 m on average, while random initialization again
+collapsed to keep. Truncation is therefore the correct continuing-window
+semantics but is not sufficient to identify the strongly transient filter
+return. The next minimal ablation should expose normalized episode phase to the
+Critic only, without changing the Actor, reward, or environment physics.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

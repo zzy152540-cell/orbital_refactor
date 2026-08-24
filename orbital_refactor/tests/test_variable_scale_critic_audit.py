@@ -13,6 +13,15 @@ def test_discounted_returns_do_not_depend_on_critic_values():
     )
 
 
+def test_discounted_returns_bootstrap_truncated_window_final_value():
+    np.testing.assert_allclose(
+        _discounted_returns(
+            np.asarray([1.0, 2.0, 3.0]), 0.5, final_value=4.0,
+        ),
+        (3.25, 4.5, 5.0),
+    )
+
+
 def test_value_summary_reports_bias_and_explained_variance():
     records = [
         {

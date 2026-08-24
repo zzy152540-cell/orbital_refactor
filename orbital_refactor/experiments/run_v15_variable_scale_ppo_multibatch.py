@@ -31,11 +31,13 @@ def _branch_summary(result, evaluation):
 
 def main(argv=None) -> Path:
     parser = argparse.ArgumentParser(
-        description="Run the aligned 60-episode mixed-scale PPO comparison."
+        description="Run an aligned multi-batch mixed-scale PPO comparison."
     )
     parser.add_argument("--warm-start", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--policy-seed", type=int, default=0)
+    parser.add_argument("--training-episodes", type=int, default=60)
+    parser.add_argument("--rollout-batch-episodes", type=int, default=10)
     parser.add_argument("--training-condition-offset", type=int, default=500)
     parser.add_argument(
         "--evaluation-conditions", type=int, nargs="+",
@@ -43,10 +45,10 @@ def main(argv=None) -> Path:
     )
     arguments = parser.parse_args(argv)
     configuration = VariableScalePPOConfiguration(
-        training_episodes=60,
-        rollout_batch_episodes=10,
+        training_episodes=arguments.training_episodes,
+        rollout_batch_episodes=arguments.rollout_batch_episodes,
         training_condition_seed_offset=arguments.training_condition_offset,
-        training_condition_seed_count=60,
+        training_condition_seed_count=arguments.training_episodes,
         environment_seed_count=4,
         policy_seed=arguments.policy_seed,
         learning_rate=1.0e-4,
