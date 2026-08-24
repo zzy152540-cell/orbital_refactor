@@ -1,0 +1,543 @@
+{
+  "condition_seeds": [
+    232,
+    233,
+    234,
+    235,
+    236,
+    237,
+    238,
+    239
+  ],
+  "noise_seeds": [
+    0,
+    1,
+    2,
+    3
+  ],
+  "policy_seed": 1,
+  "preserve_warm_start_type_head": true,
+  "random_init": {
+    "action_kind_counts": {
+      "keep": 96
+    },
+    "episode_count": 32,
+    "fallbacks": 0.0,
+    "improved_episode_count": 0,
+    "mean_keep_rmse": 1.2257142899057971,
+    "mean_model_rmse": 1.2257142899057971,
+    "mean_rmse_improvement": 0.0,
+    "resynchronizations": 0.0,
+    "topology_switches": 0.0,
+    "worst_rmse_improvement": 0.0
+  },
+  "random_training": {
+    "batch_diagnostics": [
+      {
+        "action_diagnostics": [
+          {
+            "action_kind": "keep",
+            "actor_transition_count": 12,
+            "mean_normalized_advantage": -0.31943073868751526,
+            "positive_normalized_advantage_fraction": 0.21875,
+            "transition_count": 64
+          },
+          {
+            "action_kind": "add",
+            "actor_transition_count": 16,
+            "mean_normalized_advantage": 0.5854945182800293,
+            "positive_normalized_advantage_fraction": 0.75,
+            "transition_count": 16
+          },
+          {
+            "action_kind": "swap",
+            "actor_transition_count": 15,
+            "mean_normalized_advantage": 0.6400126814842224,
+            "positive_normalized_advantage_fraction": 0.6,
+            "transition_count": 15
+          },
+          {
+            "action_kind": "remove",
+            "actor_transition_count": 1,
+            "mean_normalized_advantage": 1.4754753112792969,
+            "positive_normalized_advantage_fraction": 1.0,
+            "transition_count": 1
+          }
+        ],
+        "batch_end": 32,
+        "batch_start": 0,
+        "type_probabilities_after_update": [
+          0.3420526385307312,
+          0.31816771626472473,
+          0.3121946156024933,
+          0.027585037052631378
+        ],
+        "type_probabilities_before_update": [
+          0.34207096695899963,
+          0.3171600103378296,
+          0.3131348490715027,
+          0.027634168043732643
+        ],
+        "update": {
+          "actor_transition_count": 44,
+          "advantage_mean": 0.7372092604637146,
+          "advantage_standard_deviation": 0.9708075523376465,
+          "approximate_kl": 7.5868197200179566e-06,
+          "clip_fraction": 0.0,
+          "entropy": 2.48974609375,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.11220037937164307,
+          "final_loss": -0.30934077501296997,
+          "gradient_norm": 1.5908012390136719,
+          "policy_loss": -0.6653895378112793,
+          "positive_advantage_fraction": 0.7045454382896423,
+          "stopped_early": false,
+          "transition_count": 96,
+          "value_loss": 0.7618924379348755
+        }
+      },
+      {
+        "action_diagnostics": [
+          {
+            "action_kind": "keep",
+            "actor_transition_count": 14,
+            "mean_normalized_advantage": -0.3429245352745056,
+            "positive_normalized_advantage_fraction": 0.23076923076923078,
+            "transition_count": 65
+          },
+          {
+            "action_kind": "add",
+            "actor_transition_count": 15,
+            "mean_normalized_advantage": 0.6489413380622864,
+            "positive_normalized_advantage_fraction": 0.6,
+            "transition_count": 15
+          },
+          {
+            "action_kind": "swap",
+            "actor_transition_count": 14,
+            "mean_normalized_advantage": 0.7382381558418274,
+            "positive_normalized_advantage_fraction": 0.7857142857142857,
+            "transition_count": 14
+          },
+          {
+            "action_kind": "remove",
+            "actor_transition_count": 2,
+            "mean_normalized_advantage": 1.1103205680847168,
+            "positive_normalized_advantage_fraction": 1.0,
+            "transition_count": 2
+          }
+        ],
+        "batch_end": 64,
+        "batch_start": 32,
+        "type_probabilities_after_update": [
+          0.34260109066963196,
+          0.31845903396606445,
+          0.31719666719436646,
+          0.021743256598711014
+        ],
+        "type_probabilities_before_update": [
+          0.34380918741226196,
+          0.3198274075984955,
+          0.31477487087249756,
+          0.021588556468486786
+        ],
+        "update": {
+          "actor_transition_count": 45,
+          "advantage_mean": 0.68118816614151,
+          "advantage_standard_deviation": 1.0354984998703003,
+          "approximate_kl": 1.4439225196838379e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.3799636363983154,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.16862070560455322,
+          "final_loss": -0.3298240602016449,
+          "gradient_norm": 1.2217274904251099,
+          "policy_loss": -0.6746125221252441,
+          "positive_advantage_fraction": 0.7111111283302307,
+          "stopped_early": false,
+          "transition_count": 96,
+          "value_loss": 0.737176239490509
+        }
+      },
+      {
+        "action_diagnostics": [
+          {
+            "action_kind": "keep",
+            "actor_transition_count": 12,
+            "mean_normalized_advantage": -0.3467860221862793,
+            "positive_normalized_advantage_fraction": 0.1875,
+            "transition_count": 64
+          },
+          {
+            "action_kind": "add",
+            "actor_transition_count": 14,
+            "mean_normalized_advantage": 0.6202272176742554,
+            "positive_normalized_advantage_fraction": 0.7142857142857143,
+            "transition_count": 14
+          },
+          {
+            "action_kind": "swap",
+            "actor_transition_count": 15,
+            "mean_normalized_advantage": 0.6392852663993835,
+            "positive_normalized_advantage_fraction": 0.6666666666666666,
+            "transition_count": 15
+          },
+          {
+            "action_kind": "remove",
+            "actor_transition_count": 3,
+            "mean_normalized_advantage": 1.3072813749313354,
+            "positive_normalized_advantage_fraction": 1.0,
+            "transition_count": 3
+          }
+        ],
+        "batch_end": 96,
+        "batch_start": 64,
+        "type_probabilities_after_update": [
+          0.33637961745262146,
+          0.3175868093967438,
+          0.31759703159332275,
+          0.028436563909053802
+        ],
+        "type_probabilities_before_update": [
+          0.34134361147880554,
+          0.31668633222579956,
+          0.31413987278938293,
+          0.0278302188962698
+        ],
+        "update": {
+          "actor_transition_count": 44,
+          "advantage_mean": 0.6926419138908386,
+          "advantage_standard_deviation": 1.0260794162750244,
+          "approximate_kl": 4.204114156891592e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.49221134185791,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.1780250072479248,
+          "final_loss": -0.40923744440078735,
+          "gradient_norm": 1.2603694200515747,
+          "policy_loss": -0.8176292777061462,
+          "positive_advantage_fraction": 0.7045454382896423,
+          "stopped_early": false,
+          "transition_count": 96,
+          "value_loss": 0.8666279315948486
+        }
+      }
+    ],
+    "by_action_kind": {
+      "add": {
+        "actor_transition_count": 45,
+        "mean_advantage": 1.0329836911625332,
+        "mean_penalized_reward": 0.7315336362065241,
+        "mean_resynchronization_count": 2.0,
+        "mean_task_reward": 0.7396169695398574,
+        "mean_topology_switch": 1.0,
+        "mean_transmitted_messages": 9.733333333333333,
+        "positive_advantage_fraction": 0.8666666666666667,
+        "transition_count": 45
+      },
+      "keep": {
+        "actor_transition_count": 38,
+        "mean_advantage": 0.3339210589961607,
+        "mean_penalized_reward": 0.3925501517972008,
+        "mean_resynchronization_count": 0.0,
+        "mean_task_reward": 0.3977379756313976,
+        "mean_topology_switch": 0.0,
+        "mean_transmitted_messages": 8.300518134715025,
+        "positive_advantage_fraction": 0.6735751295336787,
+        "transition_count": 193
+      },
+      "remove": {
+        "actor_transition_count": 6,
+        "mean_advantage": 1.4552205006281536,
+        "mean_penalized_reward": 1.0255084919343151,
+        "mean_resynchronization_count": 0.0,
+        "mean_task_reward": 1.0309876586009816,
+        "mean_topology_switch": 1.0,
+        "mean_transmitted_messages": 7.166666666666667,
+        "positive_advantage_fraction": 1.0,
+        "transition_count": 6
+      },
+      "swap": {
+        "actor_transition_count": 44,
+        "mean_advantage": 1.06737287173217,
+        "mean_penalized_reward": 0.8009238318210791,
+        "mean_resynchronization_count": 2.0,
+        "mean_task_reward": 0.8077107636392605,
+        "mean_topology_switch": 1.0,
+        "mean_transmitted_messages": 7.659090909090909,
+        "positive_advantage_fraction": 0.9772727272727273,
+        "transition_count": 44
+      }
+    },
+    "episode_count": 96,
+    "mean_advantage": 0.7036797801653544,
+    "mean_advantage_standard_deviation": 1.0107951561609905,
+    "mean_explained_variance_before_update": -0.15294869740804037,
+    "mean_final_position_rmse": 1.2148613057949944,
+    "mean_initial_type_probabilities": [
+      0.3396148616448045,
+      0.3170483554713428,
+      0.31257751677185297,
+      0.030759267198542755
+    ],
+    "mean_penalized_return": 1.563280139118433,
+    "mean_positive_advantage_fraction": 0.7067340016365051,
+    "mean_task_return": 1.5809520011146863,
+    "topology_switches": 95.0
+  },
+  "warm_start": {
+    "action_kind_counts": {
+      "add": 32,
+      "keep": 64
+    },
+    "episode_count": 32,
+    "fallbacks": 0.0,
+    "improved_episode_count": 20,
+    "mean_keep_rmse": 1.2257142899057971,
+    "mean_model_rmse": 1.2195074155997485,
+    "mean_rmse_improvement": 0.006206874306048715,
+    "resynchronizations": 64.0,
+    "topology_switches": 32.0,
+    "worst_rmse_improvement": -0.032658126824117284
+  },
+  "warm_training": {
+    "batch_diagnostics": [
+      {
+        "action_diagnostics": [
+          {
+            "action_kind": "keep",
+            "actor_transition_count": 6,
+            "mean_normalized_advantage": -0.43321943283081055,
+            "positive_normalized_advantage_fraction": 0.203125,
+            "transition_count": 64
+          },
+          {
+            "action_kind": "add",
+            "actor_transition_count": 17,
+            "mean_normalized_advantage": 0.6048222184181213,
+            "positive_normalized_advantage_fraction": 0.7647058823529411,
+            "transition_count": 17
+          },
+          {
+            "action_kind": "swap",
+            "actor_transition_count": 15,
+            "mean_normalized_advantage": 1.162936806678772,
+            "positive_normalized_advantage_fraction": 0.8666666666666667,
+            "transition_count": 15
+          }
+        ],
+        "batch_end": 32,
+        "batch_start": 0,
+        "type_probabilities_after_update": [
+          0.14310957491397858,
+          0.4911903440952301,
+          0.35570406913757324,
+          0.00999597180634737
+        ],
+        "type_probabilities_before_update": [
+          0.13227008283138275,
+          0.5253520011901855,
+          0.33414751291275024,
+          0.008230356499552727
+        ],
+        "update": {
+          "actor_transition_count": 38,
+          "advantage_mean": 0.9275226593017578,
+          "advantage_standard_deviation": 0.8847358822822571,
+          "approximate_kl": 0.0029454913455992937,
+          "clip_fraction": 0.0,
+          "entropy": 2.64829683303833,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.029444336891174316,
+          "final_loss": -0.7910544872283936,
+          "gradient_norm": 2.122284412384033,
+          "policy_loss": -1.3502165079116821,
+          "positive_advantage_fraction": 0.8421052694320679,
+          "stopped_early": false,
+          "transition_count": 96,
+          "value_loss": 1.1712899208068848
+        }
+      },
+      {
+        "action_diagnostics": [
+          {
+            "action_kind": "keep",
+            "actor_transition_count": 2,
+            "mean_normalized_advantage": -0.5122667551040649,
+            "positive_normalized_advantage_fraction": 0.140625,
+            "transition_count": 64
+          },
+          {
+            "action_kind": "add",
+            "actor_transition_count": 22,
+            "mean_normalized_advantage": 0.8323913216590881,
+            "positive_normalized_advantage_fraction": 0.9090909090909091,
+            "transition_count": 22
+          },
+          {
+            "action_kind": "swap",
+            "actor_transition_count": 10,
+            "mean_normalized_advantage": 1.4472463130950928,
+            "positive_normalized_advantage_fraction": 1.0,
+            "transition_count": 10
+          }
+        ],
+        "batch_end": 64,
+        "batch_start": 32,
+        "type_probabilities_after_update": [
+          0.13663068413734436,
+          0.4878026247024536,
+          0.364402711391449,
+          0.011163958348333836
+        ],
+        "type_probabilities_before_update": [
+          0.1379447728395462,
+          0.49262550473213196,
+          0.3580242395401001,
+          0.011405464261770248
+        ],
+        "update": {
+          "actor_transition_count": 34,
+          "advantage_mean": 1.0666676759719849,
+          "advantage_standard_deviation": 0.8287651538848877,
+          "approximate_kl": 8.931756019592285e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.6562201976776123,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.00010144710540771484,
+          "final_loss": -0.5444923043251038,
+          "gradient_norm": 2.502718687057495,
+          "policy_loss": -1.4369930028915405,
+          "positive_advantage_fraction": 0.9411764740943909,
+          "stopped_early": false,
+          "transition_count": 96,
+          "value_loss": 1.8381258249282837
+        }
+      },
+      {
+        "action_diagnostics": [
+          {
+            "action_kind": "keep",
+            "actor_transition_count": 6,
+            "mean_normalized_advantage": -0.43218907713890076,
+            "positive_normalized_advantage_fraction": 0.171875,
+            "transition_count": 64
+          },
+          {
+            "action_kind": "add",
+            "actor_transition_count": 17,
+            "mean_normalized_advantage": 0.5598545074462891,
+            "positive_normalized_advantage_fraction": 0.7058823529411765,
+            "transition_count": 17
+          },
+          {
+            "action_kind": "swap",
+            "actor_transition_count": 14,
+            "mean_normalized_advantage": 1.233444333076477,
+            "positive_normalized_advantage_fraction": 1.0,
+            "transition_count": 14
+          },
+          {
+            "action_kind": "remove",
+            "actor_transition_count": 1,
+            "mean_normalized_advantage": 0.8743516802787781,
+            "positive_normalized_advantage_fraction": 1.0,
+            "transition_count": 1
+          }
+        ],
+        "batch_end": 96,
+        "batch_start": 64,
+        "type_probabilities_after_update": [
+          0.13070663809776306,
+          0.4793509840965271,
+          0.38192012906074524,
+          0.0080222487449646
+        ],
+        "type_probabilities_before_update": [
+          0.13483849167823792,
+          0.49223944544792175,
+          0.365517258644104,
+          0.0074048154056072235
+        ],
+        "update": {
+          "actor_transition_count": 38,
+          "advantage_mean": 0.8331659436225891,
+          "advantage_standard_deviation": 0.9963244795799255,
+          "approximate_kl": 0.0016148686408996582,
+          "clip_fraction": 0.0,
+          "entropy": 2.683222532272339,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.011748433113098145,
+          "final_loss": -0.5691362023353577,
+          "gradient_norm": 1.8308329582214355,
+          "policy_loss": -0.7619199752807617,
+          "positive_advantage_fraction": 0.8157894611358643,
+          "stopped_early": false,
+          "transition_count": 96,
+          "value_loss": 0.4392319917678833
+        }
+      }
+    ],
+    "by_action_kind": {
+      "add": {
+        "actor_transition_count": 56,
+        "mean_advantage": 1.0388805664011411,
+        "mean_penalized_reward": 0.8109378322083372,
+        "mean_resynchronization_count": 2.0,
+        "mean_task_reward": 0.8188976536369089,
+        "mean_topology_switch": 1.0,
+        "mean_transmitted_messages": 9.535714285714286,
+        "positive_advantage_fraction": 0.9464285714285714,
+        "transition_count": 56
+      },
+      "keep": {
+        "actor_transition_count": 14,
+        "mean_advantage": 0.2706995628153284,
+        "mean_penalized_reward": 0.32241692179494086,
+        "mean_resynchronization_count": 0.0,
+        "mean_task_reward": 0.3278531197116074,
+        "mean_topology_switch": 0.0,
+        "mean_transmitted_messages": 8.697916666666666,
+        "positive_advantage_fraction": 0.7291666666666666,
+        "transition_count": 192
+      },
+      "remove": {
+        "actor_transition_count": 1,
+        "mean_advantage": 1.0930836200714111,
+        "mean_penalized_reward": 1.2636754440135591,
+        "mean_resynchronization_count": 0.0,
+        "mean_task_reward": 1.269050444013559,
+        "mean_topology_switch": 1.0,
+        "mean_transmitted_messages": 7.0,
+        "positive_advantage_fraction": 1.0,
+        "transition_count": 1
+      },
+      "swap": {
+        "actor_transition_count": 39,
+        "mean_advantage": 1.441954059478564,
+        "mean_penalized_reward": 1.0786549585652143,
+        "mean_resynchronization_count": 2.0,
+        "mean_task_reward": 1.0856389329241882,
+        "mean_topology_switch": 1.0,
+        "mean_transmitted_messages": 7.9743589743589745,
+        "positive_advantage_fraction": 1.0,
+        "transition_count": 39
+      }
+    },
+    "episode_count": 96,
+    "mean_advantage": 0.942452092965444,
+    "mean_advantage_standard_deviation": 0.9032751719156901,
+    "mean_explained_variance_before_update": 0.005864818890889485,
+    "mean_final_position_rmse": 1.2081566814359763,
+    "mean_initial_type_probabilities": [
+      0.13683909519265094,
+      0.48575811367481947,
+      0.3671084114660819,
+      0.010294378191853562
+    ],
+    "mean_penalized_return": 1.5692477788155277,
+    "mean_positive_advantage_fraction": 0.8663570682207743,
+    "mean_task_return": 1.5876566392059128,
+    "topology_switches": 96.0
+  }
+}

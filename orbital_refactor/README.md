@@ -246,6 +246,14 @@ runs improved), whereas random initialization degraded by 0.02239 m on average
 (5/32 improved, worst degradation 0.14876 m). GNN pretraining therefore improves
 the current PPO initializer, although weak Critic explained variance and the
 warm policy's fixed initial-add behavior remain open limitations.
+The corrected-mode PPO comparison was then repeated for policy seeds 0, 1,
+and 2 without changing data, rewards, or budget. All three preserved-head warm
+starts improved over keep by 0.00636, 0.00621, and 0.00805 m respectively;
+their pooled improvement was 0.00687 m with 59/96 episodes improved and worst
+degradation 0.03266 m. Random initialization averaged -0.00786 m, improved only
+20/96 episodes, and degraded by as much as 0.14876 m. This passes the frozen
+multi-seed initializer gate. Configuration and all three seeds must now remain
+fixed before the one-time 240--247 formal confirmation.
 
 ### V15 snapshot collection and GNN environment
 

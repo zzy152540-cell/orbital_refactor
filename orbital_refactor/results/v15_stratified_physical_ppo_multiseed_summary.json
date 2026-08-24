@@ -1,0 +1,28 @@
+{
+  "condition_seeds": [232, 233, 234, 235, 236, 237, 238, 239],
+  "decoder": "hierarchical_type_then_member_mode",
+  "noise_seeds": [0, 1, 2, 3],
+  "random_init": {
+    "improved_episode_count": 20,
+    "mean_rmse_improvement": -0.007864683815516832,
+    "policy_seed_improvements": {
+      "0": -0.022391588581431254,
+      "1": 0.0,
+      "2": -0.0012024628651192415
+    },
+    "total_episode_count": 96,
+    "worst_rmse_improvement": -0.14876430688290454
+  },
+  "warm_start_preserved_head": {
+    "improved_episode_count": 59,
+    "mean_rmse_improvement": 0.006872095468250197,
+    "policy_seed_improvements": {
+      "0": 0.006358039192105966,
+      "1": 0.006206874306048715,
+      "2": 0.00805137290659591
+    },
+    "successful_policy_seed_count": 3,
+    "total_episode_count": 96,
+    "worst_rmse_improvement": -0.032658126824117284
+  }
+}
