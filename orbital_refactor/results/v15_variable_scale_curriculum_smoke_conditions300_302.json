@@ -1,0 +1,64 @@
+{
+  "condition_seeds": [
+    300,
+    301,
+    302
+  ],
+  "noise_seed": 0,
+  "records": [
+    {
+      "condition_seed": 300,
+      "decision_count": 10,
+      "dynamic_undirected_link_event_count": 2,
+      "keep_final_position_rmse": 0.6045082145024414,
+      "model_action_kind_counts": {
+        "add": 5,
+        "keep": 5
+      },
+      "model_fallbacks": 0.0,
+      "model_final_position_rmse": 0.6216025342891861,
+      "model_resynchronizations": 10.0,
+      "model_rmse_improvement": -0.017094319786744694,
+      "model_topology_switches": 5.0,
+      "node_count": 5,
+      "scenario_type": "compact_fleet",
+      "walker_plane_count": 5
+    },
+    {
+      "condition_seed": 301,
+      "decision_count": 10,
+      "dynamic_undirected_link_event_count": 2,
+      "keep_final_position_rmse": 0.5640482481962085,
+      "model_action_kind_counts": {
+        "add": 1,
+        "keep": 9
+      },
+      "model_fallbacks": 0.0,
+      "model_final_position_rmse": 0.5482696207313903,
+      "model_resynchronizations": 2.0,
+      "model_rmse_improvement": 0.015778627464818173,
+      "model_topology_switches": 1.0,
+      "node_count": 10,
+      "scenario_type": "walker_delta",
+      "walker_plane_count": 1
+    },
+    {
+      "condition_seed": 302,
+      "decision_count": 10,
+      "dynamic_undirected_link_event_count": 5,
+      "keep_final_position_rmse": 0.5914990593114133,
+      "model_action_kind_counts": {
+        "add": 5,
+        "keep": 5
+      },
+      "model_fallbacks": 0.0,
+      "model_final_position_rmse": 0.5943268402955992,
+      "model_resynchronizations": 10.0,
+      "model_rmse_improvement": -0.0028277809841859014,
+      "model_topology_switches": 5.0,
+      "node_count": 20,
+      "scenario_type": "walker_delta",
+      "walker_plane_count": 5
+    }
+  ]
+}

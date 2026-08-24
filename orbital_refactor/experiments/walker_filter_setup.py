@@ -25,8 +25,9 @@ def union_topology_from_epoch_records(node_ids, epoch_records):
 def build_walker_filter_case(
     *, seed, duration, dt, maximum_range, topology, truth_history_by_node,
     topology_type, topology_inactive_windows_by_undirected_edge=None,
+    absolute_navigation_dropout_windows_by_node=None,
 ):
-    """Build the common 20-spacecraft physical-modality filter case."""
+    """Build a physical-modality filter case for a Walker constellation."""
 
     initial_truth = {
         node: history[0] for node, history in truth_history_by_node.items()
@@ -37,7 +38,7 @@ def build_walker_filter_case(
         az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
         absolute_sigma=3.0, process_noise_acceleration=1e-8,
         packet_loss=0.0, delay=0.0, acknowledge_messages=True,
-        node_count=20, topology_type=topology_type,
+        node_count=len(truth_history_by_node), topology_type=topology_type,
         topology_override=topology,
         truth_initial_state_by_node=initial_truth,
         visibility_by_modality={
@@ -46,6 +47,9 @@ def build_walker_filter_case(
         },
         topology_inactive_windows_by_undirected_edge=(
             topology_inactive_windows_by_undirected_edge
+        ),
+        absolute_navigation_dropout_windows_by_node=(
+            absolute_navigation_dropout_windows_by_node
         ),
         relative_modalities=WALKER_FILTER_MODALITIES,
     )

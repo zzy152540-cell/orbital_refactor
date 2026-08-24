@@ -47,6 +47,10 @@ class Stage1PenaltyWeights:
 @dataclass(frozen=True)
 class Stage1Configuration:
     node_count: int = 3
+    scenario_type: str = "compact_fleet"
+    walker_maximum_range: float = 7000e3
+    walker_plane_count: int = 5
+    walker_phasing: int = 3
     top_k_candidate_neighbors: int | None = None
     training_episodes: int = 40
     episode_epochs: int = 12
@@ -356,6 +360,10 @@ def build_stage1_environment(configuration: Stage1Configuration):
         randomize_stage1_conditions=True,
         top_k_candidate_neighbors=configuration.top_k_candidate_neighbors,
         compact_scenario_distribution=configuration.scenario_distribution,
+        scenario_type=configuration.scenario_type,
+        walker_maximum_range=configuration.walker_maximum_range,
+        walker_plane_count=configuration.walker_plane_count,
+        walker_phasing=configuration.walker_phasing,
     )
 
 
@@ -781,8 +789,20 @@ def _validate_configuration(configuration):
     )
     if any(value <= 0 for value in positive):
         raise ValueError("Stage 1 horizons, seed count, and cost scales must be positive.")
-    if configuration.node_count not in {3, 5}:
-        raise ValueError("Stage 1 compact-fleet training supports 3 or 5 nodes.")
+    if configuration.scenario_type == "compact_fleet":
+        if configuration.node_count not in {3, 5}:
+            raise ValueError("Stage 1 compact-fleet training supports 3 or 5 nodes.")
+    elif configuration.scenario_type == "walker_delta":
+        if (
+            configuration.node_count < 2
+            or configuration.walker_plane_count < 1
+            or configuration.node_count % configuration.walker_plane_count
+        ):
+            raise ValueError(
+                "Stage 1 Walker training requires nodes divisible by planes."
+            )
+    else:
+        raise ValueError("Unsupported Stage 1 scenario type.")
     if configuration.target_kl is not None and configuration.target_kl <= 0.0:
         raise ValueError("Stage 1 target KL must be positive when enabled.")
     if (

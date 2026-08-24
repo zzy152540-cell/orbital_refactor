@@ -122,8 +122,9 @@ def build_v14_walker_dynamic_topology_plan(
     *, duration: float = 600.0, dt: float = 2.0,
     maximum_range: float = 7000e3, maximum_degree: int = 3,
     topology_policy: TopologyPolicy | None = None,
+    walker_config: WalkerDeltaConfig | None = None,
 ) -> WalkerDynamicTopologyPlan:
-    """Select a low-churn connected topology from Walker 20/5/3 LOS edges."""
+    """Select a low-churn connected topology from Walker LOS edges."""
 
     if duration <= 0.0 or dt <= 0.0:
         raise ValueError("duration and dt must be positive.")
@@ -131,13 +132,14 @@ def build_v14_walker_dynamic_topology_plan(
         raise ValueError("maximum_degree must be at least two.")
     policy = topology_policy or LowChurnConnectedTreePolicy(maximum_degree)
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
+    config = walker_config or WalkerDeltaConfig(
+        total_satellites=20, plane_count=5, phasing=3,
+        semi_major_axis=R_EARTH + 700e3, eccentricity=0.0,
+        inclination=np.deg2rad(53.0),
+    )
     scenario = generate_walker_delta_scenario(
         timestamps=timestamps,
-        config=WalkerDeltaConfig(
-            total_satellites=20, plane_count=5, phasing=3,
-            semi_major_axis=R_EARTH + 700e3, eccentricity=0.0,
-            inclination=np.deg2rad(53.0),
-        ),
+        config=config,
     )
     opportunities = generate_inter_satellite_observation_opportunities(
         timestamps=timestamps,

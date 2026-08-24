@@ -35,6 +35,8 @@ from experiments.counterfactual_physical_scenarios import (
     FIVE_NODE_PHYSICAL_FAMILIES,
     sample_five_satellite_physical_scenario,
 )
+from orbital_core.constants import R_EARTH
+from scenarios.walker_scenario import WalkerDeltaConfig
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,9 @@ class CompactFleetScenarioDistribution:
     link_condition_mode: str = "homogeneous"
     physical_scenario_families: tuple[str, ...] = ()
     physical_family_assignment_mode: str = "random"
+    dynamic_link_event_count: int = 0
+    dynamic_packet_loss_range: tuple[float, float] = (0.6, 1.0)
+    dynamic_delay_range: tuple[float, float] = (2.0, 6.0)
 
     def validate(self, node_count: int) -> None:
         loss_low, loss_high = self.packet_loss_range
@@ -98,6 +103,14 @@ class CompactFleetScenarioDistribution:
             raise ValueError("Communication-delay range must be nonnegative.")
         if not 0 <= self.navigation_dropout_node_count <= node_count:
             raise ValueError("Navigation-dropout count exceeds fleet size.")
+        if self.dynamic_link_event_count < 0:
+            raise ValueError("Dynamic-link event count cannot be negative.")
+        dynamic_loss_low, dynamic_loss_high = self.dynamic_packet_loss_range
+        dynamic_delay_low, dynamic_delay_high = self.dynamic_delay_range
+        if not (0.0 <= dynamic_loss_low <= dynamic_loss_high <= 1.0):
+            raise ValueError("Dynamic packet-loss range must lie within [0, 1].")
+        if not (0.0 <= dynamic_delay_low <= dynamic_delay_high):
+            raise ValueError("Dynamic communication-delay range must be nonnegative.")
         supported = {"chain", "ring", "star"}
         if (
             not self.initial_topology_types
@@ -138,15 +151,27 @@ class TopologyControlEnvironment:
         top_k_candidate_neighbors: int | None = None,
         scenario_type: str = "compact_fleet",
         walker_maximum_range: float = 7000e3,
+        walker_plane_count: int = 5,
+        walker_phasing: int = 3,
         randomize_stage1_conditions: bool = False,
         compact_scenario_distribution: CompactFleetScenarioDistribution | None = None,
     ) -> None:
-        if scenario_type not in {"compact_fleet", "walker_20_5_3"}:
+        if scenario_type not in {
+            "compact_fleet", "walker_20_5_3", "walker_delta",
+        }:
             raise ValueError("Unsupported topology environment scenario type.")
         if scenario_type == "compact_fleet" and node_count not in {3, 5}:
             raise ValueError("The compact V15 environment supports 3 or 5 nodes.")
         if scenario_type == "walker_20_5_3" and node_count != 20:
             raise ValueError("Walker 20/5/3 requires node_count=20.")
+        if scenario_type == "walker_delta" and (
+            node_count < 2
+            or walker_plane_count < 1
+            or node_count % walker_plane_count
+        ):
+            raise ValueError(
+                "Walker delta requires node_count divisible by plane_count."
+            )
         if episode_epochs < 1 or decision_interval_epochs < 1 or dt <= 0.0:
             raise ValueError("Environment horizon and time step must be positive.")
         if minimum_topology_dwell_decisions < 0:
@@ -176,6 +201,8 @@ class TopologyControlEnvironment:
         self.top_k_candidate_neighbors = top_k_candidate_neighbors
         self.scenario_type = scenario_type
         self.walker_maximum_range = float(walker_maximum_range)
+        self.walker_plane_count = int(walker_plane_count)
+        self.walker_phasing = int(walker_phasing)
         self.randomize_stage1_conditions = bool(randomize_stage1_conditions)
         self.compact_scenario_distribution = (
             compact_scenario_distribution or CompactFleetScenarioDistribution()
@@ -190,6 +217,13 @@ class TopologyControlEnvironment:
         self._episode_conditions = self._sample_episode_conditions(condition_seed)
         self._condition_seed = condition_seed
         candidate, baseline, self._case = self._build_case(int(seed))
+        self._episode_conditions["dynamic_link_events_by_link"] = (
+            self._sample_dynamic_link_events(
+                np.random.default_rng(20261003 + condition_seed),
+                _topology_edges(candidate),
+                self.compact_scenario_distribution,
+            )
+        )
         self._source_updates = _source_updates_from_messages(
             self._case["transmitted_messages"], candidate.node_ids
         )
@@ -227,10 +261,23 @@ class TopologyControlEnvironment:
         return self._state(initial_step)
 
     def _build_case(self, seed):
-        if self.scenario_type == "walker_20_5_3":
+        if self.scenario_type in {"walker_20_5_3", "walker_delta"}:
+            walker_config = (
+                None
+                if self.scenario_type == "walker_20_5_3"
+                else WalkerDeltaConfig(
+                    total_satellites=self.node_count,
+                    plane_count=self.walker_plane_count,
+                    phasing=self.walker_phasing,
+                    semi_major_axis=R_EARTH + 700e3,
+                    eccentricity=0.0,
+                    inclination=np.deg2rad(53.0),
+                )
+            )
             plan = build_v14_walker_dynamic_topology_plan(
                 duration=self.episode_epochs * self.dt, dt=self.dt,
                 maximum_range=self.walker_maximum_range,
+                walker_config=walker_config,
             )
             physical_edges = {
                 edge.nodes
@@ -251,6 +298,9 @@ class TopologyControlEnvironment:
                     plan.scenario.truth_state_history_by_node
                 ),
                 topology_type="v15_walker_environment_union",
+                absolute_navigation_dropout_windows_by_node=(
+                    self._episode_conditions["navigation_dropout_by_node"]
+                ),
             )
             return candidate, baseline, case
         candidate = fully_connected_topology(tuple(
@@ -341,6 +391,7 @@ class TopologyControlEnvironment:
 
     def _advance_one_epoch(self):
         timestamp = float(self._case["timestamps"][self._epoch_index])
+        self._apply_dynamic_link_conditions(timestamp)
         return self._orchestrator.step(
             timestamp,
             topology_version=self._topology_version,
@@ -363,7 +414,7 @@ class TopologyControlEnvironment:
         candidate_edges = _topology_edges(self._orchestrator.topology)
         visibility_enabled = (
             self.visibility_by_modality is not None
-            or self.scenario_type == "walker_20_5_3"
+            or self.scenario_type in {"walker_20_5_3", "walker_delta"}
         )
         observation = build_online_graph_observation(
             self._orchestrator,
@@ -455,8 +506,6 @@ class TopologyControlEnvironment:
                 "physical_scenario_family": "legacy_compact",
                 "truth_initial_states": (),
             }
-        if self.scenario_type != "compact_fleet":
-            raise ValueError("Stage 1 randomization currently supports compact fleets.")
         rng = np.random.default_rng(20260901 + seed)
         distribution = self.compact_scenario_distribution
         topology_types = distribution.initial_topology_types
@@ -466,6 +515,21 @@ class TopologyControlEnvironment:
             else str(rng.choice(topology_types))
         )
         dropout_count = distribution.navigation_dropout_node_count
+        if self.scenario_type in {"walker_20_5_3", "walker_delta"}:
+            plane_count = (
+                5 if self.scenario_type == "walker_20_5_3"
+                else self.walker_plane_count
+            )
+            slots = self.node_count // plane_count
+            node_ids = tuple(
+                f"sat_p{plane + 1:02d}_s{slot + 1:02d}"
+                for plane in range(plane_count)
+                for slot in range(slots)
+            )
+        else:
+            node_ids = tuple(
+                f"sat_{index + 1:02d}" for index in range(self.node_count)
+            )
         dropout_indices = rng.choice(
             self.node_count, size=dropout_count, replace=False
         )
@@ -479,9 +543,6 @@ class TopologyControlEnvironment:
         ))
         packet_loss_by_link, delay_by_link = {}, {}
         if distribution.link_condition_mode == "undirected_independent":
-            node_ids = tuple(
-                f"sat_{index + 1:02d}" for index in range(self.node_count)
-            )
             for left_index, left in enumerate(node_ids):
                 for right in node_ids[left_index + 1:]:
                     edge_loss = float(rng.uniform(
@@ -499,7 +560,10 @@ class TopologyControlEnvironment:
                 seed, families=distribution.physical_scenario_families,
                 family_assignment_mode=distribution.physical_family_assignment_mode,
             )
-            if distribution.physical_scenario_families else None
+            if (
+                self.scenario_type == "compact_fleet"
+                and distribution.physical_scenario_families
+            ) else None
         )
         return {
             "packet_loss": packet_loss,
@@ -507,7 +571,7 @@ class TopologyControlEnvironment:
             "packet_loss_rate_by_link": packet_loss_by_link,
             "communication_delay_by_link": delay_by_link,
             "navigation_dropout_by_node": {
-                f"sat_{int(index) + 1:02d}": (
+                node_ids[int(index)]: (
                     (start_epoch * self.dt, end_epoch * self.dt),
                 )
                 for index in dropout_indices
@@ -521,7 +585,51 @@ class TopologyControlEnvironment:
                 () if physical_scenario is None
                 else physical_scenario.truth_initial_states
             ),
+            "dynamic_link_events_by_link": {},
         }
+
+    def _sample_dynamic_link_events(self, rng, undirected_edges, distribution):
+        undirected_edges = list(undirected_edges)
+        count = min(distribution.dynamic_link_event_count, len(undirected_edges))
+        if not count:
+            return {}
+        selected = rng.choice(len(undirected_edges), size=count, replace=False)
+        events = {}
+        for edge_index in np.atleast_1d(selected):
+            left, right = undirected_edges[int(edge_index)]
+            start_epoch = int(rng.integers(
+                1, max(2, 2 * self.episode_epochs // 3)
+            ))
+            end_epoch = int(rng.integers(
+                start_epoch + 1, self.episode_epochs + 1
+            ))
+            event = (
+                start_epoch * self.dt,
+                end_epoch * self.dt,
+                float(rng.uniform(*distribution.dynamic_packet_loss_range)),
+                float(rng.uniform(*distribution.dynamic_delay_range)),
+            )
+            events[left, right] = event
+            events[right, left] = event
+        return events
+
+    def _apply_dynamic_link_conditions(self, timestamp):
+        conditions = self._episode_conditions
+        base_loss = float(conditions["packet_loss"])
+        base_delay = float(conditions["communication_delay"])
+        loss_by_link = conditions["packet_loss_rate_by_link"]
+        delay_by_link = conditions["communication_delay_by_link"]
+        events = conditions.get("dynamic_link_events_by_link", {})
+        for edge, channel in self._orchestrator.channels.items():
+            receiver, source = edge
+            loss = float(loss_by_link.get(edge, base_loss))
+            delay = float(delay_by_link.get(edge, base_delay))
+            event = events.get(edge)
+            if event is not None and event[0] <= timestamp <= event[1]:
+                loss = max(loss, float(event[2]))
+                delay = max(delay, float(event[3]))
+            channel.packet_loss_rate[source] = loss
+            channel.delay_by_source[source] = delay
 
     def _node_navigation_is_in_dropout(self, node, timestamp):
         return any(

@@ -265,6 +265,26 @@ PPO initializer, but does not establish a mature adaptive-topology policy.
 Conditions 240--247 are now consumed and must not be used for tuning or another
 confirmation claim.
 
+The next, deliberately more aggressive curriculum keeps the frozen estimator
+and policy interfaces but samples one shared graph Actor across 5, 10, and 20
+nodes in a fixed 40/35/25 condition cycle. Episodes use 30 filter epochs, ten
+decision points, Top-K=3 candidate pruning, and at most five topology changes.
+Five-node cases retain the stratified randomized physical families; ten-node
+cases initially use a physically connected Walker 10/1/0 ring, while twenty-
+node cases use Walker 20/5/3. Link degradation windows are sampled only from
+the physical candidate graph and navigation dropout remains time varying.
+This curriculum is an opt-in V15 experiment and does not alter the consumed
+five-node confirmation configuration.
+
+A three-condition full-horizon smoke test confirmed that the same frozen GNN
+Actor executes without schema changes or illegal fallback on all three graph
+sizes. It selected add/keep actions only: five and twenty nodes exhausted the
+five-switch budget and slightly degraded relative to keep, while ten nodes used
+one add and improved by about 0.01578 m. These three episodes establish runtime
+compatibility, not policy quality. They also confirm that the old initializer
+must be retrained by the mixed-scale PPO curriculum before adaptive behavior is
+claimed.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
