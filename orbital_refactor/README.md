@@ -285,6 +285,20 @@ compatibility, not policy quality. They also confirm that the old initializer
 must be retrained by the mixed-scale PPO curriculum before adaptive behavior is
 claimed.
 
+A bounded two-decision counterfactual prescan then audited conditions 320, 321,
+322, 323, 324, and 326 at decision indices 0, 3, 6, and 9. At most two legal
+members of each non-keep type were evaluated along the same always-keep state
+trajectory, so this is a local opportunity audit rather than an exhaustive
+Oracle. Positive non-keep opportunities appeared at 8/8 audited states for
+both 5 and 10 nodes and 7/8 states for 20 nodes; after the initial decision the
+counts were 6/6, 6/6, and 5/6. Mean best sampled gains were about 0.01452,
+0.01190, and 0.01030 m respectively, with swap selected more often than add at
+every scale. The frozen five-node reference GNN was positive at 6/8, 7/8, and
+only 3/8 states, with mean 20-node gain -0.000875 m. The curriculum therefore
+contains genuine later topology-control opportunities while exposing a clear
+distribution shift for the old initializer. These conditions are development
+prescan evidence and must not become a later formal-confirmation set.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
