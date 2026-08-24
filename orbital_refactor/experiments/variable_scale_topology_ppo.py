@@ -47,6 +47,7 @@ class VariableScalePPOConfiguration:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     entropy_coefficient: float = 0.01
+    explicit_action_pairing: bool = True
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
 
 
@@ -116,9 +117,14 @@ def train_variable_scale_topology_ppo(
             global_feature_count=len(first_state.policy_tensor.global_feature_names),
             hidden_size=32,
             message_passing_steps=2,
-            explicit_action_pairing=False,
+            explicit_action_pairing=configuration.explicit_action_pairing,
         )
     )
+    if model.actor.explicit_action_pairing != configuration.explicit_action_pairing:
+        raise ValueError(
+            "Warm-start and random-init Actor structures must use the same "
+            "explicit-action-pairing setting."
+        )
     optimizer = torch.optim.Adam(model.parameters(), lr=configuration.learning_rate)
     generator = torch.Generator().manual_seed(configuration.policy_seed + 2900)
     diagnostics = []

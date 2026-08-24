@@ -327,6 +327,17 @@ update; the next experiment must use multiple rollout/update batches so changed
 policies generate subsequent experience. These six conditions are now consumed
 development diagnostics and cannot be reused for model selection.
 
+Post-run architecture review found that the historical random comparator used
+`explicit_action_pairing=False`, while the supervised warm-start checkpoint
+used `True`. That 20-condition result is therefore exploratory and cannot be
+interpreted as an initialization-only ablation. Variable-scale PPO now exposes
+the pairing setting in its frozen configuration, defaults both branches to
+`True`, and rejects a warm-start checkpoint whose Actor structure disagrees.
+Regression tests require identical Actor parameter keys and tensor shapes for
+random and warm initialization. All future multi-batch comparisons must use
+this corrected structural baseline; the consumed 440--466 evidence will not be
+rerun or relabeled.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
