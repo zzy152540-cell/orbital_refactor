@@ -1,0 +1,954 @@
+{
+  "comparison_role": "aligned_actor_multibatch_initialization_ablation",
+  "configuration": {
+    "curriculum": {
+      "decision_interval_epochs": 3,
+      "episode_epochs": 30,
+      "maximum_topology_switches_per_episode": 5,
+      "minimum_topology_dwell_decisions": 1,
+      "node_count_cycle": [
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5
+      ],
+      "top_k_candidate_neighbors": 3
+    },
+    "entropy_coefficient": 0.01,
+    "environment_seed_count": 4,
+    "explicit_action_pairing": true,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0001,
+    "minibatch_size": 32,
+    "penalty_weights": {
+      "communication": 0.0025,
+      "resynchronization": 0.001,
+      "topology_switch": 0.001
+    },
+    "policy_seed": 0,
+    "rollout_batch_episodes": 10,
+    "target_kl": 0.02,
+    "training_condition_seed_count": 60,
+    "training_condition_seed_offset": 500,
+    "training_episodes": 60,
+    "update_epochs": 4
+  },
+  "evaluation_conditions": [
+    580,
+    581,
+    582,
+    583,
+    584,
+    586
+  ],
+  "random_init": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 64,
+          "advantage_mean": 0.147002711892128,
+          "advantage_standard_deviation": 1.1840693950653076,
+          "approximate_kl": 4.674990850617178e-05,
+          "clip_fraction": 0.0,
+          "entropy": 1.832877516746521,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.016262352466583252,
+          "final_loss": 0.1247209906578064,
+          "gradient_norm": 0.776831865310669,
+          "policy_loss": 0.07062026113271713,
+          "positive_advantage_fraction": 0.296875,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.14485900104045868
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": 0.18237651884555817,
+          "advantage_standard_deviation": 1.2064194679260254,
+          "approximate_kl": 7.0035457611083984e-06,
+          "clip_fraction": 0.0,
+          "entropy": 2.7245450019836426,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.009704232215881348,
+          "final_loss": 0.40923526883125305,
+          "gradient_norm": 0.4253862202167511,
+          "policy_loss": 0.4244760572910309,
+          "positive_advantage_fraction": 0.2786885201931,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.024009346961975098
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 64,
+          "advantage_mean": 0.14756852388381958,
+          "advantage_standard_deviation": 1.1860463619232178,
+          "approximate_kl": 3.1888484954833984e-05,
+          "clip_fraction": 0.0,
+          "entropy": 3.026409864425659,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.05320274829864502,
+          "final_loss": -0.186727374792099,
+          "gradient_norm": 1.7199124097824097,
+          "policy_loss": -0.6420081257820129,
+          "positive_advantage_fraction": 0.3125,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.9710896611213684
+        }
+      },
+      {
+        "batch_end": 40,
+        "batch_start": 30,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 60,
+          "advantage_mean": 0.1819494515657425,
+          "advantage_standard_deviation": 1.1982249021530151,
+          "approximate_kl": 3.6597251892089844e-05,
+          "clip_fraction": 0.0,
+          "entropy": 3.15338397026062,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.07574331760406494,
+          "final_loss": 0.5043361783027649,
+          "gradient_norm": 0.5553086400032043,
+          "policy_loss": 0.4968729317188263,
+          "positive_advantage_fraction": 0.28333333134651184,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.0779942125082016
+        }
+      },
+      {
+        "batch_end": 50,
+        "batch_start": 40,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 60,
+          "advantage_mean": 0.19239915907382965,
+          "advantage_standard_deviation": 1.2009798288345337,
+          "approximate_kl": 5.354483801056631e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.5292255878448486,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.10656309127807617,
+          "final_loss": -0.4968379735946655,
+          "gradient_norm": 2.338953971862793,
+          "policy_loss": -0.9926133751869202,
+          "positive_advantage_fraction": 0.3166666626930237,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 1.042135238647461
+        }
+      },
+      {
+        "batch_end": 60,
+        "batch_start": 50,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": 0.15826289355754852,
+          "advantage_standard_deviation": 1.2004629373550415,
+          "approximate_kl": 8.553266525268555e-06,
+          "clip_fraction": 0.0,
+          "entropy": 3.230268955230713,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.11130309104919434,
+          "final_loss": 0.13648220896720886,
+          "gradient_norm": 0.38471677899360657,
+          "policy_loss": 0.15608501434326172,
+          "positive_advantage_fraction": 0.3442623019218445,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.02539975941181183
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 580,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7986461942424192,
+        "model_final_position_rmse": 0.7986461942424192,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 581,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.5950804976922853,
+        "model_final_position_rmse": 0.5950804976922853,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 582,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.581428583518186,
+        "model_final_position_rmse": 0.581428583518186,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 583,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6624205397621125,
+        "model_final_position_rmse": 0.6624205397621125,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 584,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7773594190751173,
+        "model_final_position_rmse": 0.7773594190751173,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 586,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7288116950929483,
+        "model_final_position_rmse": 0.7288116950929483,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "20": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "5": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 25,
+          "keep": 125,
+          "remove": 20,
+          "swap": 40
+        },
+        "episode_count": 21,
+        "mean_penalized_return": 2.1987226633798507,
+        "mean_task_return": 2.2238139595304216,
+        "mean_topology_switches": 4.0476190476190474
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 26,
+          "keep": 86,
+          "remove": 9,
+          "swap": 29
+        },
+        "episode_count": 15,
+        "mean_penalized_return": 2.238685417175293,
+        "mean_task_return": 2.2648826122283934,
+        "mean_topology_switches": 4.266666666666667
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 42,
+          "keep": 136,
+          "remove": 19,
+          "swap": 43
+        },
+        "episode_count": 24,
+        "mean_penalized_return": 1.9707338064908981,
+        "mean_task_return": 1.9985671142737071,
+        "mean_topology_switches": 4.333333333333333
+      }
+    }
+  },
+  "warm_start": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 60,
+          "advantage_mean": 0.13071292638778687,
+          "advantage_standard_deviation": 1.2100915908813477,
+          "approximate_kl": 0.00716283917427063,
+          "clip_fraction": 0.0,
+          "entropy": 3.3335835933685303,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.016203105449676514,
+          "final_loss": 0.2419704645872116,
+          "gradient_norm": 1.586203932762146,
+          "policy_loss": 0.2578885555267334,
+          "positive_advantage_fraction": 0.23333333432674408,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.03483548015356064
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 62,
+          "advantage_mean": 0.10801082849502563,
+          "advantage_standard_deviation": 1.199332356452942,
+          "approximate_kl": 0.001655538915656507,
+          "clip_fraction": 0.0,
+          "entropy": 2.3983020782470703,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.011989951133728027,
+          "final_loss": -0.10358250141143799,
+          "gradient_norm": 2.9658071994781494,
+          "policy_loss": -0.7837788462638855,
+          "positive_advantage_fraction": 0.24193547666072845,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 1.4083586931228638
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 58,
+          "advantage_mean": 0.14582866430282593,
+          "advantage_standard_deviation": 1.2258962392807007,
+          "approximate_kl": 0.0002491474151611328,
+          "clip_fraction": 0.0,
+          "entropy": 2.023118734359741,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.05621170997619629,
+          "final_loss": 0.5392332077026367,
+          "gradient_norm": 1.6441540718078613,
+          "policy_loss": 0.5542762875556946,
+          "positive_advantage_fraction": 0.27586206793785095,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.01037624105811119
+        }
+      },
+      {
+        "batch_end": 40,
+        "batch_start": 30,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 59,
+          "advantage_mean": 0.1541261076927185,
+          "advantage_standard_deviation": 1.2189034223556519,
+          "approximate_kl": 0.0002544224262237549,
+          "clip_fraction": 0.0,
+          "entropy": 2.693021774291992,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.07589936256408691,
+          "final_loss": -0.35799652338027954,
+          "gradient_norm": 3.2388100624084473,
+          "policy_loss": -0.5387977957725525,
+          "positive_advantage_fraction": 0.3050847351551056,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.41546300053596497
+        }
+      },
+      {
+        "batch_end": 50,
+        "batch_start": 40,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 57,
+          "advantage_mean": 0.1559271216392517,
+          "advantage_standard_deviation": 1.2276445627212524,
+          "approximate_kl": 0.0,
+          "clip_fraction": 0.0,
+          "entropy": 0.0,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.09804165363311768,
+          "final_loss": 0.024867987260222435,
+          "gradient_norm": 0.7905209064483643,
+          "policy_loss": 0.0,
+          "positive_advantage_fraction": 0.2631579041481018,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.04973597452044487
+        }
+      },
+      {
+        "batch_end": 60,
+        "batch_start": 50,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 59,
+          "advantage_mean": 0.17971304059028625,
+          "advantage_standard_deviation": 1.2272846698760986,
+          "approximate_kl": 0.0008901556138880551,
+          "clip_fraction": 0.0,
+          "entropy": 2.330784797668457,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.11254489421844482,
+          "final_loss": -0.39189398288726807,
+          "gradient_norm": 2.3729474544525146,
+          "policy_loss": -0.846283495426178,
+          "positive_advantage_fraction": 0.32203391194343567,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.9553947448730469
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 580,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7986461942424192,
+        "model_final_position_rmse": 0.6898989047367916,
+        "model_rmse_improvement": 0.10874728950562762,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 581,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.5950804976922853,
+        "model_final_position_rmse": 0.5956688005007129,
+        "model_rmse_improvement": -0.0005883028084275876,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 582,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.581428583518186,
+        "model_final_position_rmse": 0.5757721085157546,
+        "model_rmse_improvement": 0.005656475002431494,
+        "node_count": 20,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 583,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6624205397621125,
+        "model_final_position_rmse": 0.6313881151720151,
+        "model_rmse_improvement": 0.031032424590097363,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 584,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7773594190751173,
+        "model_final_position_rmse": 0.7808087180561821,
+        "model_rmse_improvement": -0.00344929898106483,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 586,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7288116950929483,
+        "model_final_position_rmse": 0.7453481222621386,
+        "model_rmse_improvement": -0.01653642716919035,
+        "node_count": 20,
+        "topology_switches": 5.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "add": 2,
+          "keep": 18
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": -0.002018800894746209,
+        "worst_rmse_improvement": -0.00344929898106483
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": -0.0054399760833794275,
+        "worst_rmse_improvement": -0.01653642716919035
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.06988985704786249,
+        "worst_rmse_improvement": 0.031032424590097363
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 39,
+          "keep": 136,
+          "remove": 23,
+          "swap": 12
+        },
+        "episode_count": 21,
+        "mean_penalized_return": 2.2120553936277116,
+        "mean_task_return": 2.237287101291475,
+        "mean_topology_switches": 3.5238095238095237
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 47,
+          "keep": 73,
+          "remove": 6,
+          "swap": 24
+        },
+        "episode_count": 15,
+        "mean_penalized_return": 2.2456568241119386,
+        "mean_task_return": 2.2741607348124186,
+        "mean_topology_switches": 5.133333333333334
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 63,
+          "keep": 124,
+          "remove": 5,
+          "swap": 48
+        },
+        "episode_count": 24,
+        "mean_penalized_return": 1.9778122107187908,
+        "mean_task_return": 2.0107386161883674,
+        "mean_topology_switches": 4.833333333333333
+      }
+    }
+  }
+}

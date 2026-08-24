@@ -338,6 +338,21 @@ random and warm initialization. All future multi-batch comparisons must use
 this corrected structural baseline; the consumed 440--466 evidence will not be
 rerun or relabeled.
 
+With Actor structures aligned, a strict 60-episode, six-update comparison used
+training conditions 500--559 and untouched evaluation conditions 580, 581,
+582, 583, 584, and 586. Random initialization converged to deterministic keep
+on all six evaluations, exactly matching the keep baseline. Warm start averaged
+0.02081 m improvement but improved only 3/6 cases and degraded by as much as
+0.01654 m. Its five-node cases improved strongly (mean 0.06989 m), while both
+ten-node cases regressed and only one twenty-node case improved. The warm
+deterministic policy still used add/keep only; no swap/remove survived into
+deterministic evaluation. Critic explained variance deteriorated across the six
+batches to about -0.11 for both branches. Multiple updates therefore remove the
+old one-update limitation but do not solve cross-scale credit assignment. The
+next work must diagnose scale-conditioned value targets and per-type advantages
+before increasing the episode budget. Conditions 580--586 used here are now
+consumed development evidence.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
