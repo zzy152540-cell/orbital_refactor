@@ -353,6 +353,21 @@ next work must diagnose scale-conditioned value targets and per-type advantages
 before increasing the episode budget. Conditions 580--586 used here are now
 consumed development evidence.
 
+A frozen-Critic audit on new conditions 600, 601, 602, 603, 604, and 606
+compared predictions with Critic-independent discounted Monte Carlo returns.
+Across both branches, return standard deviation was about 0.67 while predicted
+value standard deviation was only 0.06--0.07; explained variance was about
+-0.12 and target/value correlation was negative. More importantly, mean return
+fell from about 2.18 at decision 0 to -0.03 at decision 9, while random Critic
+value rose from 0.267 to 0.416 and warm Critic value from 0.210 to 0.342. The
+Critic has therefore learned the horizon direction backwards, rather than only
+missing a fleet-scale offset. The environment currently labels the artificial
+30-epoch window boundary as terminal. Because operational topology control is
+a continuing task, the next controlled change should mark training-window ends
+as truncations and bootstrap the final value, before adding an explicit
+remaining-horizon feature or changing network capacity. Conditions 600--606
+are consumed diagnostic evidence.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

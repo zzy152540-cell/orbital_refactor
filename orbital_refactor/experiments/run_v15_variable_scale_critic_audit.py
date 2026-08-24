@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import torch
+
+from experiments.topology_ppo import build_warm_started_actor_critic
+from experiments.variable_scale_critic_audit import (
+    audit_variable_scale_critic,
+)
+from experiments.variable_scale_topology_curriculum import (
+    VariableScaleTopologyCurriculum,
+)
+
+
+def _load_model(warm_start, state_dict):
+    model = build_warm_started_actor_critic(
+        warm_start, reset_type_head=False,
+    )
+    model.load_state_dict(state_dict)
+    return model
+
+
+def main(argv=None) -> Path:
+    parser = argparse.ArgumentParser(
+        description="Audit frozen mixed-scale PPO Critics by scale and action type."
+    )
+    parser.add_argument("--warm-start", type=Path, required=True)
+    parser.add_argument("--ppo-checkpoint", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--condition-seeds", type=int, nargs="+",
+        default=(600, 601, 602, 603, 604, 606),
+    )
+    arguments = parser.parse_args(argv)
+    checkpoint = torch.load(
+        arguments.ppo_checkpoint, map_location="cpu", weights_only=False,
+    )
+    curriculum = VariableScaleTopologyCurriculum()
+    conditions = tuple(arguments.condition_seeds)
+    summary = {
+        "audit_role": "frozen_multibatch_critic_mc_return_audit",
+        "ppo_checkpoint": str(arguments.ppo_checkpoint),
+        "random_init": audit_variable_scale_critic(
+            _load_model(
+                arguments.warm_start,
+                checkpoint["random_model_state_dict"],
+            ),
+            curriculum,
+            condition_seeds=conditions,
+        ),
+        "warm_start": audit_variable_scale_critic(
+            _load_model(
+                arguments.warm_start,
+                checkpoint["warm_model_state_dict"],
+            ),
+            curriculum,
+            condition_seeds=conditions,
+        ),
+    }
+    arguments.output.parent.mkdir(parents=True, exist_ok=True)
+    arguments.output.write_text(
+        json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8"
+    )
+    print(json.dumps(summary, indent=2, sort_keys=True))
+    return arguments.output
+
+
+if __name__ == "__main__":
+    main()
