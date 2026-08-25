@@ -51,6 +51,9 @@ def _training_summary(result):
             "mean_task_return": float(np.mean([
                 item.task_return for item in values
             ])),
+            "mean_absolute_task_return": float(np.mean([
+                item.absolute_task_return for item in values
+            ])),
             "mean_penalized_return": float(np.mean([
                 item.penalized_return for item in values
             ])),

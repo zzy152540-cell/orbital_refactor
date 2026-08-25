@@ -27,6 +27,7 @@ def audit_variable_scale_critic(
     gamma: float = 0.99,
     gae_lambda: float = 0.95,
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights(),
+    counterfactual_keep_reward: bool = False,
 ) -> dict[str, object]:
     """Compare one frozen Critic with MC returns and GAE by fleet scale."""
 
@@ -39,6 +40,7 @@ def audit_variable_scale_critic(
             seed=noise_seed,
             condition_seed=condition_seed,
             deterministic=True,
+            counterfactual_keep_reward=counterfactual_keep_reward,
         )
         penalized = apply_variable_scale_penalties(
             rollout,
@@ -82,6 +84,7 @@ def audit_variable_scale_critic(
         "noise_seed": int(noise_seed),
         "gamma": float(gamma),
         "gae_lambda": float(gae_lambda),
+        "counterfactual_keep_reward": bool(counterfactual_keep_reward),
         "records": records,
         "summary_by_node_count": _group_summaries(records, "node_count"),
         "summary_by_action_kind": _group_summaries(records, "action_kind"),

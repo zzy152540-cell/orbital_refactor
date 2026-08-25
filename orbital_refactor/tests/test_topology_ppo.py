@@ -200,6 +200,27 @@ def test_rollout_uses_legal_environment_actions_and_records_costs():
     assert rollout.final_value == 0.0
 
 
+def test_counterfactual_keep_reward_removes_common_filter_improvement():
+    environment, _, _, model = _actor_critic_and_state(episode_epochs=3)
+    with torch.no_grad():
+        model.actor.type_head.weight.zero_()
+        model.actor.type_head.bias.zero_()
+    rollout = collect_topology_rollout(
+        environment, model, seed=2, deterministic=True,
+        counterfactual_keep_reward=True,
+    )
+    assert all(
+        transition.environment_action_id == 0
+        and transition.reward == 0.0
+        and transition.absolute_reward is not None
+        for transition in rollout.transitions
+    )
+    assert any(
+        abs(transition.absolute_reward) > 0.0
+        for transition in rollout.transitions
+    )
+
+
 def test_rollout_bootstraps_value_at_truncated_training_window():
     environment, _, _, model = _actor_critic_and_state(
         episode_epochs=1, treat_horizon_as_truncation=True,

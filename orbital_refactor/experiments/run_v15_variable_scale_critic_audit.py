@@ -43,6 +43,9 @@ def main(argv=None) -> Path:
     critic_timestamp_horizon = checkpoint["configuration"].get(
         "critic_timestamp_horizon"
     )
+    counterfactual_keep_reward = bool(
+        checkpoint["configuration"].get("counterfactual_keep_reward", False)
+    )
     conditions = tuple(arguments.condition_seeds)
     summary = {
         "audit_role": "frozen_multibatch_critic_mc_return_audit",
@@ -55,6 +58,7 @@ def main(argv=None) -> Path:
             ),
             curriculum,
             condition_seeds=conditions,
+            counterfactual_keep_reward=counterfactual_keep_reward,
         ),
         "warm_start": audit_variable_scale_critic(
             _load_model(
@@ -64,6 +68,7 @@ def main(argv=None) -> Path:
             ),
             curriculum,
             condition_seeds=conditions,
+            counterfactual_keep_reward=counterfactual_keep_reward,
         ),
     }
     arguments.output.parent.mkdir(parents=True, exist_ok=True)

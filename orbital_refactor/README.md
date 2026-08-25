@@ -403,6 +403,18 @@ filter initialization transients. The next controlled training experiment
 should use selected-action reward minus a same-state keep counterfactual,
 while retaining absolute task metrics for evaluation.
 
+An exploratory 30-episode paired replay on the already-consumed 720--749
+conditions then enabled that counterfactual reward. Warm-start Critic explained
+variance changed from 0.023/-0.013/-0.049 across the three absolute-reward
+batches to 0.115/0.435/0.338; mean deterministic RMSE improvement increased
+from 0.00211 m to 0.00455 m. On fresh audit conditions 920--926, overall frozen
+Critic explained variance was 0.726 random and 0.519 warm, with positive target
+correlations of 0.855 and 0.722. However, within-scale explained variance
+remained negative for 10 and 20 nodes (warm was positive only at 5 nodes).
+Counterfactual reward is therefore a promising development option, not yet the
+formal default: it removes the common filter transient and recovers aggregate
+value structure, but within-scale action credit still needs confirmation.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 from pathlib import Path
 import torch
 from torch import Tensor
@@ -75,6 +76,7 @@ class TopologyRolloutTransition:
     truncated: bool
     type_entropy: float
     conditional_entropy: float
+    absolute_reward: float | None = None
 
 
 @dataclass(frozen=True)
@@ -273,6 +275,7 @@ def collect_topology_rollout(
     minimum_policy_override_margin: float | None = None,
     override_value_model: nn.Module | None = None,
     minimum_predicted_override_advantage: float | None = None,
+    counterfactual_keep_reward: bool = False,
 ) -> TopologyRollout:
     """Collect one episode from the existing truth-safe topology environment."""
 
@@ -337,7 +340,20 @@ def collect_topology_rollout(
                     )
         action_index = int(selected.item())
         environment_action_id = int(action_ids[action_index])
+        keep_branch = (
+            deepcopy(environment)
+            if counterfactual_keep_reward and environment_action_id != 0
+            else None
+        )
         step = environment.step(environment_action_id)
+        absolute_reward = float(step.reward)
+        reward = absolute_reward
+        if counterfactual_keep_reward:
+            keep_reward = (
+                absolute_reward if keep_branch is None
+                else float(keep_branch.step(0).reward)
+            )
+            reward -= keep_reward
         costs = step.constraint_costs
         transitions.append(TopologyRolloutTransition(
             group=group, action_index=action_index,
@@ -345,7 +361,7 @@ def collect_topology_rollout(
             old_log_probability=float(
                 output.distribution.log_prob(selected).item()
             ),
-            value=float(output.value.item()), reward=float(step.reward),
+            value=float(output.value.item()), reward=reward,
             costs=tuple(float(value) for value in (
                 costs.transmitted_messages, costs.dropped_messages,
                 costs.replay_count, costs.resynchronization_count,
@@ -356,6 +372,7 @@ def collect_topology_rollout(
             conditional_entropy=float(
                 output.distribution.conditional_entropy.item()
             ),
+            absolute_reward=absolute_reward,
         ))
         state = step.state
         if step.terminated or step.truncated:

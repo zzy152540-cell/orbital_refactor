@@ -49,6 +49,7 @@ class VariableScalePPOConfiguration:
     entropy_coefficient: float = 0.01
     explicit_action_pairing: bool = True
     critic_timestamp_horizon: float | None = None
+    counterfactual_keep_reward: bool = False
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
 
 
@@ -59,6 +60,7 @@ class VariableScaleEpisodeDiagnostic:
     environment_seed: int
     node_count: int
     task_return: float
+    absolute_task_return: float
     penalized_return: float
     final_position_rmse: float
     transmitted_messages_per_node_epoch: float
@@ -159,6 +161,9 @@ def train_variable_scale_topology_ppo(
                 seed=environment_seed,
                 condition_seed=condition_seed,
                 generator=generator,
+                counterfactual_keep_reward=(
+                    configuration.counterfactual_keep_reward
+                ),
             )
             penalized = apply_variable_scale_penalties(
                 rollout,
@@ -220,6 +225,12 @@ def train_variable_scale_topology_ppo(
                 environment_seed=environment_seed,
                 node_count=node_count,
                 task_return=float(rollout.rewards.sum().item()),
+                absolute_task_return=float(sum(
+                    transition.absolute_reward
+                    if transition.absolute_reward is not None
+                    else transition.reward
+                    for transition in rollout.transitions
+                )),
                 penalized_return=float(penalized.rewards.sum().item()),
                 final_position_rmse=final_rmse,
                 transmitted_messages_per_node_epoch=float(
