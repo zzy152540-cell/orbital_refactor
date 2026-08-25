@@ -1,0 +1,668 @@
+{
+  "comparison_role": "aligned_actor_multibatch_initialization_ablation",
+  "configuration": {
+    "counterfactual_keep_reward": true,
+    "critic_timestamp_horizon": null,
+    "curriculum": {
+      "decision_interval_epochs": 3,
+      "episode_epochs": 30,
+      "maximum_topology_switches_per_episode": 5,
+      "minimum_topology_dwell_decisions": 1,
+      "node_count_cycle": [
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5
+      ],
+      "top_k_candidate_neighbors": 3
+    },
+    "entropy_coefficient": 0.01,
+    "environment_seed_count": 4,
+    "explicit_action_pairing": true,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0001,
+    "minibatch_size": 32,
+    "penalty_weights": {
+      "communication": 0.0025,
+      "resynchronization": 0.001,
+      "topology_switch": 0.001
+    },
+    "policy_seed": 0,
+    "rollout_batch_episodes": 10,
+    "target_kl": 0.02,
+    "training_condition_seed_count": 30,
+    "training_condition_seed_offset": 940,
+    "training_episodes": 30,
+    "update_epochs": 4
+  },
+  "evaluation_conditions": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1006
+  ],
+  "random_init": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 64,
+          "advantage_mean": -0.070532888174057,
+          "advantage_standard_deviation": 1.1066068410873413,
+          "approximate_kl": 8.314847946166992e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.3058536052703857,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.3271535634994507,
+          "final_loss": 0.02843616157770157,
+          "gradient_norm": 0.1905098557472229,
+          "policy_loss": 0.05144699290394783,
+          "positive_advantage_fraction": 0.53125,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 9.540661267237738e-05
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 65,
+          "advantage_mean": -0.14240632951259613,
+          "advantage_standard_deviation": 1.1218092441558838,
+          "approximate_kl": 8.365511894226074e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.7842140197753906,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.06052100658416748,
+          "final_loss": -0.7627103924751282,
+          "gradient_norm": 0.6575983166694641,
+          "policy_loss": -0.7350268959999084,
+          "positive_advantage_fraction": 0.6153846383094788,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.00031730561750009656
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": -0.12881572544574738,
+          "advantage_standard_deviation": 1.100332260131836,
+          "approximate_kl": 2.7447938919067383e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.190868854522705,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.23480111360549927,
+          "final_loss": 1.9853992462158203,
+          "gradient_norm": 1.2508407831192017,
+          "policy_loss": 2.006971597671509,
+          "positive_advantage_fraction": 0.5409836173057556,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.0006724745617248118
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1000,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7622623441890816,
+        "model_final_position_rmse": 0.7622623441890816,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1001,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6771567150355136,
+        "model_final_position_rmse": 0.6771567150355136,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1002,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7130708255957617,
+        "model_final_position_rmse": 0.7130708255957617,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1003,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6714926077848625,
+        "model_final_position_rmse": 0.6714926077848625,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1004,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.714950734845345,
+        "model_final_position_rmse": 0.714950734845345,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1006,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.8099310285232716,
+        "model_final_position_rmse": 0.8099310285232716,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "20": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "5": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 14,
+          "keep": 67,
+          "remove": 10,
+          "swap": 19
+        },
+        "episode_count": 11,
+        "mean_absolute_task_return": 2.175326701036397,
+        "mean_penalized_return": -0.05426992044191469,
+        "mean_task_return": -0.02900325161912902,
+        "mean_topology_switches": 3.909090909090909
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 16,
+          "keep": 37,
+          "remove": 4,
+          "swap": 13
+        },
+        "episode_count": 7,
+        "mean_absolute_task_return": 2.3077199537337774,
+        "mean_penalized_return": -0.027376341367406503,
+        "mean_task_return": 0.0004069921726893101,
+        "mean_topology_switches": 4.714285714285714
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 23,
+          "keep": 70,
+          "remove": 13,
+          "swap": 14
+        },
+        "episode_count": 12,
+        "mean_absolute_task_return": 1.89950326305587,
+        "mean_penalized_return": -0.04696983303680705,
+        "mean_task_return": -0.020111499703489244,
+        "mean_topology_switches": 4.166666666666667
+      }
+    }
+  },
+  "warm_start": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 57,
+          "advantage_mean": -0.11453963816165924,
+          "advantage_standard_deviation": 1.1917372941970825,
+          "approximate_kl": 0.0005416969652287662,
+          "clip_fraction": 0.0,
+          "entropy": 1.823394775390625,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.11567729711532593,
+          "final_loss": 0.15882833302021027,
+          "gradient_norm": 0.30346596240997314,
+          "policy_loss": 0.17704258859157562,
+          "positive_advantage_fraction": 0.4912280738353729,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 3.937882138416171e-05
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": -0.014462347142398357,
+          "advantage_standard_deviation": 1.0644789934158325,
+          "approximate_kl": 0.0001227259635925293,
+          "clip_fraction": 0.0,
+          "entropy": 2.279801368713379,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.22521215677261353,
+          "final_loss": 0.12524405121803284,
+          "gradient_norm": 0.3972673714160919,
+          "policy_loss": 0.1479322761297226,
+          "positive_advantage_fraction": 0.5737704634666443,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.00021958083380013704
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 62,
+          "advantage_mean": -0.12372288852930069,
+          "advantage_standard_deviation": 1.0633481740951538,
+          "approximate_kl": 0.0007379353046417236,
+          "clip_fraction": 0.0,
+          "entropy": 1.8540301322937012,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.22515743970870972,
+          "final_loss": 1.5444817543029785,
+          "gradient_norm": 5.9626994132995605,
+          "policy_loss": 1.5627596378326416,
+          "positive_advantage_fraction": 0.4838709533214569,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.0005248445668257773
+        }
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1000,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7622623441890816,
+        "model_final_position_rmse": 0.7671022672889736,
+        "model_rmse_improvement": -0.004839923099892007,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 1001,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6771567150355136,
+        "model_final_position_rmse": 0.6846387719335494,
+        "model_rmse_improvement": -0.007482056898035827,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1002,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7130708255957617,
+        "model_final_position_rmse": 0.7049249381931868,
+        "model_rmse_improvement": 0.008145887402574936,
+        "node_count": 20,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1003,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6714926077848625,
+        "model_final_position_rmse": 0.662371382767467,
+        "model_rmse_improvement": 0.00912122501739554,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 1004,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.714950734845345,
+        "model_final_position_rmse": 0.699325115212802,
+        "model_rmse_improvement": 0.015625619632542942,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1006,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.8099310285232716,
+        "model_final_position_rmse": 0.7883204662738217,
+        "model_rmse_improvement": 0.021610562249449905,
+        "node_count": 20,
+        "topology_switches": 5.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "add": 2,
+          "keep": 18
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": 0.0040717813672535574,
+        "worst_rmse_improvement": -0.007482056898035827
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.01487822482601242,
+        "worst_rmse_improvement": 0.008145887402574936
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": 0.0021406509587517664,
+        "worst_rmse_improvement": -0.004839923099892007
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 18,
+          "keep": 71,
+          "remove": 10,
+          "swap": 11
+        },
+        "episode_count": 11,
+        "mean_absolute_task_return": 2.183232410354676,
+        "mean_penalized_return": -0.035639148226685145,
+        "mean_task_return": -0.010437634297307919,
+        "mean_topology_switches": 3.5454545454545454
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 23,
+          "keep": 36,
+          "remove": 1,
+          "swap": 10
+        },
+        "episode_count": 7,
+        "mean_absolute_task_return": 2.3150522612105258,
+        "mean_penalized_return": -0.030530545860528946,
+        "mean_task_return": -0.0018686406006703951,
+        "mean_topology_switches": 4.857142857142857
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 36,
+          "keep": 62,
+          "remove": 5,
+          "swap": 17
+        },
+        "episode_count": 12,
+        "mean_absolute_task_return": 1.9306339351104178,
+        "mean_penalized_return": -0.027321066164101165,
+        "mean_task_return": 0.007098376556920509,
+        "mean_topology_switches": 4.833333333333333
+      }
+    }
+  }
+}

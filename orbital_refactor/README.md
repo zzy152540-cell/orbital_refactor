@@ -415,6 +415,19 @@ Counterfactual reward is therefore a promising development option, not yet the
 formal default: it removes the common filter transient and recovers aggregate
 value structure, but within-scale action credit still needs confirmation.
 
+Fresh paired confirmation on training conditions 940--969 and evaluation
+conditions 1000--1006 preserved the warm-start policy benefit: mean RMSE
+improvement rose from 0.00431 m with absolute reward to 0.00703 m with
+counterfactual reward, mainly through the 20-node cases (0.00671 m to
+0.01488 m). Training Critic explained variance ended at 0.225 instead of
+-0.033. Yet a frozen audit on new conditions 1040--1046 did not confirm value
+calibration: warm overall explained variance was -0.243 (absolute: -0.080),
+although correlation improved from -0.616 to +0.211 and value RMSE fell from
+0.813 to 0.0215 because the difference-return scale is much smaller. Every
+within-scale explained variance remained negative. Counterfactual reward stays
+optional; the next issue is centering/scaling small difference returns across
+fleet scales, not another expansion of Actor capacity.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
