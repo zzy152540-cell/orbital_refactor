@@ -25,6 +25,9 @@ def _branch_summary(result, evaluation):
         "batch_diagnostics": [
             asdict(item) for item in result.batch_diagnostics
         ],
+        "episode_diagnostics": [
+            asdict(item) for item in result.diagnostics
+        ],
         "evaluation": evaluation,
         "evaluation_by_node_count": _evaluation_summary(evaluation),
     }

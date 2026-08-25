@@ -449,6 +449,21 @@ mostly unchanged. The affine heads are therefore a useful optional cross-scale
 Critic calibration mechanism, not a solution to within-scale action credit or
 a source of demonstrated policy gain.
 
+Variable-scale PPO summaries can be rendered with:
+
+```bash
+python -m experiments.run_v15_variable_scale_ppo_visualization \
+  --summary results/v15_variable_scale_ppo_calibrated_counterfactual_conditions940_969.json \
+  --output results/v15_variable_scale_ppo_calibrated_training_overview.png
+```
+
+The six-panel figure reports batch explained variance, PPO losses, approximate
+KL, training return, scale-wise deterministic RMSE improvement, and evaluation
+action counts. New multibatch summaries also include per-episode diagnostics;
+older summaries remain supported through their scale-aggregated training data.
+Plotting requires Matplotlib and can use the `state_estimate` environment even
+when training uses `state_estimate_gnn`.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
