@@ -20,6 +20,7 @@ def test_one_shared_update_contains_all_three_graph_sizes():
         update_epochs=1,
         minibatch_size=3,
         target_kl=None,
+        return_scale_by_node_count=((5, 2.0), (10, 2.0), (20, 2.0)),
     )
     result = train_variable_scale_topology_ppo(configuration)
     assert [item.node_count for item in result.diagnostics] == [5, 10, 20]
@@ -41,8 +42,12 @@ def test_one_shared_update_contains_all_three_graph_sizes():
         )
         assert abs(
             diagnostic.task_return
-            - diagnostic.penalized_return
+            - diagnostic.penalized_return * 2.0
             - expected_penalty
+        ) < 1.0e-5
+        assert abs(
+            diagnostic.unnormalized_penalized_return
+            - diagnostic.penalized_return * 2.0
         ) < 1.0e-5
 
 

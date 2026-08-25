@@ -29,6 +29,11 @@ from experiments.variable_scale_topology_curriculum import (
 
 
 ACTION_KINDS = ("keep", "add", "swap", "remove")
+AUDITED_COUNTERFACTUAL_RETURN_SCALES = (
+    (5, 0.024638556129628262),
+    (10, 0.015423466948068319),
+    (20, 0.007450872577417267),
+)
 
 
 @dataclass(frozen=True)
@@ -50,6 +55,7 @@ class VariableScalePPOConfiguration:
     explicit_action_pairing: bool = True
     critic_timestamp_horizon: float | None = None
     counterfactual_keep_reward: bool = False
+    return_scale_by_node_count: tuple[tuple[int, float], ...] = ()
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
 
 
@@ -62,6 +68,7 @@ class VariableScaleEpisodeDiagnostic:
     task_return: float
     absolute_task_return: float
     penalized_return: float
+    unnormalized_penalized_return: float
     final_position_rmse: float
     transmitted_messages_per_node_epoch: float
     resynchronizations_per_node: float
@@ -172,6 +179,9 @@ def train_variable_scale_topology_ppo(
                     episode_configuration.decision_interval_epochs
                 ),
                 weights=configuration.penalty_weights,
+                return_scale=dict(
+                    configuration.return_scale_by_node_count
+                ).get(episode_configuration.node_count, 1.0),
             )
             prepared = prepare_topology_rollout(
                 penalized,
@@ -232,6 +242,14 @@ def train_variable_scale_topology_ppo(
                     for transition in rollout.transitions
                 )),
                 penalized_return=float(penalized.rewards.sum().item()),
+                unnormalized_penalized_return=float(
+                    rollout.rewards.sum().item()
+                    - configuration.penalty_weights.communication * costs[0]
+                    / (node_count * decision_interval_epochs)
+                    - configuration.penalty_weights.topology_switch * costs[4]
+                    - configuration.penalty_weights.resynchronization
+                    * costs[3] / node_count
+                ),
                 final_position_rmse=final_rmse,
                 transmitted_messages_per_node_epoch=float(
                     costs[0] / (node_count * decision_interval_epochs)
@@ -254,10 +272,11 @@ def apply_variable_scale_penalties(
     node_count: int,
     decision_interval_epochs: int,
     weights: Stage1PenaltyWeights,
+    return_scale: float = 1.0,
 ) -> TopologyRollout:
     """Apply fleet-size-normalized communication and resync penalties."""
 
-    if node_count < 1 or decision_interval_epochs < 1:
+    if node_count < 1 or decision_interval_epochs < 1 or return_scale <= 0.0:
         raise ValueError("Penalty normalization requires positive scale values.")
     transitions = tuple(replace(
         transition,
@@ -267,7 +286,7 @@ def apply_variable_scale_penalties(
             / (node_count * decision_interval_epochs)
             - weights.topology_switch * transition.costs[4]
             - weights.resynchronization * transition.costs[3] / node_count
-        ),
+        ) / return_scale,
     ) for transition in rollout.transitions)
     return TopologyRollout(transitions, rollout.final_value)
 
@@ -294,3 +313,9 @@ def _validate_configuration(configuration):
         and configuration.critic_timestamp_horizon <= 0.0
     ):
         raise ValueError("Critic timestamp horizon must be positive when enabled.")
+    scales = configuration.return_scale_by_node_count
+    if scales:
+        if tuple(sorted(node for node, _ in scales)) != (5, 10, 20):
+            raise ValueError("Return scales must define 5, 10, and 20 nodes once.")
+        if any(scale <= 0.0 for _, scale in scales):
+            raise ValueError("Return scales must be positive.")

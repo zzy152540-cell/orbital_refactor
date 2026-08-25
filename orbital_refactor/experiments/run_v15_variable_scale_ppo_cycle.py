@@ -57,6 +57,9 @@ def _training_summary(result):
             "mean_penalized_return": float(np.mean([
                 item.penalized_return for item in values
             ])),
+            "mean_unnormalized_penalized_return": float(np.mean([
+                item.unnormalized_penalized_return for item in values
+            ])),
             "mean_topology_switches": float(np.mean([
                 item.topology_switches for item in values
             ])),

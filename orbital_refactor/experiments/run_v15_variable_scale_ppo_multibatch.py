@@ -13,6 +13,7 @@ from experiments.run_v15_variable_scale_ppo_cycle import (
 )
 from experiments.run_v15_variable_scale_ppo_pilot import _evaluate
 from experiments.variable_scale_topology_ppo import (
+    AUDITED_COUNTERFACTUAL_RETURN_SCALES,
     VariableScalePPOConfiguration,
     train_variable_scale_topology_ppo,
 )
@@ -40,6 +41,9 @@ def main(argv=None) -> Path:
     parser.add_argument("--rollout-batch-episodes", type=int, default=10)
     parser.add_argument("--critic-timestamp-horizon", type=float)
     parser.add_argument("--counterfactual-keep-reward", action="store_true")
+    parser.add_argument(
+        "--normalize-counterfactual-return-by-scale", action="store_true",
+    )
     parser.add_argument("--training-condition-offset", type=int, default=500)
     parser.add_argument(
         "--evaluation-conditions", type=int, nargs="+",
@@ -60,6 +64,10 @@ def main(argv=None) -> Path:
         explicit_action_pairing=True,
         critic_timestamp_horizon=arguments.critic_timestamp_horizon,
         counterfactual_keep_reward=arguments.counterfactual_keep_reward,
+        return_scale_by_node_count=(
+            AUDITED_COUNTERFACTUAL_RETURN_SCALES
+            if arguments.normalize_counterfactual_return_by_scale else ()
+        ),
     )
     random_result = train_variable_scale_topology_ppo(configuration)
     warm_result = train_variable_scale_topology_ppo(

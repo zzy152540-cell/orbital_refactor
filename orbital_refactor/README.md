@@ -428,6 +428,16 @@ within-scale explained variance remained negative. Counterfactual reward stays
 optional; the next issue is centering/scaling small difference returns across
 fleet scales, not another expansion of Actor capacity.
 
+A fixed per-scale RMS normalization was tested next on the same 940--969
+development conditions, using independently audited non-keep gain RMS values
+of 0.02464/0.01542/0.00745 m for 5/10/20 nodes. Task gain and resource penalty
+were scaled together. This naive normalization failed: warm final explained
+variance fell from 0.225 unscaled to -0.0148, value loss rose from about
+5e-4 to 1.48, and deterministic mean RMSE improvement fell from 0.00703 m to
+0.00542 m. It is retained only as an optional negative ablation. Further work
+should normalize Critic targets or calibrate values by scale without changing
+the Actor's physical reward/cost balance.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

@@ -46,6 +46,12 @@ def main(argv=None) -> Path:
     counterfactual_keep_reward = bool(
         checkpoint["configuration"].get("counterfactual_keep_reward", False)
     )
+    return_scale_by_node_count = tuple(
+        (int(node), float(scale))
+        for node, scale in checkpoint["configuration"].get(
+            "return_scale_by_node_count", ()
+        )
+    )
     conditions = tuple(arguments.condition_seeds)
     summary = {
         "audit_role": "frozen_multibatch_critic_mc_return_audit",
@@ -59,6 +65,7 @@ def main(argv=None) -> Path:
             curriculum,
             condition_seeds=conditions,
             counterfactual_keep_reward=counterfactual_keep_reward,
+            return_scale_by_node_count=return_scale_by_node_count,
         ),
         "warm_start": audit_variable_scale_critic(
             _load_model(
@@ -69,6 +76,7 @@ def main(argv=None) -> Path:
             curriculum,
             condition_seeds=conditions,
             counterfactual_keep_reward=counterfactual_keep_reward,
+            return_scale_by_node_count=return_scale_by_node_count,
         ),
     }
     arguments.output.parent.mkdir(parents=True, exist_ok=True)

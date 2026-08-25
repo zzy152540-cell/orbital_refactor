@@ -28,6 +28,7 @@ def audit_variable_scale_critic(
     gae_lambda: float = 0.95,
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights(),
     counterfactual_keep_reward: bool = False,
+    return_scale_by_node_count: tuple[tuple[int, float], ...] = (),
 ) -> dict[str, object]:
     """Compare one frozen Critic with MC returns and GAE by fleet scale."""
 
@@ -47,6 +48,9 @@ def audit_variable_scale_critic(
             node_count=configuration.node_count,
             decision_interval_epochs=configuration.decision_interval_epochs,
             weights=penalty_weights,
+            return_scale=dict(return_scale_by_node_count).get(
+                configuration.node_count, 1.0
+            ),
         )
         prepared = prepare_topology_rollout(
             penalized,
@@ -85,6 +89,9 @@ def audit_variable_scale_critic(
         "gamma": float(gamma),
         "gae_lambda": float(gae_lambda),
         "counterfactual_keep_reward": bool(counterfactual_keep_reward),
+        "return_scale_by_node_count": [
+            list(item) for item in return_scale_by_node_count
+        ],
         "records": records,
         "summary_by_node_count": _group_summaries(records, "node_count"),
         "summary_by_action_kind": _group_summaries(records, "action_kind"),
