@@ -65,6 +65,7 @@ def test_warm_and_random_initialization_use_identical_actor_structure():
         target_kl=None,
         critic_timestamp_horizon=4.0,
         critic_scale_calibration_node_counts=(5, 10, 20),
+        critic_weight_decay=1.0e-3,
     )
     random_result = train_variable_scale_topology_ppo(configuration)
     warm_result = train_variable_scale_topology_ppo(

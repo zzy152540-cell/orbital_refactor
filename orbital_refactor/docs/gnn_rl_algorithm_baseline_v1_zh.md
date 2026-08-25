@@ -1042,6 +1042,13 @@ RMS仅0.02084 m，占4.14%；10星和20星分别只有2.56%和1.67%。决策0的
 20星基本无效。因此现有状态输入包含可用的同规模回报信号，当前更可能的瓶颈是
 小样本Critic拟合与正则化，而非立即改用动作条件Q-Critic或继续扩展观测字段。
 
+进一步对Critic单独施加Adam weight decay 1e-3，Actor保持零衰减。策略和确定性
+RMSE结果不变。在全新1200～1206审计条件上，暖启动三个规模EV均小幅改善：五星
+-0.680至-0.475、10星-2.624至-2.566、20星0.401至0.431；总体RMSE由0.02011
+降至0.01858，但总体EV由0.320降至0.252。因此weight decay继续保持可选：它略微
+改善同规模正则化，却未解决问题，并削弱部分总体校准。包含逐episode曲线的图已保存为
+`results/v15_variable_scale_ppo_regularized_critic_training_overview.png`。
+
 变规模PPO现提供统一训练可视化入口
 `experiments.run_v15_variable_scale_ppo_visualization`，输出Critic解释方差、PPO
 loss、KL、训练回报、分规模确定性RMSE改善和评价动作计数六个面板。新生成的多批次

@@ -48,6 +48,7 @@ def main(argv=None) -> Path:
         "--normalize-counterfactual-return-by-scale", action="store_true",
     )
     parser.add_argument("--critic-scale-calibration", action="store_true")
+    parser.add_argument("--critic-weight-decay", type=float, default=0.0)
     parser.add_argument("--training-condition-offset", type=int, default=500)
     parser.add_argument(
         "--evaluation-conditions", type=int, nargs="+",
@@ -75,6 +76,7 @@ def main(argv=None) -> Path:
         critic_scale_calibration_node_counts=(
             (5, 10, 20) if arguments.critic_scale_calibration else ()
         ),
+        critic_weight_decay=arguments.critic_weight_decay,
     )
     random_result = train_variable_scale_topology_ppo(configuration)
     warm_result = train_variable_scale_topology_ppo(

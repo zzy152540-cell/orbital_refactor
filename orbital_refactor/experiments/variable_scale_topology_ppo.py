@@ -57,6 +57,7 @@ class VariableScalePPOConfiguration:
     counterfactual_keep_reward: bool = False
     return_scale_by_node_count: tuple[tuple[int, float], ...] = ()
     critic_scale_calibration_node_counts: tuple[int, ...] = ()
+    critic_weight_decay: float = 0.0
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
 
 
@@ -144,7 +145,18 @@ def train_variable_scale_topology_ppo(
             "Warm-start and random-init Actor structures must use the same "
             "explicit-action-pairing setting."
         )
-    optimizer = torch.optim.Adam(model.parameters(), lr=configuration.learning_rate)
+    actor_parameters = list(model.actor.parameters())
+    critic_parameters = [
+        parameter for name, parameter in model.named_parameters()
+        if not name.startswith("actor.")
+    ]
+    optimizer = torch.optim.Adam((
+        {"params": actor_parameters, "weight_decay": 0.0},
+        {
+            "params": critic_parameters,
+            "weight_decay": configuration.critic_weight_decay,
+        },
+    ), lr=configuration.learning_rate)
     generator = torch.Generator().manual_seed(configuration.policy_seed + 2900)
     diagnostics = []
     batch_diagnostics = []
@@ -329,3 +341,5 @@ def _validate_configuration(configuration):
     calibration_counts = configuration.critic_scale_calibration_node_counts
     if calibration_counts and tuple(sorted(calibration_counts)) != (5, 10, 20):
         raise ValueError("Critic scale calibration must define 5, 10, and 20 nodes.")
+    if configuration.critic_weight_decay < 0.0:
+        raise ValueError("Critic weight decay must be nonnegative.")

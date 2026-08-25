@@ -460,6 +460,16 @@ features therefore contain useful within-scale return signal; the more likely
 bottleneck is small-sample Critic fitting and regularization, not immediate
 need for an action-conditioned Q-Critic or a larger observation schema.
 
+A Critic-only Adam weight decay of 1e-3 was then paired against the calibrated
+counterfactual model. It left Actor policy and deterministic RMSE unchanged.
+On fresh 1200--1206 audit conditions, warm within-scale EV improved modestly
+for all scales (5: -0.680 to -0.475, 10: -2.624 to -2.566, 20: 0.401 to
+0.431) and RMSE fell from 0.02011 to 0.01858 overall, but aggregate EV fell
+from 0.320 to 0.252. Weight decay remains optional: it slightly regularizes
+within-scale fitting but does not solve it and weakens aggregate calibration.
+The accompanying episode-aware plot is stored as
+`results/v15_variable_scale_ppo_regularized_critic_training_overview.png`.
+
 Variable-scale PPO summaries can be rendered with:
 
 ```bash

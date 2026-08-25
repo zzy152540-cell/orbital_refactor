@@ -1,0 +1,2517 @@
+{
+  "comparison_role": "aligned_actor_multibatch_initialization_ablation",
+  "configuration": {
+    "counterfactual_keep_reward": true,
+    "critic_scale_calibration_node_counts": [
+      5,
+      10,
+      20
+    ],
+    "critic_timestamp_horizon": null,
+    "critic_weight_decay": 0.001,
+    "curriculum": {
+      "decision_interval_epochs": 3,
+      "episode_epochs": 30,
+      "maximum_topology_switches_per_episode": 5,
+      "minimum_topology_dwell_decisions": 1,
+      "node_count_cycle": [
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5
+      ],
+      "top_k_candidate_neighbors": 3
+    },
+    "entropy_coefficient": 0.01,
+    "environment_seed_count": 4,
+    "explicit_action_pairing": true,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0001,
+    "minibatch_size": 32,
+    "penalty_weights": {
+      "communication": 0.0025,
+      "resynchronization": 0.001,
+      "topology_switch": 0.001
+    },
+    "policy_seed": 0,
+    "return_scale_by_node_count": [],
+    "rollout_batch_episodes": 10,
+    "target_kl": 0.02,
+    "training_condition_seed_count": 30,
+    "training_condition_seed_offset": 940,
+    "training_episodes": 30,
+    "update_epochs": 4
+  },
+  "evaluation_conditions": [
+    1000,
+    1001,
+    1002,
+    1003,
+    1004,
+    1006
+  ],
+  "random_init": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 64,
+          "advantage_mean": -0.070532888174057,
+          "advantage_standard_deviation": 1.1066068410873413,
+          "approximate_kl": 8.314847946166992e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.3058536052703857,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.3271535634994507,
+          "final_loss": 0.028435751795768738,
+          "gradient_norm": 0.1906321942806244,
+          "policy_loss": 0.05144699290394783,
+          "positive_advantage_fraction": 0.53125,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 9.458704153075814e-05
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 65,
+          "advantage_mean": -0.1416749209165573,
+          "advantage_standard_deviation": 1.1204383373260498,
+          "approximate_kl": 8.440017700195312e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.7841248512268066,
+          "epochs_run": 4,
+          "explained_variance_before_update": -0.05881226062774658,
+          "final_loss": -0.7572628259658813,
+          "gradient_norm": 0.6546968221664429,
+          "policy_loss": -0.7295746207237244,
+          "positive_advantage_fraction": 0.6307692527770996,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.00030607785447500646
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": -0.12757866084575653,
+          "advantage_standard_deviation": 1.1024893522262573,
+          "approximate_kl": 2.6702880859375e-05,
+          "clip_fraction": 0.0,
+          "entropy": 2.19083309173584,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.2653951644897461,
+          "final_loss": 1.9422533512115479,
+          "gradient_norm": 1.2391222715377808,
+          "policy_loss": 1.9638502597808838,
+          "positive_advantage_fraction": 0.5737704634666443,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.0006228392012417316
+        }
+      }
+    ],
+    "episode_diagnostics": [
+      {
+        "absolute_task_return": 1.995877928797938,
+        "action_kind_counts": [
+          [
+            "add",
+            4
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 940,
+        "environment_seed": 0,
+        "episode": 0,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7270117544339895,
+        "node_count": 5,
+        "penalized_return": -0.02373465523123741,
+        "resynchronizations_per_node": 2.0,
+        "task_return": 0.017098676413297653,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 13.533333778381348,
+        "unnormalized_penalized_return": -0.02373465709388256
+      },
+      {
+        "absolute_task_return": 1.8124459074237897,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 941,
+        "environment_seed": 1,
+        "episode": 1,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8521022606379169,
+        "node_count": 10,
+        "penalized_return": -0.019180480390787125,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.005302850157022476,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 8.433333396911621,
+        "unnormalized_penalized_return": -0.019180482253432274
+      },
+      {
+        "absolute_task_return": 2.179144935897238,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            4
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            3
+          ]
+        ],
+        "condition_seed": 942,
+        "environment_seed": 2,
+        "episode": 2,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8078991372362948,
+        "node_count": 20,
+        "penalized_return": -0.030895184725522995,
+        "resynchronizations_per_node": 0.5,
+        "task_return": -0.0013118511997163296,
+        "topology_switches": 6.0,
+        "transmitted_messages_per_node_epoch": 9.233333587646484,
+        "unnormalized_penalized_return": -0.030895182862877846
+      },
+      {
+        "absolute_task_return": 1.1260290848327354,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 943,
+        "environment_seed": 3,
+        "episode": 3,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.9566544607980452,
+        "node_count": 5,
+        "penalized_return": 0.023111624643206596,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": 0.048644956201314926,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 8.533333778381348,
+        "unnormalized_penalized_return": 0.023111622780561447
+      },
+      {
+        "absolute_task_return": 2.5223244750597376,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 944,
+        "environment_seed": 0,
+        "episode": 4,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7141814984927516,
+        "node_count": 10,
+        "penalized_return": 0.006488545797765255,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": 0.034038543701171875,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.699999809265137,
+        "unnormalized_penalized_return": 0.006488543935120106
+      },
+      {
+        "absolute_task_return": 2.52310148299187,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 945,
+        "environment_seed": 1,
+        "episode": 5,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8314336076116748,
+        "node_count": 5,
+        "penalized_return": -0.08128408342599869,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.05758408457040787,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 7.400000095367432,
+        "unnormalized_penalized_return": -0.08128408342599869
+      },
+      {
+        "absolute_task_return": 2.3728806226125094,
+        "action_kind_counts": [
+          [
+            "add",
+            4
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 946,
+        "environment_seed": 2,
+        "episode": 6,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6141634505210233,
+        "node_count": 20,
+        "penalized_return": -0.02766844630241394,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.0009815547382459044,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.300000190734863,
+        "unnormalized_penalized_return": -0.02766844630241394
+      },
+      {
+        "absolute_task_return": 2.3535219261931055,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 947,
+        "environment_seed": 3,
+        "episode": 7,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.667561453747973,
+        "node_count": 10,
+        "penalized_return": -0.02583625353872776,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": 0.000180412782356143,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.566666603088379,
+        "unnormalized_penalized_return": -0.02583625540137291
+      },
+      {
+        "absolute_task_return": 1.8863608935519594,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 948,
+        "environment_seed": 0,
+        "episode": 8,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.933352628193975,
+        "node_count": 5,
+        "penalized_return": -0.03510018810629845,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": -0.010800190269947052,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 8.199999809265137,
+        "unnormalized_penalized_return": -0.03510018810629845
+      },
+      {
+        "absolute_task_return": 1.7699463345240334,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            3
+          ]
+        ],
+        "condition_seed": 949,
+        "environment_seed": 1,
+        "episode": 9,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8946018335376734,
+        "node_count": 10,
+        "penalized_return": -0.02616007812321186,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": 0.0008899234235286713,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.5,
+        "unnormalized_penalized_return": -0.02616007812321186
+      },
+      {
+        "absolute_task_return": 2.3339460192483896,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 950,
+        "environment_seed": 2,
+        "episode": 10,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.653098053885143,
+        "node_count": 20,
+        "penalized_return": -0.03543331101536751,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": -0.007699976209551096,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 9.333333015441895,
+        "unnormalized_penalized_return": -0.03543330729007721
+      },
+      {
+        "absolute_task_return": 1.504545173644741,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            2
+          ]
+        ],
+        "condition_seed": 951,
+        "environment_seed": 3,
+        "episode": 11,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6685202625027554,
+        "node_count": 5,
+        "penalized_return": -0.0834302008152008,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.057396870106458664,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 7.933333396911621,
+        "unnormalized_penalized_return": -0.0834302008152008
+      },
+      {
+        "absolute_task_return": 2.427802580483801,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            8
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 952,
+        "environment_seed": 0,
+        "episode": 12,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8087033930686875,
+        "node_count": 10,
+        "penalized_return": -0.028349749743938446,
+        "resynchronizations_per_node": 0.20000000298023224,
+        "task_return": -0.006483081728219986,
+        "topology_switches": 2.0,
+        "transmitted_messages_per_node_epoch": 7.866666793823242,
+        "unnormalized_penalized_return": -0.028349747881293297
+      },
+      {
+        "absolute_task_return": 2.7670415932344605,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 953,
+        "environment_seed": 1,
+        "episode": 13,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8169100726263341,
+        "node_count": 5,
+        "penalized_return": -0.02583235874772072,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.0024656918831169605,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 7.266666889190674,
+        "unnormalized_penalized_return": -0.02583235874772072
+      },
+      {
+        "absolute_task_return": 2.286567940045794,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 954,
+        "environment_seed": 2,
+        "episode": 14,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7004761330877382,
+        "node_count": 20,
+        "penalized_return": -0.046012040227651596,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": -0.01873704232275486,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.75,
+        "unnormalized_penalized_return": -0.046012040227651596
+      },
+      {
+        "absolute_task_return": 2.2597750277355084,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            2
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 955,
+        "environment_seed": 3,
+        "episode": 15,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7613083522055708,
+        "node_count": 10,
+        "penalized_return": -0.042342282831668854,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": -0.015075616538524628,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.666666984558105,
+        "unnormalized_penalized_return": -0.042342282831668854
+      },
+      {
+        "absolute_task_return": 1.7546740294660792,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 956,
+        "environment_seed": 0,
+        "episode": 16,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8552522000950433,
+        "node_count": 5,
+        "penalized_return": -0.09889469295740128,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.07302801311016083,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.266666412353516,
+        "unnormalized_penalized_return": -0.09889467805624008
+      },
+      {
+        "absolute_task_return": 1.9545057387177107,
+        "action_kind_counts": [
+          [
+            "keep",
+            7
+          ],
+          [
+            "swap",
+            3
+          ]
+        ],
+        "condition_seed": 957,
+        "environment_seed": 1,
+        "episode": 17,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7100424293439965,
+        "node_count": 10,
+        "penalized_return": -0.16938962042331696,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": -0.1464562714099884,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 7.733333110809326,
+        "unnormalized_penalized_return": -0.16938960552215576
+      },
+      {
+        "absolute_task_return": 2.317642550707702,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            3
+          ]
+        ],
+        "condition_seed": 958,
+        "environment_seed": 2,
+        "episode": 18,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6694015224258306,
+        "node_count": 20,
+        "penalized_return": -0.01053579617291689,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.015280870720744133,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.566666603088379,
+        "unnormalized_penalized_return": -0.01053579617291689
+      },
+      {
+        "absolute_task_return": 1.1394858123305116,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            3
+          ]
+        ],
+        "condition_seed": 959,
+        "environment_seed": 3,
+        "episode": 19,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7955393128195989,
+        "node_count": 5,
+        "penalized_return": -0.12154927104711533,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": -0.09061593562364578,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.733333587646484,
+        "unnormalized_penalized_return": -0.12154927104711533
+      },
+      {
+        "absolute_task_return": 2.259843066964835,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            2
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 960,
+        "environment_seed": 0,
+        "episode": 20,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6642485328689183,
+        "node_count": 5,
+        "penalized_return": -0.029804835096001625,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.0044381702318787575,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 7.666666507720947,
+        "unnormalized_penalized_return": -0.029804836958646774
+      },
+      {
+        "absolute_task_return": 1.9528402548908725,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 961,
+        "environment_seed": 1,
+        "episode": 21,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7117079131708335,
+        "node_count": 10,
+        "penalized_return": -0.09294883906841278,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": -0.06879884749650955,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 8.300000190734863,
+        "unnormalized_penalized_return": -0.09294884651899338
+      },
+      {
+        "absolute_task_return": 2.3116969937759615,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 962,
+        "environment_seed": 2,
+        "episode": 22,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.675347079357571,
+        "node_count": 20,
+        "penalized_return": -0.014396468177437782,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.014336864463984966,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.333333015441895,
+        "unnormalized_penalized_return": -0.014396469108760357
+      },
+      {
+        "absolute_task_return": 1.3827024987631955,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            2
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 963,
+        "environment_seed": 3,
+        "episode": 23,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7798642971141836,
+        "node_count": 5,
+        "penalized_return": -0.05008815973997116,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.027888162061572075,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 6.400000095367432,
+        "unnormalized_penalized_return": -0.05008815973997116
+      },
+      {
+        "absolute_task_return": 2.5988286677411043,
+        "action_kind_counts": [
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            4
+          ]
+        ],
+        "condition_seed": 964,
+        "environment_seed": 0,
+        "episode": 24,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6376773058113852,
+        "node_count": 10,
+        "penalized_return": -0.11291218549013138,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": -0.0884454995393753,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 7.866666793823242,
+        "unnormalized_penalized_return": -0.11291216313838959
+      },
+      {
+        "absolute_task_return": 2.401030398448706,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 965,
+        "environment_seed": 1,
+        "episode": 25,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.9599156873516965,
+        "node_count": 5,
+        "penalized_return": -0.03851115703582764,
+        "resynchronizations_per_node": 1.2000000476837158,
+        "task_return": -0.009644492529332638,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 9.866666793823242,
+        "unnormalized_penalized_return": -0.038511160761117935
+      },
+      {
+        "absolute_task_return": 2.3521606138488496,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            3
+          ]
+        ],
+        "condition_seed": 966,
+        "environment_seed": 2,
+        "episode": 26,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6348834592846828,
+        "node_count": 20,
+        "penalized_return": -0.02669314295053482,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": -1.474982127547264e-06,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.916666984558105,
+        "unnormalized_penalized_return": -0.02669314108788967
+      },
+      {
+        "absolute_task_return": 2.355405565937816,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 967,
+        "environment_seed": 3,
+        "episode": 27,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6656778140032631,
+        "node_count": 10,
+        "penalized_return": -0.047127701342105865,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": -0.02024437114596367,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.433333396911621,
+        "unnormalized_penalized_return": -0.047127701342105865
+      },
+      {
+        "absolute_task_return": 2.053347193643407,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            2
+          ]
+        ],
+        "condition_seed": 968,
+        "environment_seed": 0,
+        "episode": 28,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7889906363669976,
+        "node_count": 5,
+        "penalized_return": 0.0014799811178818345,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": 0.026779981330037117,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.199999809265137,
+        "unnormalized_penalized_return": 0.0014799805358052254
+      },
+      {
+        "absolute_task_return": 1.9211972326928914,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 969,
+        "environment_seed": 1,
+        "episode": 29,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7433509353688154,
+        "node_count": 10,
+        "penalized_return": -0.0392104797065258,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": -0.013943810015916824,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.266666412353516,
+        "unnormalized_penalized_return": -0.039210475981235504
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1000,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7622623441890816,
+        "model_final_position_rmse": 0.7622623441890816,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1001,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6771567150355136,
+        "model_final_position_rmse": 0.6771567150355136,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1002,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7130708255957617,
+        "model_final_position_rmse": 0.7130708255957617,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1003,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6714926077848625,
+        "model_final_position_rmse": 0.6714926077848625,
+        "model_rmse_improvement": 0.0,
+        "node_count": 5,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1004,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.714950734845345,
+        "model_final_position_rmse": 0.714950734845345,
+        "model_rmse_improvement": 0.0,
+        "node_count": 10,
+        "topology_switches": 0.0
+      },
+      {
+        "action_kind_counts": {
+          "keep": 10
+        },
+        "condition_seed": 1006,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.8099310285232716,
+        "model_final_position_rmse": 0.8099310285232716,
+        "model_rmse_improvement": 0.0,
+        "node_count": 20,
+        "topology_switches": 0.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "20": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      },
+      "5": {
+        "action_kind_counts": {
+          "keep": 20
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 0,
+        "mean_rmse_improvement": 0.0,
+        "worst_rmse_improvement": 0.0
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 14,
+          "keep": 67,
+          "remove": 10,
+          "swap": 19
+        },
+        "episode_count": 11,
+        "mean_absolute_task_return": 2.175326701036397,
+        "mean_penalized_return": -0.05426992044191469,
+        "mean_task_return": -0.02900325161912902,
+        "mean_topology_switches": 3.909090909090909,
+        "mean_unnormalized_penalized_return": -0.05426991773261265
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 16,
+          "keep": 37,
+          "remove": 4,
+          "swap": 13
+        },
+        "episode_count": 7,
+        "mean_absolute_task_return": 2.3077199537337774,
+        "mean_penalized_return": -0.027376341367406503,
+        "mean_task_return": 0.0004069921726893101,
+        "mean_topology_switches": 4.714285714285714,
+        "mean_unnormalized_penalized_return": -0.02737634043608393
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 23,
+          "keep": 70,
+          "remove": 13,
+          "swap": 14
+        },
+        "episode_count": 12,
+        "mean_absolute_task_return": 1.89950326305587,
+        "mean_penalized_return": -0.04696983303680705,
+        "mean_task_return": -0.020111499703489244,
+        "mean_topology_switches": 4.166666666666667,
+        "mean_unnormalized_penalized_return": -0.04696983261965215
+      }
+    }
+  },
+  "warm_start": {
+    "batch_diagnostics": [
+      {
+        "batch_end": 10,
+        "batch_start": 0,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 57,
+          "advantage_mean": -0.11453963816165924,
+          "advantage_standard_deviation": 1.1917372941970825,
+          "approximate_kl": 0.0005416472558863461,
+          "clip_fraction": 0.0,
+          "entropy": 1.8233981132507324,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.11567729711532593,
+          "final_loss": 0.15882889926433563,
+          "gradient_norm": 0.3034740090370178,
+          "policy_loss": 0.177042618393898,
+          "positive_advantage_fraction": 0.4912280738353729,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 4.053630254929885e-05
+        }
+      },
+      {
+        "batch_end": 20,
+        "batch_start": 10,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            3
+          ],
+          [
+            20,
+            3
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            30
+          ],
+          [
+            20,
+            30
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 61,
+          "advantage_mean": -0.016042975708842278,
+          "advantage_standard_deviation": 1.064874291419983,
+          "approximate_kl": 0.00013204415154177696,
+          "clip_fraction": 0.0,
+          "entropy": 2.2790396213531494,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.2118101716041565,
+          "final_loss": 0.13207300007343292,
+          "gradient_norm": 0.408229798078537,
+          "policy_loss": 0.15475381910800934,
+          "positive_advantage_fraction": 0.5737704634666443,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.0002191575476899743
+        }
+      },
+      {
+        "batch_end": 30,
+        "batch_start": 20,
+        "episode_count_by_node_count": [
+          [
+            5,
+            4
+          ],
+          [
+            10,
+            4
+          ],
+          [
+            20,
+            2
+          ]
+        ],
+        "transition_count_by_node_count": [
+          [
+            5,
+            40
+          ],
+          [
+            10,
+            40
+          ],
+          [
+            20,
+            20
+          ]
+        ],
+        "update": {
+          "actor_transition_count": 62,
+          "advantage_mean": -0.12275279313325882,
+          "advantage_standard_deviation": 1.0673906803131104,
+          "approximate_kl": 0.0007445067167282104,
+          "clip_fraction": 0.0,
+          "entropy": 1.8536224365234375,
+          "epochs_run": 4,
+          "explained_variance_before_update": 0.2489681839942932,
+          "final_loss": 1.53354012966156,
+          "gradient_norm": 6.026700496673584,
+          "policy_loss": 1.5518077611923218,
+          "positive_advantage_fraction": 0.5161290168762207,
+          "stopped_early": false,
+          "transition_count": 100,
+          "value_loss": 0.0005371143342927098
+        }
+      }
+    ],
+    "episode_diagnostics": [
+      {
+        "absolute_task_return": 1.9957466020664794,
+        "action_kind_counts": [
+          [
+            "add",
+            5
+          ],
+          [
+            "keep",
+            5
+          ]
+        ],
+        "condition_seed": 940,
+        "environment_seed": 0,
+        "episode": 0,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.727143081165448,
+        "node_count": 5,
+        "penalized_return": -0.024214189499616623,
+        "resynchronizations_per_node": 2.0,
+        "task_return": 0.017619144171476364,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 13.933333396911621,
+        "unnormalized_penalized_return": -0.024214187636971474
+      },
+      {
+        "absolute_task_return": 1.8326971245064725,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 941,
+        "environment_seed": 1,
+        "episode": 1,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8318510435552343,
+        "node_count": 10,
+        "penalized_return": 0.003056934801861644,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": 0.02849026769399643,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.333333015441895,
+        "unnormalized_penalized_return": 0.0030569336377084255
+      },
+      {
+        "absolute_task_return": 2.193473639844522,
+        "action_kind_counts": [
+          [
+            "add",
+            4
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 942,
+        "environment_seed": 2,
+        "episode": 2,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7935704332890117,
+        "node_count": 20,
+        "penalized_return": -0.029749488458037376,
+        "resynchronizations_per_node": 0.5,
+        "task_return": 0.00029217617702670395,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.816666603088379,
+        "unnormalized_penalized_return": -0.029749490320682526
+      },
+      {
+        "absolute_task_return": 1.1482377488865532,
+        "action_kind_counts": [
+          [
+            "add",
+            4
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 943,
+        "environment_seed": 3,
+        "episode": 3,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.9344457967442279,
+        "node_count": 5,
+        "penalized_return": -0.04065654054284096,
+        "resynchronizations_per_node": 2.0,
+        "task_return": -0.0034898738376796246,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 12.066666603088379,
+        "unnormalized_penalized_return": -0.04065653681755066
+      },
+      {
+        "absolute_task_return": 2.5394378816833445,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 944,
+        "environment_seed": 0,
+        "episode": 4,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6970680918691436,
+        "node_count": 10,
+        "penalized_return": 0.007704501040279865,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": 0.034471169114112854,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.866666793823242,
+        "unnormalized_penalized_return": 0.0077045029029250145
+      },
+      {
+        "absolute_task_return": 2.5347050862909644,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 945,
+        "environment_seed": 1,
+        "episode": 5,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8198300043125795,
+        "node_count": 5,
+        "penalized_return": -0.04752349108457565,
+        "resynchronizations_per_node": 2.0,
+        "task_return": -0.00785682164132595,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 13.066666603088379,
+        "unnormalized_penalized_return": -0.047523483633995056
+      },
+      {
+        "absolute_task_return": 2.350879100327846,
+        "action_kind_counts": [
+          [
+            "add",
+            4
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 946,
+        "environment_seed": 2,
+        "episode": 6,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6361649728056866,
+        "node_count": 20,
+        "penalized_return": -0.0362120121717453,
+        "resynchronizations_per_node": 0.5,
+        "task_return": -0.007128673605620861,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.433333396911621,
+        "unnormalized_penalized_return": -0.0362120047211647
+      },
+      {
+        "absolute_task_return": 2.354458074180312,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 947,
+        "environment_seed": 3,
+        "episode": 7,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6666253057607667,
+        "node_count": 10,
+        "penalized_return": -0.024043764919042587,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": 0.0012229009298607707,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.266666412353516,
+        "unnormalized_penalized_return": -0.024043766781687737
+      },
+      {
+        "absolute_task_return": 1.8540800938290036,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 948,
+        "environment_seed": 0,
+        "episode": 8,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.9656334279169311,
+        "node_count": 5,
+        "penalized_return": 0.038134634494781494,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": 0.06790129095315933,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.266666412353516,
+        "unnormalized_penalized_return": 0.0381346270442009
+      },
+      {
+        "absolute_task_return": 1.8280614421425039,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 949,
+        "environment_seed": 1,
+        "episode": 9,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.836486725919203,
+        "node_count": 10,
+        "penalized_return": -0.1696905493736267,
+        "resynchronizations_per_node": 0.800000011920929,
+        "task_return": -0.14247389137744904,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.566666603088379,
+        "unnormalized_penalized_return": -0.1696905493736267
+      },
+      {
+        "absolute_task_return": 2.3175483494850684,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 950,
+        "environment_seed": 2,
+        "episode": 10,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6694957236484643,
+        "node_count": 20,
+        "penalized_return": -0.01848783530294895,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.008828829973936081,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.766666412353516,
+        "unnormalized_penalized_return": -0.01848783530294895
+      },
+      {
+        "absolute_task_return": 1.6037975191697396,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 951,
+        "environment_seed": 3,
+        "episode": 11,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.5692679169777571,
+        "node_count": 5,
+        "penalized_return": -0.04114324226975441,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": -0.005709908902645111,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 11.533333778381348,
+        "unnormalized_penalized_return": -0.04114324226975441
+      },
+      {
+        "absolute_task_return": 2.438137005010897,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 952,
+        "environment_seed": 0,
+        "episode": 12,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7983689685415929,
+        "node_count": 10,
+        "penalized_return": -0.005334759131073952,
+        "resynchronizations_per_node": 0.6000000238418579,
+        "task_return": 0.01926523819565773,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.0,
+        "unnormalized_penalized_return": -0.005334761459380388
+      },
+      {
+        "absolute_task_return": 2.831080125064889,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 953,
+        "environment_seed": 1,
+        "episode": 13,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7528715407959059,
+        "node_count": 5,
+        "penalized_return": -0.025438981130719185,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": 0.012494350783526897,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 12.533333778381348,
+        "unnormalized_penalized_return": -0.025438982993364334
+      },
+      {
+        "absolute_task_return": 2.3242394304534626,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 954,
+        "environment_seed": 2,
+        "episode": 14,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6628046426800702,
+        "node_count": 20,
+        "penalized_return": -0.03151695802807808,
+        "resynchronizations_per_node": 0.5,
+        "task_return": -0.0030586228240281343,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.183333396911621,
+        "unnormalized_penalized_return": -0.03151695802807808
+      },
+      {
+        "absolute_task_return": 2.2585974789887215,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 955,
+        "environment_seed": 3,
+        "episode": 15,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.762485900952357,
+        "node_count": 10,
+        "penalized_return": -0.02465338632464409,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.0009966150391846895,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 8.899999618530273,
+        "unnormalized_penalized_return": -0.02465338259935379
+      },
+      {
+        "absolute_task_return": 1.7653870442474888,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 956,
+        "environment_seed": 0,
+        "episode": 16,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.8445391853136333,
+        "node_count": 5,
+        "penalized_return": -0.05435783043503761,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": -0.023424500599503517,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.733333587646484,
+        "unnormalized_penalized_return": -0.05435783416032791
+      },
+      {
+        "absolute_task_return": 1.9354586903345972,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            9
+          ]
+        ],
+        "condition_seed": 957,
+        "environment_seed": 1,
+        "episode": 17,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7290894777271095,
+        "node_count": 10,
+        "penalized_return": -0.0185832679271698,
+        "resynchronizations_per_node": 0.20000000298023224,
+        "task_return": 0.004033399745821953,
+        "topology_switches": 1.0,
+        "transmitted_messages_per_node_epoch": 8.566666603088379,
+        "unnormalized_penalized_return": -0.01858326606452465
+      },
+      {
+        "absolute_task_return": 2.306273032332551,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 958,
+        "environment_seed": 2,
+        "episode": 18,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6807710408009815,
+        "node_count": 20,
+        "penalized_return": -0.0210105013102293,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": 0.006764499936252832,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 9.350000381469727,
+        "unnormalized_penalized_return": -0.021010499447584152
+      },
+      {
+        "absolute_task_return": 1.1686735543445272,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 959,
+        "environment_seed": 3,
+        "episode": 19,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7663515708055828,
+        "node_count": 5,
+        "penalized_return": -0.016565484926104546,
+        "resynchronizations_per_node": 2.0,
+        "task_return": 0.020934512838721275,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 12.199999809265137,
+        "unnormalized_penalized_return": -0.016565486788749695
+      },
+      {
+        "absolute_task_return": 2.266420968123591,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 960,
+        "environment_seed": 0,
+        "episode": 20,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6576706317101623,
+        "node_count": 5,
+        "penalized_return": -0.011534681543707848,
+        "resynchronizations_per_node": 2.0,
+        "task_return": 0.022131983190774918,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 10.666666984558105,
+        "unnormalized_penalized_return": -0.011534683406352997
+      },
+      {
+        "absolute_task_return": 1.9659238539295067,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            7
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 961,
+        "environment_seed": 1,
+        "episode": 21,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6986243141322,
+        "node_count": 10,
+        "penalized_return": -0.034820061177015305,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": -0.010253394022583961,
+        "topology_switches": 3.0,
+        "transmitted_messages_per_node_epoch": 8.466666221618652,
+        "unnormalized_penalized_return": -0.034820057451725006
+      },
+      {
+        "absolute_task_return": 2.322786112287976,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 962,
+        "environment_seed": 2,
+        "episode": 22,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6642579608455564,
+        "node_count": 20,
+        "penalized_return": -0.024031350389122963,
+        "resynchronizations_per_node": 0.5,
+        "task_return": 0.00567698385566473,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.683333396911621,
+        "unnormalized_penalized_return": -0.024031348526477814
+      },
+      {
+        "absolute_task_return": 1.5287216686597125,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 963,
+        "environment_seed": 3,
+        "episode": 23,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6338451272176665,
+        "node_count": 5,
+        "penalized_return": -0.01195546519011259,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": 0.01647786982357502,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 9.133333206176758,
+        "unnormalized_penalized_return": -0.01195546519011259
+      },
+      {
+        "absolute_task_return": 2.5898031705263485,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            4
+          ]
+        ],
+        "condition_seed": 964,
+        "environment_seed": 0,
+        "episode": 24,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6467028030261406,
+        "node_count": 10,
+        "penalized_return": -0.07574904710054398,
+        "resynchronizations_per_node": 1.0,
+        "task_return": -0.049582384526729584,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 8.066666603088379,
+        "unnormalized_penalized_return": -0.07574905455112457
+      },
+      {
+        "absolute_task_return": 2.399914116189513,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "remove",
+            1
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 965,
+        "environment_seed": 1,
+        "episode": 25,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.9610319696108895,
+        "node_count": 5,
+        "penalized_return": -0.052482232451438904,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": -0.022382235154509544,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.399999618530273,
+        "unnormalized_penalized_return": -0.052482232451438904
+      },
+      {
+        "absolute_task_return": 2.3901661637422555,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            5
+          ],
+          [
+            "swap",
+            2
+          ]
+        ],
+        "condition_seed": 966,
+        "environment_seed": 2,
+        "episode": 26,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.5968779093912775,
+        "node_count": 20,
+        "penalized_return": -0.05270567536354065,
+        "resynchronizations_per_node": 0.5,
+        "task_return": -0.024455677717924118,
+        "topology_switches": 5.0,
+        "transmitted_messages_per_node_epoch": 9.100000381469727,
+        "unnormalized_penalized_return": -0.05270567908883095
+      },
+      {
+        "absolute_task_return": 2.3596689682330223,
+        "action_kind_counts": [
+          [
+            "add",
+            1
+          ],
+          [
+            "keep",
+            8
+          ],
+          [
+            "remove",
+            1
+          ]
+        ],
+        "condition_seed": 967,
+        "environment_seed": 3,
+        "episode": 27,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.6614144117080566,
+        "node_count": 10,
+        "penalized_return": -0.019197167828679085,
+        "resynchronizations_per_node": 0.20000000298023224,
+        "task_return": 0.004002830944955349,
+        "topology_switches": 2.0,
+        "transmitted_messages_per_node_epoch": 8.399999618530273,
+        "unnormalized_penalized_return": -0.019197169691324234
+      },
+      {
+        "absolute_task_return": 2.0708426944525495,
+        "action_kind_counts": [
+          [
+            "add",
+            3
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "swap",
+            1
+          ]
+        ],
+        "condition_seed": 968,
+        "environment_seed": 0,
+        "episode": 28,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7714951355578552,
+        "node_count": 5,
+        "penalized_return": -0.04011528939008713,
+        "resynchronizations_per_node": 1.600000023841858,
+        "task_return": -0.009515292942523956,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 10.0,
+        "unnormalized_penalized_return": -0.040115293115377426
+      },
+      {
+        "absolute_task_return": 1.913312824365708,
+        "action_kind_counts": [
+          [
+            "add",
+            2
+          ],
+          [
+            "keep",
+            6
+          ],
+          [
+            "remove",
+            2
+          ]
+        ],
+        "condition_seed": 969,
+        "environment_seed": 1,
+        "episode": 29,
+        "fallback_count": 0.0,
+        "final_position_rmse": 0.7512353436959991,
+        "node_count": 10,
+        "penalized_return": -0.0307200625538826,
+        "resynchronizations_per_node": 0.4000000059604645,
+        "task_return": -0.004986729007214308,
+        "topology_switches": 4.0,
+        "transmitted_messages_per_node_epoch": 8.533333778381348,
+        "unnormalized_penalized_return": -0.0307200625538826
+      }
+    ],
+    "evaluation": [
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1000,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7622623441890816,
+        "model_final_position_rmse": 0.7671022672889736,
+        "model_rmse_improvement": -0.004839923099892007,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 1001,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6771567150355136,
+        "model_final_position_rmse": 0.6846387719335494,
+        "model_rmse_improvement": -0.007482056898035827,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1002,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.7130708255957617,
+        "model_final_position_rmse": 0.7049249381931868,
+        "model_rmse_improvement": 0.008145887402574936,
+        "node_count": 20,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1003,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.6714926077848625,
+        "model_final_position_rmse": 0.662371382767467,
+        "model_rmse_improvement": 0.00912122501739554,
+        "node_count": 5,
+        "topology_switches": 5.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 1,
+          "keep": 9
+        },
+        "condition_seed": 1004,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.714950734845345,
+        "model_final_position_rmse": 0.699325115212802,
+        "model_rmse_improvement": 0.015625619632542942,
+        "node_count": 10,
+        "topology_switches": 1.0
+      },
+      {
+        "action_kind_counts": {
+          "add": 5,
+          "keep": 5
+        },
+        "condition_seed": 1006,
+        "fallbacks": 0.0,
+        "keep_final_position_rmse": 0.8099310285232716,
+        "model_final_position_rmse": 0.7883204662738217,
+        "model_rmse_improvement": 0.021610562249449905,
+        "node_count": 20,
+        "topology_switches": 5.0
+      }
+    ],
+    "evaluation_by_node_count": {
+      "10": {
+        "action_kind_counts": {
+          "add": 2,
+          "keep": 18
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": 0.0040717813672535574,
+        "worst_rmse_improvement": -0.007482056898035827
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 2,
+        "mean_rmse_improvement": 0.01487822482601242,
+        "worst_rmse_improvement": 0.008145887402574936
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 10,
+          "keep": 10
+        },
+        "episode_count": 2,
+        "fallbacks": 0.0,
+        "improved_episode_count": 1,
+        "mean_rmse_improvement": 0.0021406509587517664,
+        "worst_rmse_improvement": -0.004839923099892007
+      }
+    },
+    "training": {
+      "10": {
+        "action_kind_counts": {
+          "add": 18,
+          "keep": 71,
+          "remove": 10,
+          "swap": 11
+        },
+        "episode_count": 11,
+        "mean_absolute_task_return": 2.183232410354676,
+        "mean_penalized_return": -0.035639148226685145,
+        "mean_task_return": -0.010437634297307919,
+        "mean_topology_switches": 3.5454545454545454,
+        "mean_unnormalized_penalized_return": -0.03563914854418148
+      },
+      "20": {
+        "action_kind_counts": {
+          "add": 23,
+          "keep": 36,
+          "remove": 1,
+          "swap": 10
+        },
+        "episode_count": 7,
+        "mean_absolute_task_return": 2.3150522612105258,
+        "mean_penalized_return": -0.030530545860528946,
+        "mean_task_return": -0.0018686406006703951,
+        "mean_topology_switches": 4.857142857142857,
+        "mean_unnormalized_penalized_return": -0.030530545062252452
+      },
+      "5": {
+        "action_kind_counts": {
+          "add": 36,
+          "keep": 62,
+          "remove": 5,
+          "swap": 17
+        },
+        "episode_count": 12,
+        "mean_absolute_task_return": 1.9306339351104178,
+        "mean_penalized_return": -0.027321066164101165,
+        "mean_task_return": 0.007098376556920509,
+        "mean_topology_switches": 4.833333333333333,
+        "mean_unnormalized_penalized_return": -0.02732106678498288
+      }
+    }
+  }
+}
