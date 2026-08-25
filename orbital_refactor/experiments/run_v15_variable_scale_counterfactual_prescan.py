@@ -23,12 +23,16 @@ def main(argv=None) -> Path:
     parser.add_argument("--noise-seed", type=int, default=0)
     parser.add_argument("--horizon-decisions", type=int, default=2)
     parser.add_argument("--maximum-actions-per-kind", type=int, default=4)
+    parser.add_argument(
+        "--decision-indices", type=int, nargs="+", default=tuple(range(10)),
+    )
     arguments = parser.parse_args(argv)
     summary = run_variable_scale_counterfactual_prescan(
         condition_seeds=tuple(arguments.condition_seeds),
         noise_seed=arguments.noise_seed,
         horizon_decisions=arguments.horizon_decisions,
         maximum_actions_per_kind=arguments.maximum_actions_per_kind,
+        decision_indices=tuple(arguments.decision_indices),
         reference_policy=HierarchicalGNNPolicy(arguments.reference_checkpoint),
     )
     arguments.output.parent.mkdir(parents=True, exist_ok=True)

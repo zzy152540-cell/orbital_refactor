@@ -10,7 +10,11 @@ def test_bounded_prescan_reports_later_nonkeep_opportunities():
     )
     assert len(summary["records"]) == 2
     assert set(summary["summary_by_node_count"]) == {"5"}
+    assert set(summary["summary_by_decision_index"]) == {"0", "1"}
+    assert summary["overall"]["keep_reward_rms"] > 0.0
+    assert summary["overall"]["all_nonkeep_gain_rms"] >= 0.0
     for record in summary["records"]:
         assert record["evaluated_action_count"] >= 2
         assert record["best_nonkeep"]["kind"] in {"add", "swap", "remove"}
         assert record["legal_action_kind_counts"]["keep"] == 1
+        assert "keep_cumulative_reward" in record

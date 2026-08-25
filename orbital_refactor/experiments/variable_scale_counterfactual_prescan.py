@@ -65,6 +65,8 @@ def run_variable_scale_counterfactual_prescan(
         "maximum_actions_per_kind": int(maximum_actions_per_kind),
         "records": records,
         "summary_by_node_count": _summaries(records),
+        "summary_by_decision_index": _summaries(records, key="decision_index"),
+        "overall": _signal_summary(records),
     }
 
 def _audit_state(
@@ -132,6 +134,7 @@ def _audit_state(
         "active_dynamic_link_event_count": int(active_events),
         "legal_action_kind_counts": dict(sorted(legal_counts.items())),
         "evaluated_action_count": len(outcomes),
+        "keep_cumulative_reward": float(keep_reward),
         "positive_nonkeep_kind_counts": dict(sorted(positive_counts.items())),
         "best_nonkeep": best_nonkeep,
         "reference_action": reference,
@@ -157,12 +160,12 @@ def _bounded_action_ids(action_space, maximum_per_kind):
     return tuple(sorted(set(selected)))
 
 
-def _summaries(records):
+def _summaries(records, *, key="node_count"):
     grouped = defaultdict(list)
     for record in records:
-        grouped[record["node_count"]].append(record)
+        grouped[record[key]].append(record)
     return {
-        str(node_count): {
+        str(group_value): {
             "audited_decision_count": len(values),
             "positive_best_nonkeep_count": sum(
                 item["best_nonkeep"]["gain_over_keep"] > 0.0
@@ -179,6 +182,45 @@ def _summaries(records):
             "mean_best_nonkeep_gain": float(np.mean([
                 item["best_nonkeep"]["gain_over_keep"] for item in values
             ])),
+            **_signal_summary(values),
         }
-        for node_count, values in sorted(grouped.items())
+        for group_value, values in sorted(grouped.items())
+    }
+
+
+def _signal_summary(records):
+    keep = np.asarray([
+        item["keep_cumulative_reward"] for item in records
+    ], dtype=float)
+    all_nonkeep = np.asarray([
+        outcome["gain_over_keep"]
+        for item in records for outcome in item["outcomes"]
+        if outcome["kind"] != "keep"
+    ], dtype=float)
+    best = np.asarray([
+        item["best_nonkeep"]["gain_over_keep"] for item in records
+    ], dtype=float)
+    reference = np.asarray([
+        item["reference_action"]["gain_over_keep"]
+        for item in records if item["reference_action"] is not None
+    ], dtype=float)
+    keep_rms = float(np.sqrt(np.mean(keep ** 2)))
+    nonkeep_rms = float(np.sqrt(np.mean(all_nonkeep ** 2)))
+    return {
+        "keep_reward_mean": float(np.mean(keep)),
+        "keep_reward_rms": keep_rms,
+        "all_nonkeep_gain_mean": float(np.mean(all_nonkeep)),
+        "all_nonkeep_gain_mean_absolute": float(np.mean(np.abs(all_nonkeep))),
+        "all_nonkeep_gain_rms": nonkeep_rms,
+        "nonkeep_to_keep_rms_ratio": (
+            0.0 if keep_rms <= 1.0e-15 else nonkeep_rms / keep_rms
+        ),
+        "best_nonkeep_gain_mean": float(np.mean(best)),
+        "best_nonkeep_positive_fraction": float(np.mean(best > 0.0)),
+        "reference_gain_mean": (
+            None if not len(reference) else float(np.mean(reference))
+        ),
+        "reference_gain_positive_fraction": (
+            None if not len(reference) else float(np.mean(reference > 0.0))
+        ),
     }

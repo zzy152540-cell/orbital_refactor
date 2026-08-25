@@ -391,6 +391,18 @@ is deferred; the next diagnosis should separate filter-initialization transient
 reward from topology-dependent return targets. Conditions 720--749 and 780--786
 are consumed development evidence.
 
+A same-state, same-noise one-step counterfactual reward audit on conditions
+820--825 then separated always-keep filter improvement from topology-dependent
+gain. Keep reward RMS was 0.5037 m, whereas all evaluated non-keep gains over
+keep had RMS 0.02084 m, only 4.14% as large (2.56% for 10 nodes and 1.67% for
+20 nodes). At decision zero, keep improvement averaged 1.485 m. The supervised
+reference policy gained only 0.00186 m on average and was positive in 55% of
+audited states, although the bounded oracle best non-keep action was positive
+in 86.7%. The current absolute-RMSE reward is therefore dominated by common
+filter initialization transients. The next controlled training experiment
+should use selected-action reward minus a same-state keep counterfactual,
+while retaining absolute task metrics for evaluation.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda
