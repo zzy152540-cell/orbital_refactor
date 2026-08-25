@@ -449,6 +449,17 @@ mostly unchanged. The affine heads are therefore a useful optional cross-scale
 Critic calibration mechanism, not a solution to within-scale action credit or
 a source of demonstrated policy gain.
 
+A held-out linear feature audit then tested the exact pooled state inputs used
+by the Critic within each fleet scale. It used 15 disjoint training conditions
+(1120--1134) and six test conditions (1180--1186), with ridge penalties from
+0.1 to 100. Strong regularization recovered positive held-out structure at all
+scales: best EV/correlation was 0.507/0.740 for 5 nodes (global features),
+0.623/0.789 for 10 nodes (full features), and 0.383/0.627 for 20 nodes (full
+features). Timestamp alone was ineffective for 5 and 20 nodes. Current state
+features therefore contain useful within-scale return signal; the more likely
+bottleneck is small-sample Critic fitting and regularization, not immediate
+need for an action-conditioned Q-Critic or a larger observation schema.
+
 Variable-scale PPO summaries can be rendered with:
 
 ```bash
