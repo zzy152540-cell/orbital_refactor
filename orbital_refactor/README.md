@@ -379,6 +379,18 @@ semantics but is not sufficient to identify the strongly transient filter
 return. The next minimal ablation should expose normalized episode phase to the
 Critic only, without changing the Actor, reward, or environment physics.
 
+That Critic-only phase ablation was then run as a paired 30-episode comparison
+on conditions 720--749. A zero-initialized one-dimensional phase projection
+preserved every baseline Critic weight and produced identical first-batch
+explained variance. It did not help thereafter: final explained variance was
+-0.03482 versus -0.03541 for random initialization and -0.04899 versus -0.04983
+for warm start (baseline versus phase). Deterministic policy results were also
+identical. Since the Critic already observes `log1p_timestamp`, another linear
+time representation is not the limiting factor. Further time-feature expansion
+is deferred; the next diagnosis should separate filter-initialization transient
+reward from topology-dependent return targets. Conditions 720--749 and 780--786
+are consumed development evidence.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

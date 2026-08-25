@@ -152,6 +152,33 @@ def test_actor_critic_produces_normalized_policy_value_and_gradients():
     )
 
 
+def test_critic_episode_phase_does_not_change_actor_structure():
+    _, state, group, baseline = _actor_critic_and_state()
+    phased = TopologyActorCritic(
+        node_feature_count=group.node_features.shape[1],
+        candidate_edge_feature_count=group.candidate_edge_features.shape[1],
+        measurement_feature_count=group.measurement_features.shape[1],
+        action_feature_count=group.action_features.shape[1],
+        global_feature_count=len(state.policy_tensor.global_feature_names),
+        hidden_size=16,
+        explicit_action_pairing=True,
+        critic_timestamp_horizon=6.0,
+    )
+    assert baseline.actor.state_dict().keys() == phased.actor.state_dict().keys()
+    assert {
+        name: tuple(value.shape)
+        for name, value in baseline.actor.state_dict().items()
+    } == {
+        name: tuple(value.shape)
+        for name, value in phased.actor.state_dict().items()
+    }
+    assert phased.critic[0].in_features == baseline.critic[0].in_features
+    assert torch.count_nonzero(phased.critic_phase_projection.weight) == 0
+    phased.actor.load_state_dict(baseline.actor.state_dict())
+    phased.critic.load_state_dict(baseline.critic.state_dict())
+    torch.testing.assert_close(phased(group).value, baseline(group).value)
+
+
 def test_rollout_uses_legal_environment_actions_and_records_costs():
     environment, _, _, model = _actor_critic_and_state(episode_epochs=3)
     rollout = collect_topology_rollout(

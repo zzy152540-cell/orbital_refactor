@@ -48,6 +48,7 @@ class VariableScalePPOConfiguration:
     gae_lambda: float = 0.95
     entropy_coefficient: float = 0.01
     explicit_action_pairing: bool = True
+    critic_timestamp_horizon: float | None = None
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
 
 
@@ -107,6 +108,7 @@ def train_variable_scale_topology_ppo(
             warm_start_checkpoint,
             node_feature_count=group.node_features.shape[1],
             reset_type_head=reset_warm_start_type_head,
+            critic_timestamp_horizon=configuration.critic_timestamp_horizon,
         )
         if warm_start_checkpoint is not None
         else TopologyActorCritic(
@@ -118,6 +120,7 @@ def train_variable_scale_topology_ppo(
             hidden_size=32,
             message_passing_steps=2,
             explicit_action_pairing=configuration.explicit_action_pairing,
+            critic_timestamp_horizon=configuration.critic_timestamp_horizon,
         )
     )
     if model.actor.explicit_action_pairing != configuration.explicit_action_pairing:
@@ -275,3 +278,8 @@ def _validate_configuration(configuration):
         raise ValueError("Rollout batch cannot exceed the training episode budget.")
     if configuration.target_kl is not None and configuration.target_kl <= 0.0:
         raise ValueError("PPO target KL must be positive when enabled.")
+    if (
+        configuration.critic_timestamp_horizon is not None
+        and configuration.critic_timestamp_horizon <= 0.0
+    ):
+        raise ValueError("Critic timestamp horizon must be positive when enabled.")

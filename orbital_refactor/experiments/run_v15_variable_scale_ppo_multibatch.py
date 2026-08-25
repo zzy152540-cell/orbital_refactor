@@ -38,6 +38,7 @@ def main(argv=None) -> Path:
     parser.add_argument("--policy-seed", type=int, default=0)
     parser.add_argument("--training-episodes", type=int, default=60)
     parser.add_argument("--rollout-batch-episodes", type=int, default=10)
+    parser.add_argument("--critic-timestamp-horizon", type=float)
     parser.add_argument("--training-condition-offset", type=int, default=500)
     parser.add_argument(
         "--evaluation-conditions", type=int, nargs="+",
@@ -56,6 +57,7 @@ def main(argv=None) -> Path:
         minibatch_size=32,
         target_kl=0.02,
         explicit_action_pairing=True,
+        critic_timestamp_horizon=arguments.critic_timestamp_horizon,
     )
     random_result = train_variable_scale_topology_ppo(configuration)
     warm_result = train_variable_scale_topology_ppo(

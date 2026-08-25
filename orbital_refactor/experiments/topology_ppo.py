@@ -135,9 +135,13 @@ class TopologyActorCritic(nn.Module):
         measurement_feature_count: int, action_feature_count: int,
         global_feature_count: int, hidden_size: int = 64,
         message_passing_steps: int = 2, explicit_action_pairing: bool = True,
+        critic_timestamp_horizon: float | None = None,
     ) -> None:
         super().__init__()
         self.global_feature_count = int(global_feature_count)
+        if critic_timestamp_horizon is not None and critic_timestamp_horizon <= 0.0:
+            raise ValueError("Critic timestamp horizon must be positive.")
+        self.critic_timestamp_horizon = critic_timestamp_horizon
         self.actor = GraphActionValueNetwork(
             node_feature_count=node_feature_count,
             candidate_edge_feature_count=candidate_edge_feature_count,
@@ -156,6 +160,12 @@ class TopologyActorCritic(nn.Module):
             nn.Linear(hidden_size, hidden_size), nn.ReLU(),
             nn.Linear(hidden_size, 1),
         )
+        self.critic_phase_projection = (
+            nn.Linear(1, hidden_size, bias=False)
+            if critic_timestamp_horizon is not None else None
+        )
+        if self.critic_phase_projection is not None:
+            nn.init.zeros_(self.critic_phase_projection.weight)
 
     def forward(self, group: TorchGraphActionGroup) -> ActorCriticOutput:
         actor = self.actor(group)
@@ -171,6 +181,14 @@ class TopologyActorCritic(nn.Module):
             group.action_features[0, -self.global_feature_count:]
             if self.global_feature_count else group.action_features.new_empty((0,))
         )
+        episode_phase = None
+        if self.critic_timestamp_horizon is not None:
+            if not self.global_feature_count:
+                raise ValueError("Critic episode phase requires timestamp input.")
+            episode_phase = torch.expm1(global_features[:1]) / float(
+                self.critic_timestamp_horizon
+            )
+            episode_phase = episode_phase.clamp(0.0, 1.0)
         critic_features = torch.cat((
             _mean_or_zeros(group.node_features),
             _max_or_zeros(group.node_features),
@@ -178,9 +196,18 @@ class TopologyActorCritic(nn.Module):
             _max_or_zeros(group.candidate_edge_features),
             global_features,
         ))
+        if self.critic_phase_projection is None:
+            value = self.critic(critic_features).squeeze(0)
+        else:
+            hidden = self.critic[0](critic_features)
+            hidden = hidden + self.critic_phase_projection(episode_phase)
+            hidden = self.critic[1](hidden)
+            hidden = self.critic[2](hidden)
+            hidden = self.critic[3](hidden)
+            value = self.critic[4](hidden).squeeze(0)
         return ActorCriticOutput(
             distribution=distribution,
-            value=self.critic(critic_features).squeeze(0),
+            value=value,
         )
 
     def load_warm_start_actor(self, state_dict: dict[str, Tensor]) -> None:
@@ -192,6 +219,7 @@ class TopologyActorCritic(nn.Module):
 def build_warm_started_actor_critic(
     checkpoint_path: str | Path,
     *, node_feature_count: int | None = None, reset_type_head: bool = False,
+    critic_timestamp_horizon: float | None = None,
 ) -> TopologyActorCritic:
     """Build PPO Actor/Critic while preserving a supervised hierarchical Actor."""
 
@@ -219,6 +247,7 @@ def build_warm_started_actor_critic(
         explicit_action_pairing=bool(
             configuration.get("explicit_action_pairing", False)
         ),
+        critic_timestamp_horizon=critic_timestamp_horizon,
     )
     actor_state = checkpoint["model_state_dict"]
     if requested_node_features != checkpoint_node_features:

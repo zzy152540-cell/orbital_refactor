@@ -15,9 +15,10 @@ from experiments.variable_scale_topology_curriculum import (
 )
 
 
-def _load_model(warm_start, state_dict):
+def _load_model(warm_start, state_dict, *, critic_timestamp_horizon=None):
     model = build_warm_started_actor_critic(
         warm_start, reset_type_head=False,
+        critic_timestamp_horizon=critic_timestamp_horizon,
     )
     model.load_state_dict(state_dict)
     return model
@@ -39,6 +40,9 @@ def main(argv=None) -> Path:
         arguments.ppo_checkpoint, map_location="cpu", weights_only=False,
     )
     curriculum = VariableScaleTopologyCurriculum()
+    critic_timestamp_horizon = checkpoint["configuration"].get(
+        "critic_timestamp_horizon"
+    )
     conditions = tuple(arguments.condition_seeds)
     summary = {
         "audit_role": "frozen_multibatch_critic_mc_return_audit",
@@ -47,6 +51,7 @@ def main(argv=None) -> Path:
             _load_model(
                 arguments.warm_start,
                 checkpoint["random_model_state_dict"],
+                critic_timestamp_horizon=critic_timestamp_horizon,
             ),
             curriculum,
             condition_seeds=conditions,
@@ -55,6 +60,7 @@ def main(argv=None) -> Path:
             _load_model(
                 arguments.warm_start,
                 checkpoint["warm_model_state_dict"],
+                critic_timestamp_horizon=critic_timestamp_horizon,
             ),
             curriculum,
             condition_seeds=conditions,

@@ -58,6 +58,7 @@ def test_warm_and_random_initialization_use_identical_actor_structure():
         update_epochs=1,
         minibatch_size=1,
         target_kl=None,
+        critic_timestamp_horizon=4.0,
     )
     random_result = train_variable_scale_topology_ppo(configuration)
     warm_result = train_variable_scale_topology_ppo(
@@ -71,6 +72,10 @@ def test_warm_and_random_initialization_use_identical_actor_structure():
     } == {
         name: tuple(value.shape) for name, value in warm_actor.items()
     }
+    assert random_result.model.critic[0].in_features == (
+        warm_result.model.critic[0].in_features
+    )
+    assert random_result.model.critic_timestamp_horizon == 4.0
 
 
 def test_incompatible_warm_start_pairing_is_rejected():
