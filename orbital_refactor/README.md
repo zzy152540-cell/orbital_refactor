@@ -438,6 +438,17 @@ variance fell from 0.225 unscaled to -0.0148, value loss rose from about
 should normalize Critic targets or calibrate values by scale without changing
 the Actor's physical reward/cost balance.
 
+Identity-initialized per-scale affine Critic heads were then evaluated without
+changing rewards or Actor inputs. On the paired 940--969 training run they
+improved warm final explained variance from 0.225 to 0.286 while leaving the
+deterministic policy exactly unchanged. Frozen audits repeated the aggregate
+calibration benefit: warm EV changed from -0.243 to -0.007 on 1040--1046 and
+from 0.153 to 0.292 on fresh 1080--1086; correlations also improved from
+0.211 to 0.358 and from 0.521 to 0.595. Within-scale EV remained negative and
+mostly unchanged. The affine heads are therefore a useful optional cross-scale
+Critic calibration mechanism, not a solution to within-scale action credit or
+a source of demonstrated policy gain.
+
 ### V15 snapshot collection and GNN environment
 
 Install the optional PyTorch dependency or use the `state_estimate_gnn` Conda

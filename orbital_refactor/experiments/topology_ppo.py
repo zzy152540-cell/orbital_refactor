@@ -138,12 +138,18 @@ class TopologyActorCritic(nn.Module):
         global_feature_count: int, hidden_size: int = 64,
         message_passing_steps: int = 2, explicit_action_pairing: bool = True,
         critic_timestamp_horizon: float | None = None,
+        critic_scale_calibration_node_counts: tuple[int, ...] = (),
     ) -> None:
         super().__init__()
         self.global_feature_count = int(global_feature_count)
         if critic_timestamp_horizon is not None and critic_timestamp_horizon <= 0.0:
             raise ValueError("Critic timestamp horizon must be positive.")
         self.critic_timestamp_horizon = critic_timestamp_horizon
+        node_counts = tuple(int(value) for value in critic_scale_calibration_node_counts)
+        if len(set(node_counts)) != len(node_counts) or any(
+            value < 1 for value in node_counts
+        ):
+            raise ValueError("Critic calibration node counts must be unique/positive.")
         self.actor = GraphActionValueNetwork(
             node_feature_count=node_feature_count,
             candidate_edge_feature_count=candidate_edge_feature_count,
@@ -168,6 +174,13 @@ class TopologyActorCritic(nn.Module):
         )
         if self.critic_phase_projection is not None:
             nn.init.zeros_(self.critic_phase_projection.weight)
+        self.critic_scale_calibration = nn.ModuleDict({
+            str(node_count): nn.Linear(1, 1)
+            for node_count in node_counts
+        })
+        for calibration in self.critic_scale_calibration.values():
+            nn.init.ones_(calibration.weight)
+            nn.init.zeros_(calibration.bias)
 
     def forward(self, group: TorchGraphActionGroup) -> ActorCriticOutput:
         actor = self.actor(group)
@@ -207,6 +220,11 @@ class TopologyActorCritic(nn.Module):
             hidden = self.critic[2](hidden)
             hidden = self.critic[3](hidden)
             value = self.critic[4](hidden).squeeze(0)
+        calibration_key = str(len(group.node_features))
+        if calibration_key in self.critic_scale_calibration:
+            value = self.critic_scale_calibration[
+                calibration_key
+            ](value.reshape(1)).squeeze(0)
         return ActorCriticOutput(
             distribution=distribution,
             value=value,
@@ -222,6 +240,7 @@ def build_warm_started_actor_critic(
     checkpoint_path: str | Path,
     *, node_feature_count: int | None = None, reset_type_head: bool = False,
     critic_timestamp_horizon: float | None = None,
+    critic_scale_calibration_node_counts: tuple[int, ...] = (),
 ) -> TopologyActorCritic:
     """Build PPO Actor/Critic while preserving a supervised hierarchical Actor."""
 
@@ -250,6 +269,9 @@ def build_warm_started_actor_critic(
             configuration.get("explicit_action_pairing", False)
         ),
         critic_timestamp_horizon=critic_timestamp_horizon,
+        critic_scale_calibration_node_counts=(
+            critic_scale_calibration_node_counts
+        ),
     )
     actor_state = checkpoint["model_state_dict"]
     if requested_node_features != checkpoint_node_features:

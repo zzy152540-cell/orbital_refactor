@@ -15,10 +15,16 @@ from experiments.variable_scale_topology_curriculum import (
 )
 
 
-def _load_model(warm_start, state_dict, *, critic_timestamp_horizon=None):
+def _load_model(
+    warm_start, state_dict, *, critic_timestamp_horizon=None,
+    critic_scale_calibration_node_counts=(),
+):
     model = build_warm_started_actor_critic(
         warm_start, reset_type_head=False,
         critic_timestamp_horizon=critic_timestamp_horizon,
+        critic_scale_calibration_node_counts=(
+            critic_scale_calibration_node_counts
+        ),
     )
     model.load_state_dict(state_dict)
     return model
@@ -52,6 +58,11 @@ def main(argv=None) -> Path:
             "return_scale_by_node_count", ()
         )
     )
+    critic_scale_calibration_node_counts = tuple(
+        int(value) for value in checkpoint["configuration"].get(
+            "critic_scale_calibration_node_counts", ()
+        )
+    )
     conditions = tuple(arguments.condition_seeds)
     summary = {
         "audit_role": "frozen_multibatch_critic_mc_return_audit",
@@ -61,6 +72,9 @@ def main(argv=None) -> Path:
                 arguments.warm_start,
                 checkpoint["random_model_state_dict"],
                 critic_timestamp_horizon=critic_timestamp_horizon,
+                critic_scale_calibration_node_counts=(
+                    critic_scale_calibration_node_counts
+                ),
             ),
             curriculum,
             condition_seeds=conditions,
@@ -72,6 +86,9 @@ def main(argv=None) -> Path:
                 arguments.warm_start,
                 checkpoint["warm_model_state_dict"],
                 critic_timestamp_horizon=critic_timestamp_horizon,
+                critic_scale_calibration_node_counts=(
+                    critic_scale_calibration_node_counts
+                ),
             ),
             curriculum,
             condition_seeds=conditions,

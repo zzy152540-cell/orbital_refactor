@@ -179,6 +179,26 @@ def test_critic_episode_phase_does_not_change_actor_structure():
     torch.testing.assert_close(phased(group).value, baseline(group).value)
 
 
+def test_identity_scale_calibration_preserves_initial_critic_value():
+    _, state, group, baseline = _actor_critic_and_state()
+    calibrated = TopologyActorCritic(
+        node_feature_count=group.node_features.shape[1],
+        candidate_edge_feature_count=group.candidate_edge_features.shape[1],
+        measurement_feature_count=group.measurement_features.shape[1],
+        action_feature_count=group.action_features.shape[1],
+        global_feature_count=len(state.policy_tensor.global_feature_names),
+        hidden_size=16,
+        explicit_action_pairing=True,
+        critic_scale_calibration_node_counts=(3, 5, 10, 20),
+    )
+    calibrated.actor.load_state_dict(baseline.actor.state_dict())
+    calibrated.critic.load_state_dict(baseline.critic.state_dict())
+    torch.testing.assert_close(calibrated(group).value, baseline(group).value)
+    head = calibrated.critic_scale_calibration["3"]
+    torch.testing.assert_close(head.weight, torch.ones_like(head.weight))
+    torch.testing.assert_close(head.bias, torch.zeros_like(head.bias))
+
+
 def test_rollout_uses_legal_environment_actions_and_records_costs():
     environment, _, _, model = _actor_critic_and_state(episode_epochs=3)
     rollout = collect_topology_rollout(

@@ -56,6 +56,7 @@ class VariableScalePPOConfiguration:
     critic_timestamp_horizon: float | None = None
     counterfactual_keep_reward: bool = False
     return_scale_by_node_count: tuple[tuple[int, float], ...] = ()
+    critic_scale_calibration_node_counts: tuple[int, ...] = ()
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights()
 
 
@@ -118,6 +119,9 @@ def train_variable_scale_topology_ppo(
             node_feature_count=group.node_features.shape[1],
             reset_type_head=reset_warm_start_type_head,
             critic_timestamp_horizon=configuration.critic_timestamp_horizon,
+            critic_scale_calibration_node_counts=(
+                configuration.critic_scale_calibration_node_counts
+            ),
         )
         if warm_start_checkpoint is not None
         else TopologyActorCritic(
@@ -130,6 +134,9 @@ def train_variable_scale_topology_ppo(
             message_passing_steps=2,
             explicit_action_pairing=configuration.explicit_action_pairing,
             critic_timestamp_horizon=configuration.critic_timestamp_horizon,
+            critic_scale_calibration_node_counts=(
+                configuration.critic_scale_calibration_node_counts
+            ),
         )
     )
     if model.actor.explicit_action_pairing != configuration.explicit_action_pairing:
@@ -319,3 +326,6 @@ def _validate_configuration(configuration):
             raise ValueError("Return scales must define 5, 10, and 20 nodes once.")
         if any(scale <= 0.0 for _, scale in scales):
             raise ValueError("Return scales must be positive.")
+    calibration_counts = configuration.critic_scale_calibration_node_counts
+    if calibration_counts and tuple(sorted(calibration_counts)) != (5, 10, 20):
+        raise ValueError("Critic scale calibration must define 5, 10, and 20 nodes.")
