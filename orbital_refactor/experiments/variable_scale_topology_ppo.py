@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
+from pathlib import Path
 
 import torch
 
@@ -100,10 +101,15 @@ def train_variable_scale_topology_ppo(
     *,
     warm_start_checkpoint: str | None = None,
     reset_warm_start_type_head: bool = False,
+    training_checkpoint: str | Path | None = None,
+    resume_training_checkpoint: str | Path | None = None,
+    stop_after_batches: int | None = None,
 ) -> VariableScaleTrainingResult:
     """Train one shared Actor-Critic from mixed 5/10/20-node rollouts."""
 
     _validate_configuration(configuration)
+    if stop_after_batches is not None and stop_after_batches <= 0:
+        raise ValueError("stop_after_batches must be positive when enabled.")
     torch.manual_seed(configuration.policy_seed)
     first_condition = configuration.training_condition_seed_offset
     first_environment = build_stage1_environment(
@@ -160,8 +166,45 @@ def train_variable_scale_topology_ppo(
     generator = torch.Generator().manual_seed(configuration.policy_seed + 2900)
     diagnostics = []
     batch_diagnostics = []
+    first_episode = 0
+    if resume_training_checkpoint is not None:
+        checkpoint = torch.load(
+            Path(resume_training_checkpoint), map_location="cpu", weights_only=True,
+        )
+        if checkpoint.get("role") != "variable_scale_ppo_training_checkpoint":
+            raise ValueError("Not a variable-scale PPO training checkpoint.")
+        if checkpoint.get("configuration") != asdict(configuration):
+            raise ValueError("Training checkpoint configuration does not match.")
+        model.load_state_dict(checkpoint["model_state_dict"])
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        generator.set_state(checkpoint["generator_state"])
+        torch.set_rng_state(checkpoint["torch_rng_state"])
+        first_episode = int(checkpoint["next_episode"])
+        diagnostics = [
+            VariableScaleEpisodeDiagnostic(**item)
+            for item in checkpoint["episode_diagnostics"]
+        ]
+        batch_diagnostics = [
+            VariableScaleBatchDiagnostic(
+                batch_start=item["batch_start"],
+                batch_end=item["batch_end"],
+                episode_count_by_node_count=tuple(
+                    tuple(value) for value in item["episode_count_by_node_count"]
+                ),
+                transition_count_by_node_count=tuple(
+                    tuple(value) for value in item["transition_count_by_node_count"]
+                ),
+                update=PPOUpdateResult(**item["update"]),
+            )
+            for item in checkpoint["batch_diagnostics"]
+        ]
+        if first_episode > configuration.training_episodes:
+            raise ValueError("Training checkpoint exceeds the episode budget.")
+        if first_episode % configuration.rollout_batch_episodes:
+            raise ValueError("Training checkpoint does not end on a batch boundary.")
+    completed_batches = 0
     for batch_start in range(
-        0, configuration.training_episodes,
+        first_episode, configuration.training_episodes,
         configuration.rollout_batch_episodes,
     ):
         prepared_rollouts = []
@@ -278,11 +321,51 @@ def train_variable_scale_topology_ppo(
                 fallback_count=float(costs[5]),
                 action_kind_counts=tuple(sorted(kinds.items())),
             ))
+        completed_batches += 1
+        if training_checkpoint is not None:
+            _save_training_checkpoint(
+                training_checkpoint,
+                configuration=configuration,
+                next_episode=batch_end,
+                model=model,
+                optimizer=optimizer,
+                generator=generator,
+                diagnostics=diagnostics,
+                batch_diagnostics=batch_diagnostics,
+            )
+        if stop_after_batches is not None and completed_batches >= stop_after_batches:
+            break
     return VariableScaleTrainingResult(
         model=model,
         diagnostics=tuple(diagnostics),
         batch_diagnostics=tuple(batch_diagnostics),
     )
+
+
+def _save_training_checkpoint(
+    path: str | Path, *, configuration: VariableScalePPOConfiguration,
+    next_episode: int, model: TopologyActorCritic,
+    optimizer: torch.optim.Optimizer, generator: torch.Generator,
+    diagnostics: list[VariableScaleEpisodeDiagnostic],
+    batch_diagnostics: list[VariableScaleBatchDiagnostic],
+) -> None:
+    """Atomically persist all state needed at the next rollout-batch boundary."""
+
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    torch.save({
+        "role": "variable_scale_ppo_training_checkpoint",
+        "configuration": asdict(configuration),
+        "next_episode": next_episode,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "generator_state": generator.get_state(),
+        "torch_rng_state": torch.get_rng_state(),
+        "episode_diagnostics": [asdict(item) for item in diagnostics],
+        "batch_diagnostics": [asdict(item) for item in batch_diagnostics],
+    }, temporary)
+    temporary.replace(destination)
 
 
 def apply_variable_scale_penalties(

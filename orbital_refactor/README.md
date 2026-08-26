@@ -470,6 +470,47 @@ within-scale fitting but does not solve it and weakens aggregate calibration.
 The accompanying episode-aware plot is stored as
 `results/v15_variable_scale_ppo_regularized_critic_training_overview.png`.
 
+A longer single-seed development run then trained both aligned branches for
+120 episodes in twelve ten-episode rollout/update batches on fresh conditions
+1300--1419. Critic scale calibration, counterfactual keep reward, and Critic-only
+weight decay of 1e-3 were retained. Random initialization again decoded to keep
+for all six evaluation conditions 1450--1456. The warm-start branch improved
+4/6 conditions, averaged 0.01841 m RMSE improvement, and had worst degradation
+0.00516 m. Mean improvement by scale was 0.02807, 0.00063, and 0.01281 m for
+5, 10, and 20 nodes. Final training explained variance reached 0.670 random and
+0.814 warm, a substantial change from the earlier negative-Critic runs. The
+warm deterministic policy nevertheless retained only add/keep actions; this is
+single-policy-seed development evidence, not a multi-seed generalization or
+condition-wise safety claim. The summary and six-panel plot are stored as
+`results/v15_variable_scale_ppo_long120_wd1e3_conditions1300_1419.json` and
+`results/v15_variable_scale_ppo_long120_training_overview.png`.
+
+Long variable-scale runs now optionally save a complete checkpoint after every
+rollout/update batch. The checkpoint contains the model, optimizer, policy and
+minibatch generator state, global PyTorch RNG state, next episode, and all
+completed diagnostics. Resume rejects a changed configuration. An interrupted
+two-batch regression test produces exactly the same diagnostics and final model
+parameters as uninterrupted training. The multibatch CLI exposes
+`--checkpoint-directory`, `--resume-random`, and `--resume-warm` so either
+branch can continue without repeating completed batches.
+
+The frozen 120-episode comparison was repeated for policy seeds 0, 1, and 2
+without changing training conditions 1300--1419, evaluation conditions
+1450--1456, or any hyperparameter. Warm start averaged 0.01804 m improvement
+with a between-seed standard deviation of 0.00169 m, improved 13/18 evaluation
+episodes, and had worst degradation 0.01213 m. Mean improvement by scale was
+0.03031, 0.00063, and 0.00834 m for 5, 10, and 20 nodes. Random initialization
+averaged only 0.00253 m, improved 4/18 episodes, and degraded by as much as
+0.01936 m. All three warm deterministic policies made exactly the same 34 keep
+and 26 add decisions, with no swap or remove, so Actor behavior is seed-stable
+but remains structurally narrow. Final warm Critic explained variance was
+0.814, -0.001, and 0.037 across seeds; policy benefit therefore does not imply
+stable value calibration. This passes a development multi-seed initializer
+check, not a mature adaptive-topology or condition-wise safety criterion. The
+machine-readable aggregate and figure are stored as
+`results/v15_variable_scale_ppo_long120_multiseed_summary.json` and
+`results/v15_variable_scale_ppo_long120_multiseed_overview.png`.
+
 Variable-scale PPO summaries can be rendered with:
 
 ```bash

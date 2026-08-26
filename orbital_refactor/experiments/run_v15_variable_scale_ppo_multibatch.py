@@ -49,6 +49,9 @@ def main(argv=None) -> Path:
     )
     parser.add_argument("--critic-scale-calibration", action="store_true")
     parser.add_argument("--critic-weight-decay", type=float, default=0.0)
+    parser.add_argument("--checkpoint-directory", type=Path)
+    parser.add_argument("--resume-random", type=Path)
+    parser.add_argument("--resume-warm", type=Path)
     parser.add_argument("--training-condition-offset", type=int, default=500)
     parser.add_argument(
         "--evaluation-conditions", type=int, nargs="+",
@@ -78,11 +81,26 @@ def main(argv=None) -> Path:
         ),
         critic_weight_decay=arguments.critic_weight_decay,
     )
-    random_result = train_variable_scale_topology_ppo(configuration)
+    checkpoint_directory = arguments.checkpoint_directory
+    random_checkpoint = (
+        checkpoint_directory / "random_training.pt"
+        if checkpoint_directory is not None else None
+    )
+    warm_checkpoint = (
+        checkpoint_directory / "warm_training.pt"
+        if checkpoint_directory is not None else None
+    )
+    random_result = train_variable_scale_topology_ppo(
+        configuration,
+        training_checkpoint=random_checkpoint,
+        resume_training_checkpoint=arguments.resume_random,
+    )
     warm_result = train_variable_scale_topology_ppo(
         configuration,
         warm_start_checkpoint=str(arguments.warm_start),
         reset_warm_start_type_head=False,
+        training_checkpoint=warm_checkpoint,
+        resume_training_checkpoint=arguments.resume_warm,
     )
     evaluation_conditions = tuple(arguments.evaluation_conditions)
     random_evaluation = _evaluate(

@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import torch
 
 from experiments.variable_scale_topology_curriculum import (
@@ -109,3 +111,73 @@ def test_incompatible_warm_start_pairing_is_rejected():
         assert "explicit-action-pairing" in str(error)
     else:
         raise AssertionError("Incompatible warm-start structure was accepted.")
+
+
+def test_training_checkpoint_resumes_at_next_batch(tmp_path):
+    checkpoint = tmp_path / "training.pt"
+    configuration = VariableScalePPOConfiguration(
+        curriculum=VariableScaleTopologyCurriculum(episode_epochs=2),
+        training_episodes=2,
+        rollout_batch_episodes=1,
+        training_condition_seed_offset=470,
+        training_condition_seed_count=2,
+        environment_seed_count=1,
+        update_epochs=1,
+        minibatch_size=1,
+        target_kl=None,
+    )
+    uninterrupted = train_variable_scale_topology_ppo(configuration)
+    partial = train_variable_scale_topology_ppo(
+        configuration,
+        training_checkpoint=checkpoint,
+        stop_after_batches=1,
+    )
+    assert [item.episode for item in partial.diagnostics] == [0]
+
+    resumed = train_variable_scale_topology_ppo(
+        configuration,
+        training_checkpoint=checkpoint,
+        resume_training_checkpoint=checkpoint,
+    )
+    assert [item.episode for item in resumed.diagnostics] == [0, 1]
+    assert [(item.batch_start, item.batch_end) for item in resumed.batch_diagnostics] == [
+        (0, 1), (1, 2),
+    ]
+    saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
+    assert saved["next_episode"] == 2
+    assert all(
+        torch.equal(value, resumed.model.state_dict()[name])
+        for name, value in saved["model_state_dict"].items()
+    )
+    assert resumed.diagnostics == uninterrupted.diagnostics
+    assert resumed.batch_diagnostics == uninterrupted.batch_diagnostics
+    assert all(
+        torch.equal(value, uninterrupted.model.state_dict()[name])
+        for name, value in resumed.model.state_dict().items()
+    )
+
+
+def test_training_checkpoint_rejects_configuration_change(tmp_path):
+    checkpoint = tmp_path / "training.pt"
+    configuration = VariableScalePPOConfiguration(
+        curriculum=VariableScaleTopologyCurriculum(episode_epochs=2),
+        training_episodes=1,
+        rollout_batch_episodes=1,
+        training_condition_seed_count=1,
+        environment_seed_count=1,
+        update_epochs=1,
+        minibatch_size=1,
+        target_kl=None,
+    )
+    train_variable_scale_topology_ppo(
+        configuration, training_checkpoint=checkpoint,
+    )
+    try:
+        train_variable_scale_topology_ppo(
+            replace(configuration, learning_rate=2.0e-4),
+            resume_training_checkpoint=checkpoint,
+        )
+    except ValueError as error:
+        assert "configuration" in str(error)
+    else:
+        raise AssertionError("Changed training configuration was accepted.")

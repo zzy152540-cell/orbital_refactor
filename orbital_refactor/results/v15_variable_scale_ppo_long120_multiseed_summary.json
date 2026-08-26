@@ -1,0 +1,421 @@
+{
+  "aggregate": {
+    "random_init": {
+      "action_kind_counts": {
+        "add": 26,
+        "keep": 154,
+        "remove": 0,
+        "swap": 0
+      },
+      "episode_count": 18,
+      "final_critic_explained_variance_by_seed": [
+        0.6697759628295898,
+        0.31567108631134033,
+        0.18051141500473022
+      ],
+      "improved_episode_count": 4,
+      "mean_rmse_improvement": 0.0025324851976395693,
+      "mean_rmse_improvement_by_node_count": {
+        "10": 0.0002096800776320018,
+        "20": -0.0010478763463171448,
+        "5": 0.005693661266946568
+      },
+      "seed_count": 3,
+      "seed_standard_deviation_rmse_improvement": 0.004386393031727843,
+      "worst_rmse_improvement": -0.019361623391377702
+    },
+    "warm_start": {
+      "action_kind_counts": {
+        "add": 78,
+        "keep": 102,
+        "remove": 0,
+        "swap": 0
+      },
+      "episode_count": 18,
+      "final_critic_explained_variance_by_seed": [
+        0.8141642808914185,
+        -0.001306295394897461,
+        0.037335753440856934
+      ],
+      "improved_episode_count": 13,
+      "mean_rmse_improvement": 0.018038031132703674,
+      "mean_rmse_improvement_by_node_count": {
+        "10": 0.0006290402328960054,
+        "20": 0.008337612403726194,
+        "5": 0.030307973918624546
+      },
+      "seed_count": 3,
+      "seed_standard_deviation_rmse_improvement": 0.0016856637016449873,
+      "worst_rmse_improvement": -0.012129434914516124
+    }
+  },
+  "evaluation_conditions": [
+    1450,
+    1451,
+    1452,
+    1453,
+    1454,
+    1456
+  ],
+  "frozen_configuration_without_policy_seed": {
+    "counterfactual_keep_reward": true,
+    "critic_scale_calibration_node_counts": [
+      5,
+      10,
+      20
+    ],
+    "critic_timestamp_horizon": null,
+    "critic_weight_decay": 0.001,
+    "curriculum": {
+      "decision_interval_epochs": 3,
+      "episode_epochs": 30,
+      "maximum_topology_switches_per_episode": 5,
+      "minimum_topology_dwell_decisions": 1,
+      "node_count_cycle": [
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5,
+        10,
+        5,
+        20,
+        10,
+        5,
+        10,
+        20,
+        5
+      ],
+      "top_k_candidate_neighbors": 3
+    },
+    "entropy_coefficient": 0.01,
+    "environment_seed_count": 4,
+    "explicit_action_pairing": true,
+    "gae_lambda": 0.95,
+    "gamma": 0.99,
+    "learning_rate": 0.0001,
+    "minibatch_size": 32,
+    "penalty_weights": {
+      "communication": 0.0025,
+      "resynchronization": 0.001,
+      "topology_switch": 0.001
+    },
+    "return_scale_by_node_count": [],
+    "rollout_batch_episodes": 10,
+    "target_kl": 0.02,
+    "training_condition_seed_count": 120,
+    "training_condition_seed_offset": 1300,
+    "training_episodes": 120,
+    "update_epochs": 4
+  },
+  "role": "variable_scale_ppo_multiseed_development_summary",
+  "runs": [
+    {
+      "branches": {
+        "random_init": {
+          "action_kind_counts": {
+            "add": 0,
+            "keep": 60,
+            "remove": 0,
+            "swap": 0
+          },
+          "by_node_count": {
+            "10": {
+              "action_kind_counts": {
+                "keep": 10
+              },
+              "episode_count": 1,
+              "fallbacks": 0.0,
+              "improved_episode_count": 0,
+              "mean_rmse_improvement": 0.0,
+              "worst_rmse_improvement": 0.0
+            },
+            "20": {
+              "action_kind_counts": {
+                "keep": 20
+              },
+              "episode_count": 2,
+              "fallbacks": 0.0,
+              "improved_episode_count": 0,
+              "mean_rmse_improvement": 0.0,
+              "worst_rmse_improvement": 0.0
+            },
+            "5": {
+              "action_kind_counts": {
+                "keep": 30
+              },
+              "episode_count": 3,
+              "fallbacks": 0.0,
+              "improved_episode_count": 0,
+              "mean_rmse_improvement": 0.0,
+              "worst_rmse_improvement": 0.0
+            }
+          },
+          "episode_count": 6,
+          "final_critic_explained_variance": 0.6697759628295898,
+          "improved_episode_count": 0,
+          "mean_rmse_improvement": 0.0,
+          "worst_rmse_improvement": 0.0
+        },
+        "warm_start": {
+          "action_kind_counts": {
+            "add": 26,
+            "keep": 34,
+            "remove": 0,
+            "swap": 0
+          },
+          "by_node_count": {
+            "10": {
+              "action_kind_counts": {
+                "add": 1,
+                "keep": 9
+              },
+              "episode_count": 1,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.0006290402328960054,
+              "worst_rmse_improvement": 0.0006290402328960054
+            },
+            "20": {
+              "action_kind_counts": {
+                "add": 10,
+                "keep": 10
+              },
+              "episode_count": 2,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.012814835203023123,
+              "worst_rmse_improvement": -0.00516435831613371
+            },
+            "5": {
+              "action_kind_counts": {
+                "add": 15,
+                "keep": 15
+              },
+              "episode_count": 3,
+              "fallbacks": 0.0,
+              "improved_episode_count": 2,
+              "mean_rmse_improvement": 0.02807130994762393,
+              "worst_rmse_improvement": -0.0018085004792921522
+            }
+          },
+          "episode_count": 6,
+          "final_critic_explained_variance": 0.8141642808914185,
+          "improved_episode_count": 4,
+          "mean_rmse_improvement": 0.01841210674696901,
+          "worst_rmse_improvement": -0.00516435831613371
+        }
+      },
+      "policy_seed": 0,
+      "source": "results\\v15_variable_scale_ppo_long120_wd1e3_conditions1300_1419.json"
+    },
+    {
+      "branches": {
+        "random_init": {
+          "action_kind_counts": {
+            "add": 26,
+            "keep": 34,
+            "remove": 0,
+            "swap": 0
+          },
+          "by_node_count": {
+            "10": {
+              "action_kind_counts": {
+                "add": 1,
+                "keep": 9
+              },
+              "episode_count": 1,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.0006290402328960054,
+              "worst_rmse_improvement": 0.0006290402328960054
+            },
+            "20": {
+              "action_kind_counts": {
+                "add": 10,
+                "keep": 10
+              },
+              "episode_count": 2,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": -0.0031436290389514343,
+              "worst_rmse_improvement": -0.019361623391377702
+            },
+            "5": {
+              "action_kind_counts": {
+                "add": 15,
+                "keep": 15
+              },
+              "episode_count": 3,
+              "fallbacks": 0.0,
+              "improved_episode_count": 2,
+              "mean_rmse_improvement": 0.017080983800839705,
+              "worst_rmse_improvement": -6.050698446857794e-05
+            }
+          },
+          "episode_count": 6,
+          "final_critic_explained_variance": 0.31567108631134033,
+          "improved_episode_count": 4,
+          "mean_rmse_improvement": 0.0075974555929187075,
+          "worst_rmse_improvement": -0.019361623391377702
+        },
+        "warm_start": {
+          "action_kind_counts": {
+            "add": 26,
+            "keep": 34,
+            "remove": 0,
+            "swap": 0
+          },
+          "by_node_count": {
+            "10": {
+              "action_kind_counts": {
+                "add": 1,
+                "keep": 9
+              },
+              "episode_count": 1,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.0006290402328960054,
+              "worst_rmse_improvement": 0.0006290402328960054
+            },
+            "20": {
+              "action_kind_counts": {
+                "add": 10,
+                "keep": 10
+              },
+              "episode_count": 2,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.01102116534155445,
+              "worst_rmse_improvement": -0.008751698039071054
+            },
+            "5": {
+              "action_kind_counts": {
+                "add": 15,
+                "keep": 15
+              },
+              "episode_count": 3,
+              "fallbacks": 0.0,
+              "improved_episode_count": 2,
+              "mean_rmse_improvement": 0.031453344652835336,
+              "worst_rmse_improvement": -0.0018085004792921522
+            }
+          },
+          "episode_count": 6,
+          "final_critic_explained_variance": -0.001306295394897461,
+          "improved_episode_count": 4,
+          "mean_rmse_improvement": 0.01950523414575182,
+          "worst_rmse_improvement": -0.008751698039071054
+        }
+      },
+      "policy_seed": 1,
+      "source": "results\\v15_variable_scale_ppo_long120_seed01_wd1e3_conditions1300_1419.json"
+    },
+    {
+      "branches": {
+        "random_init": {
+          "action_kind_counts": {
+            "add": 0,
+            "keep": 60,
+            "remove": 0,
+            "swap": 0
+          },
+          "by_node_count": {
+            "10": {
+              "action_kind_counts": {
+                "keep": 10
+              },
+              "episode_count": 1,
+              "fallbacks": 0.0,
+              "improved_episode_count": 0,
+              "mean_rmse_improvement": 0.0,
+              "worst_rmse_improvement": 0.0
+            },
+            "20": {
+              "action_kind_counts": {
+                "keep": 20
+              },
+              "episode_count": 2,
+              "fallbacks": 0.0,
+              "improved_episode_count": 0,
+              "mean_rmse_improvement": 0.0,
+              "worst_rmse_improvement": 0.0
+            },
+            "5": {
+              "action_kind_counts": {
+                "keep": 30
+              },
+              "episode_count": 3,
+              "fallbacks": 0.0,
+              "improved_episode_count": 0,
+              "mean_rmse_improvement": 0.0,
+              "worst_rmse_improvement": 0.0
+            }
+          },
+          "episode_count": 6,
+          "final_critic_explained_variance": 0.18051141500473022,
+          "improved_episode_count": 0,
+          "mean_rmse_improvement": 0.0,
+          "worst_rmse_improvement": 0.0
+        },
+        "warm_start": {
+          "action_kind_counts": {
+            "add": 26,
+            "keep": 34,
+            "remove": 0,
+            "swap": 0
+          },
+          "by_node_count": {
+            "10": {
+              "action_kind_counts": {
+                "add": 1,
+                "keep": 9
+              },
+              "episode_count": 1,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.0006290402328960054,
+              "worst_rmse_improvement": 0.0006290402328960054
+            },
+            "20": {
+              "action_kind_counts": {
+                "add": 10,
+                "keep": 10
+              },
+              "episode_count": 2,
+              "fallbacks": 0.0,
+              "improved_episode_count": 1,
+              "mean_rmse_improvement": 0.001176836666601011,
+              "worst_rmse_improvement": -0.012129434914516124
+            },
+            "5": {
+              "action_kind_counts": {
+                "add": 15,
+                "keep": 15
+              },
+              "episode_count": 3,
+              "fallbacks": 0.0,
+              "improved_episode_count": 3,
+              "mean_rmse_improvement": 0.03139926715541438,
+              "worst_rmse_improvement": 0.01174911260918643
+            }
+          },
+          "episode_count": 6,
+          "final_critic_explained_variance": 0.037335753440856934,
+          "improved_episode_count": 5,
+          "mean_rmse_improvement": 0.016196752505390193,
+          "worst_rmse_improvement": -0.012129434914516124
+        }
+      },
+      "policy_seed": 2,
+      "source": "results\\v15_variable_scale_ppo_long120_seed02_wd1e3_conditions1300_1419.json"
+    }
+  ]
+}
