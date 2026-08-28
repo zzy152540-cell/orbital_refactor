@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 from experiments.run_v15_variable_scale_ppo_pilot import _evaluate
-from experiments.variable_scale_topology_ppo import (
+from experiments.training.variable_scale_topology_ppo import (
     VariableScalePPOConfiguration,
     train_variable_scale_topology_ppo,
 )

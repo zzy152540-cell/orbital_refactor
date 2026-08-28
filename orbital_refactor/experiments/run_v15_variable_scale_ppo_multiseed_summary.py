@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from experiments.variable_scale_ppo_multiseed import (
+from experiments.training.variable_scale_ppo_multiseed import (
     generate_variable_scale_ppo_multiseed_visualization,
     write_variable_scale_ppo_multiseed_summary,
 )

@@ -12,7 +12,7 @@ from experiments.run_v15_variable_scale_ppo_cycle import (
     _training_summary,
 )
 from experiments.run_v15_variable_scale_ppo_pilot import _evaluate
-from experiments.variable_scale_topology_ppo import (
+from experiments.training.variable_scale_topology_ppo import (
     AUDITED_COUNTERFACTUAL_RETURN_SCALES,
     VariableScalePPOConfiguration,
     train_variable_scale_topology_ppo,

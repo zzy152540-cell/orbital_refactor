@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import numpy as np
 
-from experiments.topology_ppo import collect_topology_rollout
-from experiments.topology_ppo_stage1 import Stage1PenaltyWeights, build_stage1_environment
+from experiments.training.topology_ppo import collect_topology_rollout
+from experiments.training.topology_ppo_stage1 import (
+    Stage1PenaltyWeights,
+    build_stage1_environment,
+)
 from experiments.variable_scale_critic_audit import _discounted_returns
-from experiments.variable_scale_topology_ppo import apply_variable_scale_penalties
+from experiments.training.variable_scale_topology_ppo import (
+    apply_variable_scale_penalties,
+)
 
 
 def audit_variable_scale_value_features(

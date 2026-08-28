@@ -4,15 +4,15 @@ from collections import Counter, defaultdict
 
 import numpy as np
 
-from experiments.variable_scale_topology_ppo import (
+from experiments.training.variable_scale_topology_ppo import (
     ACTION_KINDS,
     apply_variable_scale_penalties,
 )
-from experiments.topology_ppo import (
+from experiments.training.topology_ppo import (
     collect_topology_rollout,
     prepare_topology_rollout,
 )
-from experiments.topology_ppo_stage1 import (
+from experiments.training.topology_ppo_stage1 import (
     Stage1PenaltyWeights,
     build_stage1_environment,
 )

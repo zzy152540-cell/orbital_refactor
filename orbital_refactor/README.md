@@ -563,10 +563,18 @@ cooperative/    distributed filters, messages, replay, transport, and topology
 scenarios/      orbit, fleet, attitude, visibility, and Walker truth generation
 interfaces/     stable task, observation, state, and attitude data objects
 pipelines/      reusable single-satellite and fleet pipelines
-experiments/    V14 validation, counterfactual, Walker, topology, and GNN studies
+experiments/    experiment environments, datasets, diagnostics, and run entry points
+  training/     canonical GNN, Actor-Critic, PPO, and multi-seed training code
+results/        checked-in experiment evidence, models, plots, and profiling data
+docs/archive/   superseded project notes retained for traceability
 tests/          regression, numerical, communication, topology, and study tests
 legacy/         original numerical-reference scripts
 ```
+
+The former top-level GNN/PPO module paths under `experiments` are compatibility
+imports. New code should import training implementations from
+`experiments.training`; existing scripts and external callers can continue to
+use the old paths while they are migrated incrementally.
 
 ## Main interfaces
 

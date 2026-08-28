@@ -9,21 +9,26 @@ import csv
 import numpy as np
 import torch
 
-from experiments.graph_action_gnn import torch_snapshot_action_group
+from experiments.training.graph_action_gnn import torch_snapshot_action_group
 from experiments.topology_control_baselines import (
     AlwaysKeepPolicy,
     run_topology_control_baseline_episode,
 )
-from experiments.topology_ppo import (
+from experiments.training.topology_ppo import (
     TopologyActorCritic,
     collect_topology_rollout,
     prepare_topology_rollout,
 )
-from experiments.topology_ppo_stage1 import Stage1PenaltyWeights, build_stage1_environment
+from experiments.training.topology_ppo_stage1 import (
+    Stage1PenaltyWeights,
+    build_stage1_environment,
+)
 from experiments.topology_snapshot_counterfactual import build_online_snapshot_action_tensor
 from experiments.variable_scale_counterfactual_prescan import _bounded_action_ids
 from experiments.variable_scale_topology_curriculum import VariableScaleTopologyCurriculum
-from experiments.variable_scale_topology_ppo import apply_variable_scale_penalties
+from experiments.training.variable_scale_topology_ppo import (
+    apply_variable_scale_penalties,
+)
 
 
 ACTION_KINDS = ("keep", "add", "swap", "remove")

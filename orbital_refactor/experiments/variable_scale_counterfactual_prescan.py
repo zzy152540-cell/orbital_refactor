@@ -6,7 +6,7 @@ from dataclasses import asdict
 
 import numpy as np
 
-from experiments.topology_ppo_stage1 import build_stage1_environment
+from experiments.training.topology_ppo_stage1 import build_stage1_environment
 from experiments.variable_scale_topology_curriculum import (
     VariableScaleTopologyCurriculum,
 )

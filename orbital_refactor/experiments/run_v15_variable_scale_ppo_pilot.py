@@ -12,9 +12,9 @@ from experiments.topology_control_baselines import (
     AlwaysKeepPolicy,
     run_topology_control_baseline_episode,
 )
-from experiments.topology_ppo import collect_topology_rollout
-from experiments.topology_ppo_stage1 import build_stage1_environment
-from experiments.variable_scale_topology_ppo import (
+from experiments.training.topology_ppo import collect_topology_rollout
+from experiments.training.topology_ppo_stage1 import build_stage1_environment
+from experiments.training.variable_scale_topology_ppo import (
     ACTION_KINDS,
     VariableScalePPOConfiguration,
     train_variable_scale_topology_ppo,

@@ -10,11 +10,11 @@ from experiments.topology_control_baselines import (
     AlwaysKeepPolicy,
     run_topology_control_baseline_episode,
 )
-from experiments.topology_ppo import (
+from experiments.training.topology_ppo import (
     build_warm_started_actor_critic,
     collect_topology_rollout,
 )
-from experiments.topology_ppo_stage1 import build_stage1_environment
+from experiments.training.topology_ppo_stage1 import build_stage1_environment
 from experiments.variable_scale_topology_curriculum import (
     VariableScaleTopologyCurriculum,
 )

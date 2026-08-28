@@ -8,7 +8,7 @@ from experiments.topology_control_environment import (
     CompactFleetScenarioDistribution,
     WalkerInitializationDistribution,
 )
-from experiments.topology_ppo_stage1 import (
+from experiments.training.topology_ppo_stage1 import (
     Stage1Configuration,
     five_node_stratified_physical_configuration,
 )
