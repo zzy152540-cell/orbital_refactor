@@ -54,6 +54,10 @@ class VariableScalePPOConfiguration:
     gae_lambda: float = 0.95
     entropy_coefficient: float = 0.01
     action_type_probability_floor: float = 0.0
+    walker_randomization_start_episode: int | None = None
+    walker_randomization_full_episode: int | None = None
+    walker_randomization_max_probability: float = 1.0
+    stratify_walker_randomization_by_batch: bool = False
     explicit_action_pairing: bool = True
     critic_timestamp_horizon: float | None = None
     counterfactual_keep_reward: bool = False
@@ -80,6 +84,7 @@ class VariableScaleEpisodeDiagnostic:
     topology_switches: float
     fallback_count: float
     action_kind_counts: tuple[tuple[str, int], ...]
+    walker_initialization_randomized: bool = False
 
 
 @dataclass(frozen=True)
@@ -233,16 +238,21 @@ def train_variable_scale_topology_ppo(
             configuration.training_episodes,
             batch_start + configuration.rollout_batch_episodes,
         )
+        walker_randomization_flags = _walker_randomization_flags_for_batch(
+            configuration, batch_start=batch_start, batch_end=batch_end,
+        )
         for episode in range(batch_start, batch_end):
             condition_seed = (
                 configuration.training_condition_seed_offset
                 + episode % configuration.training_condition_seed_count
             )
             environment_seed = episode % configuration.environment_seed_count
+            episode_curriculum = _curriculum_for_training_episode(
+                configuration, episode=episode, condition_seed=condition_seed,
+                randomize_walker=walker_randomization_flags.get(episode),
+            )
             episode_configuration = (
-                configuration.curriculum.configuration_for_condition(
-                    condition_seed,
-                )
+                episode_curriculum.configuration_for_condition(condition_seed)
             )
             environment = build_stage1_environment(episode_configuration)
             rollout = collect_topology_rollout(
@@ -280,6 +290,7 @@ def train_variable_scale_topology_ppo(
                 episode_configuration.node_count,
                 episode_configuration.decision_interval_epochs,
                 rollout, penalized, float(environment._metrics()[0]),
+                bool(episode_curriculum.randomize_walker_initialization),
             ))
         combined = combine_prepared_topology_rollouts(tuple(prepared_rollouts))
         action_diagnostics = _variable_scale_action_diagnostics(
@@ -308,6 +319,7 @@ def train_variable_scale_topology_ppo(
         for (
             episode, condition_seed, environment_seed, node_count,
             decision_interval_epochs, rollout, penalized, final_rmse,
+            walker_initialization_randomized,
         ) in metadata:
             costs = rollout.cost_matrix.sum(dim=0)
             kinds = Counter(
@@ -343,6 +355,9 @@ def train_variable_scale_topology_ppo(
                 topology_switches=float(costs[4]),
                 fallback_count=float(costs[5]),
                 action_kind_counts=tuple(sorted(kinds.items())),
+                walker_initialization_randomized=(
+                    walker_initialization_randomized and node_count in (10, 20)
+                ),
             ))
         completed_batches += 1
         if training_checkpoint is not None:
@@ -468,6 +483,20 @@ def _validate_configuration(configuration):
         raise ValueError("Critic weight decay must be nonnegative.")
     if not 0.0 <= configuration.action_type_probability_floor < 0.25:
         raise ValueError("Action-type probability floor must lie in [0, 0.25).")
+    start = configuration.walker_randomization_start_episode
+    full = configuration.walker_randomization_full_episode
+    if (start is None) != (full is None):
+        raise ValueError(
+            "Walker curriculum requires both start and full-random episodes."
+        )
+    if start is not None and (start < 0 or full <= start):
+        raise ValueError(
+            "Walker full-random episode must be greater than a nonnegative start."
+        )
+    if not 0.0 < configuration.walker_randomization_max_probability <= 1.0:
+        raise ValueError("Walker maximum randomization probability must be in (0, 1].")
+    if configuration.stratify_walker_randomization_by_batch and start is None:
+        raise ValueError("Stratified Walker randomization requires a schedule.")
     if (
         configuration.difference_resource_penalties_from_keep
         and not configuration.counterfactual_keep_reward
@@ -475,6 +504,75 @@ def _validate_configuration(configuration):
         raise ValueError(
             "Difference resource penalties require counterfactual keep reward."
         )
+
+
+def _walker_randomization_probability(configuration, episode):
+    start = configuration.walker_randomization_start_episode
+    full = configuration.walker_randomization_full_episode
+    if start is None or episode <= start:
+        return 0.0
+    maximum = configuration.walker_randomization_max_probability
+    if episode >= full:
+        return maximum
+    return maximum * (episode - start) / (full - start)
+
+
+def _walker_randomization_token(configuration, episode, condition_seed):
+    return (
+        int(condition_seed) * 1103515245
+        + int(episode) * 12345
+        + int(configuration.policy_seed) * 2654435761
+    ) & 0xFFFFFFFF
+
+
+def _walker_randomization_flags_for_batch(configuration, *, batch_start, batch_end):
+    """Allocate reproducible per-scale random Walker quotas within one batch."""
+
+    if not configuration.stratify_walker_randomization_by_batch:
+        return {}
+    groups = {10: [], 20: []}
+    for episode in range(batch_start, batch_end):
+        condition_seed = (
+            configuration.training_condition_seed_offset
+            + episode % configuration.training_condition_seed_count
+        )
+        node_count = configuration.curriculum.node_count_for_condition(condition_seed)
+        if node_count in groups:
+            groups[node_count].append((episode, condition_seed))
+    flags = {}
+    for episodes in groups.values():
+        if not episodes:
+            continue
+        target = round(sum(
+            _walker_randomization_probability(configuration, episode)
+            for episode, _ in episodes
+        ))
+        ranked = sorted(
+            episodes,
+            key=lambda item: _walker_randomization_token(
+                configuration, item[0], item[1]
+            ),
+        )
+        selected = {episode for episode, _ in ranked[:target]}
+        flags.update({episode: episode in selected for episode, _ in episodes})
+    return flags
+
+
+def _curriculum_for_training_episode(
+    configuration, *, episode, condition_seed, randomize_walker=None,
+):
+    """Select a reproducible fixed/mixed/random Walker training condition."""
+
+    if configuration.walker_randomization_start_episode is None:
+        return configuration.curriculum
+    if randomize_walker is None:
+        probability = _walker_randomization_probability(configuration, episode)
+        token = _walker_randomization_token(configuration, episode, condition_seed)
+        randomize_walker = token / 2**32 < probability
+    return replace(
+        configuration.curriculum,
+        randomize_walker_initialization=bool(randomize_walker),
+    )
 
 
 def _variable_scale_action_diagnostics(prepared_rollouts, combined):

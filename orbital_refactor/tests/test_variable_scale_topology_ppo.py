@@ -7,8 +7,81 @@ from experiments.variable_scale_topology_curriculum import (
 )
 from experiments.variable_scale_topology_ppo import (
     VariableScalePPOConfiguration,
+    _curriculum_for_training_episode,
+    _walker_randomization_flags_for_batch,
     train_variable_scale_topology_ppo,
 )
+
+
+def test_walker_curriculum_progresses_from_fixed_through_mixed_to_random():
+    configuration = VariableScalePPOConfiguration(
+        walker_randomization_start_episode=10,
+        walker_randomization_full_episode=20,
+        policy_seed=3,
+    )
+    assert not _curriculum_for_training_episode(
+        configuration, episode=10, condition_seed=12,
+    ).randomize_walker_initialization
+    assert _curriculum_for_training_episode(
+        configuration, episode=20, condition_seed=12,
+    ).randomize_walker_initialization
+    middle = [
+        _curriculum_for_training_episode(
+            configuration, episode=15, condition_seed=seed,
+        ).randomize_walker_initialization
+        for seed in range(100, 140)
+    ]
+    assert any(middle)
+    assert not all(middle)
+    assert middle == [
+        _curriculum_for_training_episode(
+            configuration, episode=15, condition_seed=seed,
+        ).randomize_walker_initialization
+        for seed in range(100, 140)
+    ]
+
+
+def test_walker_curriculum_requires_complete_ordered_boundaries():
+    for start, full in ((2, None), (3, 3), (4, 2), (-1, 2)):
+        configuration = VariableScalePPOConfiguration(
+            training_episodes=1, rollout_batch_episodes=1,
+            training_condition_seed_count=1, environment_seed_count=1,
+            update_epochs=1, minibatch_size=1, target_kl=None,
+            walker_randomization_start_episode=start,
+            walker_randomization_full_episode=full,
+        )
+        try:
+            train_variable_scale_topology_ppo(configuration)
+        except ValueError as error:
+            assert "Walker" in str(error)
+        else:
+            raise AssertionError("Invalid Walker schedule was accepted.")
+
+
+def test_stratified_walker_curriculum_retains_fixed_replay_at_plateau():
+    configuration = VariableScalePPOConfiguration(
+        training_episodes=60,
+        rollout_batch_episodes=20,
+        training_condition_seed_offset=1900,
+        training_condition_seed_count=60,
+        walker_randomization_start_episode=19,
+        walker_randomization_full_episode=40,
+        walker_randomization_max_probability=0.5,
+        stratify_walker_randomization_by_batch=True,
+    )
+    flags = _walker_randomization_flags_for_batch(
+        configuration, batch_start=40, batch_end=60,
+    )
+    for node_count in (10, 20):
+        selected = []
+        for episode, randomized in flags.items():
+            condition_seed = 1900 + episode
+            if configuration.curriculum.node_count_for_condition(
+                condition_seed
+            ) == node_count:
+                selected.append(randomized)
+        assert any(selected)
+        assert not all(selected)
 
 
 def test_one_shared_update_contains_all_three_graph_sizes():
