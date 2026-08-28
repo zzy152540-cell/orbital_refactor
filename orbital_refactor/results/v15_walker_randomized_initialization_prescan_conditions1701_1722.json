@@ -1,0 +1,2006 @@
+{
+  "condition_seeds": [
+    1701,
+    1702,
+    1721,
+    1722
+  ],
+  "decision_indices": [
+    0,
+    3,
+    6,
+    9
+  ],
+  "horizon_decisions": 2,
+  "maximum_actions_per_kind": 2,
+  "noise_seed": 0,
+  "overall": {
+    "all_nonkeep_gain_mean": 0.00042639829432527805,
+    "all_nonkeep_gain_mean_absolute": 0.005468294440184637,
+    "all_nonkeep_gain_rms": 0.007463922438841998,
+    "best_nonkeep_gain_mean": 0.005482220097155377,
+    "best_nonkeep_positive_fraction": 0.75,
+    "keep_reward_mean": 0.5425802165356886,
+    "keep_reward_rms": 0.972627648324231,
+    "nonkeep_to_keep_rms_ratio": 0.007673977242680497,
+    "reference_gain_mean": -0.00045653699689489347,
+    "reference_gain_positive_fraction": 0.5625
+  },
+  "records": [
+    {
+      "active_dynamic_link_event_count": 0,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 1.9913996617029464,
+        "gain_over_keep": 0.027164927604837352,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p01_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1701,
+      "decision_index": 0,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 1.964234734098109,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 1.964234734098109,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 1.96703228515794,
+          "gain_over_keep": 0.0027975510598310382,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 1.9913996617029464,
+          "gain_over_keep": 0.027164927604837352,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 1.9696613056611152,
+          "gain_over_keep": 0.005426571563006188,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 2
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 1.96703228515794,
+        "gain_over_keep": 0.0027975510598310382,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 0.0
+    },
+    {
+      "active_dynamic_link_event_count": 1,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 0.3332589794534494,
+        "gain_over_keep": 0.0178881775418116,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p01_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1701,
+      "decision_index": 3,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 0.3153708019116378,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.3153708019116378,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.3086274315977686,
+          "gain_over_keep": -0.006743370313869179,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.3332589794534494,
+          "gain_over_keep": 0.0178881775418116,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.31517816075882243,
+          "gain_over_keep": -0.00019264115281536487,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "swap": 1
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 0.3086274315977686,
+        "gain_over_keep": -0.006743370313869179,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 18.0
+    },
+    {
+      "active_dynamic_link_event_count": 2,
+      "best_nonkeep": {
+        "action_id": 10,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 0.09466559356903725,
+        "gain_over_keep": -0.008360525340548541,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ]
+      },
+      "condition_seed": 1701,
+      "decision_index": 6,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 0.1030261189095858,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.1030261189095858,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.09426890031085056,
+          "gain_over_keep": -0.008757218598735239,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.0858030276246774,
+          "gain_over_keep": -0.0172230912849084,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.09466559356903725,
+          "gain_over_keep": -0.008360525340548541,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {},
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 0.09426890031085056,
+        "gain_over_keep": -0.008757218598735239,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 36.0
+    },
+    {
+      "active_dynamic_link_event_count": 1,
+      "best_nonkeep": {
+        "action_id": 10,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 0.05853092486274225,
+        "gain_over_keep": -0.0038501046359300517,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ]
+      },
+      "condition_seed": 1701,
+      "decision_index": 9,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 0.0623810294986723,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.0623810294986723,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.05772021155416529,
+          "gain_over_keep": -0.004660817944507012,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.05688066414849957,
+          "gain_over_keep": -0.005500365350172731,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ],
+          "cumulative_reward": 0.05853092486274225,
+          "gain_over_keep": -0.0038501046359300517,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {},
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s08",
+            "sat_p01_s09"
+          ]
+        ],
+        "cumulative_reward": 0.05772021155416529,
+        "gain_over_keep": -0.004660817944507012,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 54.0
+    },
+    {
+      "active_dynamic_link_event_count": 0,
+      "best_nonkeep": {
+        "action_id": 7,
+        "added_edges": [
+          [
+            "sat_p03_s02",
+            "sat_p05_s04"
+          ]
+        ],
+        "cumulative_reward": 1.7362291362874702,
+        "gain_over_keep": -0.0006834263136634711,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "condition_seed": 1702,
+      "decision_index": 0,
+      "evaluated_action_count": 6,
+      "keep_cumulative_reward": 1.7369125626011337,
+      "legal_action_kind_counts": {
+        "add": 4,
+        "keep": 1,
+        "swap": 8
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 1.7369125626011337,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p02_s02",
+              "sat_p05_s01"
+            ]
+          ],
+          "cumulative_reward": 1.7350167009601798,
+          "gain_over_keep": -0.0018958616409538998,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p02_s02",
+              "sat_p05_s01"
+            ]
+          ],
+          "cumulative_reward": 1.7247443047645672,
+          "gain_over_keep": -0.012168257836566498,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s03",
+              "sat_p02_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 7,
+          "added_edges": [
+            [
+              "sat_p03_s02",
+              "sat_p05_s04"
+            ]
+          ],
+          "cumulative_reward": 1.7362291362874702,
+          "gain_over_keep": -0.0006834263136634711,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": 1.7331615627920862,
+          "gain_over_keep": -0.0037509998090474728,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 12,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": 1.731552797032707,
+          "gain_over_keep": -0.0053597655684267664,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {},
+      "reference_action": {
+        "action_id": 7,
+        "added_edges": [
+          [
+            "sat_p03_s02",
+            "sat_p05_s04"
+          ]
+        ],
+        "cumulative_reward": 1.7362291362874702,
+        "gain_over_keep": -0.0006834263136634711,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 0.0
+    },
+    {
+      "active_dynamic_link_event_count": 3,
+      "best_nonkeep": {
+        "action_id": 12,
+        "added_edges": [
+          [
+            "sat_p03_s04",
+            "sat_p05_s02"
+          ]
+        ],
+        "cumulative_reward": 0.21263172013373188,
+        "gain_over_keep": 0.007592368401888816,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p04_s03",
+            "sat_p05_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1702,
+      "decision_index": 3,
+      "evaluated_action_count": 6,
+      "keep_cumulative_reward": 0.20503935173184307,
+      "legal_action_kind_counts": {
+        "add": 4,
+        "keep": 1,
+        "swap": 8
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.20503935173184307,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p02_s02",
+              "sat_p05_s01"
+            ]
+          ],
+          "cumulative_reward": 0.1957386468360064,
+          "gain_over_keep": -0.009300704895836676,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p02_s02",
+              "sat_p05_s01"
+            ]
+          ],
+          "cumulative_reward": 0.20453010473329114,
+          "gain_over_keep": -0.0005092469985519266,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s03",
+              "sat_p02_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 4,
+          "added_edges": [
+            [
+              "sat_p02_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 0.2038428762596065,
+          "gain_over_keep": -0.0011964754722365578,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": 0.20901004066075868,
+          "gain_over_keep": 0.003970688928915611,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 12,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": 0.21263172013373188,
+          "gain_over_keep": 0.007592368401888816,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 1
+      },
+      "reference_action": {
+        "action_id": 4,
+        "added_edges": [
+          [
+            "sat_p02_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": 0.2038428762596065,
+        "gain_over_keep": -0.0011964754722365578,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 18.0
+    },
+    {
+      "active_dynamic_link_event_count": 2,
+      "best_nonkeep": {
+        "action_id": 22,
+        "added_edges": [
+          [
+            "sat_p03_s04",
+            "sat_p05_s02"
+          ]
+        ],
+        "cumulative_reward": -0.12837038409537938,
+        "gain_over_keep": 0.009180113928122347,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "condition_seed": 1702,
+      "decision_index": 6,
+      "evaluated_action_count": 5,
+      "keep_cumulative_reward": -0.13755049802350172,
+      "legal_action_kind_counts": {
+        "add": 5,
+        "keep": 1,
+        "swap": 19
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": -0.13755049802350172,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s02",
+              "sat_p05_s04"
+            ]
+          ],
+          "cumulative_reward": -0.13746231693422062,
+          "gain_over_keep": 8.818108928110302e-05,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s02",
+              "sat_p05_s04"
+            ]
+          ],
+          "cumulative_reward": -0.13499609622431297,
+          "gain_over_keep": 0.0025544017991887547,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s02",
+              "sat_p04_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 22,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": -0.12837038409537938,
+          "gain_over_keep": 0.009180113928122347,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 24,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": -0.13058757890630412,
+          "gain_over_keep": 0.006962919117197597,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 2,
+        "swap": 2
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s02",
+            "sat_p05_s04"
+          ]
+        ],
+        "cumulative_reward": -0.13746231693422062,
+        "gain_over_keep": 8.818108928110302e-05,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 36.0
+    },
+    {
+      "active_dynamic_link_event_count": 0,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p03_s03"
+          ]
+        ],
+        "cumulative_reward": -7.534130740038947e-05,
+        "gain_over_keep": 0.0030272257644192724,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p02_s04"
+          ]
+        ]
+      },
+      "condition_seed": 1702,
+      "decision_index": 9,
+      "evaluated_action_count": 6,
+      "keep_cumulative_reward": -0.003102567071819662,
+      "legal_action_kind_counts": {
+        "add": 7,
+        "keep": 1,
+        "swap": 23
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": -0.003102567071819662,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": -0.002784882408924605,
+          "gain_over_keep": 0.0003176846628950569,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": -7.534130740038947e-05,
+          "gain_over_keep": 0.0030272257644192724,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p02_s04"
+            ]
+          ]
+        },
+        {
+          "action_id": 16,
+          "added_edges": [
+            [
+              "sat_p01_s03",
+              "sat_p03_s01"
+            ]
+          ],
+          "cumulative_reward": -0.00019737834714317337,
+          "gain_over_keep": 0.0029051887246764885,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 28,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": -0.000780371871994423,
+          "gain_over_keep": 0.002322195199825239,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 30,
+          "added_edges": [
+            [
+              "sat_p03_s04",
+              "sat_p05_s02"
+            ]
+          ],
+          "cumulative_reward": -0.0027928390307517814,
+          "gain_over_keep": 0.00030972804106788043,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 3,
+        "swap": 2
+      },
+      "reference_action": {
+        "action_id": 16,
+        "added_edges": [
+          [
+            "sat_p01_s03",
+            "sat_p03_s01"
+          ]
+        ],
+        "cumulative_reward": -0.00019737834714317337,
+        "gain_over_keep": 0.0029051887246764885,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 54.0
+    },
+    {
+      "active_dynamic_link_event_count": 0,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": 2.184219615863096,
+        "gain_over_keep": 0.007253100510841826,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p01_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1721,
+      "decision_index": 0,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 2.1769665153522544,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 2.1769665153522544,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 2.1770584464248377,
+          "gain_over_keep": 9.193107258331779e-05,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 2.184219615863096,
+          "gain_over_keep": 0.007253100510841826,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 2.1714939475892336,
+          "gain_over_keep": -0.0054725677630207414,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 1
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": 2.1770584464248377,
+        "gain_over_keep": 9.193107258331779e-05,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 0.0
+    },
+    {
+      "active_dynamic_link_event_count": 1,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": 0.26089148315578825,
+        "gain_over_keep": 0.003999589018718219,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p01_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1721,
+      "decision_index": 3,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 0.25689189413707003,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.25689189413707003,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 0.2579588668104834,
+          "gain_over_keep": 0.00106697267341338,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 0.26089148315578825,
+          "gain_over_keep": 0.003999589018718219,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 0.2595379450213625,
+          "gain_over_keep": 0.0026460508842924835,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 2
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": 0.2579588668104834,
+        "gain_over_keep": 0.00106697267341338,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 18.0
+    },
+    {
+      "active_dynamic_link_event_count": 2,
+      "best_nonkeep": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": -0.0452469564048007,
+        "gain_over_keep": 0.0004120083508986072,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "condition_seed": 1721,
+      "decision_index": 6,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": -0.045658964755699305,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": -0.045658964755699305,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": -0.0452469564048007,
+          "gain_over_keep": 0.0004120083508986072,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": -0.045810021757347164,
+          "gain_over_keep": -0.0001510570016478585,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": -0.049769273825177596,
+          "gain_over_keep": -0.004110309069478291,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": -0.0452469564048007,
+        "gain_over_keep": 0.0004120083508986072,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 36.0
+    },
+    {
+      "active_dynamic_link_event_count": 1,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": 0.025657484711873235,
+        "gain_over_keep": 0.014299358672498985,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p01_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1721,
+      "decision_index": 9,
+      "evaluated_action_count": 4,
+      "keep_cumulative_reward": 0.01135812603937425,
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.01135812603937425,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 0.02239578370452211,
+          "gain_over_keep": 0.01103765766514786,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 0.025657484711873235,
+          "gain_over_keep": 0.014299358672498985,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p01_s02"
+            ]
+          ]
+        },
+        {
+          "action_id": 10,
+          "added_edges": [
+            [
+              "sat_p01_s09",
+              "sat_p01_s10"
+            ]
+          ],
+          "cumulative_reward": 0.022261265649214934,
+          "gain_over_keep": 0.010903139609840684,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s08",
+              "sat_p01_s09"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 2
+      },
+      "reference_action": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s09",
+            "sat_p01_s10"
+          ]
+        ],
+        "cumulative_reward": 0.02239578370452211,
+        "gain_over_keep": 0.01103765766514786,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 54.0
+    },
+    {
+      "active_dynamic_link_event_count": 0,
+      "best_nonkeep": {
+        "action_id": 52,
+        "added_edges": [
+          [
+            "sat_p04_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": 1.8002477243801227,
+        "gain_over_keep": 0.0018733383855160657,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p04_s03",
+            "sat_p05_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1722,
+      "decision_index": 0,
+      "evaluated_action_count": 5,
+      "keep_cumulative_reward": 1.7983743859946066,
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 1.7983743859946066,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": 1.7895964367816537,
+          "gain_over_keep": -0.00877794921295294,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": 1.7932661366992693,
+          "gain_over_keep": -0.005108249295337375,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p02_s04"
+            ]
+          ]
+        },
+        {
+          "action_id": 43,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 1.7984532198390377,
+          "gain_over_keep": 7.883384443108099e-05,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 52,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 1.8002477243801227,
+          "gain_over_keep": 0.0018733383855160657,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 1
+      },
+      "reference_action": {
+        "action_id": 43,
+        "added_edges": [
+          [
+            "sat_p04_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": 1.7984532198390377,
+        "gain_over_keep": 7.883384443108099e-05,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 0.0
+    },
+    {
+      "active_dynamic_link_event_count": 2,
+      "best_nonkeep": {
+        "action_id": 52,
+        "added_edges": [
+          [
+            "sat_p04_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": 0.17971920942365716,
+        "gain_over_keep": 0.009741636163112632,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p04_s03",
+            "sat_p05_s02"
+          ]
+        ]
+      },
+      "condition_seed": 1722,
+      "decision_index": 3,
+      "evaluated_action_count": 5,
+      "keep_cumulative_reward": 0.16997757326054452,
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.16997757326054452,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": 0.169246009625027,
+          "gain_over_keep": -0.0007315636355175181,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": 0.1767130203367583,
+          "gain_over_keep": 0.006735447076213763,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p02_s04"
+            ]
+          ]
+        },
+        {
+          "action_id": 43,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 0.17954936749939887,
+          "gain_over_keep": 0.009571794238854348,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 52,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 0.17971920942365716,
+          "gain_over_keep": 0.009741636163112632,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 2
+      },
+      "reference_action": {
+        "action_id": 43,
+        "added_edges": [
+          [
+            "sat_p04_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": 0.17954936749939887,
+        "gain_over_keep": 0.009571794238854348,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 18.0
+    },
+    {
+      "active_dynamic_link_event_count": 4,
+      "best_nonkeep": {
+        "action_id": 2,
+        "added_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p03_s03"
+          ]
+        ],
+        "cumulative_reward": 0.11697389578223838,
+        "gain_over_keep": 0.0016746540747148986,
+        "kind": "swap",
+        "removed_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p02_s04"
+          ]
+        ]
+      },
+      "condition_seed": 1722,
+      "decision_index": 6,
+      "evaluated_action_count": 5,
+      "keep_cumulative_reward": 0.11529924170752348,
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": 0.11529924170752348,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": 0.11468072105835092,
+          "gain_over_keep": -0.0006185206491725603,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": 0.11697389578223838,
+          "gain_over_keep": 0.0016746540747148986,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p02_s04"
+            ]
+          ]
+        },
+        {
+          "action_id": 43,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 0.10756018823363522,
+          "gain_over_keep": -0.007739053473888258,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 52,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": 0.10731839301766932,
+          "gain_over_keep": -0.007980848689854159,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {
+        "swap": 1
+      },
+      "reference_action": {
+        "action_id": 43,
+        "added_edges": [
+          [
+            "sat_p04_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": 0.10756018823363522,
+        "gain_over_keep": -0.007739053473888258,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 36.0
+    },
+    {
+      "active_dynamic_link_event_count": 1,
+      "best_nonkeep": {
+        "action_id": 1,
+        "added_edges": [
+          [
+            "sat_p01_s01",
+            "sat_p03_s03"
+          ]
+        ],
+        "cumulative_reward": -0.051733761393069067,
+        "gain_over_keep": -0.0034969205727525265,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "condition_seed": 1722,
+      "decision_index": 9,
+      "evaluated_action_count": 5,
+      "keep_cumulative_reward": -0.04823684082031654,
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "added_edges": [],
+          "cumulative_reward": -0.04823684082031654,
+          "gain_over_keep": 0.0,
+          "kind": "keep",
+          "removed_edges": []
+        },
+        {
+          "action_id": 1,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": -0.051733761393069067,
+          "gain_over_keep": -0.0034969205727525265,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 2,
+          "added_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p03_s03"
+            ]
+          ],
+          "cumulative_reward": -0.052893340112889486,
+          "gain_over_keep": -0.0046564992925729465,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p01_s01",
+              "sat_p02_s04"
+            ]
+          ]
+        },
+        {
+          "action_id": 43,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": -0.05381118937285234,
+          "gain_over_keep": -0.005574348552535802,
+          "kind": "add",
+          "removed_edges": []
+        },
+        {
+          "action_id": 52,
+          "added_edges": [
+            [
+              "sat_p04_s04",
+              "sat_p05_s03"
+            ]
+          ],
+          "cumulative_reward": -0.05240201675766687,
+          "gain_over_keep": -0.004165175937350329,
+          "kind": "swap",
+          "removed_edges": [
+            [
+              "sat_p04_s03",
+              "sat_p05_s02"
+            ]
+          ]
+        }
+      ],
+      "positive_nonkeep_kind_counts": {},
+      "reference_action": {
+        "action_id": 43,
+        "added_edges": [
+          [
+            "sat_p04_s04",
+            "sat_p05_s03"
+          ]
+        ],
+        "cumulative_reward": -0.05381118937285234,
+        "gain_over_keep": -0.005574348552535802,
+        "kind": "add",
+        "removed_edges": []
+      },
+      "timestamp": 54.0
+    }
+  ],
+  "summary_by_decision_index": {
+    "0": {
+      "all_nonkeep_gain_mean": 9.79451067385136e-05,
+      "all_nonkeep_gain_mean_absolute": 0.005860222098734403,
+      "all_nonkeep_gain_rms": 0.008791508561528093,
+      "audited_decision_count": 4,
+      "best_nonkeep_gain_mean": 0.008901985046882943,
+      "best_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 3
+      },
+      "best_nonkeep_positive_fraction": 0.75,
+      "keep_reward_mean": 1.919122049511526,
+      "keep_reward_rms": 1.926682185904406,
+      "mean_best_nonkeep_gain": 0.008901985046882943,
+      "nonkeep_to_keep_rms_ratio": 0.004563029972377754,
+      "positive_best_nonkeep_count": 3,
+      "positive_later_best_nonkeep_count": 0,
+      "reference_gain_mean": 0.0005712224157954915,
+      "reference_gain_positive_fraction": 0.75
+    },
+    "3": {
+      "all_nonkeep_gain_mean": 0.0029692481638929086,
+      "all_nonkeep_gain_mean_absolute": 0.005459115159736539,
+      "all_nonkeep_gain_rms": 0.007227993528651403,
+      "audited_decision_count": 4,
+      "best_nonkeep_gain_mean": 0.009805442781382817,
+      "best_nonkeep_kind_counts": {
+        "swap": 4
+      },
+      "best_nonkeep_positive_fraction": 1.0,
+      "keep_reward_mean": 0.23681990526027386,
+      "keep_reward_rms": 0.24309756227792542,
+      "mean_best_nonkeep_gain": 0.009805442781382817,
+      "nonkeep_to_keep_rms_ratio": 0.029732891851823165,
+      "positive_best_nonkeep_count": 4,
+      "positive_later_best_nonkeep_count": 4,
+      "reference_gain_mean": 0.0006747302815404976,
+      "reference_gain_positive_fraction": 0.5
+    },
+    "6": {
+      "all_nonkeep_gain_mean": -0.0024334532677735715,
+      "all_nonkeep_gain_mean_absolute": 0.0054152073191169004,
+      "all_nonkeep_gain_rms": 0.007203038803556042,
+      "audited_decision_count": 4,
+      "best_nonkeep_gain_mean": 0.0007265627532968277,
+      "best_nonkeep_kind_counts": {
+        "add": 2,
+        "swap": 2
+      },
+      "best_nonkeep_positive_fraction": 0.75,
+      "keep_reward_mean": 0.008778974459477062,
+      "keep_reward_rms": 0.10596364575289204,
+      "mean_best_nonkeep_gain": 0.0007265627532968277,
+      "nonkeep_to_keep_rms_ratio": 0.06797650979613876,
+      "positive_best_nonkeep_count": 3,
+      "positive_later_best_nonkeep_count": 3,
+      "reference_gain_mean": -0.003999020658110947,
+      "reference_gain_positive_fraction": 0.5
+    },
+    "9": {
+      "all_nonkeep_gain_mean": 0.0008811964036366712,
+      "all_nonkeep_gain_mean_absolute": 0.005135094041746191,
+      "all_nonkeep_gain_rms": 0.006416165529700186,
+      "audited_decision_count": 4,
+      "best_nonkeep_gain_mean": 0.00249488980705892,
+      "best_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 3
+      },
+      "best_nonkeep_positive_fraction": 0.5,
+      "keep_reward_mean": 0.005599936911477588,
+      "keep_reward_rms": 0.039864829747536336,
+      "mean_best_nonkeep_gain": 0.00249488980705892,
+      "nonkeep_to_keep_rms_ratio": 0.16094802286460808,
+      "positive_best_nonkeep_count": 2,
+      "positive_later_best_nonkeep_count": 2,
+      "reference_gain_mean": 0.0009269199731953837,
+      "reference_gain_positive_fraction": 0.5
+    }
+  },
+  "summary_by_node_count": {
+    "10": {
+      "all_nonkeep_gain_mean": 0.0016652069905036722,
+      "all_nonkeep_gain_mean_absolute": 0.007083712695139789,
+      "all_nonkeep_gain_rms": 0.009617033171674604,
+      "audited_decision_count": 8,
+      "best_nonkeep_gain_mean": 0.007350816465391,
+      "best_nonkeep_kind_counts": {
+        "add": 1,
+        "swap": 7
+      },
+      "best_nonkeep_positive_fraction": 0.75,
+      "keep_reward_mean": 0.6055712818988755,
+      "keep_reward_rms": 1.0475908677581804,
+      "mean_best_nonkeep_gain": 0.007350816465391,
+      "nonkeep_to_keep_rms_ratio": 0.009180142236496226,
+      "positive_best_nonkeep_count": 6,
+      "positive_later_best_nonkeep_count": 4,
+      "reference_gain_mean": -0.0005944107544046534,
+      "reference_gain_positive_fraction": 0.625
+    },
+    "20": {
+      "all_nonkeep_gain_mean": -0.0004230705259113351,
+      "all_nonkeep_gain_mean_absolute": 0.0043605790653582464,
+      "all_nonkeep_gain_rms": 0.005521910393042669,
+      "audited_decision_count": 8,
+      "best_nonkeep_gain_mean": 0.0036136237289197543,
+      "best_nonkeep_kind_counts": {
+        "add": 3,
+        "swap": 5
+      },
+      "best_nonkeep_positive_fraction": 0.75,
+      "keep_reward_mean": 0.47958915117250167,
+      "keep_reward_rms": 0.891382330068927,
+      "mean_best_nonkeep_gain": 0.0036136237289197543,
+      "nonkeep_to_keep_rms_ratio": 0.006194772104822498,
+      "positive_best_nonkeep_count": 6,
+      "positive_later_best_nonkeep_count": 5,
+      "reference_gain_mean": -0.0003186632393851335,
+      "reference_gain_positive_fraction": 0.5
+    }
+  }
+}

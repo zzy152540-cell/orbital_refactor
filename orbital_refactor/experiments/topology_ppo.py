@@ -77,6 +77,7 @@ class TopologyRolloutTransition:
     type_entropy: float
     conditional_entropy: float
     absolute_reward: float | None = None
+    counterfactual_keep_costs: tuple[float, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,9 @@ class TopologyActorCritic(nn.Module):
     ) -> None:
         super().__init__()
         self.global_feature_count = int(global_feature_count)
+        # Training-only behavior-policy exploration. Callers should restore
+        # zero before deterministic evaluation.
+        self.action_type_probability_floor = 0.0
         if critic_timestamp_horizon is not None and critic_timestamp_horizon <= 0.0:
             raise ValueError("Critic timestamp horizon must be positive.")
         self.critic_timestamp_horizon = critic_timestamp_horizon
@@ -189,6 +193,7 @@ class TopologyActorCritic(nn.Module):
         legal_mask = torch.ones_like(actor.utility, dtype=torch.bool)
         distribution = hierarchical_action_distribution(
             actor.type_logits, actor.utility, group.action_kind_index, legal_mask,
+            type_probability_floor=self.action_type_probability_floor,
         )
         if group.action_features.shape[1] < self.global_feature_count:
             raise ValueError("Online action features omit required action fields.")
@@ -370,11 +375,10 @@ def collect_topology_rollout(
         step = environment.step(environment_action_id)
         absolute_reward = float(step.reward)
         reward = absolute_reward
+        keep_step = None
         if counterfactual_keep_reward:
-            keep_reward = (
-                absolute_reward if keep_branch is None
-                else float(keep_branch.step(0).reward)
-            )
+            keep_step = step if keep_branch is None else keep_branch.step(0)
+            keep_reward = float(keep_step.reward)
             reward -= keep_reward
         costs = step.constraint_costs
         transitions.append(TopologyRolloutTransition(
@@ -395,6 +399,16 @@ def collect_topology_rollout(
                 output.distribution.conditional_entropy.item()
             ),
             absolute_reward=absolute_reward,
+            counterfactual_keep_costs=(
+                None if keep_step is None else tuple(float(value) for value in (
+                    keep_step.constraint_costs.transmitted_messages,
+                    keep_step.constraint_costs.dropped_messages,
+                    keep_step.constraint_costs.replay_count,
+                    keep_step.constraint_costs.resynchronization_count,
+                    keep_step.constraint_costs.topology_switch,
+                    keep_step.constraint_costs.action_fallback,
+                ))
+            ),
         ))
         state = step.state
         if step.terminated or step.truncated:
@@ -689,6 +703,8 @@ def hierarchical_action_distribution(
     conditional_action_logits: Tensor,
     action_kind_index: Tensor,
     legal_mask: Tensor,
+    *,
+    type_probability_floor: float = 0.0,
 ) -> HierarchicalActionDistribution:
     """Build a normalized distribution without assigning mass to illegal actions.
 
@@ -705,6 +721,8 @@ def hierarchical_action_distribution(
         raise ValueError("The legal mask must align with action logits.")
     if action_kind_index.dtype != torch.long:
         raise ValueError("Action-kind indices must use torch.long.")
+    if not 0.0 <= type_probability_floor < 0.25:
+        raise ValueError("Action-type probability floor must lie in [0, 0.25).")
     legal_mask = legal_mask.to(dtype=torch.bool)
     if not torch.any(legal_mask):
         raise ValueError("At least one legal action is required.")
@@ -718,6 +736,19 @@ def hierarchical_action_distribution(
     masked_type_logits = type_logits.masked_fill(~type_available, -torch.inf)
     type_log_probabilities = functional.log_softmax(masked_type_logits, dim=0)
     type_probabilities = type_log_probabilities.exp()
+    available_count = int(type_available.sum().item())
+    if type_probability_floor and available_count > 1:
+        retained = 1.0 - type_probability_floor * available_count
+        type_probabilities = torch.where(
+            type_available,
+            retained * type_probabilities + type_probability_floor,
+            torch.zeros_like(type_probabilities),
+        )
+        type_log_probabilities = torch.where(
+            type_available,
+            type_probabilities.log(),
+            torch.full_like(type_probabilities, -torch.inf),
+        )
 
     action_log_probabilities = torch.full_like(
         conditional_action_logits, -torch.inf

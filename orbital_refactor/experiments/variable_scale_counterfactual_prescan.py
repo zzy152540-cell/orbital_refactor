@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from copy import deepcopy
+from dataclasses import asdict
 
 import numpy as np
 
@@ -19,6 +20,7 @@ def run_variable_scale_counterfactual_prescan(
     horizon_decisions: int = 2,
     maximum_actions_per_kind: int = 4,
     reference_policy=None,
+    curriculum: VariableScaleTopologyCurriculum | None = None,
 ) -> dict[str, object]:
     """Audit bounded local action opportunities along an always-keep trajectory.
 
@@ -31,14 +33,30 @@ def run_variable_scale_counterfactual_prescan(
     if maximum_actions_per_kind < 1:
         raise ValueError("At least one action per non-keep kind must be evaluated.")
     requested_decisions = set(int(value) for value in decision_indices)
-    curriculum = VariableScaleTopologyCurriculum()
+    curriculum = curriculum or VariableScaleTopologyCurriculum()
     records = []
+    scenario_records = []
     for condition_seed in condition_seeds:
         configuration = curriculum.configuration_for_condition(condition_seed)
         environment = build_stage1_environment(configuration)
         state = environment.reset(
             seed=noise_seed, condition_seed=condition_seed,
         )
+        walker_config = environment._episode_conditions.get("walker_config")
+        scenario_records.append({
+            "condition_seed": int(condition_seed),
+            "noise_seed": int(noise_seed),
+            "node_count": int(configuration.node_count),
+            "walker_config": (
+                None if walker_config is None else asdict(walker_config)
+            ),
+            "walker_randomization_attempt": environment._episode_conditions.get(
+                "walker_randomization_attempt"
+            ),
+            "walker_randomization_fallback": environment._episode_conditions.get(
+                "walker_randomization_fallback", False
+            ),
+        })
         decision_index = 0
         while True:
             if decision_index in requested_decisions:
@@ -64,6 +82,7 @@ def run_variable_scale_counterfactual_prescan(
         "horizon_decisions": int(horizon_decisions),
         "maximum_actions_per_kind": int(maximum_actions_per_kind),
         "records": records,
+        "scenario_records": scenario_records,
         "summary_by_node_count": _summaries(records),
         "summary_by_decision_index": _summaries(records, key="decision_index"),
         "overall": _signal_summary(records),

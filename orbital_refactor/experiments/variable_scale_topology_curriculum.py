@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+import numpy as np
+
 from experiments.topology_control_environment import (
     CompactFleetScenarioDistribution,
+    WalkerInitializationDistribution,
 )
 from experiments.topology_ppo_stage1 import (
     Stage1Configuration,
@@ -24,6 +27,7 @@ class VariableScaleTopologyCurriculum:
     maximum_topology_switches_per_episode: int = 5
     minimum_topology_dwell_decisions: int = 1
     top_k_candidate_neighbors: int = 3
+    randomize_walker_initialization: bool = False
 
     def validate(self) -> None:
         if not self.node_count_cycle:
@@ -74,6 +78,19 @@ class VariableScaleTopologyCurriculum:
                 ),
             )
         else:
+            walker_initialization = None
+            if self.randomize_walker_initialization:
+                walker_initialization = WalkerInitializationDistribution(
+                    inclination_range=(
+                        float(np.deg2rad(50.0)),
+                        float(np.deg2rad(56.0)),
+                    ),
+                    plane_phasing_options=(
+                        ((1, 0),)
+                        if node_count == 10 else
+                        ((5, 3),)
+                    ),
+                )
             configuration = Stage1Configuration(
                 **common,
                 scenario_type="walker_delta",
@@ -86,6 +103,7 @@ class VariableScaleTopologyCurriculum:
                     initial_topology_types=("chain", "ring", "star"),
                     link_condition_mode="undirected_independent",
                     dynamic_link_event_count=max(2, node_count // 4),
+                    walker_initialization=walker_initialization,
                 ),
             )
         return replace(configuration, **changes)

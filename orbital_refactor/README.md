@@ -134,6 +134,17 @@ Covariance reduction alone is still not accepted as valid information gain.
 Future dense feedback must be qualified by observable consistency, provenance,
 freshness and resynchronization diagnostics.
 
+A three-seed Walker-20 deterministic comparison over 60 filter epochs contrasts
+always-keep with the current cost-aware information-greedy policy under all
+three relative modalities, 10% packet loss, and one-second delay. Information
+greedy reduced mean final position RMSE from 0.68140 m to 0.67230 m (1.33%), but
+added 28 transmitted messages and 26 replays on average, together with 4.33
+topology switches and 4.67 resynchronizations. With the frozen switch penalty,
+its penalized return was 0.07756 lower than keep. The policy is therefore a
+useful deterministic accuracy/resource baseline rather than a universally
+better controller. The paired four-panel presentation plot is stored as
+`results/v15_walker20_deterministic_policy_overview.png`.
+
 The current Walker-20 pilot dataset contains 48 online snapshots and 2544
 counterfactual legal-action labels over seeds 0--7 and decision epochs
 `0, 5, 10, 15, 20, 25`. Seeds 0--5 are used for training and 6--7 for strict

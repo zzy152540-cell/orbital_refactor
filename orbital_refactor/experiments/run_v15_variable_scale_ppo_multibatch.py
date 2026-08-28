@@ -44,11 +44,13 @@ def main(argv=None) -> Path:
     parser.add_argument("--rollout-batch-episodes", type=int, default=10)
     parser.add_argument("--critic-timestamp-horizon", type=float)
     parser.add_argument("--counterfactual-keep-reward", action="store_true")
+    parser.add_argument("--difference-resource-penalties-from-keep", action="store_true")
     parser.add_argument(
         "--normalize-counterfactual-return-by-scale", action="store_true",
     )
     parser.add_argument("--critic-scale-calibration", action="store_true")
     parser.add_argument("--critic-weight-decay", type=float, default=0.0)
+    parser.add_argument("--action-type-probability-floor", type=float, default=0.0)
     parser.add_argument("--checkpoint-directory", type=Path)
     parser.add_argument("--resume-random", type=Path)
     parser.add_argument("--resume-warm", type=Path)
@@ -72,6 +74,9 @@ def main(argv=None) -> Path:
         explicit_action_pairing=True,
         critic_timestamp_horizon=arguments.critic_timestamp_horizon,
         counterfactual_keep_reward=arguments.counterfactual_keep_reward,
+        difference_resource_penalties_from_keep=(
+            arguments.difference_resource_penalties_from_keep
+        ),
         return_scale_by_node_count=(
             AUDITED_COUNTERFACTUAL_RETURN_SCALES
             if arguments.normalize_counterfactual_return_by_scale else ()
@@ -80,6 +85,7 @@ def main(argv=None) -> Path:
             (5, 10, 20) if arguments.critic_scale_calibration else ()
         ),
         critic_weight_decay=arguments.critic_weight_decay,
+        action_type_probability_floor=arguments.action_type_probability_floor,
     )
     checkpoint_directory = arguments.checkpoint_directory
     random_checkpoint = (

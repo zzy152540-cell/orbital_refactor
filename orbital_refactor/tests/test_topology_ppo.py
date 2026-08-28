@@ -87,6 +87,21 @@ def test_hierarchical_mode_selects_type_before_member_without_count_bias():
     assert distribution.mode().item() in {1, 2, 3, 4}
 
 
+def test_hierarchical_type_probability_floor_covers_available_types():
+    distribution = hierarchical_action_distribution(
+        type_logits=torch.tensor([8.0, 0.0, -8.0, -20.0]),
+        conditional_action_logits=torch.zeros(3),
+        action_kind_index=torch.tensor([0, 1, 2]),
+        legal_mask=torch.ones(3, dtype=torch.bool),
+        type_probability_floor=0.05,
+    )
+    assert torch.all(distribution.type_probabilities[:3] >= 0.05)
+    assert distribution.type_probabilities[3] == 0.0
+    torch.testing.assert_close(
+        distribution.action_log_probabilities.exp().sum(), torch.tensor(1.0)
+    )
+
+
 def test_gae_stops_at_true_terminal_and_returns_value_targets():
     advantages, returns = generalized_advantage_estimate(
         rewards=torch.tensor([1.0, 2.0, 3.0]),
@@ -233,6 +248,7 @@ def test_counterfactual_keep_reward_removes_common_filter_improvement():
         transition.environment_action_id == 0
         and transition.reward == 0.0
         and transition.absolute_reward is not None
+        and transition.counterfactual_keep_costs == transition.costs
         for transition in rollout.transitions
     )
     assert any(

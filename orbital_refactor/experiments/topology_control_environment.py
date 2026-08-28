@@ -80,6 +80,39 @@ class TopologyEnvironmentStep:
 
 
 @dataclass(frozen=True)
+class WalkerInitializationDistribution:
+    """Bounded, seeded Walker truth initialization for curriculum studies."""
+
+    altitude_range: tuple[float, float] = (550e3, 850e3)
+    eccentricity_range: tuple[float, float] = (0.0, 0.002)
+    inclination_range: tuple[float, float] = (
+        float(np.deg2rad(35.0)), float(np.deg2rad(75.0)),
+    )
+    plane_phasing_options: tuple[tuple[int, int], ...] = ()
+
+    def validate(self, node_count: int) -> None:
+        altitude_low, altitude_high = self.altitude_range
+        eccentricity_low, eccentricity_high = self.eccentricity_range
+        inclination_low, inclination_high = self.inclination_range
+        if not 0.0 < altitude_low <= altitude_high:
+            raise ValueError("Walker altitude range must be positive and ordered.")
+        if not 0.0 <= eccentricity_low <= eccentricity_high < 1.0:
+            raise ValueError("Walker eccentricity range must lie within [0, 1).")
+        if not 0.0 <= inclination_low <= inclination_high <= np.pi:
+            raise ValueError("Walker inclination range must lie within [0, pi].")
+        if not self.plane_phasing_options:
+            raise ValueError("Walker plane/phasing options cannot be empty.")
+        if len(set(self.plane_phasing_options)) != len(self.plane_phasing_options):
+            raise ValueError("Walker plane/phasing options must be unique.")
+        for plane_count, phasing in self.plane_phasing_options:
+            if (
+                plane_count < 1 or node_count % plane_count
+                or not 0 <= phasing < plane_count
+            ):
+                raise ValueError("Invalid Walker plane/phasing option.")
+
+
+@dataclass(frozen=True)
 class CompactFleetScenarioDistribution:
     """Seeded Stage-1 disturbance distribution for compact fleets."""
 
@@ -93,6 +126,7 @@ class CompactFleetScenarioDistribution:
     dynamic_link_event_count: int = 0
     dynamic_packet_loss_range: tuple[float, float] = (0.6, 1.0)
     dynamic_delay_range: tuple[float, float] = (2.0, 6.0)
+    walker_initialization: WalkerInitializationDistribution | None = None
 
     def validate(self, node_count: int) -> None:
         loss_low, loss_high = self.packet_loss_range
@@ -135,6 +169,8 @@ class CompactFleetScenarioDistribution:
             raise ValueError("Randomized physical scenario families require five nodes.")
         if self.physical_family_assignment_mode not in {"random", "seed_cycle"}:
             raise ValueError("Unsupported physical family-assignment mode.")
+        if self.walker_initialization is not None:
+            self.walker_initialization.validate(node_count)
 
 
 class TopologyControlEnvironment:
@@ -264,7 +300,7 @@ class TopologyControlEnvironment:
 
     def _build_case(self, seed):
         if self.scenario_type in {"walker_20_5_3", "walker_delta"}:
-            walker_config = (
+            default_walker_config = (
                 None
                 if self.scenario_type == "walker_20_5_3"
                 else WalkerDeltaConfig(
@@ -276,11 +312,37 @@ class TopologyControlEnvironment:
                     inclination=np.deg2rad(53.0),
                 )
             )
-            plan = build_v14_walker_dynamic_topology_plan(
-                duration=self.episode_epochs * self.dt, dt=self.dt,
-                maximum_range=self.walker_maximum_range,
-                walker_config=walker_config,
+            walker_candidates = self._episode_conditions.get(
+                "walker_config_candidates", ()
             )
+            if walker_candidates:
+                walker_candidates = tuple(walker_candidates) + (default_walker_config,)
+            else:
+                walker_candidates = (
+                    self._episode_conditions.get("walker_config")
+                    or default_walker_config,
+                )
+            plan = None
+            for candidate_index, walker_config in enumerate(walker_candidates):
+                try:
+                    plan = build_v14_walker_dynamic_topology_plan(
+                        duration=self.episode_epochs * self.dt, dt=self.dt,
+                        maximum_range=self.walker_maximum_range,
+                        walker_config=walker_config,
+                    )
+                except ValueError as error:
+                    if "visibility graph is disconnected" not in str(error):
+                        raise
+                    continue
+                self._episode_conditions["walker_config"] = plan.scenario.config
+                self._episode_conditions["walker_randomization_attempt"] = candidate_index
+                self._episode_conditions["walker_randomization_fallback"] = (
+                    bool(walker_candidates[:-1])
+                    and candidate_index == len(walker_candidates) - 1
+                )
+                break
+            if plan is None:  # pragma: no cover - fixed fallback is validated
+                raise ValueError("No connected Walker initialization is available.")
             physical_edges = {
                 edge.nodes
                 for observation in plan.graph_observation_by_timestamp.values()
@@ -519,11 +581,19 @@ class TopologyControlEnvironment:
             else str(rng.choice(topology_types))
         )
         dropout_count = distribution.navigation_dropout_node_count
+        sampled_walker = None
+        walker_candidates = ()
         if self.scenario_type in {"walker_20_5_3", "walker_delta"}:
             plane_count = (
                 5 if self.scenario_type == "walker_20_5_3"
                 else self.walker_plane_count
             )
+            walker_candidates = tuple(
+                self._sample_walker_initialization(rng) for _ in range(8)
+            ) if distribution.walker_initialization is not None else ()
+            sampled_walker = walker_candidates[0] if walker_candidates else None
+            if sampled_walker is not None:
+                plane_count = sampled_walker.plane_count
             slots = self.node_count // plane_count
             node_ids = tuple(
                 f"sat_p{plane + 1:02d}_s{slot + 1:02d}"
@@ -589,8 +659,32 @@ class TopologyControlEnvironment:
                 () if physical_scenario is None
                 else physical_scenario.truth_initial_states
             ),
+            "walker_config": sampled_walker,
+            "walker_config_candidates": walker_candidates,
             "dynamic_link_events_by_link": {},
         }
+
+    def _sample_walker_initialization(self, rng):
+        distribution = self.compact_scenario_distribution.walker_initialization
+        if self.scenario_type not in {"walker_20_5_3", "walker_delta"} or (
+            distribution is None
+        ):
+            return None
+        option_index = int(rng.integers(len(distribution.plane_phasing_options)))
+        plane_count, phasing = distribution.plane_phasing_options[option_index]
+        return WalkerDeltaConfig(
+            total_satellites=self.node_count,
+            plane_count=int(plane_count),
+            phasing=int(phasing),
+            semi_major_axis=float(
+                R_EARTH + rng.uniform(*distribution.altitude_range)
+            ),
+            eccentricity=float(rng.uniform(*distribution.eccentricity_range)),
+            inclination=float(rng.uniform(*distribution.inclination_range)),
+            raan_origin=float(rng.uniform(0.0, 2.0 * np.pi)),
+            argument_of_perigee=float(rng.uniform(0.0, 2.0 * np.pi)),
+            base_true_anomaly=float(rng.uniform(0.0, 2.0 * np.pi)),
+        )
 
     def _sample_dynamic_link_events(self, rng, undirected_edges, distribution):
         undirected_edges = list(undirected_edges)

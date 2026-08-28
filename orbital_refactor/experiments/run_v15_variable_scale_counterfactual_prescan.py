@@ -8,6 +8,7 @@ from experiments.topology_control_baselines import HierarchicalGNNPolicy
 from experiments.variable_scale_counterfactual_prescan import (
     run_variable_scale_counterfactual_prescan,
 )
+from experiments.variable_scale_topology_curriculum import VariableScaleTopologyCurriculum
 
 
 def main(argv=None) -> Path:
@@ -26,6 +27,7 @@ def main(argv=None) -> Path:
     parser.add_argument(
         "--decision-indices", type=int, nargs="+", default=tuple(range(10)),
     )
+    parser.add_argument("--randomize-walker-initialization", action="store_true")
     arguments = parser.parse_args(argv)
     summary = run_variable_scale_counterfactual_prescan(
         condition_seeds=tuple(arguments.condition_seeds),
@@ -34,6 +36,11 @@ def main(argv=None) -> Path:
         maximum_actions_per_kind=arguments.maximum_actions_per_kind,
         decision_indices=tuple(arguments.decision_indices),
         reference_policy=HierarchicalGNNPolicy(arguments.reference_checkpoint),
+        curriculum=VariableScaleTopologyCurriculum(
+            randomize_walker_initialization=(
+                arguments.randomize_walker_initialization
+            )
+        ),
     )
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     arguments.output.write_text(

@@ -82,3 +82,26 @@ def test_curriculum_link_events_change_and_restore_channel_conditions():
     environment._apply_dynamic_link_conditions(event[1] + environment.dt)
     assert channel.packet_loss_rate[source] == base_loss
     assert channel.delay_by_source[source] == base_delay
+
+
+def test_randomized_walker_curriculum_is_seeded_and_changes_orbit_elements():
+    curriculum = VariableScaleTopologyCurriculum(
+        episode_epochs=2, randomize_walker_initialization=True,
+    )
+    sampled = []
+    for condition_seed in (1, 21, 2, 22):
+        configuration = curriculum.configuration_for_condition(condition_seed)
+        environment = build_stage1_environment(configuration)
+        first = environment._sample_episode_conditions(condition_seed)["walker_config"]
+        repeated = environment._sample_episode_conditions(condition_seed)["walker_config"]
+        assert first == repeated
+        assert first.total_satellites == configuration.node_count
+        assert first.total_satellites % first.plane_count == 0
+        sampled.append(first)
+    assert sampled[0] != sampled[1]
+    assert sampled[2] != sampled[3]
+    configuration = curriculum.configuration_for_condition(1702)
+    environment = build_stage1_environment(configuration)
+    environment.reset(seed=0, condition_seed=1702)
+    assert not environment._episode_conditions["walker_randomization_fallback"]
+    assert environment._episode_conditions["walker_randomization_attempt"] >= 0

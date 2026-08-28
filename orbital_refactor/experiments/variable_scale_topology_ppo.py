@@ -53,9 +53,11 @@ class VariableScalePPOConfiguration:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     entropy_coefficient: float = 0.01
+    action_type_probability_floor: float = 0.0
     explicit_action_pairing: bool = True
     critic_timestamp_horizon: float | None = None
     counterfactual_keep_reward: bool = False
+    difference_resource_penalties_from_keep: bool = False
     return_scale_by_node_count: tuple[tuple[int, float], ...] = ()
     critic_scale_calibration_node_counts: tuple[int, ...] = ()
     critic_weight_decay: float = 0.0
@@ -87,6 +89,19 @@ class VariableScaleBatchDiagnostic:
     episode_count_by_node_count: tuple[tuple[int, int], ...]
     transition_count_by_node_count: tuple[tuple[int, int], ...]
     update: PPOUpdateResult
+    action_diagnostics: tuple["VariableScaleActionDiagnostic", ...] = ()
+
+
+@dataclass(frozen=True)
+class VariableScaleActionDiagnostic:
+    node_count: int
+    action_kind: str
+    transition_count: int
+    actor_transition_count: int
+    mean_raw_advantage: float
+    positive_raw_advantage_fraction: float
+    mean_normalized_advantage: float
+    positive_normalized_advantage_fraction: float
 
 
 @dataclass(frozen=True)
@@ -151,6 +166,7 @@ def train_variable_scale_topology_ppo(
             "Warm-start and random-init Actor structures must use the same "
             "explicit-action-pairing setting."
         )
+    model.action_type_probability_floor = configuration.action_type_probability_floor
     actor_parameters = list(model.actor.parameters())
     critic_parameters = [
         parameter for name, parameter in model.named_parameters()
@@ -195,6 +211,10 @@ def train_variable_scale_topology_ppo(
                     tuple(value) for value in item["transition_count_by_node_count"]
                 ),
                 update=PPOUpdateResult(**item["update"]),
+                action_diagnostics=tuple(
+                    VariableScaleActionDiagnostic(**value)
+                    for value in item.get("action_diagnostics", ())
+                ),
             )
             for item in checkpoint["batch_diagnostics"]
         ]
@@ -244,6 +264,9 @@ def train_variable_scale_topology_ppo(
                 return_scale=dict(
                     configuration.return_scale_by_node_count
                 ).get(episode_configuration.node_count, 1.0),
+                difference_from_keep=(
+                    configuration.difference_resource_penalties_from_keep
+                ),
             )
             prepared = prepare_topology_rollout(
                 penalized,
@@ -259,6 +282,9 @@ def train_variable_scale_topology_ppo(
                 rollout, penalized, float(environment._metrics()[0]),
             ))
         combined = combine_prepared_topology_rollouts(tuple(prepared_rollouts))
+        action_diagnostics = _variable_scale_action_diagnostics(
+            tuple(prepared_rollouts), combined
+        )
         update = update_topology_ppo(
             model, optimizer, combined,
             update_epochs=configuration.update_epochs,
@@ -277,6 +303,7 @@ def train_variable_scale_topology_ppo(
             episode_count_by_node_count=tuple(sorted(episode_counts.items())),
             transition_count_by_node_count=tuple(sorted(transition_counts.items())),
             update=update,
+            action_diagnostics=action_diagnostics,
         ))
         for (
             episode, condition_seed, environment_seed, node_count,
@@ -304,14 +331,10 @@ def train_variable_scale_topology_ppo(
                     for transition in rollout.transitions
                 )),
                 penalized_return=float(penalized.rewards.sum().item()),
-                unnormalized_penalized_return=float(
-                    rollout.rewards.sum().item()
-                    - configuration.penalty_weights.communication * costs[0]
-                    / (node_count * decision_interval_epochs)
-                    - configuration.penalty_weights.topology_switch * costs[4]
-                    - configuration.penalty_weights.resynchronization
-                    * costs[3] / node_count
-                ),
+                unnormalized_penalized_return=float(penalized.rewards.sum().item()
+                    * dict(configuration.return_scale_by_node_count).get(
+                        node_count, 1.0
+                    )),
                 final_position_rmse=final_rmse,
                 transmitted_messages_per_node_epoch=float(
                     costs[0] / (node_count * decision_interval_epochs)
@@ -335,6 +358,7 @@ def train_variable_scale_topology_ppo(
             )
         if stop_after_batches is not None and completed_batches >= stop_after_batches:
             break
+    model.action_type_probability_floor = 0.0
     return VariableScaleTrainingResult(
         model=model,
         diagnostics=tuple(diagnostics),
@@ -375,22 +399,38 @@ def apply_variable_scale_penalties(
     decision_interval_epochs: int,
     weights: Stage1PenaltyWeights,
     return_scale: float = 1.0,
+    difference_from_keep: bool = False,
 ) -> TopologyRollout:
     """Apply fleet-size-normalized communication and resync penalties."""
 
     if node_count < 1 or decision_interval_epochs < 1 or return_scale <= 0.0:
         raise ValueError("Penalty normalization requires positive scale values.")
-    transitions = tuple(replace(
-        transition,
-        reward=(
-            transition.reward
-            - weights.communication * transition.costs[0]
-            / (node_count * decision_interval_epochs)
-            - weights.topology_switch * transition.costs[4]
-            - weights.resynchronization * transition.costs[3] / node_count
-        ) / return_scale,
-    ) for transition in rollout.transitions)
-    return TopologyRollout(transitions, rollout.final_value)
+    transitions = []
+    for transition in rollout.transitions:
+        if difference_from_keep and transition.counterfactual_keep_costs is None:
+            raise ValueError(
+                "Difference resource penalties require counterfactual keep costs."
+            )
+        keep_costs = (
+            transition.counterfactual_keep_costs
+            if difference_from_keep else (0.0,) * len(transition.costs)
+        )
+        costs = tuple(
+            selected - keep for selected, keep in zip(
+                transition.costs, keep_costs
+            )
+        )
+        transitions.append(replace(
+            transition,
+            reward=(
+                transition.reward
+                - weights.communication * costs[0]
+                / (node_count * decision_interval_epochs)
+                - weights.topology_switch * costs[4]
+                - weights.resynchronization * costs[3] / node_count
+            ) / return_scale,
+        ))
+    return TopologyRollout(tuple(transitions), rollout.final_value)
 
 
 def _validate_configuration(configuration):
@@ -426,3 +466,49 @@ def _validate_configuration(configuration):
         raise ValueError("Critic scale calibration must define 5, 10, and 20 nodes.")
     if configuration.critic_weight_decay < 0.0:
         raise ValueError("Critic weight decay must be nonnegative.")
+    if not 0.0 <= configuration.action_type_probability_floor < 0.25:
+        raise ValueError("Action-type probability floor must lie in [0, 0.25).")
+    if (
+        configuration.difference_resource_penalties_from_keep
+        and not configuration.counterfactual_keep_reward
+    ):
+        raise ValueError(
+            "Difference resource penalties require counterfactual keep reward."
+        )
+
+
+def _variable_scale_action_diagnostics(prepared_rollouts, combined):
+    raw_advantages = torch.cat(tuple(
+        rollout.advantages for rollout in prepared_rollouts
+    ))
+    records = []
+    for node_count in (5, 10, 20):
+        for kind_index, kind in enumerate(ACTION_KINDS):
+            indices = [
+                index for index, transition in enumerate(combined.transitions)
+                if len(transition.group.node_features) == node_count
+                and int(transition.group.action_kind_index[
+                    transition.action_index
+                ].item()) == kind_index
+            ]
+            if not indices:
+                continue
+            raw = raw_advantages[indices]
+            normalized = combined.advantages[indices]
+            records.append(VariableScaleActionDiagnostic(
+                node_count=node_count,
+                action_kind=kind,
+                transition_count=len(indices),
+                actor_transition_count=sum(
+                    bool(combined.actor_mask[index]) for index in indices
+                ),
+                mean_raw_advantage=float(raw.mean().item()),
+                positive_raw_advantage_fraction=float(
+                    (raw > 0.0).float().mean().item()
+                ),
+                mean_normalized_advantage=float(normalized.mean().item()),
+                positive_normalized_advantage_fraction=float(
+                    (normalized > 0.0).float().mean().item()
+                ),
+            ))
+    return tuple(records)
