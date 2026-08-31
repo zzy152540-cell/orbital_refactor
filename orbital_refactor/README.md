@@ -568,10 +568,38 @@ initialization candidate is
 closed-loop metrics are stored alongside it as JSON. PyTorch is optional for
 the estimator and is only required for GNN training or inference.
 
+### Experimental ring-CANN sidecar
+
+The `brain_inspired` package contains a discrete engineering reproduction of
+the Zhang-1996 one-dimensional ring attractor. It is intentionally passive:
+the CANN can observe an estimator-derived periodic phase and phase rate, but it
+does not replace or feed back into the EKF, Schmidt replay, CI, or topology
+controller.
+
+Run the standalone static, velocity, wrapping, and external-cue benchmark with:
+
+```bash
+python -m experiments.run_ring_cann_benchmark --output-dir results/cann
+```
+
+Run the 60-second Walker-20 truth/filter sidecar comparison with:
+
+```bash
+python -m experiments.run_walker_cann_sidecar_comparison \
+  --duration 60 --dt 2 --cue-interval-samples 5 \
+  --output-dir results/cann/walker_sidecar
+```
+
+The current short, low-noise Walker baseline favors phase-rate-only CANN
+propagation. Periodic and every-epoch estimator cues inject more phase error and
+alter bump concentration, so external cueing remains an experimental mechanism
+rather than a default project setting.
+
 ## Repository layout
 
 ```text
 orbital_core/   dynamics, measurement models, EKF/CI, integrity, and metrics
+brain_inspired/ passive CANN representations and orbital-phase adapters
 cooperative/    distributed filters, messages, replay, transport, and topology
 scenarios/      orbit, fleet, attitude, visibility, and Walker truth generation
 interfaces/     stable task, observation, state, and attitude data objects

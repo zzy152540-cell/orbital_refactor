@@ -19,6 +19,7 @@ gnn = ["torch"]
 where = ["."]
 include = [
   "adapters*",
+  "brain_inspired*",
   "cooperative*",
   "examples*",
   "experiments*",

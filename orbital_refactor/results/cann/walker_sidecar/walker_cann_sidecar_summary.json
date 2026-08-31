@@ -1,0 +1,16 @@
+{
+  "node_id": "sat_p01_s01",
+  "source_position_rmse_m": 1.842747167452631,
+  "phase_rmse_deg_by_mode": {
+    "no_cue": 8.535357332083953e-06,
+    "periodic_cue": 0.0034035304044848533,
+    "every_epoch_cue": 0.003913948793305809
+  },
+  "maximum_phase_error_deg_by_mode": {
+    "no_cue": 1.4951332509240605e-05,
+    "periodic_cue": 0.003985276710859216,
+    "every_epoch_cue": 0.003985276710757439
+  },
+  "csv": "results\\cann\\walker_sidecar\\walker_cann_sidecar.csv",
+  "figure": "results\\cann\\walker_sidecar\\walker_cann_sidecar.png"
+}
