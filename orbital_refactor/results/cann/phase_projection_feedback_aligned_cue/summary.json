@@ -1,0 +1,10 @@
+{
+  "projection_gain": 1.0,
+  "baseline_position_rmse_m": 41.58431993969837,
+  "projected_position_rmse_m": 42.38010513328498,
+  "baseline_outage_rmse_m": 66.71914680792786,
+  "projected_outage_rmse_m": 68.20156536685656,
+  "outage_improvement_m": -1.4824185589286998,
+  "maximum_projection_change_m": 50.13976356367813,
+  "cue_count": 119
+}

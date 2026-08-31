@@ -152,6 +152,35 @@ class RingCANN:
         self.timestamp += float(dt)
         return self.output(internal_step_count=internal_steps)
 
+    def apply_phase_cue(
+        self, phase_hint: float, *, cue_gain: float | None = None,
+        relaxation_duration: float | None = None,
+    ) -> CANNOutput:
+        """Assimilate an endpoint phase cue without advancing physical time.
+
+        This is the discrete-measurement counterpart of ``step``.  It avoids
+        applying a cue observed at the end of an estimator interval throughout
+        that preceding interval, which would introduce an acausal phase lead.
+        """
+
+        if not self._initialized:
+            raise RuntimeError("RingCANN.reset must be called before cue assimilation.")
+        hint = _wrapped_phase(phase_hint)
+        gain = self.config.cue_gain if cue_gain is None else float(cue_gain)
+        duration = (
+            self.config.initialization_duration if relaxation_duration is None
+            else float(relaxation_duration)
+        )
+        if not np.isfinite(gain) or gain < 0.0:
+            raise ValueError("Cue gain must be finite and nonnegative.")
+        if not np.isfinite(duration) or duration <= 0.0:
+            raise ValueError("Cue relaxation duration must be finite and positive.")
+        internal_steps = self._integrate(
+            phase_rate=0.0, duration=duration,
+            external_phase_hint=hint, cue_gain=gain,
+        )
+        return self.output(internal_step_count=internal_steps)
+
     def output(self, *, internal_step_count: int = 0) -> CANNOutput:
         phase, concentration, width = decode_ring_activity(
             self.firing_rate, self.preferred_phase

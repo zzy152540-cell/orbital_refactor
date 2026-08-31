@@ -105,6 +105,15 @@ def test_external_cue_reduces_phase_offset():
     assert after.valid
 
 
+def test_discrete_phase_cue_does_not_advance_physical_timestamp():
+    cann = RingCANN()
+    cann.reset(np.deg2rad(30.0), timestamp=4.0)
+    before = cann.timestamp
+    output = cann.apply_phase_cue(np.deg2rad(31.0))
+    assert output.timestamp == before
+    assert output.internal_step_count > 0
+
+
 def test_step_uses_exact_physical_time_coverage():
     cann = RingCANN(RingCANNConfig(internal_dt=0.001))
     cann.reset(0.0)

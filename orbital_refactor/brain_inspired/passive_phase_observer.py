@@ -79,10 +79,11 @@ class PassiveRingCANNObserver:
             raise ValueError("Periodic-state timestamps must be strictly increasing.")
         cue_applied = bool(sample.phase_hint_valid)
         phase_hint = float(sample.phase_hint) if cue_applied else None
-        output = self._cann.step(
-            float(sample.phase_rate), dt, external_phase_hint=phase_hint,
-            cue_gain=sample.cue_gain,
-        )
+        output = self._cann.step(float(sample.phase_rate), dt)
+        if cue_applied:
+            output = self._cann.apply_phase_cue(
+                phase_hint, cue_gain=sample.cue_gain,
+            )
         self._last_timestamp = float(sample.timestamp)
         return _to_observation(
             output, phase_hint=phase_hint, cue_applied=cue_applied,
