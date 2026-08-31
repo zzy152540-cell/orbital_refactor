@@ -122,6 +122,8 @@ def train_variable_scale_topology_ppo(
     warm_start_checkpoint: str | None = None,
     reset_warm_start_type_head: bool = False,
     training_checkpoint: str | Path | None = None,
+    training_checkpoint_archive_directory: str | Path | None = None,
+    initial_model_checkpoint: str | Path | None = None,
     resume_training_checkpoint: str | Path | None = None,
     stop_after_batches: int | None = None,
 ) -> VariableScaleTrainingResult:
@@ -171,6 +173,22 @@ def train_variable_scale_topology_ppo(
             "Warm-start and random-init Actor structures must use the same "
             "explicit-action-pairing setting."
         )
+    if initial_model_checkpoint is not None:
+        if resume_training_checkpoint is not None:
+            raise ValueError(
+                "An initial model checkpoint cannot be combined with resume."
+            )
+        initial = torch.load(
+            Path(initial_model_checkpoint), map_location="cpu", weights_only=True,
+        )
+        state_key = (
+            "model_state_dict" if "model_state_dict" in initial
+            else "warm_model_state_dict"
+            if "warm_model_state_dict" in initial else None
+        )
+        if state_key is None:
+            raise ValueError("Initial model checkpoint omits a supported state dict.")
+        model.load_state_dict(initial[state_key])
     model.action_type_probability_floor = configuration.action_type_probability_floor
     actor_parameters = list(model.actor.parameters())
     critic_parameters = [
@@ -363,6 +381,20 @@ def train_variable_scale_topology_ppo(
         if training_checkpoint is not None:
             _save_training_checkpoint(
                 training_checkpoint,
+                configuration=configuration,
+                next_episode=batch_end,
+                model=model,
+                optimizer=optimizer,
+                generator=generator,
+                diagnostics=diagnostics,
+                batch_diagnostics=batch_diagnostics,
+            )
+        if training_checkpoint_archive_directory is not None:
+            archive_path = Path(training_checkpoint_archive_directory) / (
+                f"episode_{batch_end:04d}.pt"
+            )
+            _save_training_checkpoint(
+                archive_path,
                 configuration=configuration,
                 next_episode=batch_end,
                 model=model,

@@ -11,6 +11,9 @@ from experiments.variable_scale_policy_diagnostics import (
     run_variable_scale_policy_diagnostics,
     write_policy_diagnostic_csv,
 )
+from experiments.variable_scale_topology_curriculum import (
+    VariableScaleTopologyCurriculum,
+)
 
 
 def main(argv=None) -> Path:
@@ -21,6 +24,7 @@ def main(argv=None) -> Path:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--csv", type=Path)
     parser.add_argument("--figure", type=Path)
+    parser.add_argument("--randomize-walker-initialization", action="store_true")
     parser.add_argument("--branch", choices=("warm_start", "random_init"), default="warm_start")
     parser.add_argument("--condition-seeds", type=int, nargs="+", default=tuple(range(1500, 1507)))
     parser.add_argument("--noise-seeds", type=int, nargs="+", default=(0,))
@@ -44,6 +48,11 @@ def main(argv=None) -> Path:
         decision_indices=tuple(arguments.decision_indices),
         horizon_decisions=arguments.horizon_decisions,
         maximum_actions_per_kind=arguments.maximum_actions_per_kind,
+        curriculum=VariableScaleTopologyCurriculum(
+            randomize_walker_initialization=(
+                arguments.randomize_walker_initialization
+            )
+        ),
         trajectories=tuple(arguments.trajectories),
         gamma=float(configuration.get("gamma", 0.99)),
         gae_lambda=float(configuration.get("gae_lambda", 0.95)),

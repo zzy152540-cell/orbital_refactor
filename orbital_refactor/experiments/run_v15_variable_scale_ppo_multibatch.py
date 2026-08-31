@@ -68,8 +68,13 @@ def main(argv=None) -> Path:
     )
     parser.add_argument("--stratify-walker-randomization-by-batch", action="store_true")
     parser.add_argument("--checkpoint-directory", type=Path)
+    parser.add_argument("--archive-training-checkpoints", action="store_true")
     parser.add_argument("--resume-random", type=Path)
     parser.add_argument("--resume-warm", type=Path)
+    parser.add_argument(
+        "--initial-warm-model", type=Path,
+        help="Initialize the warm branch from a full Actor-Critic checkpoint.",
+    )
     parser.add_argument("--training-condition-offset", type=int, default=500)
     parser.add_argument(
         "--evaluation-conditions", type=int, nargs="+",
@@ -124,12 +129,23 @@ def main(argv=None) -> Path:
         checkpoint_directory / "warm_training.pt"
         if checkpoint_directory is not None else None
     )
+    random_archive = (
+        checkpoint_directory / "random_batches"
+        if checkpoint_directory is not None
+        and arguments.archive_training_checkpoints else None
+    )
+    warm_archive = (
+        checkpoint_directory / "warm_batches"
+        if checkpoint_directory is not None
+        and arguments.archive_training_checkpoints else None
+    )
     random_result = None
     warm_result = None
     if arguments.initializations in ("both", "random"):
         random_result = train_variable_scale_topology_ppo(
             configuration,
             training_checkpoint=random_checkpoint,
+            training_checkpoint_archive_directory=random_archive,
             resume_training_checkpoint=arguments.resume_random,
         )
     if arguments.initializations in ("both", "warm"):
@@ -138,6 +154,8 @@ def main(argv=None) -> Path:
             warm_start_checkpoint=str(arguments.warm_start),
             reset_warm_start_type_head=False,
             training_checkpoint=warm_checkpoint,
+            training_checkpoint_archive_directory=warm_archive,
+            initial_model_checkpoint=arguments.initial_warm_model,
             resume_training_checkpoint=arguments.resume_warm,
         )
     evaluation_conditions = tuple(arguments.evaluation_conditions)

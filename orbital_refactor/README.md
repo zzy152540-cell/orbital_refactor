@@ -220,6 +220,19 @@ generalization failure of the homogeneous LCB checkpoint. This distribution is
 therefore the next training dimension; pre-scan conditions 76--79 are excluded
 from subsequent fitting and formal evaluation.
 
+The latest variable-scale diagnostic separates Critic learnability from joint
+Actor-Critic optimization.  With the Actor frozen and condition-disjoint
+finite-horizon Monte Carlo targets, validation explained variance increased
+from 0.007 to 0.715 on fixed Walker initialization and from 0.002 to a
+best-checkpoint value of 0.531 on randomized initialization.  A paired
+12-episode joint-PPO pilot retained higher pre-update explained variance with
+the fitted Critic (0.043/0.131 versus 0.002/-0.001), but produced the same
+deterministic action distribution and RMSE as the original Critic.  This shows
+that the existing Critic can learn frozen-policy returns while a one-time
+offline warm-up alone does not resolve the PPO action-type bias; the next PPO
+experiment should separate within-batch Critic fitting from Actor updates and
+recompute GAE after the Critic phase.
+
 The first geometry-randomized five-node curriculum now samples three physically
 parameterized orbit families: compact along-track, differential along-track,
 and a two-plane local cluster. Initial truth states are generated from valid

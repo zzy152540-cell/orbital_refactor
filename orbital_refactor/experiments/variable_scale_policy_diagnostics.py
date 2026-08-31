@@ -90,12 +90,13 @@ def run_variable_scale_policy_diagnostics(
     gamma: float = 0.99,
     gae_lambda: float = 0.95,
     penalty_weights: Stage1PenaltyWeights = Stage1PenaltyWeights(),
+    curriculum: VariableScaleTopologyCurriculum | None = None,
 ) -> dict[str, object]:
     """Jointly audit baseline scale, reward terms, policy mass, and advantages."""
 
     if not condition_seeds or not noise_seeds:
         raise ValueError("Diagnostic conditions and noise seeds must be nonempty.")
-    curriculum = VariableScaleTopologyCurriculum()
+    curriculum = curriculum or VariableScaleTopologyCurriculum()
     requested = set(int(value) for value in decision_indices)
     baselines, states, selected_advantages = [], [], []
     for condition_seed in condition_seeds:
@@ -167,6 +168,7 @@ def _audit_trajectory(
             group = torch_snapshot_action_group(snapshot)
             with torch.no_grad():
                 output = model(group)
+                actor = model.actor(group)
             distribution = output.distribution
             probabilities = distribution.action_log_probabilities.exp().cpu().numpy()
             type_probabilities = distribution.type_probabilities.cpu().numpy()
@@ -243,6 +245,32 @@ def _audit_trajectory(
                     state.action_space.actions, state.action_space.legal_mask
                 ) if legal
             )
+            type_order = np.argsort(type_probabilities)[::-1]
+            type_margin = (
+                float(type_probabilities[type_order[0]] - type_probabilities[type_order[1]])
+                if len(type_order) > 1 else float("inf")
+            )
+            selected_kind_index = int(type_order[0])
+            selected_kind_mask = (
+                group.action_kind_index.cpu().numpy() == selected_kind_index
+            )
+            selected_kind_utilities = np.sort(
+                actor.utility.detach().cpu().numpy()[selected_kind_mask]
+            )[::-1]
+            conditional_margin = (
+                float(selected_kind_utilities[0] - selected_kind_utilities[1])
+                if len(selected_kind_utilities) > 1 else float("inf")
+            )
+            objective_order = sorted(
+                outcomes, key=lambda item: item["objective_gain_over_keep"],
+                reverse=True,
+            )
+            oracle_kind = objective_order[0]["action_kind"]
+            oracle_margin = (
+                float(objective_order[0]["objective_gain_over_keep"]
+                      - objective_order[1]["objective_gain_over_keep"])
+                if len(objective_order) > 1 else float("inf")
+            )
             records.append({
                 "condition_seed": int(condition_seed),
                 "noise_seed": int(noise_seed),
@@ -254,6 +282,13 @@ def _audit_trajectory(
                     kind: float(type_probabilities[index])
                     for index, kind in enumerate(ACTION_KINDS)
                 },
+                "type_probability_margin": type_margin,
+                "selected_type_utility_margin": conditional_margin,
+                "audited_best_action_kind": oracle_kind,
+                "audited_best_objective_margin": oracle_margin,
+                "audited_best_kind_matches": (
+                    ACTION_KINDS[selected_kind_index] == oracle_kind
+                ),
                 "deterministic_action_kind": ACTION_KINDS[int(
                     group.action_kind_index[int(distribution.mode().item())].item()
                 )],

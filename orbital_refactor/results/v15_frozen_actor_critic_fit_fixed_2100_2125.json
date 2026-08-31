@@ -1,0 +1,1028 @@
+{
+  "actor_unchanged": true,
+  "after": {
+    "training": {
+      "by_node_count": {
+        "10": {
+          "correlation": 0.7889838506772994,
+          "count": 40,
+          "explained_variance": 0.615363715398048,
+          "prediction_mean": -0.6692842520773411,
+          "rmse": 0.24129584596028336,
+          "target_mean": -0.6626284735270824
+        },
+        "20": {
+          "correlation": 0.9326365366809342,
+          "count": 30,
+          "explained_variance": 0.8657261572454027,
+          "prediction_mean": -1.5857004473606746,
+          "rmse": 0.3100350892019051,
+          "target_mean": -1.6168539209657184
+        },
+        "5": {
+          "correlation": 0.8827913750437876,
+          "count": 50,
+          "explained_variance": 0.7784690679915978,
+          "prediction_mean": -0.893197038769722,
+          "rmse": 0.1945161074115133,
+          "target_mean": -0.877237890921343
+        }
+      },
+      "overall": {
+        "correlation": 0.9309103473996236,
+        "count": 120,
+        "explained_variance": 0.8646871508455932,
+        "prediction_mean": -0.9916852953533332,
+        "rmse": 0.2433177947549069,
+        "target_mean": -0.9906054259676833
+      }
+    },
+    "validation": {
+      "by_node_count": {
+        "10": {
+          "correlation": 0.7437906309354592,
+          "count": 20,
+          "explained_variance": 0.5434545912690585,
+          "prediction_mean": -0.6722389742732048,
+          "rmse": 0.28546880398403024,
+          "target_mean": -0.6339788525956591
+        },
+        "20": {
+          "correlation": 0.8690051292586946,
+          "count": 10,
+          "explained_variance": 0.7158730044382111,
+          "prediction_mean": -1.6488916218280791,
+          "rmse": 0.7190516950919942,
+          "target_mean": -2.158733219425964
+        },
+        "5": {
+          "correlation": 0.64181490325987,
+          "count": 30,
+          "explained_variance": 0.38062306510060473,
+          "prediction_mean": -0.8701354334751765,
+          "rmse": 0.3299336691618378,
+          "target_mean": -0.8271637428352802
+        }
+      },
+      "overall": {
+        "correlation": 0.8681473116831493,
+        "count": 60,
+        "explained_variance": 0.7145793634336299,
+        "prediction_mean": -0.9339626451333364,
+        "rmse": 0.40959103474290764,
+        "target_mean": -0.9846970255205203
+      }
+    }
+  },
+  "audit_role": "frozen_actor_critic_only_learnability_gate",
+  "before": {
+    "training": {
+      "by_node_count": {
+        "10": {
+          "correlation": 0.204552867574509,
+          "count": 40,
+          "explained_variance": 0.00845770285227565,
+          "prediction_mean": -0.18720849975943565,
+          "rmse": 0.613190866396337,
+          "target_mean": -0.6626284735270824
+        },
+        "20": {
+          "correlation": -0.08830953567688091,
+          "count": 30,
+          "explained_variance": -0.0033760950834318404,
+          "prediction_mean": -0.19662625342607498,
+          "rmse": 1.6516884066679351,
+          "target_mean": -1.6168539209657184
+        },
+        "5": {
+          "correlation": 0.388038168982702,
+          "count": 50,
+          "explained_variance": 0.02141351710336803,
+          "prediction_mean": -0.19685481041669844,
+          "rmse": 0.7930538147696609,
+          "target_mean": -0.877237890921343
+        }
+      },
+      "overall": {
+        "correlation": 0.2127290945236052,
+        "count": 120,
+        "explained_variance": 0.0076778950155258485,
+        "prediction_mean": -0.19358223428328833,
+        "rmse": 1.0341223210326276,
+        "target_mean": -0.9906054259676833
+      }
+    },
+    "validation": {
+      "by_node_count": {
+        "10": {
+          "correlation": -0.07264829587283812,
+          "count": 20,
+          "explained_variance": -0.003052860685777592,
+          "prediction_mean": -0.18676626533269883,
+          "rmse": 0.6130464061504803,
+          "target_mean": -0.6339788525956591
+        },
+        "20": {
+          "correlation": -0.1649679661203175,
+          "count": 10,
+          "explained_variance": -0.003588462112841029,
+          "prediction_mean": -0.19917024672031403,
+          "rmse": 2.1789906422176095,
+          "target_mean": -2.158733219425964
+        },
+        "5": {
+          "correlation": 0.2171870984334895,
+          "count": 30,
+          "explained_variance": 0.013952907829336336,
+          "prediction_mean": -0.1963485191265742,
+          "rmse": 0.7538481638995986,
+          "target_mean": -0.8271637428352802
+        }
+      },
+      "overall": {
+        "correlation": 0.2020924776476308,
+        "count": 60,
+        "explained_variance": 0.006576033885664745,
+        "prediction_mean": -0.1936247224609057,
+        "rmse": 1.0957883899811085,
+        "target_mean": -0.9846970255205203
+      }
+    }
+  },
+  "configuration": {
+    "epochs": 200,
+    "gamma": 0.99,
+    "gradient_clip_norm": 1.0,
+    "learning_rate": 0.0003,
+    "minibatch_size": 32,
+    "seed": 0,
+    "weight_decay": 0.001
+  },
+  "history": [
+    {
+      "epoch": 1,
+      "minibatch_loss_mean": 1.0501725673675537,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": -0.05176560381385134,
+            "count": 40,
+            "explained_variance": -0.0017641896613493913,
+            "prediction_mean": -0.24391556866466998,
+            "rmse": 0.5717040569832503,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": -0.4512943938123344,
+            "count": 30,
+            "explained_variance": -0.013326644965377499,
+            "prediction_mean": -0.2662010123332342,
+            "rmse": 1.594472501488577,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": -0.17589911142225156,
+            "count": 50,
+            "explained_variance": -0.013880573931612572,
+            "prediction_mean": -0.2545403289794922,
+            "rmse": 0.7481664049755486,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.1397724442108637,
+          "count": 120,
+          "explained_variance": 0.005650201419248546,
+          "prediction_mean": -0.25391391304632027,
+          "rmse": 0.9888197778481651,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": -0.13649895577688728,
+            "count": 20,
+            "explained_variance": -0.003044057249254717,
+            "prediction_mean": -0.24110214412212372,
+            "rmse": 0.5746106184013778,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": -0.46748318945955825,
+            "count": 10,
+            "explained_variance": -0.012788516028149566,
+            "prediction_mean": -0.2709845319390297,
+            "rmse": 2.1166088677083477,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": -0.17771243096467795,
+            "count": 30,
+            "explained_variance": -0.01679820817618527,
+            "prediction_mean": -0.25394661525885265,
+            "rmse": 0.7101055898840076,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.24337760678562628,
+          "count": 60,
+          "explained_variance": 0.010387641035124018,
+          "prediction_mean": -0.25250477765997253,
+          "rmse": 1.0530224491730447,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 20,
+      "minibatch_loss_mean": 0.4084232300519943,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": -0.137201698680765,
+            "count": 40,
+            "explained_variance": -0.05322062509635206,
+            "prediction_mean": -0.8870457947254181,
+            "rmse": 0.4578988677677476,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": -0.5776815885890947,
+            "count": 30,
+            "explained_variance": -0.11945182856306147,
+            "prediction_mean": -1.1483540137608845,
+            "rmse": 1.0063674868944361,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": -0.1656144373651854,
+            "count": 50,
+            "explained_variance": -0.05763332256882481,
+            "prediction_mean": -0.9423936581611634,
+            "rmse": 0.42856559095770025,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.33233109302241115,
+          "count": 120,
+          "explained_variance": 0.08717168008306764,
+          "prediction_mean": -0.9754344592491786,
+          "rmse": 0.6321494006701279,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": -0.20403091303290366,
+            "count": 20,
+            "explained_variance": -0.06896393145406443,
+            "prediction_mean": -0.8870473563671112,
+            "rmse": 0.5014221039108689,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": -0.8603080246228837,
+            "count": 10,
+            "explained_variance": -0.1718908923779885,
+            "prediction_mean": -1.170605081319809,
+            "rmse": 1.4271655669219414,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": -0.4257039725166575,
+            "count": 30,
+            "explained_variance": -0.1284841731982207,
+            "prediction_mean": -0.938338694969813,
+            "rmse": 0.4553327473310822,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.37549950309456526,
+          "count": 60,
+          "explained_variance": 0.0906003877729471,
+          "prediction_mean": -0.9599526464939118,
+          "rmse": 0.7259055884852433,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 40,
+      "minibatch_loss_mean": 0.26072588190436363,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.26190366960102807,
+            "count": 40,
+            "explained_variance": 0.054170837261206306,
+            "prediction_mean": -0.7131329745054245,
+            "rmse": 0.38159547442343267,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.6905638706305214,
+            "count": 30,
+            "explained_variance": 0.25504577928315375,
+            "prediction_mean": -1.244679367542267,
+            "rmse": 0.8163424145192139,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8420834471613693,
+            "count": 50,
+            "explained_variance": 0.5066387919950908,
+            "prediction_mean": -0.9724425840377807,
+            "rmse": 0.3045663409095691,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.7351638542666947,
+          "count": 120,
+          "explained_variance": 0.4229843450229581,
+          "prediction_mean": -0.9540652434031168,
+          "rmse": 0.5037781024176367,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.21398749450820945,
+            "count": 20,
+            "explained_variance": 0.0415558617861459,
+            "prediction_mean": -0.737865749001503,
+            "rmse": 0.42284719256373776,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.3795001138150154,
+            "count": 10,
+            "explained_variance": 0.05999735958120145,
+            "prediction_mean": -1.294730293750763,
+            "rmse": 1.263755346630364,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6540933486004035,
+            "count": 30,
+            "explained_variance": 0.3193385177390963,
+            "prediction_mean": -0.970493080218633,
+            "rmse": 0.37167335232912746,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.6921933033407703,
+          "count": 60,
+          "explained_variance": 0.32022537427473763,
+          "prediction_mean": -0.946990172068278,
+          "rmse": 0.6283709513694407,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 60,
+      "minibatch_loss_mean": 0.1824843715876341,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.28764388895910864,
+            "count": 40,
+            "explained_variance": -0.09179367411854522,
+            "prediction_mean": -0.6670479480177164,
+            "rmse": 0.4064015995888475,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.7937482773175444,
+            "count": 30,
+            "explained_variance": 0.5093538758339831,
+            "prediction_mean": -1.4045719504356384,
+            "rmse": 0.626700022475642,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8462833676733363,
+            "count": 50,
+            "explained_variance": 0.7009907421622024,
+            "prediction_mean": -1.0036658215522767,
+            "rmse": 0.2582822606306,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.7796220789532002,
+          "count": 120,
+          "explained_variance": 0.586222496775298,
+          "prediction_mean": -0.9916863959282637,
+          "rmse": 0.42548564663302413,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.25178713377304335,
+            "count": 20,
+            "explained_variance": -0.02465318999965005,
+            "prediction_mean": -0.709031057357788,
+            "rmse": 0.4304021245786578,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.588042255468568,
+            "count": 10,
+            "explained_variance": 0.2295668069111173,
+            "prediction_mean": -1.4720956087112427,
+            "rmse": 1.0810227032794097,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6866878354715849,
+            "count": 30,
+            "explained_variance": 0.46621494986452783,
+            "prediction_mean": -1.000651619831721,
+            "rmse": 0.34974277156576183,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.7183638563921569,
+          "count": 60,
+          "explained_variance": 0.4511225381735984,
+          "prediction_mean": -0.9820187638203303,
+          "rmse": 0.5636284357441923,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 80,
+      "minibatch_loss_mean": 0.1527690812945366,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.3290676382699804,
+            "count": 40,
+            "explained_variance": -0.1013912772891874,
+            "prediction_mean": -0.6619739105924964,
+            "rmse": 0.408160351910968,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.8231426060713799,
+            "count": 30,
+            "explained_variance": 0.6188477447904239,
+            "prediction_mean": -1.462353907028834,
+            "rmse": 0.5421884267132561,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8521013610387707,
+            "count": 50,
+            "explained_variance": 0.7260512104378647,
+            "prediction_mean": -0.9468872094154358,
+            "rmse": 0.22655093369529936,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.8144604858284678,
+          "count": 120,
+          "explained_variance": 0.6564454435880163,
+          "prediction_mean": -0.9807827842111388,
+          "rmse": 0.38782631308623927,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.3035393310423622,
+            "count": 20,
+            "explained_variance": -0.006350522767996747,
+            "prediction_mean": -0.7082019478082657,
+            "rmse": 0.4265136790312243,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.6368750646544608,
+            "count": 10,
+            "explained_variance": 0.3243707156661976,
+            "prediction_mean": -1.5371323108673096,
+            "rmse": 0.9988702233859774,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6844140698560937,
+            "count": 30,
+            "explained_variance": 0.4665750502491093,
+            "prediction_mean": -0.9424480597178141,
+            "rmse": 0.3247309994866184,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.7527007056282277,
+          "count": 60,
+          "explained_variance": 0.5175860891961138,
+          "prediction_mean": -0.9634800642728806,
+          "rmse": 0.5288226271714974,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 100,
+      "minibatch_loss_mean": 0.13358894735574722,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.39516140960753304,
+            "count": 40,
+            "explained_variance": 0.015182615873834071,
+            "prediction_mean": -0.6714220263063908,
+            "rmse": 0.386055715686597,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.8456337035719782,
+            "count": 30,
+            "explained_variance": 0.6770855277300505,
+            "prediction_mean": -1.492728371421496,
+            "rmse": 0.49420221044059087,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8580340335098375,
+            "count": 50,
+            "explained_variance": 0.7358948695504834,
+            "prediction_mean": -0.9198729825019837,
+            "rmse": 0.2159215419813459,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.8414972597655977,
+          "count": 120,
+          "explained_variance": 0.702740416182337,
+          "prediction_mean": -0.9802698443333308,
+          "rmse": 0.36078318723857217,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.3816828094366873,
+            "count": 20,
+            "explained_variance": 0.09329467389458901,
+            "prediction_mean": -0.7153202533721924,
+            "rmse": 0.4068836472445229,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.684700599426008,
+            "count": 10,
+            "explained_variance": 0.39725903551219377,
+            "prediction_mean": -1.5675524473190308,
+            "rmse": 0.9459886730014907,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6774191186882825,
+            "count": 30,
+            "explained_variance": 0.45282741793092884,
+            "prediction_mean": -0.9129187931617101,
+            "rmse": 0.31920033416667326,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.7812878402347184,
+          "count": 60,
+          "explained_variance": 0.5603313849822074,
+          "prediction_mean": -0.956158222258091,
+          "rmse": 0.5052507189890117,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 120,
+      "minibatch_loss_mean": 0.10997949726879597,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.5015461414536395,
+            "count": 40,
+            "explained_variance": 0.2053090893488414,
+            "prediction_mean": -0.6972827859222889,
+            "rmse": 0.3484313781981122,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.8641839902232276,
+            "count": 30,
+            "explained_variance": 0.7172582553566806,
+            "prediction_mean": -1.5435628950595857,
+            "rmse": 0.4535773633388408,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8653998488660175,
+            "count": 50,
+            "explained_variance": 0.7489090298846184,
+            "prediction_mean": -0.9216349858045578,
+            "rmse": 0.21111054904922288,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.868601897473185,
+          "count": 120,
+          "explained_variance": 0.7478218019560551,
+          "prediction_mean": -1.0023328964908917,
+          "rmse": 0.3323719420633694,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.4963405932509557,
+            "count": 20,
+            "explained_variance": 0.23997950349322672,
+            "prediction_mean": -0.7342886909842491,
+            "rmse": 0.3785331105369675,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.7324294637158306,
+            "count": 10,
+            "explained_variance": 0.461582687073403,
+            "prediction_mean": -1.619495940208435,
+            "rmse": 0.8820274462240025,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6681218126036494,
+            "count": 30,
+            "explained_variance": 0.4403938686010074,
+            "prediction_mean": -0.9122707545757294,
+            "rmse": 0.3223759770360929,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.8137797771803249,
+          "count": 60,
+          "explained_variance": 0.6039916114182945,
+          "prediction_mean": -0.9708142643173535,
+          "rmse": 0.47894430071911737,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 140,
+      "minibatch_loss_mean": 0.09037698525935411,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.6013411315508214,
+            "count": 40,
+            "explained_variance": 0.35203568200446744,
+            "prediction_mean": -0.6812710750848054,
+            "rmse": 0.3136199174099984,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.8876254367843228,
+            "count": 30,
+            "explained_variance": 0.770533792049422,
+            "prediction_mean": -1.5497672259807587,
+            "rmse": 0.40878910915969546,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.869995628199065,
+            "count": 50,
+            "explained_variance": 0.7563463222539244,
+            "prediction_mean": -0.9055824422836304,
+            "rmse": 0.20527608013345383,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.8912330259669126,
+          "count": 120,
+          "explained_variance": 0.7894530100518229,
+          "prediction_mean": -0.9918581824749708,
+          "rmse": 0.3035136958829769,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.5938341812839563,
+            "count": 20,
+            "explained_variance": 0.3525243907327418,
+            "prediction_mean": -0.7098767533898354,
+            "rmse": 0.3453368843356436,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.785407611461812,
+            "count": 10,
+            "explained_variance": 0.5508666332293879,
+            "prediction_mean": -1.6227074980735778,
+            "rmse": 0.832904034477028,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6577467149025772,
+            "count": 30,
+            "explained_variance": 0.4183211976330643,
+            "prediction_mean": -0.8926723043123881,
+            "rmse": 0.3237096396331585,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.8344081782595932,
+          "count": 60,
+          "explained_variance": 0.642704527979755,
+          "prediction_mean": -0.9534129862984021,
+          "rmse": 0.455815761462841,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 160,
+      "minibatch_loss_mean": 0.08306457102298737,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.6834279896656429,
+            "count": 40,
+            "explained_variance": 0.46706583269328794,
+            "prediction_mean": -0.6876726053655148,
+            "rmse": 0.285022565510952,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.9097732445959988,
+            "count": 30,
+            "explained_variance": 0.8147130600135162,
+            "prediction_mean": -1.5694818904002508,
+            "rmse": 0.36543812172760776,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8740100088205687,
+            "count": 50,
+            "explained_variance": 0.7634665162206777,
+            "prediction_mean": -0.9072068667411805,
+            "rmse": 0.20254649601089889,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.9097616426151733,
+          "count": 120,
+          "explained_variance": 0.8229153644269597,
+          "prediction_mean": -0.9995975355307262,
+          "rmse": 0.278494752953063,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.6644283512816793,
+            "count": 20,
+            "explained_variance": 0.43607092310677975,
+            "prediction_mean": -0.7056690707802773,
+            "rmse": 0.3224772079304861,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.8196976304107203,
+            "count": 10,
+            "explained_variance": 0.6164859278902707,
+            "prediction_mean": -1.6397189140319823,
+            "rmse": 0.7851144698970848,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6504130074196076,
+            "count": 30,
+            "explained_variance": 0.40425017875859437,
+            "prediction_mean": -0.8895420253276825,
+            "rmse": 0.32683123642810796,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.8499282455372583,
+          "count": 60,
+          "explained_variance": 0.6720239911722817,
+          "prediction_mean": -0.953280521929264,
+          "rmse": 0.4368149496500095,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 180,
+      "minibatch_loss_mean": 0.06853951280936599,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.7510800004761576,
+            "count": 40,
+            "explained_variance": 0.5600274099031312,
+            "prediction_mean": -0.6791847169399261,
+            "rmse": 0.2585025418851873,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.9230993350965522,
+            "count": 30,
+            "explained_variance": 0.8455556714955527,
+            "prediction_mean": -1.578212465842565,
+            "rmse": 0.3330734195592764,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8767422230039089,
+            "count": 50,
+            "explained_variance": 0.7672730460329074,
+            "prediction_mean": -0.9003209269046784,
+            "rmse": 0.20003501639321492,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.9222116904755312,
+          "count": 120,
+          "explained_variance": 0.8476614405878276,
+          "prediction_mean": -0.9960817416508992,
+          "rmse": 0.2582276134234276,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.7211239374793086,
+            "count": 20,
+            "explained_variance": 0.5085957935119623,
+            "prediction_mean": -0.6897732958197593,
+            "rmse": 0.29875086183583993,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.8413587671899933,
+            "count": 10,
+            "explained_variance": 0.6672068507880028,
+            "prediction_mean": -1.6409681975841521,
+            "rmse": 0.7544626272612216,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.6390372471908763,
+            "count": 30,
+            "explained_variance": 0.3770655183647149,
+            "prediction_mean": -0.880068576335907,
+            "rmse": 0.332299891772713,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.8569360282223367,
+          "count": 60,
+          "explained_variance": 0.6922223550752711,
+          "prediction_mean": -0.943453419705232,
+          "rmse": 0.42406518073005584,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    },
+    {
+      "epoch": 200,
+      "minibatch_loss_mean": 0.06397402053698897,
+      "training": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.7889838506772994,
+            "count": 40,
+            "explained_variance": 0.615363715398048,
+            "prediction_mean": -0.6692842520773411,
+            "rmse": 0.24129584596028336,
+            "target_mean": -0.6626284735270824
+          },
+          "20": {
+            "correlation": 0.9326365366809342,
+            "count": 30,
+            "explained_variance": 0.8657261572454027,
+            "prediction_mean": -1.5857004473606746,
+            "rmse": 0.3100350892019051,
+            "target_mean": -1.6168539209657184
+          },
+          "5": {
+            "correlation": 0.8827913750437876,
+            "count": 50,
+            "explained_variance": 0.7784690679915978,
+            "prediction_mean": -0.893197038769722,
+            "rmse": 0.1945161074115133,
+            "target_mean": -0.877237890921343
+          }
+        },
+        "overall": {
+          "correlation": 0.9309103473996236,
+          "count": 120,
+          "explained_variance": 0.8646871508455932,
+          "prediction_mean": -0.9916852953533332,
+          "rmse": 0.2433177947549069,
+          "target_mean": -0.9906054259676833
+        }
+      },
+      "validation": {
+        "by_node_count": {
+          "10": {
+            "correlation": 0.7437906309354592,
+            "count": 20,
+            "explained_variance": 0.5434545912690585,
+            "prediction_mean": -0.6722389742732048,
+            "rmse": 0.28546880398403024,
+            "target_mean": -0.6339788525956591
+          },
+          "20": {
+            "correlation": 0.8690051292586946,
+            "count": 10,
+            "explained_variance": 0.7158730044382111,
+            "prediction_mean": -1.6488916218280791,
+            "rmse": 0.7190516950919942,
+            "target_mean": -2.158733219425964
+          },
+          "5": {
+            "correlation": 0.64181490325987,
+            "count": 30,
+            "explained_variance": 0.38062306510060473,
+            "prediction_mean": -0.8701354334751765,
+            "rmse": 0.3299336691618378,
+            "target_mean": -0.8271637428352802
+          }
+        },
+        "overall": {
+          "correlation": 0.8681473116831493,
+          "count": 60,
+          "explained_variance": 0.7145793634336299,
+          "prediction_mean": -0.9339626451333364,
+          "rmse": 0.40959103474290764,
+          "target_mean": -0.9846970255205203
+        }
+      }
+    }
+  ],
+  "selected_checkpoint_epoch": 200,
+  "selected_validation_explained_variance": 0.7145793634336299,
+  "source_checkpoint": "results\\v15_stratified_mixed_walker_warm60_conditions1900_1959.pt",
+  "target_definition": "finite_horizon_discounted_mc_zero_terminal_bootstrap",
+  "training_condition_seeds": [
+    2100,
+    2101,
+    2102,
+    2103,
+    2104,
+    2105,
+    2106,
+    2107,
+    2108,
+    2109,
+    2110,
+    2111
+  ],
+  "training_transition_count": 120,
+  "validation_condition_seeds": [
+    2120,
+    2121,
+    2122,
+    2123,
+    2124,
+    2125
+  ],
+  "validation_transition_count": 60,
+  "walker_initialization_randomized": false
+}

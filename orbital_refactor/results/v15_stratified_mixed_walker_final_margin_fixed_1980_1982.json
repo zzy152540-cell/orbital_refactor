@@ -1,0 +1,3262 @@
+{
+  "action_by_node_count": {
+    "10": {
+      "add": {
+        "evaluated_count": 5,
+        "mean_action_probability": 0.5243156671524047,
+        "mean_communication_penalty": 0.004233333333333333,
+        "mean_counterfactual_task_gain": 0.007981452821328294,
+        "mean_objective_gain_over_keep": 0.006314786154661628,
+        "mean_resynchronization_penalty": 0.0002,
+        "mean_topology_switch_penalty": 0.001,
+        "mean_training_objective": 0.002548119487994962,
+        "positive_objective_gain_over_keep_fraction": 0.6,
+        "positive_task_gain_fraction": 0.6,
+        "positive_training_objective_fraction": 0.4
+      },
+      "keep": {
+        "evaluated_count": 8,
+        "mean_action_probability": 0.3469343725591898,
+        "mean_communication_penalty": 0.0037708333333333335,
+        "mean_counterfactual_task_gain": 0.0,
+        "mean_objective_gain_over_keep": 0.0,
+        "mean_resynchronization_penalty": 0.0,
+        "mean_topology_switch_penalty": 0.0,
+        "mean_training_objective": -0.0037708333333333335,
+        "positive_objective_gain_over_keep_fraction": 0.0,
+        "positive_task_gain_fraction": 0.0,
+        "positive_training_objective_fraction": 0.0
+      },
+      "remove": {
+        "evaluated_count": 6,
+        "mean_action_probability": 0.030388375433782738,
+        "mean_communication_penalty": 0.003500000000000001,
+        "mean_counterfactual_task_gain": -0.005080931533596927,
+        "mean_objective_gain_over_keep": -0.00580315375581915,
+        "mean_resynchronization_penalty": 0.0,
+        "mean_topology_switch_penalty": 0.001,
+        "mean_training_objective": -0.009580931533596926,
+        "positive_objective_gain_over_keep_fraction": 0.16666666666666666,
+        "positive_task_gain_fraction": 0.16666666666666666,
+        "positive_training_objective_fraction": 0.0
+      },
+      "swap": {
+        "evaluated_count": 10,
+        "mean_action_probability": 0.03561487030237913,
+        "mean_communication_penalty": 0.0038833333333333333,
+        "mean_counterfactual_task_gain": 0.007570308604635046,
+        "mean_objective_gain_over_keep": 0.006253641937968379,
+        "mean_resynchronization_penalty": 0.0002,
+        "mean_topology_switch_penalty": 0.0010000000000000002,
+        "mean_training_objective": 0.0024869752713017126,
+        "positive_objective_gain_over_keep_fraction": 0.6,
+        "positive_task_gain_fraction": 0.6,
+        "positive_training_objective_fraction": 0.5
+      }
+    },
+    "20": {
+      "add": {
+        "evaluated_count": 12,
+        "mean_action_probability": 0.06683411759634812,
+        "mean_communication_penalty": 0.004309027777777777,
+        "mean_counterfactual_task_gain": 0.0032628927474826672,
+        "mean_objective_gain_over_keep": 0.0019302538585937782,
+        "mean_resynchronization_penalty": 0.0001,
+        "mean_topology_switch_penalty": 0.0010000000000000002,
+        "mean_training_objective": -0.002146135030295111,
+        "positive_objective_gain_over_keep_fraction": 0.6666666666666666,
+        "positive_task_gain_fraction": 0.75,
+        "positive_training_objective_fraction": 0.3333333333333333
+      },
+      "keep": {
+        "evaluated_count": 8,
+        "mean_action_probability": 0.3210858413949609,
+        "mean_communication_penalty": 0.0040416666666666665,
+        "mean_counterfactual_task_gain": 0.0,
+        "mean_objective_gain_over_keep": 0.0,
+        "mean_resynchronization_penalty": 0.0,
+        "mean_topology_switch_penalty": 0.0,
+        "mean_training_objective": -0.0040416666666666665,
+        "positive_objective_gain_over_keep_fraction": 0.0,
+        "positive_task_gain_fraction": 0.0,
+        "positive_training_objective_fraction": 0.0
+      },
+      "remove": {
+        "evaluated_count": 2,
+        "mean_action_probability": 0.0046231867745518684,
+        "mean_communication_penalty": 0.004520833333333333,
+        "mean_counterfactual_task_gain": 0.0024355664517491937,
+        "mean_objective_gain_over_keep": 0.0016647331184158607,
+        "mean_resynchronization_penalty": 0.0,
+        "mean_topology_switch_penalty": 0.001,
+        "mean_training_objective": -0.00308526688158414,
+        "positive_objective_gain_over_keep_fraction": 0.5,
+        "positive_task_gain_fraction": 1.0,
+        "positive_training_objective_fraction": 0.0
+      },
+      "swap": {
+        "evaluated_count": 12,
+        "mean_action_probability": 0.005527757573872805,
+        "mean_communication_penalty": 0.00407638888888889,
+        "mean_counterfactual_task_gain": 0.0023220878224440022,
+        "mean_objective_gain_over_keep": 0.0012220878224440026,
+        "mean_resynchronization_penalty": 0.0001,
+        "mean_topology_switch_penalty": 0.0010000000000000002,
+        "mean_training_objective": -0.0028543010664448865,
+        "positive_objective_gain_over_keep_fraction": 0.5833333333333334,
+        "positive_task_gain_fraction": 0.6666666666666666,
+        "positive_training_objective_fraction": 0.25
+      }
+    },
+    "5": {
+      "add": {
+        "evaluated_count": 12,
+        "mean_action_probability": 0.12547656645377478,
+        "mean_communication_penalty": 0.0055000000000000005,
+        "mean_counterfactual_task_gain": 0.0024223870467140105,
+        "mean_objective_gain_over_keep": 0.00016127593560289955,
+        "mean_resynchronization_penalty": 0.0004,
+        "mean_topology_switch_penalty": 0.0010000000000000002,
+        "mean_training_objective": -0.00447761295328599,
+        "positive_objective_gain_over_keep_fraction": 0.3333333333333333,
+        "positive_task_gain_fraction": 0.6666666666666666,
+        "positive_training_objective_fraction": 0.16666666666666666
+      },
+      "keep": {
+        "evaluated_count": 8,
+        "mean_action_probability": 0.3420713860541582,
+        "mean_communication_penalty": 0.004916666666666666,
+        "mean_counterfactual_task_gain": 0.0,
+        "mean_objective_gain_over_keep": 0.0,
+        "mean_resynchronization_penalty": 0.0,
+        "mean_topology_switch_penalty": 0.0,
+        "mean_training_objective": -0.004916666666666666,
+        "positive_objective_gain_over_keep_fraction": 0.0,
+        "positive_task_gain_fraction": 0.0,
+        "positive_training_objective_fraction": 0.0
+      },
+      "remove": {
+        "evaluated_count": 12,
+        "mean_action_probability": 0.012232172031265994,
+        "mean_communication_penalty": 0.003833333333333333,
+        "mean_counterfactual_task_gain": 0.003548460953457381,
+        "mean_objective_gain_over_keep": 0.003354016509012936,
+        "mean_resynchronization_penalty": 0.0,
+        "mean_topology_switch_penalty": 0.0010000000000000002,
+        "mean_training_objective": -0.0012848723798759528,
+        "positive_objective_gain_over_keep_fraction": 0.75,
+        "positive_task_gain_fraction": 0.8333333333333334,
+        "positive_training_objective_fraction": 0.5
+      },
+      "swap": {
+        "evaluated_count": 12,
+        "mean_action_probability": 0.014399885898455977,
+        "mean_communication_penalty": 0.004694444444444445,
+        "mean_counterfactual_task_gain": 0.005420622335161431,
+        "mean_objective_gain_over_keep": 0.003965066779605874,
+        "mean_resynchronization_penalty": 0.0004,
+        "mean_topology_switch_penalty": 0.0010000000000000002,
+        "mean_training_objective": -0.0006738221092830139,
+        "positive_objective_gain_over_keep_fraction": 0.5833333333333334,
+        "positive_task_gain_fraction": 0.8333333333333334,
+        "positive_training_objective_fraction": 0.3333333333333333
+      }
+    }
+  },
+  "action_by_node_count_and_trajectory": {
+    "10": {
+      "keep": {
+        "add": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.5249781459569931,
+          "mean_communication_penalty": 0.004083333333333333,
+          "mean_counterfactual_task_gain": 0.004519281301747974,
+          "mean_objective_gain_over_keep": 0.0028609479684146405,
+          "mean_resynchronization_penalty": 0.0002,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0007640520315853588,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 0.5,
+          "positive_training_objective_fraction": 0.25
+        },
+        "keep": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.13788378611207008,
+          "mean_communication_penalty": 0.003625,
+          "mean_counterfactual_task_gain": 0.0,
+          "mean_objective_gain_over_keep": 0.0,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.0,
+          "mean_training_objective": -0.003625,
+          "positive_objective_gain_over_keep_fraction": 0.0,
+          "positive_task_gain_fraction": 0.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "swap": {
+          "evaluated_count": 8,
+          "mean_action_probability": 0.03527526720426977,
+          "mean_communication_penalty": 0.0037604166666666667,
+          "mean_counterfactual_task_gain": 0.0025244575548981213,
+          "mean_objective_gain_over_keep": 0.0011890408882314555,
+          "mean_resynchronization_penalty": 0.0002,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0024359591117685446,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 0.5,
+          "positive_training_objective_fraction": 0.375
+        }
+      },
+      "policy": {
+        "add": {
+          "evaluated_count": 1,
+          "mean_action_probability": 0.5216657519340515,
+          "mean_communication_penalty": 0.004833333333333333,
+          "mean_counterfactual_task_gain": 0.021830138899649576,
+          "mean_objective_gain_over_keep": 0.020130138899649576,
+          "mean_resynchronization_penalty": 0.0002,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": 0.015796805566316244,
+          "positive_objective_gain_over_keep_fraction": 1.0,
+          "positive_task_gain_fraction": 1.0,
+          "positive_training_objective_fraction": 1.0
+        },
+        "keep": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.5559849590063095,
+          "mean_communication_penalty": 0.003916666666666667,
+          "mean_counterfactual_task_gain": 0.0,
+          "mean_objective_gain_over_keep": 0.0,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.0,
+          "mean_training_objective": -0.003916666666666667,
+          "positive_objective_gain_over_keep_fraction": 0.0,
+          "positive_task_gain_fraction": 0.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "remove": {
+          "evaluated_count": 6,
+          "mean_action_probability": 0.030388375433782738,
+          "mean_communication_penalty": 0.003500000000000001,
+          "mean_counterfactual_task_gain": -0.005080931533596927,
+          "mean_objective_gain_over_keep": -0.00580315375581915,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.009580931533596926,
+          "positive_objective_gain_over_keep_fraction": 0.16666666666666666,
+          "positive_task_gain_fraction": 0.16666666666666666,
+          "positive_training_objective_fraction": 0.0
+        },
+        "swap": {
+          "evaluated_count": 2,
+          "mean_action_probability": 0.03697328269481659,
+          "mean_communication_penalty": 0.004375,
+          "mean_counterfactual_task_gain": 0.027753712803582742,
+          "mean_objective_gain_over_keep": 0.026512046136916077,
+          "mean_resynchronization_penalty": 0.0002,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": 0.022178712803582742,
+          "positive_objective_gain_over_keep_fraction": 1.0,
+          "positive_task_gain_fraction": 1.0,
+          "positive_training_objective_fraction": 1.0
+        }
+      }
+    },
+    "20": {
+      "keep": {
+        "add": {
+          "evaluated_count": 8,
+          "mean_action_probability": 0.06296019302681088,
+          "mean_communication_penalty": 0.004046875,
+          "mean_counterfactual_task_gain": 0.003462575803130377,
+          "mean_objective_gain_over_keep": 0.002138617469797044,
+          "mean_resynchronization_penalty": 0.0001,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0016842991968696232,
+          "positive_objective_gain_over_keep_fraction": 0.75,
+          "positive_task_gain_fraction": 0.875,
+          "positive_training_objective_fraction": 0.375
+        },
+        "keep": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.09448405727744102,
+          "mean_communication_penalty": 0.0038229166666666667,
+          "mean_counterfactual_task_gain": 0.0,
+          "mean_objective_gain_over_keep": 0.0,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.0,
+          "mean_training_objective": -0.0038229166666666667,
+          "positive_objective_gain_over_keep_fraction": 0.0,
+          "positive_task_gain_fraction": 0.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "swap": {
+          "evaluated_count": 8,
+          "mean_action_probability": 0.005697442073142156,
+          "mean_communication_penalty": 0.0038229166666666667,
+          "mean_counterfactual_task_gain": 0.002210263532895995,
+          "mean_objective_gain_over_keep": 0.0011102635328959953,
+          "mean_resynchronization_penalty": 0.0001,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0027126531337706714,
+          "positive_objective_gain_over_keep_fraction": 0.625,
+          "positive_task_gain_fraction": 0.75,
+          "positive_training_objective_fraction": 0.25
+        }
+      },
+      "policy": {
+        "add": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.07458196673542261,
+          "mean_communication_penalty": 0.004833333333333334,
+          "mean_counterfactual_task_gain": 0.002863526636187247,
+          "mean_objective_gain_over_keep": 0.0015135266361872468,
+          "mean_resynchronization_penalty": 0.0001,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0030698066971460865,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 0.5,
+          "positive_training_objective_fraction": 0.25
+        },
+        "keep": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.5476876255124807,
+          "mean_communication_penalty": 0.004260416666666667,
+          "mean_counterfactual_task_gain": 0.0,
+          "mean_objective_gain_over_keep": 0.0,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.0,
+          "mean_training_objective": -0.004260416666666667,
+          "positive_objective_gain_over_keep_fraction": 0.0,
+          "positive_task_gain_fraction": 0.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "remove": {
+          "evaluated_count": 2,
+          "mean_action_probability": 0.0046231867745518684,
+          "mean_communication_penalty": 0.004520833333333333,
+          "mean_counterfactual_task_gain": 0.0024355664517491937,
+          "mean_objective_gain_over_keep": 0.0016647331184158607,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.00308526688158414,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 1.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "swap": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.005188388575334102,
+          "mean_communication_penalty": 0.004583333333333333,
+          "mean_counterfactual_task_gain": 0.0025457364015400163,
+          "mean_objective_gain_over_keep": 0.001445736401540016,
+          "mean_resynchronization_penalty": 0.0001,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0031375969317933173,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 0.5,
+          "positive_training_objective_fraction": 0.25
+        }
+      }
+    },
+    "5": {
+      "keep": {
+        "add": {
+          "evaluated_count": 8,
+          "mean_action_probability": 0.10051451809704304,
+          "mean_communication_penalty": 0.004812500000000001,
+          "mean_counterfactual_task_gain": 0.0017584968704669884,
+          "mean_objective_gain_over_keep": -0.0004540031295330116,
+          "mean_resynchronization_penalty": 0.0004,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.004454003129533012,
+          "positive_objective_gain_over_keep_fraction": 0.25,
+          "positive_task_gain_fraction": 0.625,
+          "positive_training_objective_fraction": 0.125
+        },
+        "keep": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.12035461701452732,
+          "mean_communication_penalty": 0.004,
+          "mean_counterfactual_task_gain": 0.0,
+          "mean_objective_gain_over_keep": 0.0,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.0,
+          "mean_training_objective": -0.004,
+          "positive_objective_gain_over_keep_fraction": 0.0,
+          "positive_task_gain_fraction": 0.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "remove": {
+          "evaluated_count": 8,
+          "mean_action_probability": 0.012968764640390873,
+          "mean_communication_penalty": 0.0032083333333333334,
+          "mean_counterfactual_task_gain": 0.0016417477028080607,
+          "mean_objective_gain_over_keep": 0.001433414369474727,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.002566585630525273,
+          "positive_objective_gain_over_keep_fraction": 0.625,
+          "positive_task_gain_fraction": 0.75,
+          "positive_training_objective_fraction": 0.5
+        },
+        "swap": {
+          "evaluated_count": 8,
+          "mean_action_probability": 0.013608498964458704,
+          "mean_communication_penalty": 0.004020833333333333,
+          "mean_counterfactual_task_gain": 0.002984755863080224,
+          "mean_objective_gain_over_keep": 0.0015639225297468897,
+          "mean_resynchronization_penalty": 0.0004,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.0024360774702531095,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 0.75,
+          "positive_training_objective_fraction": 0.25
+        }
+      },
+      "policy": {
+        "add": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.17540066316723824,
+          "mean_communication_penalty": 0.006875,
+          "mean_counterfactual_task_gain": 0.003750167399208054,
+          "mean_objective_gain_over_keep": 0.0013918340658747221,
+          "mean_resynchronization_penalty": 0.0004,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": -0.004524832600791945,
+          "positive_objective_gain_over_keep_fraction": 0.5,
+          "positive_task_gain_fraction": 0.75,
+          "positive_training_objective_fraction": 0.25
+        },
+        "keep": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.5637881550937891,
+          "mean_communication_penalty": 0.005833333333333334,
+          "mean_counterfactual_task_gain": 0.0,
+          "mean_objective_gain_over_keep": 0.0,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.0,
+          "mean_training_objective": -0.005833333333333334,
+          "positive_objective_gain_over_keep_fraction": 0.0,
+          "positive_task_gain_fraction": 0.0,
+          "positive_training_objective_fraction": 0.0
+        },
+        "remove": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.010758986813016236,
+          "mean_communication_penalty": 0.005083333333333334,
+          "mean_counterfactual_task_gain": 0.007361887454756022,
+          "mean_objective_gain_over_keep": 0.0071952207880893555,
+          "mean_resynchronization_penalty": 0.0,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": 0.0012785541214226884,
+          "positive_objective_gain_over_keep_fraction": 1.0,
+          "positive_task_gain_fraction": 1.0,
+          "positive_training_objective_fraction": 0.5
+        },
+        "swap": {
+          "evaluated_count": 4,
+          "mean_action_probability": 0.015982659766450524,
+          "mean_communication_penalty": 0.006041666666666667,
+          "mean_counterfactual_task_gain": 0.010292355279323845,
+          "mean_objective_gain_over_keep": 0.008767355279323843,
+          "mean_resynchronization_penalty": 0.0004,
+          "mean_topology_switch_penalty": 0.001,
+          "mean_training_objective": 0.0028506886126571777,
+          "positive_objective_gain_over_keep_fraction": 0.75,
+          "positive_task_gain_fraction": 1.0,
+          "positive_training_objective_fraction": 0.5
+        }
+      }
+    }
+  },
+  "availability_by_node_count_and_trajectory": {
+    "10": {
+      "keep": {
+        "audited_state_count": 4,
+        "deterministic_action_kind_counts": {
+          "add": 4
+        },
+        "legal_state_fraction_by_kind": {
+          "add": 1.0,
+          "keep": 1.0,
+          "remove": 0.0,
+          "swap": 1.0
+        },
+        "mean_type_probability_by_kind": {
+          "add": 0.5249781459569931,
+          "keep": 0.13788378611207008,
+          "remove": 0.0,
+          "swap": 0.3371380642056465
+        }
+      },
+      "policy": {
+        "audited_state_count": 4,
+        "deterministic_action_kind_counts": {
+          "add": 1,
+          "keep": 3
+        },
+        "legal_state_fraction_by_kind": {
+          "add": 0.25,
+          "keep": 1.0,
+          "remove": 0.75,
+          "swap": 0.25
+        },
+        "mean_type_probability_by_kind": {
+          "add": 0.13041643798351288,
+          "keep": 0.5559849590063095,
+          "remove": 0.2287105992436409,
+          "swap": 0.08488799631595612
+        }
+      }
+    },
+    "20": {
+      "keep": {
+        "audited_state_count": 4,
+        "deterministic_action_kind_counts": {
+          "add": 4
+        },
+        "legal_state_fraction_by_kind": {
+          "add": 1.0,
+          "keep": 1.0,
+          "remove": 0.0,
+          "swap": 1.0
+        },
+        "mean_type_probability_by_kind": {
+          "add": 0.5603171736001968,
+          "keep": 0.09448405727744102,
+          "remove": 0.0,
+          "swap": 0.34519877284765244
+        }
+      },
+      "policy": {
+        "audited_state_count": 4,
+        "deterministic_action_kind_counts": {
+          "add": 2,
+          "keep": 2
+        },
+        "legal_state_fraction_by_kind": {
+          "add": 0.5,
+          "keep": 1.0,
+          "remove": 0.25,
+          "swap": 0.5
+        },
+        "mean_type_probability_by_kind": {
+          "add": 0.2705473154783249,
+          "keep": 0.5476876255124807,
+          "remove": 0.015103843994438648,
+          "swap": 0.16666120290756226
+        }
+      }
+    },
+    "5": {
+      "keep": {
+        "audited_state_count": 4,
+        "deterministic_action_kind_counts": {
+          "add": 4
+        },
+        "legal_state_fraction_by_kind": {
+          "add": 1.0,
+          "keep": 1.0,
+          "remove": 1.0,
+          "swap": 1.0
+        },
+        "mean_type_probability_by_kind": {
+          "add": 0.5010871887207031,
+          "keep": 0.12035461701452732,
+          "remove": 0.06263988371938467,
+          "swap": 0.31591832637786865
+        }
+      },
+      "policy": {
+        "audited_state_count": 4,
+        "deterministic_action_kind_counts": {
+          "add": 2,
+          "keep": 2
+        },
+        "legal_state_fraction_by_kind": {
+          "add": 0.5,
+          "keep": 1.0,
+          "remove": 0.5,
+          "swap": 0.5
+        },
+        "mean_type_probability_by_kind": {
+          "add": 0.2513517141342163,
+          "keep": 0.5637881550937891,
+          "remove": 0.03196258656680584,
+          "swap": 0.15289755165576935
+        }
+      }
+    }
+  },
+  "baseline_by_node_count": {
+    "10": {
+      "episode_count": 1,
+      "mean_keep_final_position_rmse": 0.46754644331344536,
+      "mean_keep_final_worst_node_position_rmse": 0.6764650201852443,
+      "std_keep_final_position_rmse": 0.0
+    },
+    "20": {
+      "episode_count": 1,
+      "mean_keep_final_position_rmse": 0.884348983857952,
+      "mean_keep_final_worst_node_position_rmse": 2.14468699768842,
+      "std_keep_final_position_rmse": 0.0
+    },
+    "5": {
+      "episode_count": 1,
+      "mean_keep_final_position_rmse": 0.6752163849079708,
+      "mean_keep_final_worst_node_position_rmse": 1.0876972383430874,
+      "std_keep_final_position_rmse": 0.0
+    }
+  },
+  "baseline_records": [
+    {
+      "condition_seed": 1980,
+      "keep_cumulative_absolute_reward": 2.132719269624873,
+      "keep_final_position_rmse": 0.6752163849079708,
+      "keep_final_worst_node_position_rmse": 1.0876972383430874,
+      "node_count": 5,
+      "noise_seed": 0
+    },
+    {
+      "condition_seed": 1981,
+      "keep_cumulative_absolute_reward": 2.7689595302390435,
+      "keep_final_position_rmse": 0.46754644331344536,
+      "keep_final_worst_node_position_rmse": 0.6764650201852443,
+      "node_count": 10,
+      "noise_seed": 0
+    },
+    {
+      "condition_seed": 1982,
+      "keep_cumulative_absolute_reward": 1.9293832179479895,
+      "keep_final_position_rmse": 0.884348983857952,
+      "keep_final_worst_node_position_rmse": 2.14468699768842,
+      "node_count": 20,
+      "noise_seed": 0
+    }
+  ],
+  "branch": "warm_start",
+  "condition_seeds": [
+    1980,
+    1981,
+    1982
+  ],
+  "decision_indices": [
+    0,
+    3,
+    6,
+    9
+  ],
+  "horizon_decisions": 2,
+  "maximum_actions_per_kind": 2,
+  "noise_seeds": [
+    0
+  ],
+  "penalty_weights": {
+    "communication": 0.0025,
+    "resynchronization": 0.001,
+    "topology_switch": 0.001
+  },
+  "role": "variable_scale_policy_imbalance_diagnostic",
+  "selected_advantage_by_node_count": {
+    "10": {
+      "add": {
+        "mean_advantage": 0.005976451560854912,
+        "mean_penalized_reward": 0.0033962617948766097,
+        "positive_advantage_fraction": 1.0,
+        "selected_count": 1
+      },
+      "keep": {
+        "mean_advantage": -0.00920722103263769,
+        "mean_penalized_reward": -0.0023425925925925923,
+        "positive_advantage_fraction": 0.2222222222222222,
+        "selected_count": 9
+      }
+    },
+    "20": {
+      "add": {
+        "mean_advantage": 0.01924179382622242,
+        "mean_penalized_reward": -0.0015100568926483145,
+        "positive_advantage_fraction": 0.8,
+        "selected_count": 5
+      },
+      "keep": {
+        "mean_advantage": 0.02476895060390234,
+        "mean_penalized_reward": -0.0028083333333333337,
+        "positive_advantage_fraction": 1.0,
+        "selected_count": 5
+      }
+    },
+    "5": {
+      "add": {
+        "mean_advantage": -0.005650255270302296,
+        "mean_penalized_reward": -0.0035524533884398425,
+        "positive_advantage_fraction": 0.4,
+        "selected_count": 5
+      },
+      "keep": {
+        "mean_advantage": -0.0013889091089367867,
+        "mean_penalized_reward": -0.003966666666666667,
+        "positive_advantage_fraction": 0.2,
+        "selected_count": 5
+      }
+    }
+  },
+  "selected_policy_advantages": [
+    {
+      "action_kind": "add",
+      "advantage": -0.020998608320951462,
+      "condition_seed": 1980,
+      "critic_value": -0.1871425062417984,
+      "decision_index": 0,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": 0.002693098048781664
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.006501386873424053,
+      "condition_seed": 1980,
+      "critic_value": -0.20678754150867462,
+      "decision_index": 1,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.0028333333333333335
+    },
+    {
+      "action_kind": "add",
+      "advantage": -0.010692691430449486,
+      "condition_seed": 1980,
+      "critic_value": -0.2024233490228653,
+      "decision_index": 2,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.004520726464569917
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.0005345148965716362,
+      "condition_seed": 1980,
+      "critic_value": -0.21019454300403595,
+      "decision_index": 3,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.0035
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.011561927385628223,
+      "condition_seed": 1980,
+      "critic_value": -0.22030611336231232,
+      "decision_index": 4,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.0051442577439805145
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.009236641228199005,
+      "condition_seed": 1980,
+      "critic_value": -0.2144313007593155,
+      "decision_index": 5,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.0036666666666666666
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.0032355645671486855,
+      "condition_seed": 1980,
+      "critic_value": -0.2066374123096466,
+      "decision_index": 6,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.00466533044046915
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.00905733834952116,
+      "condition_seed": 1980,
+      "critic_value": -0.19213949143886566,
+      "decision_index": 7,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.004833333333333333
+    },
+    {
+      "action_kind": "add",
+      "advantage": -0.01135746855288744,
+      "condition_seed": 1980,
+      "critic_value": -0.18755735456943512,
+      "decision_index": 8,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.006125050341961298
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -8.794665336608887e-05,
+      "condition_seed": 1980,
+      "critic_value": -0.19465360045433044,
+      "decision_index": 9,
+      "node_count": 5,
+      "noise_seed": 0,
+      "reward": -0.005
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.005976451560854912,
+      "condition_seed": 1981,
+      "critic_value": -0.19853703677654266,
+      "decision_index": 0,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": 0.0033962617948766097
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.013082729652523994,
+      "condition_seed": 1981,
+      "critic_value": -0.1855076104402542,
+      "decision_index": 1,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.002916666666666667
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.023090891540050507,
+      "condition_seed": 1981,
+      "critic_value": -0.17571382224559784,
+      "decision_index": 2,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.002
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.023279422894120216,
+      "condition_seed": 1981,
+      "critic_value": -0.1766771823167801,
+      "decision_index": 3,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.0026666666666666666
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.007155276834964752,
+      "condition_seed": 1981,
+      "critic_value": -0.1924852579832077,
+      "decision_index": 4,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.002
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.010192766785621643,
+      "condition_seed": 1981,
+      "critic_value": -0.1899537742137909,
+      "decision_index": 5,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.0026666666666666666
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.0004609141033142805,
+      "condition_seed": 1981,
+      "critic_value": -0.19991248846054077,
+      "decision_index": 6,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.0019166666666666668
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.0026840693317353725,
+      "condition_seed": 1981,
+      "critic_value": -0.20208008587360382,
+      "decision_index": 7,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.0023333333333333335
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.003328007645905018,
+      "condition_seed": 1981,
+      "critic_value": -0.1958916187286377,
+      "decision_index": 8,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.0021666666666666666
+    },
+    {
+      "action_kind": "keep",
+      "advantage": -0.005880877375602722,
+      "condition_seed": 1981,
+      "critic_value": -0.19345654547214508,
+      "decision_index": 9,
+      "node_count": 10,
+      "noise_seed": 0,
+      "reward": -0.0024166666666666664
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.023050375282764435,
+      "condition_seed": 1982,
+      "critic_value": -0.19814039766788483,
+      "decision_index": 0,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.004068196186870316
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.006408664397895336,
+      "condition_seed": 1982,
+      "critic_value": -0.17883755266666412,
+      "decision_index": 1,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.0027916666666666667
+    },
+    {
+      "action_kind": "add",
+      "advantage": -0.0021443702280521393,
+      "condition_seed": 1982,
+      "critic_value": -0.16931356489658356,
+      "decision_index": 2,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.0024111435479149666
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.02649163082242012,
+      "condition_seed": 1982,
+      "critic_value": -0.1959213763475418,
+      "decision_index": 3,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.0027500000000000003
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.019428852945566177,
+      "condition_seed": 1982,
+      "critic_value": -0.18682079017162323,
+      "decision_index": 4,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.003636223900324391
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.04244136065244675,
+      "condition_seed": 1982,
+      "critic_value": -0.20572909712791443,
+      "decision_index": 5,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.002625
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.024233872070908546,
+      "condition_seed": 1982,
+      "critic_value": -0.18530777096748352,
+      "decision_index": 6,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": 0.0016262472611210026
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.025115396827459335,
+      "condition_seed": 1982,
+      "critic_value": -0.18820321559906006,
+      "decision_index": 7,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.0027500000000000003
+    },
+    {
+      "action_kind": "add",
+      "advantage": 0.03164023905992508,
+      "condition_seed": 1982,
+      "critic_value": -0.1920156180858612,
+      "decision_index": 8,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": 0.0009390319107470972
+    },
+    {
+      "action_kind": "keep",
+      "advantage": 0.02338770031929016,
+      "condition_seed": 1982,
+      "critic_value": -0.18516215682029724,
+      "decision_index": 9,
+      "node_count": 20,
+      "noise_seed": 0,
+      "reward": -0.003125
+    }
+  ],
+  "source_checkpoint": "results\\v15_stratified_mixed_walker_warm60_conditions1900_1959.pt",
+  "state_records": [
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.007648359208162713,
+      "condition_seed": 1980,
+      "critic_value": -0.1871425062417984,
+      "decision_index": 0,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 5,
+        "keep": 1,
+        "remove": 5,
+        "swap": 25
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.1187654510140419,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 1.5251489788894472,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004166666666666667,
+          "transmitted_messages": 25.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.09966985881328583,
+          "communication_penalty": 0.005,
+          "counterfactual_task_gain": 0.0055643270710186155,
+          "cumulative_absolute_reward": 1.5307133059604658,
+          "objective_gain_over_keep": 0.0033309937376852818,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0008356729289813846,
+          "transmitted_messages": 30.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.01843162439763546,
+          "communication_penalty": 0.004,
+          "counterfactual_task_gain": 0.013033323444060052,
+          "cumulative_absolute_reward": 1.5381823023335073,
+          "objective_gain_over_keep": 0.01179999011072672,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.007633323444060053,
+          "transmitted_messages": 24.0
+        },
+        {
+          "action_id": 25,
+          "action_kind": "add",
+          "action_probability": 0.09966287016868591,
+          "communication_penalty": 0.005166666666666667,
+          "counterfactual_task_gain": 0.009351675574047036,
+          "cumulative_absolute_reward": 1.5345006544634943,
+          "objective_gain_over_keep": 0.006951675574047036,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.002785008907380369,
+          "transmitted_messages": 31.0
+        },
+        {
+          "action_id": 30,
+          "action_kind": "swap",
+          "action_probability": 0.008080367930233479,
+          "communication_penalty": 0.0045000000000000005,
+          "counterfactual_task_gain": 0.02588085992529332,
+          "cumulative_absolute_reward": 1.5510298388147405,
+          "objective_gain_over_keep": 0.024147526591959984,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.019980859925293318,
+          "transmitted_messages": 27.0
+        },
+        {
+          "action_id": 31,
+          "action_kind": "remove",
+          "action_probability": 0.017056243494153023,
+          "communication_penalty": 0.0031666666666666666,
+          "counterfactual_task_gain": 0.010273975575053829,
+          "cumulative_absolute_reward": 1.535422954464501,
+          "objective_gain_over_keep": 0.010273975575053829,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.006107308908387162,
+          "transmitted_messages": 19.0
+        },
+        {
+          "action_id": 35,
+          "action_kind": "remove",
+          "action_probability": 0.008480069227516651,
+          "communication_penalty": 0.0035,
+          "counterfactual_task_gain": 0.016832500717130605,
+          "cumulative_absolute_reward": 1.5419814796065778,
+          "objective_gain_over_keep": 0.01649916738379727,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.012332500717130605,
+          "transmitted_messages": 21.0
+        }
+      ],
+      "selected_type_utility_margin": 0.023561716079711914,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.503136932849884,
+        "keep": 0.1187654510140419,
+        "remove": 0.05878657102584839,
+        "swap": 0.3193110227584839
+      },
+      "type_probability_margin": 0.18382591009140015
+    },
+    {
+      "audited_best_action_kind": "remove",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0011270173771800607,
+      "condition_seed": 1980,
+      "critic_value": -0.1974010318517685,
+      "decision_index": 3,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 5,
+        "keep": 1,
+        "remove": 5,
+        "swap": 25
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.12199889123439789,
+          "communication_penalty": 0.0045000000000000005,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.29002658875771814,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.0045000000000000005,
+          "transmitted_messages": 27.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.09854075312614441,
+          "communication_penalty": 0.005333333333333333,
+          "counterfactual_task_gain": -0.0005633247034839695,
+          "cumulative_absolute_reward": 0.28946326405423417,
+          "objective_gain_over_keep": -0.0027966580368173023,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.007296658036817303,
+          "transmitted_messages": 32.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.01484756451100111,
+          "communication_penalty": 0.004333333333333333,
+          "counterfactual_task_gain": -0.010585394744610843,
+          "cumulative_absolute_reward": 0.2794411940131073,
+          "objective_gain_over_keep": -0.011818728077944176,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.016318728077944177,
+          "transmitted_messages": 26.0
+        },
+        {
+          "action_id": 25,
+          "action_kind": "add",
+          "action_probability": 0.1002686470746994,
+          "communication_penalty": 0.0055000000000000005,
+          "counterfactual_task_gain": 0.00016079786166456334,
+          "cumulative_absolute_reward": 0.2901873866193827,
+          "objective_gain_over_keep": -0.002239202138335437,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006739202138335437,
+          "transmitted_messages": 33.0
+        },
+        {
+          "action_id": 30,
+          "action_kind": "swap",
+          "action_probability": 0.010534234344959259,
+          "communication_penalty": 0.0045000000000000005,
+          "counterfactual_task_gain": 0.0057276758930354665,
+          "cumulative_absolute_reward": 0.2957542646507536,
+          "objective_gain_over_keep": 0.004327675893035466,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.00017232410696453398,
+          "transmitted_messages": 27.0
+        },
+        {
+          "action_id": 31,
+          "action_kind": "remove",
+          "action_probability": 0.014560184441506863,
+          "communication_penalty": 0.0035,
+          "counterfactual_task_gain": -0.009717088681240105,
+          "cumulative_absolute_reward": 0.28030950007647804,
+          "objective_gain_over_keep": -0.009717088681240105,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.014217088681240105,
+          "transmitted_messages": 21.0
+        },
+        {
+          "action_id": 35,
+          "action_kind": "remove",
+          "action_probability": 0.011386286467313766,
+          "communication_penalty": 0.0035,
+          "counterfactual_task_gain": 0.005454693270215527,
+          "cumulative_absolute_reward": 0.29548128202793367,
+          "objective_gain_over_keep": 0.005454693270215527,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.000954693270215527,
+          "transmitted_messages": 21.0
+        }
+      ],
+      "selected_type_utility_margin": 0.006279289722442627,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.49480605125427246,
+        "keep": 0.12199889123439789,
+        "remove": 0.06607875972986221,
+        "swap": 0.317116379737854
+      },
+      "type_probability_margin": 0.17768967151641846
+    },
+    {
+      "audited_best_action_kind": "remove",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.00022906955096911163,
+      "condition_seed": 1980,
+      "critic_value": -0.20728619396686554,
+      "decision_index": 6,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 5,
+        "keep": 1,
+        "remove": 5,
+        "swap": 25
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.12155328691005707,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.0782190903113632,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004666666666666667,
+          "transmitted_messages": 28.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.1024194210767746,
+          "communication_penalty": 0.0055000000000000005,
+          "counterfactual_task_gain": 1.7172705760848395e-05,
+          "cumulative_absolute_reward": 0.07823626301712405,
+          "objective_gain_over_keep": -0.0022161606275724853,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006882827294239152,
+          "transmitted_messages": 33.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.012269659899175167,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": -0.01375839028427095,
+          "cumulative_absolute_reward": 0.06446070002709225,
+          "objective_gain_over_keep": -0.015158390284270951,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.019825056950937617,
+          "transmitted_messages": 28.0
+        },
+        {
+          "action_id": 25,
+          "action_kind": "add",
+          "action_probability": 0.10275004804134369,
+          "communication_penalty": 0.005666666666666667,
+          "counterfactual_task_gain": -3.905561430472826e-05,
+          "cumulative_absolute_reward": 0.07818003469705848,
+          "objective_gain_over_keep": -0.0024390556143047285,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0071057222809713955,
+          "transmitted_messages": 34.0
+        },
+        {
+          "action_id": 30,
+          "action_kind": "swap",
+          "action_probability": 0.013281616382300854,
+          "communication_penalty": 0.004833333333333333,
+          "counterfactual_task_gain": 0.00031716881155641197,
+          "cumulative_absolute_reward": 0.07853625912291962,
+          "objective_gain_over_keep": -0.001249497855110254,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.005916164521776921,
+          "transmitted_messages": 29.0
+        },
+        {
+          "action_id": 31,
+          "action_kind": "remove",
+          "action_probability": 0.011797990649938583,
+          "communication_penalty": 0.0038333333333333336,
+          "counterfactual_task_gain": -0.013715735199749668,
+          "cumulative_absolute_reward": 0.06450335511161354,
+          "objective_gain_over_keep": -0.013882401866416337,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.018549068533083003,
+          "transmitted_messages": 23.0
+        },
+        {
+          "action_id": 35,
+          "action_kind": "remove",
+          "action_probability": 0.01231557410210371,
+          "communication_penalty": 0.0038333333333333336,
+          "counterfactual_task_gain": 0.00039573621763577815,
+          "cumulative_absolute_reward": 0.07861482652899898,
+          "objective_gain_over_keep": 0.00022906955096911163,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.004437597115697555,
+          "transmitted_messages": 23.0
+        }
+      ],
+      "selected_type_utility_margin": 0.003222942352294922,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5060641765594482,
+        "keep": 0.12155328691005707,
+        "remove": 0.06220553442835808,
+        "swap": 0.3101770281791687
+      },
+      "type_probability_margin": 0.19588714838027954
+    },
+    {
+      "audited_best_action_kind": "remove",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0013530075592970028,
+      "condition_seed": 1980,
+      "critic_value": -0.19575302302837372,
+      "decision_index": 9,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 5,
+        "keep": 1,
+        "remove": 5,
+        "swap": 25
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.11910083889961243,
+          "communication_penalty": 0.0026666666666666666,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": -0.08625900929112218,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.0026666666666666666,
+          "transmitted_messages": 16.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.09990984201431274,
+          "communication_penalty": 0.0031666666666666666,
+          "counterfactual_task_gain": 0.00011465718632652777,
+          "cumulative_absolute_reward": -0.08614435210479565,
+          "objective_gain_over_keep": -0.0017853428136734724,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.004452009480340139,
+          "transmitted_messages": 19.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.02133036032319069,
+          "communication_penalty": 0.0026666666666666666,
+          "counterfactual_task_gain": 0.00011878035907086915,
+          "cumulative_absolute_reward": -0.08614022893205131,
+          "objective_gain_over_keep": -0.0012812196409291306,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.003947886307595797,
+          "transmitted_messages": 16.0
+        },
+        {
+          "action_id": 25,
+          "action_kind": "add",
+          "action_probability": 0.10089470446109772,
+          "communication_penalty": 0.0031666666666666666,
+          "counterfactual_task_gain": -0.0005382751172929856,
+          "cumulative_absolute_reward": -0.08679728440841517,
+          "objective_gain_over_keep": -0.002438275117292986,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.005104941783959652,
+          "transmitted_messages": 19.0
+        },
+        {
+          "action_id": 30,
+          "action_kind": "swap",
+          "action_probability": 0.010092563927173615,
+          "communication_penalty": 0.0026666666666666666,
+          "counterfactual_task_gain": 0.0031440235005074646,
+          "cumulative_absolute_reward": -0.08311498579061471,
+          "objective_gain_over_keep": 0.0017440235005074646,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.000922643166159202,
+          "transmitted_messages": 16.0
+        },
+        {
+          "action_id": 31,
+          "action_kind": "remove",
+          "action_probability": 0.017430081963539124,
+          "communication_penalty": 0.0021666666666666666,
+          "counterfactual_task_gain": 1.2868663614051812e-05,
+          "cumulative_absolute_reward": -0.08624614062750813,
+          "objective_gain_over_keep": -0.0004871313363859482,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0031537980030526148,
+          "transmitted_messages": 13.0
+        },
+        {
+          "action_id": 35,
+          "action_kind": "remove",
+          "action_probability": 0.010723686777055264,
+          "communication_penalty": 0.0021666666666666666,
+          "counterfactual_task_gain": 0.0035970310598044675,
+          "cumulative_absolute_reward": -0.08266197823131771,
+          "objective_gain_over_keep": 0.0030970310598044675,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.0004303643931378009,
+          "transmitted_messages": 13.0
+        }
+      ],
+      "selected_type_utility_margin": 0.004430890083312988,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5003415942192078,
+        "keep": 0.11910083889961243,
+        "remove": 0.06348866969347,
+        "swap": 0.317068874835968
+      },
+      "type_probability_margin": 0.18327271938323975
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.007648359208162713,
+      "condition_seed": 1980,
+      "critic_value": -0.1871425062417984,
+      "decision_index": 0,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 5,
+        "keep": 1,
+        "remove": 5,
+        "swap": 25
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.1187654510140419,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 1.5251489788894472,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004166666666666667,
+          "transmitted_messages": 25.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.09966985881328583,
+          "communication_penalty": 0.005,
+          "counterfactual_task_gain": 0.0055643270710186155,
+          "cumulative_absolute_reward": 1.5307133059604658,
+          "objective_gain_over_keep": 0.0033309937376852818,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0008356729289813846,
+          "transmitted_messages": 30.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.01843162439763546,
+          "communication_penalty": 0.004,
+          "counterfactual_task_gain": 0.013033323444060052,
+          "cumulative_absolute_reward": 1.5381823023335073,
+          "objective_gain_over_keep": 0.01179999011072672,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.007633323444060053,
+          "transmitted_messages": 24.0
+        },
+        {
+          "action_id": 25,
+          "action_kind": "add",
+          "action_probability": 0.09966287016868591,
+          "communication_penalty": 0.005166666666666667,
+          "counterfactual_task_gain": 0.009351675574047036,
+          "cumulative_absolute_reward": 1.5345006544634943,
+          "objective_gain_over_keep": 0.006951675574047036,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.002785008907380369,
+          "transmitted_messages": 31.0
+        },
+        {
+          "action_id": 30,
+          "action_kind": "swap",
+          "action_probability": 0.008080367930233479,
+          "communication_penalty": 0.0045000000000000005,
+          "counterfactual_task_gain": 0.02588085992529332,
+          "cumulative_absolute_reward": 1.5510298388147405,
+          "objective_gain_over_keep": 0.024147526591959984,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.019980859925293318,
+          "transmitted_messages": 27.0
+        },
+        {
+          "action_id": 31,
+          "action_kind": "remove",
+          "action_probability": 0.017056243494153023,
+          "communication_penalty": 0.0031666666666666666,
+          "counterfactual_task_gain": 0.010273975575053829,
+          "cumulative_absolute_reward": 1.535422954464501,
+          "objective_gain_over_keep": 0.010273975575053829,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.006107308908387162,
+          "transmitted_messages": 19.0
+        },
+        {
+          "action_id": 35,
+          "action_kind": "remove",
+          "action_probability": 0.008480069227516651,
+          "communication_penalty": 0.0035,
+          "counterfactual_task_gain": 0.016832500717130605,
+          "cumulative_absolute_reward": 1.5419814796065778,
+          "objective_gain_over_keep": 0.01649916738379727,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.012332500717130605,
+          "transmitted_messages": 21.0
+        }
+      ],
+      "selected_type_utility_margin": 0.023561716079711914,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.503136932849884,
+        "keep": 0.1187654510140419,
+        "remove": 0.05878657102584839,
+        "swap": 0.3193110227584839
+      },
+      "type_probability_margin": 0.18382591009140015
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": Infinity,
+      "condition_seed": 1980,
+      "critic_value": -0.21019454300403595,
+      "decision_index": 3,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 1.0,
+          "communication_penalty": 0.006500000000000001,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.2969551489921868,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.006500000000000001,
+          "transmitted_messages": 39.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 1.0,
+        "remove": 0.0,
+        "swap": 0.0
+      },
+      "type_probability_margin": 1.0
+    },
+    {
+      "audited_best_action_kind": "remove",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0017180272107171213,
+      "condition_seed": 1980,
+      "critic_value": -0.2066374123096466,
+      "decision_index": 6,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 2,
+        "keep": 1,
+        "remove": 8,
+        "swap": 16
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.1363871693611145,
+          "communication_penalty": 0.007666666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.05130920016089169,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.007666666666666667,
+          "transmitted_messages": 46.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.25115901231765747,
+          "communication_penalty": 0.008666666666666666,
+          "counterfactual_task_gain": 0.0003229343004254037,
+          "cumulative_absolute_reward": 0.05163213446131709,
+          "objective_gain_over_keep": -0.002077065699574594,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.009743732366241261,
+          "transmitted_messages": 52.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.021940724924206734,
+          "communication_penalty": 0.007833333333333335,
+          "counterfactual_task_gain": 0.0006007599435040589,
+          "cumulative_absolute_reward": 0.05190996010439575,
+          "objective_gain_over_keep": -0.0009659067231626087,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.008632573389829276,
+          "transmitted_messages": 47.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "add",
+          "action_probability": 0.25111091136932373,
+          "communication_penalty": 0.008666666666666666,
+          "counterfactual_task_gain": -0.00023826734865883825,
+          "cumulative_absolute_reward": 0.05107093281223285,
+          "objective_gain_over_keep": -0.002638267348658836,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.010304934015325503,
+          "transmitted_messages": 52.0
+        },
+        {
+          "action_id": 18,
+          "action_kind": "swap",
+          "action_probability": 0.015477921813726425,
+          "communication_penalty": 0.007833333333333335,
+          "counterfactual_task_gain": 0.0016544778044379482,
+          "cumulative_absolute_reward": 0.052963677965329636,
+          "objective_gain_over_keep": 8.781113777128063e-05,
+          "resynchronization_penalty": 0.0004,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0075788555288953865,
+          "transmitted_messages": 47.0
+        },
+        {
+          "action_id": 19,
+          "action_kind": "remove",
+          "action_probability": 0.009699072688817978,
+          "communication_penalty": 0.006833333333333334,
+          "counterfactual_task_gain": 0.0003115231580612665,
+          "cumulative_absolute_reward": 0.051620723318952955,
+          "objective_gain_over_keep": 0.0001448564913946,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.007521810175272067,
+          "transmitted_messages": 41.0
+        },
+        {
+          "action_id": 26,
+          "action_kind": "remove",
+          "action_probability": 0.0078005618415772915,
+          "communication_penalty": 0.006833333333333334,
+          "counterfactual_task_gain": 0.002029550368778388,
+          "cumulative_absolute_reward": 0.053338750529670076,
+          "objective_gain_over_keep": 0.0018628837021117213,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.005803782964554946,
+          "transmitted_messages": 41.0
+        }
+      ],
+      "selected_type_utility_margin": 0.00019162893295288086,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.5022699236869812,
+        "keep": 0.1363871693611145,
+        "remove": 0.06906377524137497,
+        "swap": 0.2922791838645935
+      },
+      "type_probability_margin": 0.2099907398223877
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": Infinity,
+      "condition_seed": 1980,
+      "critic_value": -0.19465360045433044,
+      "decision_index": 9,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1
+      },
+      "node_count": 5,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 1.0,
+          "communication_penalty": 0.005,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": -0.0827789714074747,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.005,
+          "transmitted_messages": 30.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 1.0,
+        "remove": 0.0,
+        "swap": 0.0
+      },
+      "type_probability_margin": 1.0
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.013762288052274585,
+      "condition_seed": 1981,
+      "critic_value": -0.19853703677654266,
+      "decision_index": 0,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.13878220319747925,
+          "communication_penalty": 0.004333333333333333,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 2.2918251805685035,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004333333333333333,
+          "transmitted_messages": 52.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.5216657519340515,
+          "communication_penalty": 0.004833333333333333,
+          "counterfactual_task_gain": 0.021830138899649576,
+          "cumulative_absolute_reward": 2.313655319468153,
+          "objective_gain_over_keep": 0.020130138899649576,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.015796805566316244,
+          "transmitted_messages": 58.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.02294260635972023,
+          "communication_penalty": 0.004333333333333333,
+          "counterfactual_task_gain": 0.03509242695192416,
+          "cumulative_absolute_reward": 2.3269176075204276,
+          "objective_gain_over_keep": 0.03389242695192416,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.029559093618590826,
+          "transmitted_messages": 52.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "swap",
+          "action_probability": 0.05100395902991295,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.020414998655241323,
+          "cumulative_absolute_reward": 2.312240179223745,
+          "objective_gain_over_keep": 0.019131665321907992,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.014798331988574658,
+          "transmitted_messages": 53.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5216657519340515,
+        "keep": 0.13878220319747925,
+        "remove": 0.0,
+        "swap": 0.33955198526382446
+      },
+      "type_probability_margin": 0.18211376667022705
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.002054003520785129,
+      "condition_seed": 1981,
+      "critic_value": -0.16722188889980316,
+      "decision_index": 3,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.1386696845293045,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.29333750210971254,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004166666666666667,
+          "transmitted_messages": 50.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.5228609442710876,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": -0.000585663248475421,
+          "cumulative_absolute_reward": 0.2927518388612371,
+          "objective_gain_over_keep": -0.002285663248475421,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006452329915142088,
+          "transmitted_messages": 56.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.024421771988272667,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": -0.01617330847276155,
+          "cumulative_absolute_reward": 0.277164193636951,
+          "objective_gain_over_keep": -0.01737330847276155,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.021539975139428215,
+          "transmitted_messages": 50.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "swap",
+          "action_probability": 0.041982829570770264,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": -0.0008540035207851293,
+          "cumulative_absolute_reward": 0.2924834985889274,
+          "objective_gain_over_keep": -0.002054003520785129,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006220670187451796,
+          "transmitted_messages": 50.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5228609442710876,
+        "keep": 0.1386696845293045,
+        "remove": 0.0,
+        "swap": 0.33846941590309143
+      },
+      "type_probability_margin": 0.18439152836799622
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 9.549234356701162e-05,
+      "condition_seed": 1981,
+      "critic_value": -0.1970028132200241,
+      "decision_index": 6,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.13629131019115448,
+          "communication_penalty": 0.0037500000000000003,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": -0.0007565028099958404,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.0037500000000000003,
+          "transmitted_messages": 45.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.5288212299346924,
+          "communication_penalty": 0.00425,
+          "counterfactual_task_gain": 0.004149666562085819,
+          "cumulative_absolute_reward": 0.0033931637520899782,
+          "objective_gain_over_keep": 0.0024496665620858185,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0013003334379141818,
+          "transmitted_messages": 51.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.02840529754757881,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": 0.0053948002398543915,
+          "cumulative_absolute_reward": 0.004638297429858551,
+          "objective_gain_over_keep": 0.003778133573187725,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 2.813357318772478e-05,
+          "transmitted_messages": 50.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "swap",
+          "action_probability": 0.04104972258210182,
+          "communication_penalty": 0.003916666666666667,
+          "counterfactual_task_gain": 0.0050493078962873805,
+          "cumulative_absolute_reward": 0.00429280508629154,
+          "objective_gain_over_keep": 0.0036826412296207135,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -6.735877037928673e-05,
+          "transmitted_messages": 47.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5288212299346924,
+        "keep": 0.13629131019115448,
+        "remove": 0.0,
+        "swap": 0.33488744497299194
+      },
+      "type_probability_margin": 0.19393378496170044
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.008850350339601411,
+      "condition_seed": 1981,
+      "critic_value": -0.18487896025180817,
+      "decision_index": 9,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.1377919465303421,
+          "communication_penalty": 0.0022500000000000003,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": -0.0010529676944625588,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.0022500000000000003,
+          "transmitted_messages": 27.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.5265646576881409,
+          "communication_penalty": 0.0025833333333333333,
+          "counterfactual_task_gain": -0.007317017006268078,
+          "cumulative_absolute_reward": -0.008369984700730637,
+          "objective_gain_over_keep": -0.008850350339601411,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.011100350339601411,
+          "transmitted_messages": 31.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.03181026875972748,
+          "communication_penalty": 0.0025833333333333333,
+          "counterfactual_task_gain": -0.018933217977158745,
+          "cumulative_absolute_reward": -0.019986185671621304,
+          "objective_gain_over_keep": -0.020466551310492076,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.022716551310492078,
+          "transmitted_messages": 31.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "swap",
+          "action_probability": 0.040585681796073914,
+          "communication_penalty": 0.0023333333333333335,
+          "counterfactual_task_gain": -0.009795343333416862,
+          "cumulative_absolute_reward": -0.01084831102787942,
+          "objective_gain_over_keep": -0.011078676666750194,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.013328676666750194,
+          "transmitted_messages": 28.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5265646576881409,
+        "keep": 0.1377919465303421,
+        "remove": 0.0,
+        "swap": 0.3356434106826782
+      },
+      "type_probability_margin": 0.19092124700546265
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.013762288052274585,
+      "condition_seed": 1981,
+      "critic_value": -0.19853703677654266,
+      "decision_index": 0,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 1,
+        "keep": 1,
+        "swap": 9
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.13878220319747925,
+          "communication_penalty": 0.004333333333333333,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 2.2918251805685035,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004333333333333333,
+          "transmitted_messages": 52.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.5216657519340515,
+          "communication_penalty": 0.004833333333333333,
+          "counterfactual_task_gain": 0.021830138899649576,
+          "cumulative_absolute_reward": 2.313655319468153,
+          "objective_gain_over_keep": 0.020130138899649576,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.015796805566316244,
+          "transmitted_messages": 58.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.02294260635972023,
+          "communication_penalty": 0.004333333333333333,
+          "counterfactual_task_gain": 0.03509242695192416,
+          "cumulative_absolute_reward": 2.3269176075204276,
+          "objective_gain_over_keep": 0.03389242695192416,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.029559093618590826,
+          "transmitted_messages": 52.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "swap",
+          "action_probability": 0.05100395902991295,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.020414998655241323,
+          "cumulative_absolute_reward": 2.312240179223745,
+          "objective_gain_over_keep": 0.019131665321907992,
+          "resynchronization_penalty": 0.0002,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.014798331988574658,
+          "transmitted_messages": 53.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.5216657519340515,
+        "keep": 0.13878220319747925,
+        "remove": 0.0,
+        "swap": 0.33955198526382446
+      },
+      "type_probability_margin": 0.18211376667022705
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": 0.0005169762500695776,
+      "condition_seed": 1981,
+      "critic_value": -0.1766771823167801,
+      "decision_index": 3,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1,
+        "remove": 10
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.6943010687828064,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.29890197505442795,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004666666666666667,
+          "transmitted_messages": 56.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "remove",
+          "action_probability": 0.019304320216178894,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": -0.016269061423159425,
+          "cumulative_absolute_reward": 0.2826329136312685,
+          "objective_gain_over_keep": -0.016769061423159426,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.021435728089826092,
+          "transmitted_messages": 50.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "remove",
+          "action_probability": 0.04511726647615433,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": -1.6976250069578036e-05,
+          "cumulative_absolute_reward": 0.29888499880435837,
+          "objective_gain_over_keep": -0.0005169762500695776,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.005183642916736245,
+          "transmitted_messages": 50.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 0.6943010687828064,
+        "remove": 0.3056989312171936,
+        "swap": 0.0
+      },
+      "type_probability_margin": 0.3886021375656128
+    },
+    {
+      "audited_best_action_kind": "remove",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 3.297152815307999e-05,
+      "condition_seed": 1981,
+      "critic_value": -0.19991248846054077,
+      "decision_index": 6,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1,
+        "remove": 10
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.6955242156982422,
+          "communication_penalty": 0.00425,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.00017746193855677772,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.00425,
+          "transmitted_messages": 51.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "remove",
+          "action_probability": 0.021975146606564522,
+          "communication_penalty": 0.004166666666666667,
+          "counterfactual_task_gain": 0.0009496381948197463,
+          "cumulative_absolute_reward": 0.001127100133376524,
+          "objective_gain_over_keep": 3.297152815307999e-05,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.00421702847184692,
+          "transmitted_messages": 50.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "remove",
+          "action_probability": 0.036390502005815506,
+          "communication_penalty": 0.003916666666666667,
+          "counterfactual_task_gain": -0.001811079391098147,
+          "cumulative_absolute_reward": -0.0016336174525413694,
+          "objective_gain_over_keep": -0.002477746057764814,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006727746057764814,
+          "transmitted_messages": 47.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 0.6955242156982422,
+        "remove": 0.3044757843017578,
+        "swap": 0.0
+      },
+      "type_probability_margin": 0.3910484313964844
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": 0.003533890711405779,
+      "condition_seed": 1981,
+      "critic_value": -0.19345654547214508,
+      "decision_index": 9,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1,
+        "remove": 10
+      },
+      "node_count": 10,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.6953323483467102,
+          "communication_penalty": 0.0024166666666666664,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": -0.018745633376835713,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.0024166666666666664,
+          "transmitted_messages": 29.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "remove",
+          "action_probability": 0.019910279661417007,
+          "communication_penalty": 0.0024166666666666664,
+          "counterfactual_task_gain": -0.010554219620668381,
+          "cumulative_absolute_reward": -0.029299852997504094,
+          "objective_gain_over_keep": -0.01155421962066838,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.013970886287335046,
+          "transmitted_messages": 29.0
+        },
+        {
+          "action_id": 10,
+          "action_kind": "remove",
+          "action_probability": 0.03963273763656616,
+          "communication_penalty": 0.0021666666666666666,
+          "counterfactual_task_gain": -0.0027838907114057787,
+          "cumulative_absolute_reward": -0.021529524088241492,
+          "objective_gain_over_keep": -0.003533890711405779,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.005950557378072445,
+          "transmitted_messages": 26.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 0.6953323483467102,
+        "remove": 0.3046676814556122,
+        "swap": 0.0
+      },
+      "type_probability_margin": 0.390664666891098
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0021687263768267757,
+      "condition_seed": 1982,
+      "critic_value": -0.19814039766788483,
+      "decision_index": 0,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.09113164991140366,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 1.668437275003121,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004416666666666667,
+          "transmitted_messages": 106.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.06150496378540993,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": 0.01082970752989798,
+          "cumulative_absolute_reward": 1.6792669825330189,
+          "objective_gain_over_keep": 0.00947970752989798,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.005063040863231313,
+          "transmitted_messages": 112.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.005664485972374678,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.005250705344942208,
+          "cumulative_absolute_reward": 1.673687980348063,
+          "objective_gain_over_keep": 0.004150705344942208,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0002659613217244588,
+          "transmitted_messages": 106.0
+        },
+        {
+          "action_id": 50,
+          "action_kind": "add",
+          "action_probability": 0.060872048139572144,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": -0.0016010224351150626,
+          "cumulative_absolute_reward": 1.6668362525680058,
+          "objective_gain_over_keep": -0.002951022435115063,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.00736768910178173,
+          "transmitted_messages": 112.0
+        },
+        {
+          "action_id": 52,
+          "action_kind": "swap",
+          "action_probability": 0.005978047382086515,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.012748433906724754,
+          "cumulative_absolute_reward": 1.6811857089098456,
+          "objective_gain_over_keep": 0.011648433906724756,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.007231767240058089,
+          "transmitted_messages": 106.0
+        }
+      ],
+      "selected_type_utility_margin": 0.045543789863586426,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5552545785903931,
+        "keep": 0.09113164991140366,
+        "remove": 0.0,
+        "swap": 0.3536137342453003
+      },
+      "type_probability_margin": 0.20164084434509277
+    },
+    {
+      "audited_best_action_kind": "add",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": 0.00393978856052774,
+      "condition_seed": 1982,
+      "critic_value": -0.1924145668745041,
+      "decision_index": 3,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.0953923687338829,
+          "communication_penalty": 0.00425,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.12605254478085792,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.00425,
+          "transmitted_messages": 102.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.062382955104112625,
+          "communication_penalty": 0.0045000000000000005,
+          "counterfactual_task_gain": 0.002090700458751815,
+          "cumulative_absolute_reward": 0.12814324523960974,
+          "objective_gain_over_keep": 0.0007407004587518151,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.003509299541248185,
+          "transmitted_messages": 108.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.006645464804023504,
+          "communication_penalty": 0.00425,
+          "counterfactual_task_gain": 0.0005282411257568898,
+          "cumulative_absolute_reward": 0.1265807859066148,
+          "objective_gain_over_keep": -0.0005717588742431105,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.004821758874243111,
+          "transmitted_messages": 102.0
+        },
+        {
+          "action_id": 50,
+          "action_kind": "add",
+          "action_probability": 0.061964139342308044,
+          "communication_penalty": 0.004458333333333333,
+          "counterfactual_task_gain": 0.005988822352612888,
+          "cumulative_absolute_reward": 0.1320413671334708,
+          "objective_gain_over_keep": 0.004680489019279555,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.0004304890192795548,
+          "transmitted_messages": 107.0
+        },
+        {
+          "action_id": 52,
+          "action_kind": "swap",
+          "action_probability": 0.0069154114462435246,
+          "communication_penalty": 0.004208333333333333,
+          "counterfactual_task_gain": -0.004049760930631363,
+          "cumulative_absolute_reward": 0.12200278385022656,
+          "objective_gain_over_keep": -0.005108094263964694,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.009358094263964695,
+          "transmitted_messages": 101.0
+        }
+      ],
+      "selected_type_utility_margin": 0.022005677223205566,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5543700456619263,
+        "keep": 0.0953923687338829,
+        "remove": 0.0,
+        "swap": 0.35023757815361023
+      },
+      "type_probability_margin": 0.20413246750831604
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0028766878819318775,
+      "condition_seed": 1982,
+      "critic_value": -0.18103544414043427,
+      "decision_index": 6,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.09508027136325836,
+          "communication_penalty": 0.004,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.03826070235314305,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004,
+          "transmitted_messages": 96.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.06578820943832397,
+          "communication_penalty": 0.00425,
+          "counterfactual_task_gain": 0.0015334751040122496,
+          "cumulative_absolute_reward": 0.0397941774571553,
+          "objective_gain_over_keep": 0.00018347510401224955,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0038165248959877505,
+          "transmitted_messages": 102.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.0032962679397314787,
+          "communication_penalty": 0.004,
+          "counterfactual_task_gain": 0.005424531982315961,
+          "cumulative_absolute_reward": 0.04368523433545901,
+          "objective_gain_over_keep": 0.004324531982315961,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.00032453198231596086,
+          "transmitted_messages": 96.0
+        },
+        {
+          "action_id": 50,
+          "action_kind": "add",
+          "action_probability": 0.06484139710664749,
+          "communication_penalty": 0.00425,
+          "counterfactual_task_gain": 0.0027978441003840837,
+          "cumulative_absolute_reward": 0.041058546453527134,
+          "objective_gain_over_keep": 0.0014478441003840832,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.002552155899615917,
+          "transmitted_messages": 102.0
+        },
+        {
+          "action_id": 52,
+          "action_kind": "swap",
+          "action_probability": 0.007143835537135601,
+          "communication_penalty": 0.004,
+          "counterfactual_task_gain": -0.007146588279615784,
+          "cumulative_absolute_reward": 0.031114114073527266,
+          "objective_gain_over_keep": -0.008246588279615785,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.012246588279615785,
+          "transmitted_messages": 96.0
+        }
+      ],
+      "selected_type_utility_margin": 0.014496207237243652,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5712928771972656,
+        "keep": 0.09508027136325836,
+        "remove": 0.0,
+        "swap": 0.3336268663406372
+      },
+      "type_probability_margin": 0.23766601085662842
+    },
+    {
+      "audited_best_action_kind": "add",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": 0.002001251967176026,
+      "condition_seed": 1982,
+      "critic_value": -0.18050728738307953,
+      "decision_index": 9,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.09633193910121918,
+          "communication_penalty": 0.002625,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.01336127717786173,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.002625,
+          "transmitted_messages": 63.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.06392791867256165,
+          "communication_penalty": 0.0027916666666666667,
+          "counterfactual_task_gain": 0.005640858145566252,
+          "cumulative_absolute_reward": 0.019002135323427982,
+          "objective_gain_over_keep": 0.004374191478899586,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.0017491914788995856,
+          "transmitted_messages": 67.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.0023367642425000668,
+          "communication_penalty": 0.002625,
+          "counterfactual_task_gain": 0.0034729395117235606,
+          "cumulative_absolute_reward": 0.01683421668958529,
+          "objective_gain_over_keep": 0.0023729395117235604,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0002520604882764396,
+          "transmitted_messages": 63.0
+        },
+        {
+          "action_id": 50,
+          "action_kind": "add",
+          "action_probability": 0.062399912625551224,
+          "communication_penalty": 0.0027916666666666667,
+          "counterfactual_task_gain": 0.0004202211689328106,
+          "cumulative_absolute_reward": 0.01378149834679454,
+          "objective_gain_over_keep": -0.0008464454977338558,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.003471445497733856,
+          "transmitted_messages": 67.0
+        },
+        {
+          "action_id": 52,
+          "action_kind": "swap",
+          "action_probability": 0.00759925926104188,
+          "communication_penalty": 0.0026666666666666666,
+          "counterfactual_task_gain": 0.0014536056019517352,
+          "cumulative_absolute_reward": 0.014814882779813465,
+          "objective_gain_over_keep": 0.0003119389352850689,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0023130610647149313,
+          "transmitted_messages": 64.0
+        }
+      ],
+      "selected_type_utility_margin": 0.007093191146850586,
+      "trajectory": "keep",
+      "type_probabilities": {
+        "add": 0.5603511929512024,
+        "keep": 0.09633193910121918,
+        "remove": 0.0,
+        "swap": 0.343316912651062
+      },
+      "type_probability_margin": 0.21703428030014038
+    },
+    {
+      "audited_best_action_kind": "swap",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0021687263768267757,
+      "condition_seed": 1982,
+      "critic_value": -0.19814039766788483,
+      "decision_index": 0,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 9,
+        "keep": 1,
+        "swap": 43
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.09113164991140366,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 1.668437275003121,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004416666666666667,
+          "transmitted_messages": 106.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.06150496378540993,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": 0.01082970752989798,
+          "cumulative_absolute_reward": 1.6792669825330189,
+          "objective_gain_over_keep": 0.00947970752989798,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.005063040863231313,
+          "transmitted_messages": 112.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.005664485972374678,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.005250705344942208,
+          "cumulative_absolute_reward": 1.673687980348063,
+          "objective_gain_over_keep": 0.004150705344942208,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0002659613217244588,
+          "transmitted_messages": 106.0
+        },
+        {
+          "action_id": 50,
+          "action_kind": "add",
+          "action_probability": 0.060872048139572144,
+          "communication_penalty": 0.004666666666666667,
+          "counterfactual_task_gain": -0.0016010224351150626,
+          "cumulative_absolute_reward": 1.6668362525680058,
+          "objective_gain_over_keep": -0.002951022435115063,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.00736768910178173,
+          "transmitted_messages": 112.0
+        },
+        {
+          "action_id": 52,
+          "action_kind": "swap",
+          "action_probability": 0.005978047382086515,
+          "communication_penalty": 0.004416666666666667,
+          "counterfactual_task_gain": 0.012748433906724754,
+          "cumulative_absolute_reward": 1.6811857089098456,
+          "objective_gain_over_keep": 0.011648433906724756,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": 0.007231767240058089,
+          "transmitted_messages": 106.0
+        }
+      ],
+      "selected_type_utility_margin": 0.045543789863586426,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.5552545785903931,
+        "keep": 0.09113164991140366,
+        "remove": 0.0,
+        "swap": 0.3536137342453003
+      },
+      "type_probability_margin": 0.20164084434509277
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": Infinity,
+      "condition_seed": 1982,
+      "critic_value": -0.1959213763475418,
+      "decision_index": 3,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 1.0,
+          "communication_penalty": 0.004750000000000001,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.13510194091421213,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004750000000000001,
+          "transmitted_messages": 114.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 1.0,
+        "remove": 0.0,
+        "swap": 0.0
+      },
+      "type_probability_margin": 1.0
+    },
+    {
+      "audited_best_action_kind": "remove",
+      "audited_best_kind_matches": false,
+      "audited_best_objective_margin": 0.0020925606468958457,
+      "condition_seed": 1982,
+      "critic_value": -0.18530777096748352,
+      "decision_index": 6,
+      "deterministic_action_kind": "add",
+      "legal_action_kind_counts": {
+        "add": 6,
+        "keep": 1,
+        "remove": 9,
+        "swap": 79
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 0.09961885213851929,
+          "communication_penalty": 0.004750000000000001,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.032405010271636,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.004750000000000001,
+          "transmitted_messages": 114.0
+        },
+        {
+          "action_id": 1,
+          "action_kind": "add",
+          "action_probability": 0.08498670160770416,
+          "communication_penalty": 0.005,
+          "counterfactual_task_gain": -0.000617931437944752,
+          "cumulative_absolute_reward": 0.03178707883369125,
+          "objective_gain_over_keep": -0.0019679314379447517,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006717931437944752,
+          "transmitted_messages": 120.0
+        },
+        {
+          "action_id": 2,
+          "action_kind": "swap",
+          "action_probability": 0.005672486498951912,
+          "communication_penalty": 0.004750000000000001,
+          "counterfactual_task_gain": -0.0010733131755885639,
+          "cumulative_absolute_reward": 0.03133169709604744,
+          "objective_gain_over_keep": -0.002173313175588564,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.006923313175588565,
+          "transmitted_messages": 114.0
+        },
+        {
+          "action_id": 75,
+          "action_kind": "add",
+          "action_probability": 0.09096415340900421,
+          "communication_penalty": 0.005,
+          "counterfactual_task_gain": 0.0028433528879108216,
+          "cumulative_absolute_reward": 0.035248363159546825,
+          "objective_gain_over_keep": 0.0014933528879108224,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0032566471120891783,
+          "transmitted_messages": 120.0
+        },
+        {
+          "action_id": 85,
+          "action_kind": "swap",
+          "action_probability": 0.0034385344479233027,
+          "communication_penalty": 0.004750000000000001,
+          "counterfactual_task_gain": -0.006742880469918333,
+          "cumulative_absolute_reward": 0.02566212980171767,
+          "objective_gain_over_keep": -0.007842880469918333,
+          "resynchronization_penalty": 0.0001,
+          "resynchronizations": 2.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.012592880469918334,
+          "transmitted_messages": 114.0
+        },
+        {
+          "action_id": 86,
+          "action_kind": "remove",
+          "action_probability": 0.004029686562716961,
+          "communication_penalty": 0.0045000000000000005,
+          "counterfactual_task_gain": 0.004335913534806668,
+          "cumulative_absolute_reward": 0.03674092380644267,
+          "objective_gain_over_keep": 0.003585913534806668,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0011640864651933326,
+          "transmitted_messages": 108.0
+        },
+        {
+          "action_id": 94,
+          "action_kind": "remove",
+          "action_probability": 0.005216686986386776,
+          "communication_penalty": 0.004541666666666667,
+          "counterfactual_task_gain": 0.0005352193686917195,
+          "cumulative_absolute_reward": 0.03294022964032772,
+          "objective_gain_over_keep": -0.0002564472979749467,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.001,
+          "topology_switches": 1.0,
+          "training_objective": -0.0050064472979749475,
+          "transmitted_messages": 109.0
+        }
+      ],
+      "selected_type_utility_margin": 0.009462416172027588,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.5269346833229065,
+        "keep": 0.09961885213851929,
+        "remove": 0.06041537597775459,
+        "swap": 0.31303107738494873
+      },
+      "type_probability_margin": 0.21390360593795776
+    },
+    {
+      "audited_best_action_kind": "keep",
+      "audited_best_kind_matches": true,
+      "audited_best_objective_margin": Infinity,
+      "condition_seed": 1982,
+      "critic_value": -0.18516215682029724,
+      "decision_index": 9,
+      "deterministic_action_kind": "keep",
+      "legal_action_kind_counts": {
+        "keep": 1
+      },
+      "node_count": 20,
+      "noise_seed": 0,
+      "outcomes": [
+        {
+          "action_id": 0,
+          "action_kind": "keep",
+          "action_probability": 1.0,
+          "communication_penalty": 0.003125,
+          "counterfactual_task_gain": 0.0,
+          "cumulative_absolute_reward": 0.02598228226241206,
+          "objective_gain_over_keep": 0.0,
+          "resynchronization_penalty": 0.0,
+          "resynchronizations": 0.0,
+          "topology_switch_penalty": 0.0,
+          "topology_switches": 0.0,
+          "training_objective": -0.003125,
+          "transmitted_messages": 75.0
+        }
+      ],
+      "selected_type_utility_margin": Infinity,
+      "trajectory": "policy",
+      "type_probabilities": {
+        "add": 0.0,
+        "keep": 1.0,
+        "remove": 0.0,
+        "swap": 0.0
+      },
+      "type_probability_margin": 1.0
+    }
+  ],
+  "trajectories": [
+    "keep",
+    "policy"
+  ]
+}

@@ -11,6 +11,10 @@ from experiments.variable_scale_topology_ppo import (
     _walker_randomization_flags_for_batch,
     train_variable_scale_topology_ppo,
 )
+from experiments.training.variable_scale_critic_fitting import (
+    CriticFittingConfiguration,
+    fit_frozen_actor_critic,
+)
 
 
 def test_walker_curriculum_progresses_from_fixed_through_mixed_to_random():
@@ -128,6 +132,50 @@ def test_one_shared_update_contains_all_three_graph_sizes():
         ) < 1.0e-5
 
 
+def test_critic_only_fit_keeps_actor_frozen_and_separates_validation():
+    curriculum = VariableScaleTopologyCurriculum(episode_epochs=2)
+    source = train_variable_scale_topology_ppo(VariableScalePPOConfiguration(
+        curriculum=curriculum,
+        training_episodes=1,
+        rollout_batch_episodes=1,
+        training_condition_seed_count=1,
+        environment_seed_count=1,
+        update_epochs=1,
+        minibatch_size=1,
+        target_kl=None,
+    ))
+    actor_before = {
+        name: value.clone() for name, value in source.model.actor.state_dict().items()
+    }
+    summary = fit_frozen_actor_critic(
+        source.model, curriculum,
+        training_condition_seeds=(400,),
+        validation_condition_seeds=(401,),
+        configuration=CriticFittingConfiguration(
+            epochs=2, minibatch_size=1, learning_rate=1.0e-3,
+        ),
+    )
+    assert summary["target_definition"].endswith("zero_terminal_bootstrap")
+    assert summary["actor_unchanged"]
+    assert summary["selected_checkpoint_epoch"] in (1, 2)
+    assert summary["training_transition_count"] == 1
+    assert summary["validation_transition_count"] == 1
+    assert all(torch.equal(value, actor_before[name]) for name, value in (
+        source.model.actor.state_dict().items()
+    ))
+
+    try:
+        fit_frozen_actor_critic(
+            source.model, curriculum,
+            training_condition_seeds=(400,),
+            validation_condition_seeds=(400,),
+        )
+    except ValueError as error:
+        assert "disjoint" in str(error)
+    else:
+        raise AssertionError("Overlapping Critic conditions were accepted.")
+
+
 def test_warm_and_random_initialization_use_identical_actor_structure():
     checkpoint = "results/v15_stratified_physical_gnn_hierarchical_seed00.pt"
     configuration = VariableScalePPOConfiguration(
@@ -206,6 +254,7 @@ def test_difference_resource_penalties_require_counterfactual_reward():
 
 def test_training_checkpoint_resumes_at_next_batch(tmp_path):
     checkpoint = tmp_path / "training.pt"
+    archive = tmp_path / "batches"
     configuration = VariableScalePPOConfiguration(
         curriculum=VariableScaleTopologyCurriculum(episode_epochs=2),
         training_episodes=2,
@@ -221,13 +270,16 @@ def test_training_checkpoint_resumes_at_next_batch(tmp_path):
     partial = train_variable_scale_topology_ppo(
         configuration,
         training_checkpoint=checkpoint,
+        training_checkpoint_archive_directory=archive,
         stop_after_batches=1,
     )
     assert [item.episode for item in partial.diagnostics] == [0]
+    assert (archive / "episode_0001.pt").is_file()
 
     resumed = train_variable_scale_topology_ppo(
         configuration,
         training_checkpoint=checkpoint,
+        training_checkpoint_archive_directory=archive,
         resume_training_checkpoint=checkpoint,
     )
     assert [item.episode for item in resumed.diagnostics] == [0, 1]
@@ -236,6 +288,7 @@ def test_training_checkpoint_resumes_at_next_batch(tmp_path):
     ]
     saved = torch.load(checkpoint, map_location="cpu", weights_only=True)
     assert saved["next_episode"] == 2
+    assert (archive / "episode_0002.pt").is_file()
     assert all(
         torch.equal(value, resumed.model.state_dict()[name])
         for name, value in saved["model_state_dict"].items()
