@@ -1,0 +1,18 @@
+{
+  "outage_modalities": [
+    "rad"
+  ],
+  "position_rmse_m": 21.45980134629791,
+  "position_rmse_outage_m": 25.202077853368706,
+  "position_rmse_recovery_m": 10.124235484481186,
+  "velocity_rmse_mps": 0.09207849530321881,
+  "velocity_rmse_outage_mps": 0.08038393201105802,
+  "velocity_rmse_recovery_mps": 0.06577974800165066,
+  "cann_enabled": false,
+  "cann_phase_rmse_deg": null,
+  "cann_max_phase_error_deg": null,
+  "cann_valid_fraction": null,
+  "optical_valid_count": 645,
+  "infrared_valid_count": 901,
+  "radar_valid_count": 600
+}
