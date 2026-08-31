@@ -595,6 +595,26 @@ propagation. Periodic and every-epoch estimator cues inject more phase error and
 alter bump concentration, so external cueing remains an experimental mechanism
 rather than a default project setting.
 
+Long-horizon discrimination tests are available through:
+
+```bash
+python -m experiments.run_ring_cann_stress_benchmark \
+  --duration 600 --sample-dt 2 --cue-gain 0.05 \
+  --gate-threshold-deg 3 --output-dir results/cann/stress_gate3
+python -m experiments.run_ring_cann_perturbation_benchmark \
+  --duration 3 --sample-dt 0.02 --output-dir results/cann/perturbation
+```
+
+Under rate bias, random walk, sparse cues, a 200-second cue outage, and two
+five-degree outliers, rate-only CANN propagation matches ordinary integration.
+A three-degree gate restores post-outage cue acquisition and rejects both
+outliers, but a conventional gated circular corrector remains slightly more
+accurate than the CANN. Transient neural perturbations show a separate CANN
+property: recurrent dynamics restore bump concentration and width within about
+0.02--0.64 seconds, while asymmetric damage can leave a permanent phase shift.
+The current evidence therefore supports robust attractor-shape recovery, not a
+claim of superior absolute-state accuracy.
+
 ## Repository layout
 
 ```text

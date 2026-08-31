@@ -1,0 +1,24 @@
+{
+  "phase_rmse_deg_by_mode": {
+    "dead_reckoning": 1.6012162611258367,
+    "cann_no_cue": 1.601216245055913,
+    "cann_sparse_cue": 1.353043520739669,
+    "cann_gated_cue": 0.40321677016151575
+  },
+  "outage_rmse_deg_by_mode": {
+    "dead_reckoning": 1.5325270352820082,
+    "cann_no_cue": 1.5325270178024466,
+    "cann_sparse_cue": 0.6242152416556024,
+    "cann_gated_cue": 0.6242150324815134
+  },
+  "final_error_deg_by_mode": {
+    "dead_reckoning": 2.3771988615926904,
+    "cann_no_cue": 2.377198842891563,
+    "cann_sparse_cue": 0.03384963778510526,
+    "cann_gated_cue": 0.03493045242655093
+  },
+  "available_cue_count": 19,
+  "accepted_cue_count": 17,
+  "csv": "results\\cann\\stress_seed2_gate3\\ring_cann_stress.csv",
+  "figure": "results\\cann\\stress_seed2_gate3\\ring_cann_stress.png"
+}

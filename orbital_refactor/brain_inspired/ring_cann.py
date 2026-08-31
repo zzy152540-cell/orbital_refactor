@@ -169,6 +169,35 @@ class RingCANN:
             valid=valid, internal_step_count=int(internal_step_count),
         )
 
+    def apply_transient_perturbation(
+        self, *, additive_input: Array | None = None,
+        silenced_neuron_mask: Array | None = None,
+    ) -> CANNOutput:
+        """Perturb the current neural state once without advancing physical time."""
+
+        if not self._initialized:
+            raise RuntimeError("RingCANN.reset must be called before perturbation.")
+        if additive_input is not None:
+            perturbation = np.asarray(additive_input, dtype=float)
+            if (
+                perturbation.shape != (self.config.num_neurons,)
+                or np.any(~np.isfinite(perturbation))
+            ):
+                raise ValueError("Additive input must be a finite ring vector.")
+            self.input_state = self.input_state + perturbation
+        if silenced_neuron_mask is not None:
+            mask = np.asarray(silenced_neuron_mask, dtype=bool)
+            if mask.shape != (self.config.num_neurons,):
+                raise ValueError("Silenced-neuron mask has the wrong ring dimension.")
+            background_input = float(self.inverse_activation(np.array([
+                self.config.background_firing_rate,
+            ]))[0])
+            self.input_state[mask] = background_input
+        if additive_input is None and silenced_neuron_mask is None:
+            raise ValueError("At least one transient perturbation is required.")
+        self.firing_rate = self.activation(self.input_state)
+        return self.output()
+
     def recurrent_input(self, firing_rate: Array, gamma: float = 0.0) -> Array:
         values = np.asarray(firing_rate, dtype=float)
         if values.shape != (self.config.num_neurons,):

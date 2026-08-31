@@ -1,0 +1,56 @@
+{
+  "noise_std_0.25": {
+    "immediate_phase_error_deg": -0.32395297822873437,
+    "maximum_phase_error_deg": 2.0105956708236006,
+    "final_phase_error_deg": -1.9890742847529803,
+    "immediate_concentration": 0.6778594771874901,
+    "baseline_concentration": 0.7961740796645929,
+    "final_concentration": 0.7961706623744854,
+    "concentration_recovery_time_s": 0.02
+  },
+  "noise_std_0.50": {
+    "immediate_phase_error_deg": -4.905744636099146,
+    "maximum_phase_error_deg": 4.905744636099146,
+    "final_phase_error_deg": 3.50889640534276,
+    "immediate_concentration": 0.47387915015315696,
+    "baseline_concentration": 0.7961740796645929,
+    "final_concentration": 0.7961706623744856,
+    "concentration_recovery_time_s": 0.12000000000000001
+  },
+  "noise_std_1.00": {
+    "immediate_phase_error_deg": 4.492130144117065,
+    "maximum_phase_error_deg": 9.030318203291396,
+    "final_phase_error_deg": 9.00687805908834,
+    "immediate_concentration": 0.26706006865032467,
+    "baseline_concentration": 0.7961740796645929,
+    "final_concentration": 0.7961706623744856,
+    "concentration_recovery_time_s": 0.14
+  },
+  "silence_center_10pct": {
+    "immediate_phase_error_deg": 0.0,
+    "maximum_phase_error_deg": 5.088887490341627e-14,
+    "final_phase_error_deg": 5.088887490341627e-14,
+    "immediate_concentration": 0.5965905900785535,
+    "baseline_concentration": 0.7961740796645929,
+    "final_concentration": 0.7961706623744859,
+    "concentration_recovery_time_s": 0.25999999999999995
+  },
+  "silence_center_25pct": {
+    "immediate_phase_error_deg": 5.088887490341627e-14,
+    "maximum_phase_error_deg": 3.053332494204976e-13,
+    "final_phase_error_deg": 3.053332494204976e-13,
+    "immediate_concentration": 0.09075818955390383,
+    "baseline_concentration": 0.7961740796645929,
+    "final_concentration": 0.7961706623744856,
+    "concentration_recovery_time_s": 0.6400000000000002
+  },
+  "silence_leading_25pct": {
+    "immediate_phase_error_deg": -16.60224372563752,
+    "maximum_phase_error_deg": 17.376347847335104,
+    "final_phase_error_deg": -16.708482820826337,
+    "immediate_concentration": 0.7333649994837085,
+    "baseline_concentration": 0.7961740796645929,
+    "final_concentration": 0.7961706623744857,
+    "concentration_recovery_time_s": 0.14
+  }
+}

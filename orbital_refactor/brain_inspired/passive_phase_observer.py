@@ -15,6 +15,7 @@ class PeriodicStateInput:
     phase_rate: float
     phase_hint: float | None = None
     phase_hint_valid: bool = False
+    cue_gain: float | None = None
     source_id: str | None = None
 
     def validate(self) -> None:
@@ -25,6 +26,9 @@ class PeriodicStateInput:
         if self.phase_hint_valid:
             if self.phase_hint is None or not np.isfinite(self.phase_hint):
                 raise ValueError("A valid phase hint must be finite and present.")
+        if self.cue_gain is not None:
+            if not np.isfinite(self.cue_gain) or self.cue_gain < 0.0:
+                raise ValueError("Cue gain must be finite and nonnegative.")
 
 
 @dataclass(frozen=True)
@@ -77,6 +81,7 @@ class PassiveRingCANNObserver:
         phase_hint = float(sample.phase_hint) if cue_applied else None
         output = self._cann.step(
             float(sample.phase_rate), dt, external_phase_hint=phase_hint,
+            cue_gain=sample.cue_gain,
         )
         self._last_timestamp = float(sample.timestamp)
         return _to_observation(
