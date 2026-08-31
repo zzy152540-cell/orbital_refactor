@@ -32,6 +32,7 @@ class OrbitalPhaseSidecarHistory:
 def run_orbital_phase_sidecar(
     *, timestamps: Array, state_history_eci: Array, frame: OrbitalPlaneFrame,
     cue_interval_samples: int | None = None,
+    cue_valid_mask: Array | None = None,
     source_id: str | None = None,
     cann_config: RingCANNConfig | None = None,
 ) -> OrbitalPhaseSidecarHistory:
@@ -47,6 +48,11 @@ def run_orbital_phase_sidecar(
         raise ValueError("state_history_eci must be finite with shape (N, 6).")
     if cue_interval_samples is not None and cue_interval_samples < 1:
         raise ValueError("cue_interval_samples must be positive or None.")
+    cue_mask = None
+    if cue_valid_mask is not None:
+        cue_mask = np.asarray(cue_valid_mask, dtype=bool).reshape(-1)
+        if cue_mask.shape != times.shape:
+            raise ValueError("cue_valid_mask must have shape (N,).")
 
     phases = tuple(
         extract_orbital_phase_state(
@@ -62,10 +68,16 @@ def run_orbital_phase_sidecar(
     )]
     cue_flags = [False]
     for index, phase_state in enumerate(phases[1:], start=1):
-        use_hint = (
-            cue_interval_samples is not None
-            and index % cue_interval_samples == 0
-        )
+        if cue_mask is None:
+            use_hint = (
+                cue_interval_samples is not None
+                and index % cue_interval_samples == 0
+            )
+        else:
+            use_hint = bool(cue_mask[index]) and (
+                cue_interval_samples is None
+                or index % cue_interval_samples == 0
+            )
         outputs.append(observer.update(
             phase_state.as_periodic_input(use_phase_hint=use_hint)
         ))

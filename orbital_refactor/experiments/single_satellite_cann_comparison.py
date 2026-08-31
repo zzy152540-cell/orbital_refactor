@@ -137,6 +137,8 @@ def run_single_satellite_cann_comparison(
     return {
         "timestamps": timestamps, "position_error_m": position_error,
         "velocity_error_mps": velocity_error, "truth_phase": truth_phase,
+        "estimated_state_history_eci": estimate_eci,
+        "truth_state_history_eci": truth_eci,
         "cann": cann,
         "available": np.logical_and.reduce(tuple(available_by_modality.values())),
         "available_by_modality": available_by_modality,
