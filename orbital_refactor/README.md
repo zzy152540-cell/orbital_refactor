@@ -615,6 +615,23 @@ property: recurrent dynamics restore bump concentration and width within about
 The current evidence therefore supports robust attractor-shape recovery, not a
 claim of superior absolute-state accuracy.
 
+Permanent-neuron-failure and sparse-reanchoring studies can be reproduced with:
+
+```bash
+python -m experiments.run_ring_cann_permanent_failure_benchmark \
+  --duration 10 --sample-dt 0.1 --output-dir results/cann/permanent_failure
+python -m experiments.run_ring_cann_failure_reanchoring \
+  --duration 10 --sample-dt 0.1 --cue-interval 0.5 \
+  --output-dir results/cann/failure_reanchoring
+```
+
+Persistent lesions preserve a numerically valid bump but can drive large phase
+errors. Sparse correct cues reduce random- and one-sided-lesion bias, while a
+lesion covering the represented phase remains structurally unrecoverable even
+with strong cue gain. Bump concentration alone is therefore not a sufficient
+health indicator; phase innovation, jump rate, and lesion geometry must also
+be monitored.
+
 ## Repository layout
 
 ```text

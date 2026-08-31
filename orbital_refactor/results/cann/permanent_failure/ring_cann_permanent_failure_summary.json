@@ -1,0 +1,52 @@
+{
+  "random_10pct": {
+    "failed_fraction": 0.1,
+    "immediate_phase_error_deg": 0.7194274528719853,
+    "final_phase_error_deg": 13.97288805055885,
+    "maximum_phase_error_deg": 13.97288805055885,
+    "immediate_concentration": 0.8061925084620273,
+    "final_concentration": 0.8006549672623123,
+    "final_width_rad": 0.6668210812441161,
+    "all_outputs_valid": true
+  },
+  "random_25pct": {
+    "failed_fraction": 0.25,
+    "immediate_phase_error_deg": -1.909866687287041,
+    "final_phase_error_deg": -56.40795542398873,
+    "maximum_phase_error_deg": 56.40795542398873,
+    "immediate_concentration": 0.7788400618609964,
+    "final_concentration": 0.6571111239311724,
+    "final_width_rad": 0.916408354824641,
+    "all_outputs_valid": true
+  },
+  "random_40pct": {
+    "failed_fraction": 0.4,
+    "immediate_phase_error_deg": -1.4879082314616168,
+    "final_phase_error_deg": -24.375094801979458,
+    "maximum_phase_error_deg": 24.375094801979458,
+    "immediate_concentration": 0.810686843370851,
+    "final_concentration": 0.37314168515157253,
+    "final_width_rad": 1.4041346648458708,
+    "all_outputs_valid": true
+  },
+  "centered_25pct": {
+    "failed_fraction": 0.25,
+    "immediate_phase_error_deg": -180.0,
+    "final_phase_error_deg": 179.9999999999999,
+    "maximum_phase_error_deg": 180.0,
+    "immediate_concentration": 0.1368425207187749,
+    "final_concentration": 0.8672781587913116,
+    "final_width_rad": 0.5336581763648127,
+    "all_outputs_valid": true
+  },
+  "leading_25pct": {
+    "failed_fraction": 0.25,
+    "immediate_phase_error_deg": -20.744953699563002,
+    "final_phase_error_deg": -76.4104095885022,
+    "maximum_phase_error_deg": 76.4104095885022,
+    "immediate_concentration": 0.7571751487752294,
+    "final_concentration": 0.8529119830708879,
+    "final_width_rad": 0.5640902799373732,
+    "all_outputs_valid": true
+  }
+}

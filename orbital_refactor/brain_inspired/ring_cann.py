@@ -80,6 +80,7 @@ class RingCANN:
         self._derivative_kernel_fft = np.fft.fft(self.derivative_kernel)
         self.input_state = np.zeros(config.num_neurons, dtype=float)
         self.firing_rate = np.zeros(config.num_neurons, dtype=float)
+        self._failed_neuron_mask = np.zeros(config.num_neurons, dtype=bool)
         self.timestamp = 0.0
         self._initialized = False
 
@@ -114,6 +115,7 @@ class RingCANN:
         delta = _wrapped_signed(self.preferred_phase - phase)
         self.input_state = self.inverse_activation(self._target_firing(delta))
         self.firing_rate = self.activation(self.input_state)
+        self._enforce_neuron_failures()
         self.timestamp = float(timestamp)
         initialization_steps = self._integrate(
             phase_rate=0.0,
@@ -196,6 +198,21 @@ class RingCANN:
         if additive_input is None and silenced_neuron_mask is None:
             raise ValueError("At least one transient perturbation is required.")
         self.firing_rate = self.activation(self.input_state)
+        self._enforce_neuron_failures()
+        return self.output()
+
+    def set_neuron_failure_mask(self, failed_neuron_mask: Array) -> CANNOutput:
+        """Persistently disable selected neurons until the mask is replaced."""
+
+        if not self._initialized:
+            raise RuntimeError("RingCANN.reset must be called before neuron failure.")
+        mask = np.asarray(failed_neuron_mask, dtype=bool)
+        if mask.shape != (self.config.num_neurons,):
+            raise ValueError("Failed-neuron mask has the wrong ring dimension.")
+        if np.all(mask):
+            raise ValueError("At least one ring neuron must remain available.")
+        self._failed_neuron_mask = mask.copy()
+        self._enforce_neuron_failures()
         return self.output()
 
     def recurrent_input(self, firing_rate: Array, gamma: float = 0.0) -> Array:
@@ -248,7 +265,17 @@ class RingCANN:
             ) / self.config.tau
             self.input_state = self.input_state + internal_step * derivative
             self.firing_rate = self.activation(self.input_state)
+            self._enforce_neuron_failures()
         return len(steps)
+
+    def _enforce_neuron_failures(self) -> None:
+        if not np.any(self._failed_neuron_mask):
+            return
+        background_input = float(self.inverse_activation(np.array([
+            self.config.background_firing_rate,
+        ]))[0])
+        self.input_state[self._failed_neuron_mask] = background_input
+        self.firing_rate[self._failed_neuron_mask] = 0.0
 
     def _target_firing(self, phase_difference: Array) -> Array:
         config = self.config
