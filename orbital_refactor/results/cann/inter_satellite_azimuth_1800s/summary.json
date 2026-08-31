@@ -1,0 +1,28 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "rmse_deg_by_mode": {
+    "measurement_hold": 2.358625578474566,
+    "ordinary_integration": 2.887906333671075,
+    "gated_complementary": 0.6457913297632711,
+    "gated_cann": 0.6458892129912286
+  },
+  "outage_rmse_deg_by_mode": {
+    "measurement_hold": 3.895194040293377,
+    "ordinary_integration": 2.529552248806463,
+    "gated_complementary": 1.0818676290560971,
+    "gated_cann": 1.0820519140268727
+  },
+  "reacquisition_time_s_by_mode": {
+    "measurement_hold": 10.0,
+    "ordinary_integration": null,
+    "gated_complementary": 10.0,
+    "gated_cann": 10.0
+  },
+  "available_hint_count": 93,
+  "boundary_crossing_count": 0,
+  "outage_window": [
+    600.0,
+    1200.0
+  ]
+}

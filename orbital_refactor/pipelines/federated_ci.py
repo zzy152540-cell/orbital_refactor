@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Mapping
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -46,6 +46,7 @@ class FederatedCIHistory:
     measurement_covariance_scale_history: dict[str, Array]
     integrity_status_history: dict[str, tuple[str, ...]]
     consecutive_anomaly_history: dict[str, Array]
+    cann_sidecar_history: Any | None = None
 
     def final_local_estimates(self, *, node_id: str, target_id: str) -> list[LocalEstimate]:
         estimates: list[LocalEstimate] = []

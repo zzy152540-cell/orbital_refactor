@@ -19,6 +19,24 @@ class OrbitalPlaneFrame:
     normal_axis: Array
 
     @classmethod
+    def from_state_eci(cls, state_eci: Array) -> "OrbitalPlaneFrame":
+        """Build a fixed orbital-plane basis from one nonsingular ECI state."""
+
+        state = np.asarray(state_eci, dtype=float).reshape(-1)
+        if state.shape != (6,) or np.any(~np.isfinite(state)):
+            raise ValueError("state_eci must be a finite [position, velocity] 6-vector.")
+        position, velocity = state[:3], state[3:]
+        position_norm = float(np.linalg.norm(position))
+        angular_momentum = np.cross(position, velocity)
+        momentum_norm = float(np.linalg.norm(angular_momentum))
+        if position_norm <= np.finfo(float).tiny or momentum_norm <= np.finfo(float).tiny:
+            raise ValueError("state_eci must define a nonsingular orbital plane.")
+        ascending = position / position_norm
+        normal = angular_momentum / momentum_norm
+        quadrature = np.cross(normal, ascending)
+        return cls(ascending, quadrature, normal)
+
+    @classmethod
     def from_raan_inclination(
         cls, *, raan: float, inclination: float,
     ) -> "OrbitalPlaneFrame":

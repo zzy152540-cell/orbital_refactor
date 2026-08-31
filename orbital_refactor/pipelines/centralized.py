@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from time import perf_counter
-from typing import Mapping
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -33,6 +33,7 @@ class CentralizedHistory:
     statistics: dict[str, dict[str, int]]
     abnormal_events: list[AbnormalEvent]
     processing_time: float
+    cann_sidecar_history: Any | None = None
 
     def final_fusion_result(self, *, node_id: str, target_id: str) -> SingleFusionResult:
         index = len(self.timestamps) - 1
