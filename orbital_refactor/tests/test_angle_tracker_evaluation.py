@@ -8,7 +8,7 @@ def test_evaluation_reports_each_method_and_seed():
     assert result["evaluation_seeds"] == [0]
     assert set(result["summary"]) == {
         "bias_adaptive_cann", "circular_kalman", "gated_cann",
-        "gated_complementary", "gated_pll", "measurement_hold",
-        "ordinary_integration",
+        "coupled_ring_line_cann", "gated_complementary", "gated_pll",
+        "measurement_hold", "ordinary_integration",
     }
     assert all(metrics["seed_count"] == 1 for metrics in result["summary"].values())

@@ -1,0 +1,11 @@
+{
+  "seeds": [
+    0,
+    4
+  ],
+  "best": {
+    "minimum_bias_baseline_s": 120.0,
+    "line_cue_gain": 0.2,
+    "mean_across_case_outage_rmse_deg": 0.4201224022598352
+  }
+}

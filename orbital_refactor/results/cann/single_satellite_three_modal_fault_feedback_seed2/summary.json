@@ -1,0 +1,85 @@
+{
+  "inject_faults": true,
+  "baseline": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "position_rmse_m": 848.6445628004066,
+    "position_rmse_outage_m": 1200.721846606484,
+    "position_rmse_recovery_m": 506.28229644101464,
+    "velocity_rmse_mps": 5.807683640380321,
+    "velocity_rmse_outage_mps": 2.129409985894372,
+    "velocity_rmse_recovery_mps": 8.722168937226122,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "hybrid_cann_preprocess_ir": false,
+    "radar_cann_preprocess": false,
+    "radar_fault_mode": "impulsive",
+    "optical_cann_preprocess": false,
+    "optical_fault_mode": "impulsive",
+    "optical_preprocess_diagnostics": null,
+    "infrared_fault_mode": "impulsive",
+    "infrared_preprocess_diagnostics": null,
+    "radar_preprocess_diagnostics": null,
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 344,
+    "infrared_valid_count": 600,
+    "radar_valid_count": 600
+  },
+  "three_modal_cann": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "position_rmse_m": 34.96998680068216,
+    "position_rmse_outage_m": 54.785430748644984,
+    "position_rmse_recovery_m": 6.327181732803558,
+    "velocity_rmse_mps": 0.160679632432742,
+    "velocity_rmse_outage_mps": 0.23181469281954253,
+    "velocity_rmse_recovery_mps": 0.07201721552366562,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "hybrid_cann_preprocess_ir": true,
+    "radar_cann_preprocess": true,
+    "radar_fault_mode": "impulsive",
+    "optical_cann_preprocess": true,
+    "optical_fault_mode": "impulsive",
+    "optical_preprocess_diagnostics": {
+      "u_substitution_count": 4,
+      "v_substitution_count": 4,
+      "uv_rms_change": [
+        0.021588685795503826,
+        0.043116637209153555
+      ],
+      "reanchor_count": 44
+    },
+    "infrared_fault_mode": "impulsive",
+    "infrared_preprocess_diagnostics": {
+      "azimuth_substitution_count": 4,
+      "elevation_substitution_count": 4
+    },
+    "radar_preprocess_diagnostics": {
+      "range_rms_change_m": 246.6364389577954,
+      "range_max_abs_change_m": 3082.3578006268945,
+      "range_rate_rms_change_mps": 0.41371842747886667,
+      "range_rate_max_abs_change_mps": 5.158167608935203,
+      "reanchor_count": 1,
+      "range_substitution_count": 4,
+      "range_rate_substitution_count": 4
+    },
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 344,
+    "infrared_valid_count": 600,
+    "radar_valid_count": 600
+  },
+  "position_rmse_change_m": -813.6745759997244,
+  "outage_position_rmse_change_m": -1145.936415857839,
+  "recovery_position_rmse_change_m": -499.95511470821106
+}

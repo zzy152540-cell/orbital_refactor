@@ -1,0 +1,63 @@
+{
+  "baseline": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "position_rmse_m": 37.28519876209291,
+    "position_rmse_outage_m": 55.036003345693516,
+    "position_rmse_recovery_m": 15.860469731743969,
+    "velocity_rmse_mps": 0.18096909999622393,
+    "velocity_rmse_outage_mps": 0.23295007798927625,
+    "velocity_rmse_recovery_mps": 0.12697438312330722,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "hybrid_cann_preprocess_ir": false,
+    "radar_cann_preprocess": false,
+    "radar_fault_mode": "impulsive",
+    "radar_preprocess_diagnostics": null,
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 344,
+    "infrared_valid_count": 600,
+    "radar_valid_count": 600
+  },
+  "radar_range_rate_line_cann": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "position_rmse_m": 34.96589163848684,
+    "position_rmse_outage_m": 54.629763476779154,
+    "position_rmse_recovery_m": 6.558407716394555,
+    "velocity_rmse_mps": 0.16178745371159722,
+    "velocity_rmse_outage_mps": 0.2314110903523216,
+    "velocity_rmse_recovery_mps": 0.07297701647162708,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "hybrid_cann_preprocess_ir": false,
+    "radar_cann_preprocess": true,
+    "radar_fault_mode": "impulsive",
+    "radar_preprocess_diagnostics": {
+      "range_rms_change_m": 246.6364389577954,
+      "range_max_abs_change_m": 3082.3578006268945,
+      "range_rate_rms_change_mps": 0.41371842747886667,
+      "range_rate_max_abs_change_mps": 5.158167608935203,
+      "reanchor_count": 1,
+      "range_substitution_count": 4,
+      "range_rate_substitution_count": 4
+    },
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 344,
+    "infrared_valid_count": 600,
+    "radar_valid_count": 600
+  },
+  "position_rmse_change_m": -2.319307123606073,
+  "outage_position_rmse_change_m": -0.40623986891436203,
+  "recovery_position_rmse_change_m": -9.302062015349414
+}

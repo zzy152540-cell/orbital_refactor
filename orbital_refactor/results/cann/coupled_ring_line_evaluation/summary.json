@@ -1,0 +1,22 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "evaluation_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "summary": {
+    "mean_rmse_deg": 0.17465262183990732,
+    "mean_outage_rmse_deg": 0.26379333536892047,
+    "outage_rmse_std_deg": 0.18268116441263468,
+    "maximum_outage_rmse_deg": 0.6526392064917795
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "bias_anchor_mode": "rolling_cue",
+  "minimum_bias_baseline": 120.0,
+  "line_cue_gain": 0.2,
+  "evaluation_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "summary": {
+    "mean_rmse_deg": 0.35509091188540615,
+    "mean_outage_rmse_deg": 0.5858465740223328,
+    "outage_rmse_std_deg": 0.2845474508811135,
+    "maximum_outage_rmse_deg": 0.9295465815696081
+  }
+}

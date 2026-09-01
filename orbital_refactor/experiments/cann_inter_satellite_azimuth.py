@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from brain_inspired.passive_phase_observer import PassiveRingCANNObserver, PeriodicStateInput
+from brain_inspired.coupled_ring_line_cann import CoupledRingLineCANN
 from orbital_core.coordinates import build_rtn_quaternion, state_eci_to_spri
 from orbital_core.measurements import h_ir_spri, h_optical_spri
 from scenarios.measurement_visibility import VisibilityConfig, evaluate_inter_satellite_visibility
@@ -28,6 +29,8 @@ class InterSatelliteAzimuthResult:
     circular_kalman_phase: np.ndarray
     cann_phase: np.ndarray
     adaptive_cann_phase: np.ndarray
+    coupled_ring_line_phase: np.ndarray
+    coupled_ring_line_rate_bias: np.ndarray
     cann_concentration: np.ndarray
     adaptive_cann_concentration: np.ndarray
     rmse_deg_by_mode: dict[str, float]
@@ -108,10 +111,14 @@ def run_inter_satellite_azimuth_benchmark(
         times, initial, measured_rate, hint, available, np.deg2rad(3.0),
         rate_bias_gain=adaptive_cann_rate_bias_gain,
     )
+    coupled_phase, coupled_rate_bias = _coupled_ring_line_tracker(
+        times, initial, measured_rate, hint, available,
+    )
     phases = {
         "measurement_hold": hold, "ordinary_integration": integrated,
         "gated_complementary": complementary, "gated_cann": cann_phase,
         "bias_adaptive_cann": adaptive_cann_phase,
+        "coupled_ring_line_cann": coupled_phase,
         "gated_pll": pll, "circular_kalman": circular_kalman,
     }
     errors = {name: _difference(value, truth) for name, value in phases.items()}
@@ -123,6 +130,8 @@ def run_inter_satellite_azimuth_benchmark(
         complementary_phase=complementary, pll_phase=pll,
         circular_kalman_phase=circular_kalman, cann_phase=cann_phase,
         adaptive_cann_phase=adaptive_cann_phase,
+        coupled_ring_line_phase=coupled_phase,
+        coupled_ring_line_rate_bias=coupled_rate_bias,
         cann_concentration=concentration,
         adaptive_cann_concentration=adaptive_concentration,
         rmse_deg_by_mode={name: float(np.rad2deg(np.sqrt(np.mean(error**2))))
@@ -160,7 +169,8 @@ def generate_inter_satellite_azimuth_figure(result, output_path):
               "complementary": result.complementary_phase,
               "PLL": result.pll_phase, "circular Kalman": result.circular_kalman_phase,
               "CANN": result.cann_phase,
-              "adaptive CANN": result.adaptive_cann_phase}
+              "adaptive CANN": result.adaptive_cann_phase,
+              "Ring-Line CANN": result.coupled_ring_line_phase}
     figure, axes = plt.subplots(2, 2, figsize=(14, 9), constrained_layout=True)
     truth = np.unwrap(result.truth_azimuth)
     axes[0, 0].plot(result.timestamps, np.rad2deg(truth), "k--", label="truth")
@@ -262,6 +272,25 @@ def _cann_tracker(
             integrated_measured_rate = 0.0
         phase.append(output.decoded_phase); quality.append(output.bump_concentration)
     return np.asarray(phase), np.asarray(quality)
+
+
+def _coupled_ring_line_tracker(
+    times, initial, rate, hint, available, config=None,
+):
+    observer = CoupledRingLineCANN() if config is None else CoupledRingLineCANN(config)
+    first = observer.initialize(phase=initial, timestamp=times[0])
+    phase = [first.decoded_phase]
+    rate_bias = [first.decoded_rate_bias]
+    for index in range(1, times.size):
+        use = bool(available[index])
+        output = observer.update(
+            timestamp=times[index], measured_phase_rate=rate[index - 1],
+            phase_hint=hint[index] if use else None,
+            phase_hint_valid=use,
+        )
+        phase.append(output.decoded_phase)
+        rate_bias.append(output.decoded_rate_bias)
+    return np.asarray(phase), np.asarray(rate_bias)
 
 
 def _gated_complementary(initial, rate, dt, hint, available, gate):

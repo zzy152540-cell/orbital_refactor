@@ -1,0 +1,17 @@
+{
+  "centroid": {
+    "rmse": 0.01296809441603178,
+    "maximum_absolute_error": 0.0587190748563009,
+    "edge_rmse": 0.029139575614940884
+  },
+  "peak_fit": {
+    "rmse": 3.0999343402539334e-15,
+    "maximum_absolute_error": 2.2426505097428162e-14,
+    "edge_rmse": 6.341696541486254e-15
+  },
+  "hybrid": {
+    "rmse": 0.001020094245117417,
+    "maximum_absolute_error": 0.005881534785449949,
+    "edge_rmse": 0.0022591857874427147
+  }
+}

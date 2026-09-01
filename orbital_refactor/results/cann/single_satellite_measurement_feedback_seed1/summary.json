@@ -1,0 +1,47 @@
+{
+  "baseline": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "position_rmse_m": 41.02919893496768,
+    "position_rmse_outage_m": 63.334506057432414,
+    "position_rmse_recovery_m": 5.727262129390555,
+    "velocity_rmse_mps": 0.16671572232055706,
+    "velocity_rmse_outage_mps": 0.2523593080462478,
+    "velocity_rmse_recovery_mps": 0.06391259512350256,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 344,
+    "infrared_valid_count": 600,
+    "radar_valid_count": 600
+  },
+  "adaptive_cann_ir": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "position_rmse_m": 41.029486780916564,
+    "position_rmse_outage_m": 63.335757616990186,
+    "position_rmse_recovery_m": 5.719871787034269,
+    "velocity_rmse_mps": 0.16671984588972705,
+    "velocity_rmse_outage_mps": 0.25236302810593536,
+    "velocity_rmse_recovery_mps": 0.06392783766569611,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": true,
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 344,
+    "infrared_valid_count": 600,
+    "radar_valid_count": 600
+  },
+  "position_rmse_change_m": 0.0002878459488826479,
+  "outage_position_rmse_change_m": 0.0012515595577724525,
+  "recovery_position_rmse_change_m": -0.007390342356285551
+}

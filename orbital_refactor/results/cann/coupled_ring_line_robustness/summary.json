@@ -1,0 +1,34 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "evaluation_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "summary": {
+    "initial_phase_offset": {
+      "run_count": 20,
+      "mean_outage_rmse_deg": 1.106108961167998,
+      "maximum_outage_rmse_deg": 2.0929062138035013,
+      "mean_final_rate_bias_deg_s": -0.0028326597097382846,
+      "maximum_abs_error_deg": 6.548392068507369
+    },
+    "insufficient_pre_outage_baseline": {
+      "run_count": 5,
+      "mean_outage_rmse_deg": 1.173817832540042,
+      "maximum_outage_rmse_deg": 1.453920163610726,
+      "mean_final_rate_bias_deg_s": -0.002821053638709033,
+      "maximum_abs_error_deg": 2.531805388877091
+    },
+    "time_varying_rate_bias": {
+      "run_count": 5,
+      "mean_outage_rmse_deg": 0.708356487503964,
+      "maximum_outage_rmse_deg": 1.2889647389763568,
+      "mean_final_rate_bias_deg_s": -0.0030221115205246113,
+      "maximum_abs_error_deg": 1.6991757029128296
+    }
+  }
+}

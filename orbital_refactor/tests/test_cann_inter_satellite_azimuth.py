@@ -1,6 +1,7 @@
 import numpy as np
 from experiments.cann_inter_satellite_azimuth import (
-    _cann_tracker, _circular_kalman, _difference, _gated_pll,
+    _cann_tracker, _circular_kalman, _coupled_ring_line_tracker,
+    _difference, _gated_pll,
     _weighted_circular_mean,
 )
 
@@ -33,3 +34,17 @@ def test_zero_bias_gain_preserves_original_cann_tracker():
     )
     np.testing.assert_array_equal(explicit, original)
     np.testing.assert_array_equal(explicit_quality, original_quality)
+
+
+def test_coupled_tracker_returns_phase_and_rate_bias_histories():
+    times = np.arange(0.0, 8.0, 2.0)
+    rate = np.full(times.size, np.deg2rad(0.1))
+    hint = np.full(times.size, np.nan)
+    available = np.zeros(times.size, dtype=bool)
+    phase, bias = _coupled_ring_line_tracker(
+        times, 0.0, rate, hint, available,
+    )
+    assert phase.shape == times.shape
+    assert bias.shape == times.shape
+    assert np.all(np.isfinite(phase))
+    assert np.all(np.isfinite(bias))

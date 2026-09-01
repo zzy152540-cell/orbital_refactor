@@ -1,0 +1,171 @@
+{
+  "inject_faults": false,
+  "baseline": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "outage_windows": {
+      "ir": [
+        600.0,
+        800.0
+      ],
+      "opt": [
+        1300.0,
+        1500.0
+      ],
+      "rad": [
+        900.0,
+        1100.0
+      ]
+    },
+    "position_rmse_m": 15.530080444191666,
+    "position_rmse_outage_m": 6.917815755291947,
+    "position_rmse_by_outage_m": {
+      "ir": 5.064433132073375,
+      "opt": 8.419096973848665,
+      "rad": 6.858487272583235
+    },
+    "position_rmse_recovery_m": 5.653447497653205,
+    "velocity_rmse_mps": 0.08751973797707321,
+    "velocity_rmse_outage_mps": 0.06657507648712954,
+    "velocity_rmse_by_outage_mps": {
+      "ir": 0.03876453375722977,
+      "opt": 0.09039353984588955,
+      "rad": 0.060191704615466926
+    },
+    "velocity_rmse_recovery_mps": 0.07231758192493098,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "hybrid_cann_preprocess_ir": false,
+    "radar_cann_preprocess": false,
+    "radar_fault_mode": null,
+    "optical_cann_preprocess": false,
+    "optical_fault_mode": null,
+    "optical_preprocess_diagnostics": null,
+    "infrared_fault_mode": null,
+    "infrared_preprocess_diagnostics": null,
+    "radar_preprocess_diagnostics": null,
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 544,
+    "infrared_valid_count": 800,
+    "radar_valid_count": 800
+  },
+  "three_modal_cann": {
+    "outage_modalities": [
+      "ir",
+      "opt",
+      "rad"
+    ],
+    "outage_windows": {
+      "ir": [
+        600.0,
+        800.0
+      ],
+      "opt": [
+        1300.0,
+        1500.0
+      ],
+      "rad": [
+        900.0,
+        1100.0
+      ]
+    },
+    "position_rmse_m": 15.411205231416556,
+    "position_rmse_outage_m": 6.915846424217016,
+    "position_rmse_by_outage_m": {
+      "ir": 5.07015710763319,
+      "opt": 8.408161925261423,
+      "rad": 6.861713724177555
+    },
+    "position_rmse_recovery_m": 5.648021571753956,
+    "velocity_rmse_mps": 0.08740634359559225,
+    "velocity_rmse_outage_mps": 0.06655309567844567,
+    "velocity_rmse_by_outage_mps": {
+      "ir": 0.038763272408628646,
+      "opt": 0.09034422244698294,
+      "rad": 0.060193636007285195
+    },
+    "velocity_rmse_recovery_mps": 0.07230120054390786,
+    "cann_enabled": false,
+    "adaptive_cann_preprocess_ir": false,
+    "hybrid_cann_preprocess_ir": true,
+    "radar_cann_preprocess": true,
+    "radar_fault_mode": null,
+    "optical_cann_preprocess": true,
+    "optical_fault_mode": null,
+    "optical_preprocess_diagnostics": {
+      "u_substitution_count": 0,
+      "v_substitution_count": 0,
+      "uv_rms_change": [
+        0.0,
+        0.0
+      ],
+      "reanchor_count": 98
+    },
+    "infrared_fault_mode": null,
+    "infrared_preprocess_diagnostics": {
+      "azimuth_substitution_count": 0,
+      "elevation_substitution_count": 0
+    },
+    "radar_preprocess_diagnostics": {
+      "range_rms_change_m": 1.0289757937229988e-12,
+      "range_max_abs_change_m": 2.9103830456733704e-11,
+      "range_rate_rms_change_mps": 1.25607396694702e-16,
+      "range_rate_max_abs_change_mps": 3.552713678800501e-15,
+      "reanchor_count": 1,
+      "range_substitution_count": 0,
+      "range_rate_substitution_count": 0
+    },
+    "cann_phase_rmse_deg": null,
+    "cann_max_phase_error_deg": null,
+    "cann_valid_fraction": null,
+    "optical_valid_count": 544,
+    "infrared_valid_count": 800,
+    "radar_valid_count": 800
+  },
+  "position_rmse_change_m": -0.11887521277511048,
+  "outage_position_rmse_change_m": -0.0019693310749309134,
+  "recovery_position_rmse_change_m": -0.005425925899248618,
+  "outage_impact_vs_no_outage": {
+    "opt": {
+      "baseline": {
+        "outage_position_rmse_m": 8.419096973848665,
+        "no_outage_position_rmse_m": 4.336823574418063,
+        "net_position_rmse_change_m": 4.082273399430602
+      },
+      "processed": {
+        "outage_position_rmse_m": 8.408161925261423,
+        "no_outage_position_rmse_m": 4.35449663057063,
+        "net_position_rmse_change_m": 4.053665294690793
+      }
+    },
+    "ir": {
+      "baseline": {
+        "outage_position_rmse_m": 5.064433132073375,
+        "no_outage_position_rmse_m": 5.064609171775349,
+        "net_position_rmse_change_m": -0.0001760397019747728
+      },
+      "processed": {
+        "outage_position_rmse_m": 5.07015710763319,
+        "no_outage_position_rmse_m": 5.069218230230384,
+        "net_position_rmse_change_m": 0.0009388774028060709
+      }
+    },
+    "rad": {
+      "baseline": {
+        "outage_position_rmse_m": 6.858487272583235,
+        "no_outage_position_rmse_m": 4.655809734609497,
+        "net_position_rmse_change_m": 2.202677537973738
+      },
+      "processed": {
+        "outage_position_rmse_m": 6.861713724177555,
+        "no_outage_position_rmse_m": 4.657882167439887,
+        "net_position_rmse_change_m": 2.2038315567376685
+      }
+    }
+  }
+}

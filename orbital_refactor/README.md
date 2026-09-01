@@ -570,11 +570,20 @@ the estimator and is only required for GNN training or inference.
 
 ### Experimental ring-CANN sidecar
 
-The `brain_inspired` package contains a discrete engineering reproduction of
-the Zhang-1996 one-dimensional ring attractor. It is intentionally passive:
-the CANN can observe an estimator-derived periodic phase and phase rate, but it
-does not replace or feed back into the EKF, Schmidt replay, CI, or topology
-controller.
+The `brain_inspired` package contains discrete engineering CANN components and
+measurement-side adapters. CANN never replaces the existing local EKFs,
+Schmidt replay, Federated-CI, or topology controller. Its optional feedback is
+strictly bounded to the measurement side: it returns a standard measurement
+proposal before the unchanged EKF update. Invalid observations remain invalid,
+so the adapter does not create virtual measurements during outages.
+
+The current three-modal prototype uses a hybrid Ring-Line CANN for infrared
+azimuth/elevation, two Line CANNs for radar range/range-rate, and a separable
+Plane CANN for optical normalized image coordinates. Radar and optical adapters
+pass normal measurements through exactly and substitute only jointly diagnosed
+impulsive anomalies; the infrared adapter uses the same fault-aware principle
+with circular azimuth handling. The original filter path remains selectable as
+the regression baseline.
 
 Run the standalone static, velocity, wrapping, and external-cue benchmark with:
 
@@ -614,6 +623,35 @@ property: recurrent dynamics restore bump concentration and width within about
 0.02--0.64 seconds, while asymmetric damage can leave a permanent phase shift.
 The current evidence therefore supports robust attractor-shape recovery, not a
 claim of superior absolute-state accuracy.
+
+Run the integrated 1800-second three-modal comparison with and without the CANN
+measurement sidecars using:
+
+```bash
+python -m experiments.run_single_satellite_three_modal_cann_feedback \
+  --seed 0 \
+  --output-dir results/cann/single_satellite_three_modal_fault_feedback_seed0
+python -m experiments.run_single_satellite_three_modal_cann_feedback \
+  --seed 0 --no-faults \
+  --output-dir results/cann/single_satellite_three_modal_no_fault_seed0
+python -m experiments.run_single_satellite_three_modal_cann_feedback \
+  --seed 0 --no-faults --staggered-outages \
+  --output-dir results/cann/single_satellite_three_modal_staggered_outages_seed0
+```
+
+The staggered-outage case independently removes infrared observations from
+600--800 s, radar observations from 900--1100 s, and optical observations from
+1300--1500 s. It also computes a same-seed no-outage reference so that each
+window reports the net RMSE impact instead of conflating outage effects with
+time-varying geometry or initialization transients.
+
+The fault-injection comparison writes `summary.json` and `overview.png`. In the
+current seed-0 run, position RMSE changes from 946.23 m without CANN anomaly
+handling to 41.34 m with the three measurement sidecars; post-outage recovery
+RMSE changes from 505.65 m to 9.24 m. These numbers demonstrate rejection of
+the configured synthetic impulsive faults, not general superiority over the
+unchanged estimator. The no-fault run is therefore retained as a mandatory
+non-regression control, together with multi-seed fault tests.
 
 Permanent-neuron-failure and sparse-reanchoring studies can be reproduced with:
 

@@ -1,0 +1,21 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "bias_anchor_mode": "hybrid_dual",
+  "minimum_bias_baseline": 120.0,
+  "line_cue_gain": 0.2,
+  "anchor_agreement_scale_deg_s": 0.004,
+  "evaluation_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "summary": {
+    "mean_rmse_deg": 0.21296898600721353,
+    "mean_outage_rmse_deg": 0.3243132300771009,
+    "outage_rmse_std_deg": 0.26283198003101343,
+    "maximum_outage_rmse_deg": 0.7128275512635138
+  }
+}
