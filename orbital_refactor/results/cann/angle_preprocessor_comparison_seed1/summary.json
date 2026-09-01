@@ -1,0 +1,35 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "rmse_deg_by_mode": {
+    "measurement_hold": 2.3596791463873505,
+    "ordinary_integration": 2.516471812923955,
+    "gated_complementary": 0.7375200365039704,
+    "gated_cann": 0.741128994442523,
+    "gated_pll": 0.2833590349966982,
+    "circular_kalman": 0.1689099059801672
+  },
+  "outage_rmse_deg_by_mode": {
+    "measurement_hold": 3.895678528211395,
+    "ordinary_integration": 2.250743061587313,
+    "gated_complementary": 1.2330898252648657,
+    "gated_cann": 1.2388360293381915,
+    "gated_pll": 0.43557606418640826,
+    "circular_kalman": 0.20642721008691675
+  },
+  "reacquisition_time_s_by_mode": {
+    "measurement_hold": 10.0,
+    "ordinary_integration": null,
+    "gated_complementary": 10.0,
+    "gated_cann": 10.0,
+    "gated_pll": 10.0,
+    "circular_kalman": 2.0
+  },
+  "available_hint_count": 93,
+  "boundary_crossing_count": 1,
+  "outage_window": [
+    600.0,
+    1200.0
+  ],
+  "sensor_azimuth_offset_deg": -114.94531576309242
+}

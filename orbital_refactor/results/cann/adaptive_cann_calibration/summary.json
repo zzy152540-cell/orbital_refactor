@@ -1,0 +1,36 @@
+{
+  "calibration_seeds": [
+    10,
+    11,
+    12,
+    13,
+    14
+  ],
+  "duration_s": 600.0,
+  "summaries": [
+    {
+      "gain": 0.03,
+      "mean_outage_rmse_deg": 0.21004742680133887,
+      "outage_rmse_std_deg": 0.07995239205554348,
+      "wins_vs_original_cann": 5
+    },
+    {
+      "gain": 0.1,
+      "mean_outage_rmse_deg": 0.13066683059520603,
+      "outage_rmse_std_deg": 0.04166491623418478,
+      "wins_vs_original_cann": 5
+    },
+    {
+      "gain": 0.3,
+      "mean_outage_rmse_deg": 0.21235770215543592,
+      "outage_rmse_std_deg": 0.06307504671330846,
+      "wins_vs_original_cann": 4
+    }
+  ],
+  "best": {
+    "gain": 0.1,
+    "mean_outage_rmse_deg": 0.13066683059520603,
+    "outage_rmse_std_deg": 0.04166491623418478,
+    "wins_vs_original_cann": 5
+  }
+}

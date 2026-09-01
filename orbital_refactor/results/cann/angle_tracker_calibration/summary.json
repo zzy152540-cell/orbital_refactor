@@ -1,0 +1,32 @@
+{
+  "observer_id": "sat_p04_s01",
+  "target_id": "sat_p05_s01",
+  "calibration_seeds": [
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19
+  ],
+  "best_pll": {
+    "method": "pll",
+    "kp": 1.0,
+    "ki": 0.01,
+    "mean_rmse_deg": 0.259426436900554,
+    "mean_outage_rmse_deg": 0.4101264188724831,
+    "outage_rmse_std_deg": 0.2195080946433182
+  },
+  "best_circular_kalman": {
+    "method": "circular_kalman",
+    "phase_process_std_deg": 0.01,
+    "bias_process_std_deg_s": 0.0001,
+    "mean_rmse_deg": 0.30192723894509776,
+    "mean_outage_rmse_deg": 0.4812821341804784,
+    "outage_rmse_std_deg": 0.2522951553813239
+  }
+}

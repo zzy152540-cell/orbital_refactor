@@ -1,0 +1,80 @@
+{
+  "evaluation_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9
+  ],
+  "frozen_pll": {
+    "pll_kp": 1.0,
+    "pll_ki": 0.01
+  },
+  "frozen_kalman": {
+    "kalman_phase_process_std_deg": 0.01,
+    "kalman_bias_process_std_deg_s": 0.0001
+  },
+  "summary": {
+    "bias_adaptive_cann": {
+      "mean_rmse_deg": 0.3104989643212339,
+      "rmse_std_deg": 0.19281337771354748,
+      "mean_outage_rmse_deg": 0.4972502721597172,
+      "outage_rmse_std_deg": 0.3472145331777985,
+      "outage_wins_vs_complementary": 9,
+      "seed_count": 10
+    },
+    "circular_kalman": {
+      "mean_rmse_deg": 0.28154175874852594,
+      "rmse_std_deg": 0.18679248240890567,
+      "mean_outage_rmse_deg": 0.4470225594003522,
+      "outage_rmse_std_deg": 0.3345563903611073,
+      "outage_wins_vs_complementary": 9,
+      "seed_count": 10
+    },
+    "gated_cann": {
+      "mean_rmse_deg": 0.6030528150520815,
+      "rmse_std_deg": 0.12017787810613516,
+      "mean_outage_rmse_deg": 1.009662231003726,
+      "outage_rmse_std_deg": 0.20623050704586895,
+      "outage_wins_vs_complementary": 3,
+      "seed_count": 10
+    },
+    "gated_complementary": {
+      "mean_rmse_deg": 0.6006393120387186,
+      "rmse_std_deg": 0.12219047333001092,
+      "mean_outage_rmse_deg": 1.0060299241471657,
+      "outage_rmse_std_deg": 0.20973875796406574,
+      "outage_wins_vs_complementary": 0,
+      "seed_count": 10
+    },
+    "gated_pll": {
+      "mean_rmse_deg": 0.23583391723524078,
+      "rmse_std_deg": 0.15760436732843994,
+      "mean_outage_rmse_deg": 0.37252821360130917,
+      "outage_rmse_std_deg": 0.2794599145866055,
+      "outage_wins_vs_complementary": 9,
+      "seed_count": 10
+    },
+    "measurement_hold": {
+      "mean_rmse_deg": 2.3571647636956388,
+      "rmse_std_deg": 0.0068820308113843875,
+      "mean_outage_rmse_deg": 3.892000322204185,
+      "outage_rmse_std_deg": 0.012187153169146394,
+      "outage_wins_vs_complementary": 0,
+      "seed_count": 10
+    },
+    "ordinary_integration": {
+      "mean_rmse_deg": 2.9155724874160422,
+      "rmse_std_deg": 0.43690406111010816,
+      "mean_outage_rmse_deg": 2.5722983872644716,
+      "outage_rmse_std_deg": 0.42611188513769294,
+      "outage_wins_vs_complementary": 0,
+      "seed_count": 10
+    }
+  }
+}
