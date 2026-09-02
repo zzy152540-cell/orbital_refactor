@@ -637,6 +637,9 @@ python -m experiments.run_single_satellite_three_modal_cann_feedback \
 python -m experiments.run_single_satellite_three_modal_cann_feedback \
   --seed 0 --no-faults --staggered-outages \
   --output-dir results/cann/single_satellite_three_modal_staggered_outages_seed0
+python -m experiments.run_single_satellite_three_modal_cann_feedback \
+  --seed 0 --staggered-outages --recovery-faults \
+  --output-dir results/cann/single_satellite_three_modal_recovery_faults_confirmed_seed0
 ```
 
 The staggered-outage case independently removes infrared observations from
@@ -644,6 +647,14 @@ The staggered-outage case independently removes infrared observations from
 1300--1500 s. It also computes a same-seed no-outage reference so that each
 window reports the net RMSE impact instead of conflating outage effects with
 time-varying geometry or initialization transients.
+
+Long outages use fail-closed recovery confirmation. The first returning sample
+is quarantined rather than used as a new CANN anchor; a second physically
+consistent sample is required before the modality becomes valid again. Radar
+checks range/range-rate consistency, optical checks image-plane continuity,
+and infrared checks circular angular continuity. The recovery-fault experiment
+injects opposite impulses into the first two returning samples and compares
+against the same outages with clean recovery.
 
 The fault-injection comparison writes `summary.json` and `overview.png`. In the
 current seed-0 run, position RMSE changes from 946.23 m without CANN anomaly

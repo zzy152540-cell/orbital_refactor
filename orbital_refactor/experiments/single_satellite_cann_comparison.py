@@ -41,6 +41,7 @@ def run_single_satellite_cann_comparison(
     optical_cann_preprocess: bool = False,
     optical_fault_mode: str | None = None,
     infrared_fault_mode: str | None = None,
+    fault_times_by_modality: dict[str, tuple[float, ...]] | None = None,
 ):
     if adaptive_cann_preprocess_ir and hybrid_cann_preprocess_ir:
         raise ValueError("Select at most one infrared CANN preprocessor.")
@@ -108,6 +109,7 @@ def run_single_satellite_cann_comparison(
     if optical_fault_mode is not None:
         _inject_optical_faults(
             observations, timestamps, mode=optical_fault_mode,
+            requested_times=(fault_times_by_modality or {}).get("opt"),
         )
     optical_preprocess_diagnostics = None
     if optical_cann_preprocess:
@@ -158,6 +160,7 @@ def run_single_satellite_cann_comparison(
     if infrared_fault_mode is not None:
         _inject_infrared_faults(
             observations, timestamps, mode=infrared_fault_mode,
+            requested_times=(fault_times_by_modality or {}).get("ir"),
         )
     observations += create_radar_observations(
         timestamps=timestamps, relative_position_spri=spri[:, :3],
@@ -169,6 +172,7 @@ def run_single_satellite_cann_comparison(
     if radar_fault_mode is not None:
         _inject_radar_faults(
             observations, timestamps, mode=radar_fault_mode,
+            requested_times=(fault_times_by_modality or {}).get("rad"),
         )
     radar_preprocess_diagnostics = None
     if radar_cann_preprocess:
@@ -284,6 +288,10 @@ def run_single_satellite_cann_comparison(
             name: [start, end]
             for name, (start, end) in sorted(normalized_outage_windows.items())
         },
+        "fault_times_by_modality": {
+            name: list(map(float, times))
+            for name, times in sorted((fault_times_by_modality or {}).items())
+        },
         "position_rmse_m": float(np.sqrt(np.mean(position_error**2))),
         "position_rmse_outage_m": _window_rmse(position_error, outage_window),
         "position_rmse_by_outage_m": {
@@ -381,7 +389,13 @@ def _preprocess_valid_infrared_azimuth_with_cann(
             timestamps, elevation_hint, available,
         )
         diagnostics_by_index = [
-            {**azimuth, **el}
+            {
+                **azimuth, **el,
+                "recovery_pending": bool(
+                    azimuth.get("recovery_pending", False)
+                    or el.get("recovery_pending", False)
+                ),
+            }
             for azimuth, el in zip(
                 diagnostics_by_index, elevation_diagnostics,
             )
@@ -396,13 +410,16 @@ def _preprocess_valid_infrared_azimuth_with_cann(
         measurement[0] = _difference(phase[index], 0.0)
         if method == "hybrid_ring_line_cann":
             measurement[1] = elevation[index]
-        replacements[id(item)] = preprocess_observation(
+        processed = preprocess_observation(
             item, measurement=measurement,
             diagnostics={
                 "azimuth_preprocessor": method,
                 **diagnostics_by_index[index],
             },
         )
+        if diagnostics_by_index[index].get("recovery_pending", False):
+            processed.valid_flag = False
+        replacements[id(item)] = processed
     return [replacements.get(id(item), item) for item in observations]
 
 
@@ -428,17 +445,40 @@ def _hybrid_ring_line_ir_azimuth(timestamps, hint, rate, available):
     held_rate = 0.0
     last_trusted_timestamp = float(timestamps[first_valid])
     last_trusted_phase = float(hint[first_valid])
+    pending_phase = None
+    pending_timestamp = None
     for index in range(first_valid + 1, len(timestamps)):
         use = bool(available[index])
         gap = float(timestamps[index] - last_trusted_timestamp)
-        reanchored = bool(use and gap > 20.0)
-        if reanchored:
-            output = observer.initialize(
-                phase=float(hint[index]), timestamp=float(timestamps[index]),
+        reanchored = False
+        recovery_pending = False
+        if use and gap > 20.0:
+            candidate_consistent = bool(
+                pending_phase is not None
+                and abs(_difference(hint[index], pending_phase))
+                <= np.deg2rad(1.0)
             )
-            held_rate = 0.0
-            last_trusted_timestamp = float(timestamps[index])
-            last_trusted_phase = float(hint[index])
+            if candidate_consistent:
+                output = observer.initialize(
+                    phase=float(hint[index]), timestamp=float(timestamps[index]),
+                )
+                held_rate = float(_difference(
+                    hint[index], pending_phase,
+                ) / max(float(timestamps[index] - pending_timestamp), 1.0e-12))
+                last_trusted_timestamp = float(timestamps[index])
+                last_trusted_phase = float(hint[index])
+                pending_phase = None
+                pending_timestamp = None
+                reanchored = True
+            else:
+                output = observer.update(
+                    timestamp=float(timestamps[index]),
+                    measured_phase_rate=held_rate,
+                    phase_hint=None, phase_hint_valid=False,
+                )
+                pending_phase = float(hint[index])
+                pending_timestamp = float(timestamps[index])
+                recovery_pending = True
         else:
             output = observer.update(
                 timestamp=float(timestamps[index]),
@@ -458,9 +498,12 @@ def _hybrid_ring_line_ir_azimuth(timestamps, hint, rate, available):
             "bias_observation_count": int(output.bias_observation_count),
             "long_anchor_trusted": output.long_anchor_trusted,
             "azimuth_substituted": bool(
-                use and not reanchored and not output.cue_applied
+                use and not reanchored and not recovery_pending
+                and not output.cue_applied
             ),
             "azimuth_reanchored": reanchored,
+            "azimuth_recovery_pending": recovery_pending,
+            "recovery_pending": recovery_pending,
         }
     return phase, diagnostics
 
@@ -484,6 +527,8 @@ def _line_cann_ir_elevation(timestamps, hint, available):
     innovation_gate = np.deg2rad(3.0)
     held_rate = 0.0
     last_trusted_hint = float(hint[first_valid])
+    pending_hint = None
+    pending_timestamp = None
     for index in range(first_valid + 1, len(timestamps)):
         dt = float(timestamps[index] - timestamps[index - 1])
         output = observer.step(held_rate, dt)
@@ -491,16 +536,32 @@ def _line_cann_ir_elevation(timestamps, hint, available):
         if available[index]:
             gap = float(timestamps[index] - last_valid_timestamp)
             innovation = float(hint[index] - output.decoded_value)
-            reanchored = bool(
-                gap > maximum_propagation_duration
-                or output.saturated_at_boundary
+            recovery_pending = False
+            long_gap = gap > maximum_propagation_duration
+            candidate_consistent = bool(
+                pending_hint is not None
+                and abs(hint[index] - pending_hint) <= np.deg2rad(1.0)
             )
-            if reanchored:
+            reanchored = bool(
+                (long_gap and candidate_consistent)
+                or (not long_gap and output.saturated_at_boundary)
+            )
+            if long_gap and not candidate_consistent:
+                pending_hint = float(hint[index])
+                pending_timestamp = float(timestamps[index])
+                recovery_pending = True
+            elif reanchored:
                 output = observer.reset(
                     float(hint[index]), timestamp=float(timestamps[index]),
                 )
-                held_rate = 0.0
+                held_rate = (
+                    float((hint[index] - pending_hint) / max(
+                        float(timestamps[index] - pending_timestamp), 1.0e-12,
+                    )) if long_gap else 0.0
+                )
                 last_trusted_hint = float(hint[index])
+                pending_hint = None
+                pending_timestamp = None
             elif abs(innovation) > innovation_gate:
                 substituted = True
             else:
@@ -509,10 +570,11 @@ def _line_cann_ir_elevation(timestamps, hint, available):
                     (hint[index] - last_trusted_hint) / max(gap, 1.0e-12)
                 )
                 last_trusted_hint = float(hint[index])
-            if not substituted:
+            if not substituted and not recovery_pending:
                 last_valid_timestamp = float(timestamps[index])
         else:
             reanchored = False
+            recovery_pending = False
         elevation[index] = output.decoded_value
         diagnostics[index] = {
             "elevation_bump_concentration": float(output.bump_concentration),
@@ -522,19 +584,24 @@ def _line_cann_ir_elevation(timestamps, hint, available):
             ),
             "elevation_reanchored": reanchored,
             "elevation_substituted": substituted,
+            "elevation_recovery_pending": recovery_pending,
+            "recovery_pending": recovery_pending,
         }
     return elevation, diagnostics
 
 
-def _inject_infrared_faults(observations, timestamps, *, mode):
+def _inject_infrared_faults(
+    observations, timestamps, *, mode, requested_times=None,
+):
     if mode != "impulsive":
         raise ValueError(f"Unknown infrared fault mode: {mode}")
     infrared = [
         item for item in observations
         if item.modality.lower() in {"ir", "infrared"}
     ]
-    requested_times = (300.0, 450.0, 1350.0, 1500.0)
-    signs = (1.0, -1.0, 1.0, -1.0)
+    requested_times = requested_times or (300.0, 450.0, 1350.0, 1500.0)
+    signs = tuple(1.0 if index % 2 == 0 else -1.0
+                  for index in range(len(requested_times)))
     for fault_time, sign in zip(requested_times, signs):
         index = int(np.argmin(np.abs(np.asarray(timestamps) - fault_time)))
         if abs(float(timestamps[index]) - fault_time) > 0.5:
@@ -565,13 +632,16 @@ def _preprocess_valid_radar_with_line_cann(observations, timestamps):
     for index, item in enumerate(radar):
         if not item.valid_flag:
             continue
-        replacements[id(item)] = preprocess_observation(
+        processed = preprocess_observation(
             item, measurement=filtered[index],
             diagnostics={
                 "radar_preprocessor": "range_rate_dual_line_cann",
                 **diagnostics[index],
             },
         )
+        if diagnostics[index].get("recovery_pending", False):
+            processed.valid_flag = False
+        replacements[id(item)] = processed
     return [replacements.get(id(item), item) for item in observations]
 
 
@@ -605,6 +675,8 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
     ]
     diagnostics = [{} for _ in timestamps]
     last_valid_timestamp = float(timestamps[first_valid])
+    pending_measurement = None
+    pending_timestamp = None
     for index in range(first_valid + 1, timestamps.size):
         dt = float(timestamps[index] - timestamps[index - 1])
         range_output = range_cann.step(rate_output.decoded_value, dt)
@@ -620,17 +692,46 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
             rate_innovation = float(
                 measurement[index, 1] - rate_output.decoded_value
             )
+            recovery_pending = False
+            long_gap = gap > 20.0
+            candidate_consistent = False
+            if pending_measurement is not None:
+                candidate_dt = max(
+                    float(timestamps[index] - pending_timestamp), 1.0e-12,
+                )
+                expected_range_change = 0.5 * (
+                    pending_measurement[1] + measurement[index, 1]
+                ) * candidate_dt
+                candidate_consistent = bool(
+                    abs(
+                        measurement[index, 0] - pending_measurement[0]
+                        - expected_range_change
+                    ) <= 300.0
+                    and abs(
+                        measurement[index, 1] - pending_measurement[1]
+                    ) <= 0.5
+                )
             reanchored = bool(
-                gap > 20.0 or range_output.saturated_at_boundary
-                or rate_output.saturated_at_boundary
+                (long_gap and candidate_consistent)
+                or (not long_gap and (
+                    range_output.saturated_at_boundary
+                    or rate_output.saturated_at_boundary
+                ))
             )
-            if reanchored:
+            if long_gap and not candidate_consistent:
+                pending_measurement = measurement[index].copy()
+                pending_timestamp = float(timestamps[index])
+                recovery_pending = True
+                filtered[index] = measurement[index]
+            elif reanchored:
                 range_output = range_cann.reset(
                     measurement[index, 0], timestamp=timestamps[index],
                 )
                 rate_output = rate_cann.reset(
                     measurement[index, 1], timestamp=timestamps[index],
                 )
+                pending_measurement = None
+                pending_timestamp = None
             else:
                 range_substituted = abs(range_innovation) > 300.0
                 rate_substituted = abs(rate_innovation) > 0.5
@@ -650,11 +751,15 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
                     predicted_rate if rate_substituted
                     else measurement[index, 1],
                 ]
-            last_valid_timestamp = float(timestamps[index])
+            if not recovery_pending:
+                last_valid_timestamp = float(timestamps[index])
+        else:
+            recovery_pending = False
         diagnostics[index] = {
             "radar_reanchored": reanchored,
             "range_substituted": range_substituted,
             "range_rate_substituted": rate_substituted,
+            "recovery_pending": recovery_pending,
             "range_bump_concentration": float(
                 range_output.bump_concentration
             ),
@@ -665,14 +770,17 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
     return filtered, diagnostics
 
 
-def _inject_radar_faults(observations, timestamps, *, mode):
+def _inject_radar_faults(
+    observations, timestamps, *, mode, requested_times=None,
+):
     if mode != "impulsive":
         raise ValueError(f"Unknown radar fault mode: {mode}")
     radar = [item for item in observations if item.modality.lower() == "radar"]
     if len(radar) != len(timestamps):
         raise ValueError("Expected one radar observation per timestamp.")
-    requested_times = (300.0, 450.0, 1350.0, 1500.0)
-    signs = (1.0, -1.0, 1.0, -1.0)
+    requested_times = requested_times or (300.0, 450.0, 1350.0, 1500.0)
+    signs = tuple(1.0 if index % 2 == 0 else -1.0
+                  for index in range(len(requested_times)))
     for fault_time, sign in zip(requested_times, signs):
         index = int(np.argmin(np.abs(np.asarray(timestamps) - fault_time)))
         if abs(float(timestamps[index]) - fault_time) > 0.5:
@@ -705,13 +813,16 @@ def _preprocess_valid_optical_with_plane_cann(observations, timestamps):
     for index, item in enumerate(optical):
         if not item.valid_flag:
             continue
-        replacements[id(item)] = preprocess_observation(
+        processed = preprocess_observation(
             item, measurement=filtered[index],
             diagnostics={
                 "optical_preprocessor": "fault_aware_plane_cann",
                 **diagnostics[index],
             },
         )
+        if diagnostics[index].get("recovery_pending", False):
+            processed.valid_flag = False
+        replacements[id(item)] = processed
     return [replacements.get(id(item), item) for item in observations]
 
 
@@ -733,6 +844,8 @@ def _optical_uv_plane_cann(timestamps, measurement, available):
     velocity = np.zeros(2, dtype=float)
     last_trusted_measurement = measurement[first_valid].copy()
     last_trusted_timestamp = float(timestamps[first_valid])
+    pending_measurement = None
+    pending_timestamp = None
     for index in range(first_valid + 1, timestamps.size):
         dt = float(timestamps[index] - timestamps[index - 1])
         output = observer.step(velocity, dt)
@@ -746,15 +859,40 @@ def _optical_uv_plane_cann(timestamps, measurement, available):
                 np.all(np.abs(measurement[index]) <= 10.0)
                 and np.all(np.abs(output.decoded_position) <= 10.0)
             )
-            reanchored = bool(
-                gap > 20.0 or output.saturated_at_boundary
-                or not stable_motion or not inside_stable_field
+            recovery_pending = False
+            long_gap = gap > 20.0
+            candidate_consistent = bool(
+                pending_measurement is not None
+                and np.all(np.abs(
+                    measurement[index] - pending_measurement
+                ) <= 0.1)
             )
-            if reanchored:
+            reanchored = bool(
+                (long_gap and candidate_consistent)
+                or (not long_gap and (
+                    output.saturated_at_boundary
+                    or not stable_motion or not inside_stable_field
+                ))
+            )
+            if long_gap and not candidate_consistent:
+                pending_measurement = measurement[index].copy()
+                pending_timestamp = float(timestamps[index])
+                recovery_pending = True
+                filtered[index] = measurement[index]
+            elif reanchored:
                 output = observer.reset(
                     measurement[index], timestamp=timestamps[index],
                 )
                 filtered[index] = measurement[index]
+                velocity = (
+                    (measurement[index] - pending_measurement) / max(
+                        float(timestamps[index] - pending_timestamp), 1.0e-12,
+                    ) if long_gap else np.zeros(2, dtype=float)
+                )
+                pending_measurement = None
+                pending_timestamp = None
+                last_trusted_measurement = measurement[index].copy()
+                last_trusted_timestamp = float(timestamps[index])
             else:
                 joint_anomaly = bool(np.all(np.abs(innovation) > 0.05))
                 substituted[:] = joint_anomaly
@@ -765,29 +903,35 @@ def _optical_uv_plane_cann(timestamps, measurement, available):
                     substituted, output.decoded_position, measurement[index],
                 )
                 output = observer.apply_position_cue(cue, cue_gain=1.0)
-            if not np.any(substituted):
+            if not np.any(substituted) and not recovery_pending and not reanchored:
                 velocity = (
                     measurement[index] - last_trusted_measurement
                 ) / max(gap, 1.0e-12)
                 last_trusted_measurement = measurement[index].copy()
                 last_trusted_timestamp = float(timestamps[index])
+        else:
+            recovery_pending = False
         diagnostics[index] = {
             "optical_reanchored": reanchored,
             "u_substituted": bool(substituted[0]),
             "v_substituted": bool(substituted[1]),
+            "recovery_pending": recovery_pending,
             "plane_bump_concentration": float(output.bump_concentration),
         }
     return filtered, diagnostics
 
 
-def _inject_optical_faults(observations, timestamps, *, mode):
+def _inject_optical_faults(
+    observations, timestamps, *, mode, requested_times=None,
+):
     if mode != "impulsive":
         raise ValueError(f"Unknown optical fault mode: {mode}")
     optical = [
         item for item in observations if item.modality.lower() == "optical"
     ]
-    requested_times = (1250.0, 1350.0, 1500.0, 1650.0)
-    signs = (1.0, -1.0, 1.0, -1.0)
+    requested_times = requested_times or (1250.0, 1350.0, 1500.0, 1650.0)
+    signs = tuple(1.0 if index % 2 == 0 else -1.0
+                  for index in range(len(requested_times)))
     for fault_time, sign in zip(requested_times, signs):
         index = int(np.argmin(np.abs(np.asarray(timestamps) - fault_time)))
         if abs(float(timestamps[index]) - fault_time) > 0.5:

@@ -27,3 +27,21 @@ def test_optical_feedback_keeps_baseline_explicit():
     )
     assert not result["baseline"]["summary"]["optical_cann_preprocess"]
     assert result["processed"]["summary"]["optical_cann_preprocess"]
+
+
+def test_optical_recovery_confirmation_rejects_two_opposite_faults():
+    timestamps = np.arange(0.0, 70.0, 2.0)
+    measurement = np.column_stack((
+        0.1 + 0.001 * timestamps, 2.0 - 0.002 * timestamps,
+    ))
+    available = np.ones(timestamps.size, dtype=bool)
+    available[2:30] = False
+    measurement[30] += [0.2, 0.4]
+    measurement[31] -= [0.2, 0.4]
+    filtered, diagnostics = _optical_uv_plane_cann(
+        timestamps, measurement, available,
+    )
+    assert all(diagnostics[index]["recovery_pending"]
+               for index in (30, 31, 32))
+    assert diagnostics[33]["optical_reanchored"]
+    assert np.allclose(filtered[33], measurement[33], atol=1e-12)

@@ -2,6 +2,7 @@ import argparse
 from pathlib import Path
 
 from experiments.single_satellite_three_modal_cann_feedback import (
+    run_staggered_recovery_fault_comparison,
     run_staggered_modality_outage_comparison,
     run_single_satellite_three_modal_cann_feedback,
     write_single_satellite_three_modal_cann_feedback,
@@ -17,19 +18,25 @@ def main(argv=None):
         help="Use independent optical, infrared, and radar outage windows.",
     )
     parser.add_argument(
+        "--recovery-faults", action="store_true",
+        help="Inject faults into the first two samples after each outage.",
+    )
+    parser.add_argument(
         "--output-dir", type=Path,
         default=Path("results/cann/single_satellite_three_modal_feedback"),
     )
     args = parser.parse_args(argv)
     if args.staggered_outages:
-        result = run_staggered_modality_outage_comparison(
-            seed=args.seed,
-            outage_windows={
+        outage_windows = {
             "opt": (1300.0, 1500.0),
             "ir": (600.0, 800.0),
             "rad": (900.0, 1100.0),
-            },
+        }
+        runner = (
+            run_staggered_recovery_fault_comparison
+            if args.recovery_faults else run_staggered_modality_outage_comparison
         )
+        result = runner(seed=args.seed, outage_windows=outage_windows)
     else:
         result = run_single_satellite_three_modal_cann_feedback(
             seed=args.seed, inject_faults=not args.no_faults,

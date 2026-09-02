@@ -2,6 +2,7 @@ import numpy as np
 
 from experiments.single_satellite_three_modal_cann_feedback import (
     run_staggered_modality_outage_comparison,
+    run_staggered_recovery_fault_comparison,
     run_single_satellite_three_modal_cann_feedback,
     write_single_satellite_three_modal_cann_feedback,
 )
@@ -42,3 +43,14 @@ def test_staggered_outage_comparison_includes_no_outage_reference():
         np.isfinite(values["baseline"]["net_position_rmse_change_m"])
         for values in impact.values()
     )
+
+
+def test_recovery_fault_comparison_schedules_first_post_outage_samples():
+    result = run_staggered_recovery_fault_comparison(
+        duration=18.0, dt=2.0,
+        outage_windows={"ir": (4.0, 6.0), "rad": (10.0, 12.0)},
+    )
+    assert result["summary"]["recovery_fault_times_by_modality"] == {
+        "ir": [8.0, 10.0], "rad": [14.0, 16.0],
+    }
+    assert set(result["summary"]["recovery_fault_impact"]) == {"ir", "rad"}

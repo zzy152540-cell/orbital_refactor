@@ -80,6 +80,47 @@ def run_staggered_modality_outage_comparison(*, outage_windows, **kwargs):
     return outage_result
 
 
+def run_staggered_recovery_fault_comparison(
+    *, outage_windows, recovery_fault_samples=2, recovery_horizon=120.0, **kwargs,
+):
+    dt = float(kwargs.get("dt", 2.0))
+    fault_times = {
+        modality: tuple(end + dt * (index + 1)
+                        for index in range(int(recovery_fault_samples)))
+        for modality, (_, end) in outage_windows.items()
+    }
+    faulty = run_single_satellite_three_modal_cann_feedback(
+        inject_faults=True, outage_windows=outage_windows,
+        fault_times_by_modality=fault_times, **kwargs,
+    )
+    reference = run_single_satellite_three_modal_cann_feedback(
+        inject_faults=False, outage_windows=outage_windows, **kwargs,
+    )
+    timestamps = np.asarray(faulty["baseline"]["timestamps"], dtype=float)
+    impact = {}
+    for modality, times in fault_times.items():
+        start = min(times)
+        mask = (timestamps >= start) & (timestamps <= start + recovery_horizon)
+        impact[modality] = {}
+        for path_name in ("baseline", "processed"):
+            faulty_error = faulty[path_name]["position_error_m"][mask]
+            reference_error = reference[path_name]["position_error_m"][mask]
+            faulty_rmse = float(np.sqrt(np.mean(faulty_error ** 2)))
+            reference_rmse = float(np.sqrt(np.mean(reference_error ** 2)))
+            impact[modality][path_name] = {
+                "recovery_fault_position_rmse_m": faulty_rmse,
+                "clean_recovery_position_rmse_m": reference_rmse,
+                "net_position_rmse_change_m": faulty_rmse - reference_rmse,
+            }
+    faulty["comparison_reference"] = reference
+    faulty["comparison_reference_label"] = "same outages, clean recovery"
+    faulty["summary"]["recovery_fault_times_by_modality"] = {
+        name: list(times) for name, times in fault_times.items()
+    }
+    faulty["summary"]["recovery_fault_impact"] = impact
+    return faulty
+
+
 def write_single_satellite_three_modal_cann_feedback(result, output_dir):
     import matplotlib.pyplot as plt
 
@@ -101,15 +142,16 @@ def write_single_satellite_three_modal_cann_feedback(result, output_dir):
     fig, axes = plt.subplots(3, 1, figsize=(12, 11), sharex=False)
     axes[0].plot(timestamps, baseline_position, label="Without CANN", linewidth=1.5)
     axes[0].plot(timestamps, processed_position, label="With CANN", linewidth=1.5)
-    reference = result.get("no_outage_reference")
+    reference = result.get("comparison_reference", result.get("no_outage_reference"))
+    reference_label = result.get("comparison_reference_label", "no outage")
     if reference is not None:
         axes[0].plot(
             timestamps, np.maximum(reference["baseline"]["position_error_m"], 1e-9),
-            label="Without CANN, no outage", linestyle="--", alpha=0.7,
+            label=f"Without CANN, {reference_label}", linestyle="--", alpha=0.7,
         )
         axes[0].plot(
             timestamps, np.maximum(reference["processed"]["position_error_m"], 1e-9),
-            label="With CANN, no outage", linestyle=":", alpha=0.8,
+            label=f"With CANN, {reference_label}", linestyle=":", alpha=0.8,
         )
     axes[0].set_yscale("log")
     axes[0].set_ylabel("Position error (m)")
@@ -120,11 +162,11 @@ def write_single_satellite_three_modal_cann_feedback(result, output_dir):
     if reference is not None:
         axes[1].plot(
             timestamps, np.maximum(reference["baseline"]["velocity_error_mps"], 1e-12),
-            label="Without CANN, no outage", linestyle="--", alpha=0.7,
+            label=f"Without CANN, {reference_label}", linestyle="--", alpha=0.7,
         )
         axes[1].plot(
             timestamps, np.maximum(reference["processed"]["velocity_error_mps"], 1e-12),
-            label="With CANN, no outage", linestyle=":", alpha=0.8,
+            label=f"With CANN, {reference_label}", linestyle=":", alpha=0.8,
         )
     axes[1].set_yscale("log")
     axes[1].set_ylabel("Velocity error (m/s)")
@@ -149,12 +191,12 @@ def write_single_satellite_three_modal_cann_feedback(result, output_dir):
         axes[2].plot(
             timestamps[recovery],
             np.maximum(reference["baseline"]["position_error_m"][recovery], 1e-9),
-            label="Without CANN, no outage", linestyle="--", alpha=0.7,
+            label=f"Without CANN, {reference_label}", linestyle="--", alpha=0.7,
         )
         axes[2].plot(
             timestamps[recovery],
             np.maximum(reference["processed"]["position_error_m"][recovery], 1e-9),
-            label="With CANN, no outage", linestyle=":", alpha=0.8,
+            label=f"With CANN, {reference_label}", linestyle=":", alpha=0.8,
         )
     axes[2].set_yscale("log")
     axes[2].set_xlabel("Time (s)")
@@ -194,7 +236,13 @@ def write_single_satellite_three_modal_cann_feedback(result, output_dir):
             )
 
     if result["summary"]["inject_faults"]:
-        fault_times = (300.0, 450.0, 1250.0, 1350.0, 1500.0, 1650.0)
+        scheduled_faults = result["summary"]["baseline"].get(
+            "fault_times_by_modality", {},
+        )
+        fault_times = sorted({
+            float(fault_time) for times in scheduled_faults.values()
+            for fault_time in times
+        }) or [300.0, 450.0, 1250.0, 1350.0, 1500.0, 1650.0]
         for axis in axes:
             fault_label_pending = True
             for fault_time in fault_times:
