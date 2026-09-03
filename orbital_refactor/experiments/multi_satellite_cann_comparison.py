@@ -23,6 +23,7 @@ from scenarios.measurement_visibility import (
 def run_multi_satellite_cann_comparison(
     *, duration=300.0, dt=2.0, seed=0, fault_by_node=None,
     visibility_by_modality=None, temporal_filter_by_modality=None,
+    dropout_windows_by_node=None, recovery_fault_samples=0,
 ):
     """Run a paired three-observer, three-modal baseline/CANN comparison."""
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
@@ -43,16 +44,27 @@ def run_multi_satellite_cann_comparison(
     }
     streams = {}
     visibility_rates = {}
+    recovery_fault_schedule = {}
     for i, node_id in enumerate(observers):
         flags = _visibility_flags(scenario, node_id, visibility, temporal)
+        flags, node_recovery = _apply_dropout_windows(
+            flags, timestamps,
+            (dropout_windows_by_node or {}).get(node_id, {}),
+            int(recovery_fault_samples),
+        )
+        if node_recovery:
+            recovery_fault_schedule[node_id] = node_recovery
         streams[node_id] = _make_stream(
             scenario, node_id, seed * 101 + i, flags,
         )
         visibility_rates[node_id] = {
             name: float(np.mean(values)) for name, values in flags.items()
         }
+    combined_faults = _merge_fault_schedules(
+        fault_by_node or {}, recovery_fault_schedule,
+    )
     injected_fault_counts = _inject_faults(
-        streams, timestamps, fault_by_node or {},
+        streams, timestamps, combined_faults,
     )
     initial_errors = {
         node_id: np.array([50., -40., 30., .05, -.04, .03])
@@ -70,7 +82,7 @@ def run_multi_satellite_cann_comparison(
         },
     )
     diagnostics = _fault_diagnostics(
-        scenario, baseline, processed, fault_by_node or {}, dt,
+        scenario, baseline, processed, combined_faults, dt,
     )
     return {
         "seed": int(seed), "timestamps": timestamps,
@@ -94,8 +106,43 @@ def run_multi_satellite_cann_comparison(
             "fault_diagnostics": diagnostics,
             "visibility_rate_by_node": visibility_rates,
             "injected_fault_count_by_node_modality": injected_fault_counts,
+            "recovery_fault_times_by_node_modality": recovery_fault_schedule,
         },
     }
+
+
+def _apply_dropout_windows(flags, timestamps, windows_by_modality, recovery_count):
+    result = {name: np.asarray(values, dtype=bool).copy()
+              for name, values in flags.items()}
+    recovery = {}
+    for modality, windows in windows_by_modality.items():
+        name = str(modality).upper()
+        if name not in result:
+            raise ValueError(f"Unknown dropout modality: {modality}")
+        for start, end in windows:
+            if end < start:
+                raise ValueError("Dropout window end cannot precede start.")
+            result[name][(timestamps >= float(start)) & (timestamps <= float(end))] = False
+            if recovery_count:
+                candidates = np.flatnonzero(
+                    (timestamps > float(end)) & result[name]
+                )[:recovery_count]
+                recovery.setdefault(name.lower(), []).extend(
+                    float(timestamps[index]) for index in candidates
+                )
+    return result, {name: tuple(times) for name, times in recovery.items()}
+
+
+def _merge_fault_schedules(primary, secondary):
+    merged = {
+        node: {modality: tuple(times) for modality, times in modalities.items()}
+        for node, modalities in primary.items()
+    }
+    for node, modalities in secondary.items():
+        target = merged.setdefault(node, {})
+        for modality, times in modalities.items():
+            target[modality] = (*target.get(modality, ()), *times)
+    return merged
 
 
 def audit_multi_satellite_geometry(*, duration=1800.0, dt=2.0):

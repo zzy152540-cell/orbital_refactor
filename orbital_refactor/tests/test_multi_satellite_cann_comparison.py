@@ -60,3 +60,20 @@ def test_default_optical_visibility_matches_positive_spri_depth():
     )
     assert np.any(flags)
     assert np.all(spri[flags, 2] > 0.0)
+
+
+def test_recovery_faults_use_first_actually_valid_samples_after_dropout():
+    result = run_multi_satellite_cann_comparison(
+        duration=12.0, seed=1,
+        dropout_windows_by_node={
+            "sat_01": {"RADAR": ((2.0, 6.0),)},
+        },
+        recovery_fault_samples=2,
+    )
+    summary = result["summary"]
+    assert summary["recovery_fault_times_by_node_modality"] == {
+        "sat_01": {"radar": (8.0, 10.0)},
+    }
+    assert summary["injected_fault_count_by_node_modality"] == {
+        "sat_01": {"radar": 2},
+    }
