@@ -77,3 +77,20 @@ def test_recovery_faults_use_first_actually_valid_samples_after_dropout():
     assert summary["injected_fault_count_by_node_modality"] == {
         "sat_01": {"radar": 2},
     }
+
+
+def test_confirmation_baseline_is_reported_separately_from_cann():
+    result = run_multi_satellite_cann_comparison(
+        duration=12.0, seed=3,
+        dropout_windows_by_node={
+            "sat_01": {"RADAR": ((2.0, 6.0),)},
+        },
+        recovery_fault_samples=2, include_confirmation_baseline=True,
+    )
+    summary = result["summary"]
+    assert summary["confirmation_position_rmse_m"] is not None
+    assert np.isclose(
+        summary["cann_minus_confirmation_position_rmse_m"],
+        summary["cann_position_rmse_m"]
+        - summary["confirmation_position_rmse_m"],
+    )

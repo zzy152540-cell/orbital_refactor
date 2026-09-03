@@ -32,6 +32,7 @@ def run_recovery_scan(*, seeds, output_path, duration=1800.0, dt=2.0):
             duration=duration, dt=dt, seed=int(seed),
             dropout_windows_by_node=DEFAULT_DROPOUTS,
             recovery_fault_samples=2,
+            include_confirmation_baseline=True,
         )
         rows[key] = result["summary"]
         payload["aggregate"] = _aggregate(rows)
@@ -58,6 +59,8 @@ def _aggregate(rows):
     values = list(rows.values())
     fields = (
         "baseline_position_rmse_m", "cann_position_rmse_m",
+        "confirmation_position_rmse_m",
+        "cann_minus_confirmation_position_rmse_m",
         "position_change_m", "baseline_velocity_rmse_mps",
         "cann_velocity_rmse_mps", "velocity_change_mps",
     )

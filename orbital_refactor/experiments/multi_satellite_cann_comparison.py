@@ -10,6 +10,9 @@ from adapters.synthetic_measurement_adapter import (
 )
 from cooperative.multi_sat_pipeline import run_cooperative_pipeline
 from experiments.multimodal_cann_preprocessor import MultimodalCANNPreprocessor
+from experiments.recovery_confirmation_preprocessor import (
+    RecoveryConfirmationPreprocessor,
+)
 from orbital_core.constants import R_EARTH
 from orbital_core.coordinates import state_history_eci_to_spri
 from orbital_core.attitude import quat_conjugate_wxyz
@@ -24,6 +27,7 @@ def run_multi_satellite_cann_comparison(
     *, duration=300.0, dt=2.0, seed=0, fault_by_node=None,
     visibility_by_modality=None, temporal_filter_by_modality=None,
     dropout_windows_by_node=None, recovery_fault_samples=0,
+    include_confirmation_baseline=False,
 ):
     """Run a paired three-observer, three-modal baseline/CANN comparison."""
     timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
@@ -81,16 +85,36 @@ def run_multi_satellite_cann_comparison(
             node_id: MultimodalCANNPreprocessor() for node_id in observers
         },
     )
+    confirmation = None
+    if include_confirmation_baseline:
+        confirmation = run_cooperative_pipeline(
+            scenario=scenario, observations_by_node=streams,
+            initial_error_by_node=initial_errors,
+            measurement_preprocessor_by_node={
+                node_id: RecoveryConfirmationPreprocessor()
+                for node_id in observers
+            },
+        )
     diagnostics = _fault_diagnostics(
-        scenario, baseline, processed, combined_faults, dt,
+        scenario, baseline, processed, combined_faults, dt, confirmation,
     )
     return {
         "seed": int(seed), "timestamps": timestamps,
         "fault_by_node": fault_by_node or {},
-        "baseline": baseline, "cann": processed,
+        "baseline": baseline, "confirmation": confirmation, "cann": processed,
         "summary": {
             "baseline_position_rmse_m": baseline.metrics.cooperative_position_rmse,
             "cann_position_rmse_m": processed.metrics.cooperative_position_rmse,
+            "confirmation_position_rmse_m": (
+                None if confirmation is None
+                else confirmation.metrics.cooperative_position_rmse
+            ),
+            "cann_minus_confirmation_position_rmse_m": (
+                None if confirmation is None else (
+                    processed.metrics.cooperative_position_rmse
+                    - confirmation.metrics.cooperative_position_rmse
+                )
+            ),
             "position_change_m": (
                 processed.metrics.cooperative_position_rmse
                 - baseline.metrics.cooperative_position_rmse
@@ -180,7 +204,9 @@ def _build_scenario(timestamps):
     )
 
 
-def _fault_diagnostics(scenario, baseline, processed, schedule, dt):
+def _fault_diagnostics(
+    scenario, baseline, processed, schedule, dt, confirmation=None,
+):
     timestamps = np.asarray(scenario.timestamps, dtype=float)
     truth = np.asarray(scenario.target_trajectory.state_history_eci, dtype=float)
     result = {}
@@ -192,7 +218,10 @@ def _fault_diagnostics(scenario, baseline, processed, schedule, dt):
         for fault_time in fault_times:
             mask |= np.abs(timestamps - fault_time) <= max(10.0, 2.0 * dt)
         entry = {}
-        for label, run in (("baseline", baseline), ("cann", processed)):
+        runs = [("baseline", baseline), ("cann", processed)]
+        if confirmation is not None:
+            runs.insert(1, ("confirmation", confirmation))
+        for label, run in runs:
             local_error = np.linalg.norm(
                 run.local_absolute_state_history_by_node[node_id][:, :3]
                 - truth[:, :3], axis=1,
