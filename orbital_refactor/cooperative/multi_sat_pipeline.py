@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -9,6 +10,9 @@ from cooperative.multi_node_ci import CooperativeFusionHistory, fuse_local_histo
 from cooperative.communication_channel import CommunicationChannel
 from cooperative.delay_channel import DelayChannel
 from cooperative.multi_node_runner import extract_fused_local_history, run_multi_node_histories
+from brain_inspired.measurement_preprocessor import (
+    MeasurementPreprocessor, validate_preprocessed_stream,
+)
 from interfaces.data_objects import InitialState, ModuleInput, Observation
 from orbital_core.dynamics import make_process_noise
 from orbital_core.metrics import compute_rmse
@@ -50,6 +54,7 @@ def build_module_inputs(
     ci_objective: str = "trace",
     ci_grid_points: int = 31,
     modality_config_by_node: dict[str, dict[str, dict[str, object]]] | None = None,
+    measurement_preprocessor_by_node: dict[str, MeasurementPreprocessor] | None = None,
 ) -> dict[str, ModuleInput]:
     """Build one independent single-node input for each observer.
 
@@ -67,6 +72,13 @@ def build_module_inputs(
     )
     errors = initial_error_by_node or {}
     modality_configs = modality_config_by_node or {}
+    preprocessors = measurement_preprocessor_by_node or {}
+    unknown_preprocessor_nodes = set(preprocessors) - set(node_ids)
+    if unknown_preprocessor_nodes:
+        raise ValueError(
+            "Measurement preprocessors reference unknown nodes: "
+            f"{sorted(unknown_preprocessor_nodes)}"
+        )
     timestamps = scenario.timestamps
     if len(timestamps) < 2:
         raise ValueError("At least two timestamps are required to run the filters.")
@@ -79,6 +91,14 @@ def build_module_inputs(
         relative_truth = scenario.relative_state_eci_by_node[node_id]
         initial_estimate = relative_truth[0] + error
         observer = scenario.observer_trajectories[node_id]
+        node_observations = deepcopy(observations_by_node[node_id])
+        preprocessor = preprocessors.get(node_id)
+        if preprocessor is not None:
+            node_observations = validate_preprocessed_stream(
+                observations_by_node[node_id],
+                preprocessor.process(node_observations, timestamps.copy()),
+                observer_id=node_id,
+            )
         result[node_id] = ModuleInput(
             initial_state=InitialState(
                 target_id=scenario.target_id,
@@ -86,7 +106,7 @@ def build_module_inputs(
                 state_estimate=initial_estimate,
                 covariance=initial_covariance.copy(),
             ),
-            sensor_measurements=list(observations_by_node[node_id]),
+            sensor_measurements=node_observations,
             config={
                 "runtime": {
                     "timestamps": timestamps.copy(),
@@ -119,6 +139,7 @@ def run_cooperative_pipeline(
     ci_objective: str = "trace",
     ci_grid_points: int = 31,
     modality_config_by_node: dict[str, dict[str, dict[str, object]]] | None = None,
+    measurement_preprocessor_by_node: dict[str, MeasurementPreprocessor] | None = None,
     node_validity_by_node: dict[str, Array] | None = None,
     communication_channel: CommunicationChannel | None = None,
     delay_channel: DelayChannel | None = None,
@@ -137,6 +158,7 @@ def run_cooperative_pipeline(
         ci_objective=ci_objective,
         ci_grid_points=ci_grid_points,
         modality_config_by_node=modality_config_by_node,
+        measurement_preprocessor_by_node=measurement_preprocessor_by_node,
     )
     run_result = run_multi_node_histories(module_inputs)
 
