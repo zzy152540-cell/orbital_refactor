@@ -40,6 +40,28 @@ def test_radar_dual_line_cann_substitutes_only_impulsive_component():
     assert filtered[2, 1] == measurement[2, 1]
 
 
+def test_radar_cann_learns_clean_range_rate_acceleration_before_gating():
+    timestamps = np.arange(0.0, 12.0, 2.0)
+    acceleration = 2.25
+    range_rate = 10.0 + acceleration * timestamps
+    measurement = np.column_stack((
+        100_000.0 + 10.0 * timestamps
+        + 0.5 * acceleration * timestamps**2,
+        range_rate,
+    ))
+
+    filtered, diagnostics = _radar_range_rate_line_cann(
+        timestamps, measurement, np.ones(timestamps.size, dtype=bool),
+    )
+
+    np.testing.assert_array_equal(filtered, measurement)
+    assert not any(
+        item.get("range_substituted", False)
+        or item.get("range_rate_substituted", False)
+        for item in diagnostics
+    )
+
+
 def test_radar_recovery_confirmation_rejects_two_opposite_faults():
     timestamps = np.arange(0.0, 70.0, 2.0)
     measurement = np.column_stack((

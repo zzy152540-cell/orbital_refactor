@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Iterable, Mapping
+from typing import Callable, Iterable, Mapping
 
 import numpy as np
 
@@ -108,6 +108,7 @@ def run_network_schmidt_filter(
     initial_covariance_by_node: Mapping[str, Array],
     topology: NetworkTopology,
     observation_messages: Iterable[ObservationMessage],
+    observation_message_preprocessor: Callable[..., list[ObservationMessage]] | None = None,
     absolute_position_observations: Iterable[
         AbsolutePositionObservation
     ] = (),
@@ -231,8 +232,13 @@ def run_network_schmidt_filter(
     pending_state_messages = _prepare_state_messages(
         state_messages_by_receiver or {}, node_ids, topology
     )
+    prepared_observations = list(observation_messages)
+    if observation_message_preprocessor is not None:
+        prepared_observations = observation_message_preprocessor(
+            prepared_observations, timestamps=times.copy(),
+        )
     observations_by_time_and_owner = _route_observations(
-        observation_messages,
+        prepared_observations,
         times=times,
         topology=topology,
         observation_usage=observation_usage,

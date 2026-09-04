@@ -13,6 +13,7 @@ class PlaneCANNConfig:
 
     x_axis: LineCANNConfig = field(default_factory=LineCANNConfig)
     y_axis: LineCANNConfig = field(default_factory=LineCANNConfig)
+    materialize_joint_activity: bool = True
 
     def validate(self) -> None:
         self.x_axis.validate()
@@ -70,7 +71,11 @@ class PlaneCANN:
             y_output.neural_activity
             - self.config.y_axis.background_firing_rate, 0.0,
         )
-        activity = np.outer(y_activity, x_activity)
+        activity = (
+            np.outer(y_activity, x_activity)
+            if self.config.materialize_joint_activity
+            else np.empty((0, 0), dtype=float)
+        )
         return PlaneCANNOutput(
             timestamp=float(x_output.timestamp),
             decoded_position=np.array([

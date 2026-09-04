@@ -348,6 +348,7 @@ def run_single_satellite_cann_comparison(
 
 def _preprocess_valid_infrared_azimuth_with_cann(
     observations, timestamps, *, method="bias_adaptive_cann",
+    coupled_config=None,
 ):
     """Causally smooth valid IR azimuths without creating outage measurements."""
     infrared = [
@@ -383,7 +384,7 @@ def _preprocess_valid_infrared_azimuth_with_cann(
         )
     elif method == "hybrid_ring_line_cann":
         phase, diagnostics_by_index = _hybrid_ring_line_ir_azimuth(
-            timestamps, hint, rate, available,
+            timestamps, hint, rate, available, config=coupled_config,
         )
         elevation, elevation_diagnostics = _line_cann_ir_elevation(
             timestamps, elevation_hint, available,
@@ -407,8 +408,16 @@ def _preprocess_valid_infrared_azimuth_with_cann(
         if not item.valid_flag:
             continue
         measurement = item.measurement.copy()
-        measurement[0] = _difference(phase[index], 0.0)
-        if method == "hybrid_ring_line_cann":
+        if method == "bias_adaptive_cann":
+            measurement[0] = _difference(phase[index], 0.0)
+        elif diagnostics_by_index[index].get("azimuth_substituted", False):
+            measurement[0] = _difference(phase[index], 0.0)
+        if (
+            method == "hybrid_ring_line_cann"
+            and diagnostics_by_index[index].get(
+                "elevation_substituted", False,
+            )
+        ):
             measurement[1] = elevation[index]
         processed = preprocess_observation(
             item, measurement=measurement,
@@ -423,9 +432,8 @@ def _preprocess_valid_infrared_azimuth_with_cann(
     return [replacements.get(id(item), item) for item in observations]
 
 
-def _hybrid_ring_line_ir_azimuth(timestamps, hint, rate, available):
-    del rate
-    config = CoupledRingLineCANNConfig(
+def default_infrared_coupled_cann_config():
+    return CoupledRingLineCANNConfig(
         bias_anchor_mode="hybrid_dual", minimum_bias_baseline=120.0,
         anchor_agreement_scale=np.deg2rad(0.004),
         line=LineCANNConfig(
@@ -434,6 +442,13 @@ def _hybrid_ring_line_ir_azimuth(timestamps, hint, rate, available):
             tuning_width=np.deg2rad(0.003), cue_gain=0.2,
         ),
     )
+
+
+def _hybrid_ring_line_ir_azimuth(
+    timestamps, hint, rate, available, *, config=None,
+):
+    del rate
+    config = config or default_infrared_coupled_cann_config()
     observer = CoupledRingLineCANN(config)
     first_valid = int(np.flatnonzero(available)[0])
     first = observer.initialize(
@@ -670,17 +685,21 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
         measurement[first_valid, 1], timestamp=timestamps[first_valid],
     )
     filtered = measurement.copy()
-    filtered[first_valid] = [
-        range_output.decoded_value, rate_output.decoded_value,
-    ]
+    # Initialization seeds the internal attractors; a trusted first sample is
+    # still passed to the estimator without decoder discretization error.
+    filtered[first_valid] = measurement[first_valid]
     diagnostics = [{} for _ in timestamps]
     last_valid_timestamp = float(timestamps[first_valid])
+    last_trusted_timestamp = float(timestamps[first_valid])
+    last_trusted_measurement = measurement[first_valid].copy()
+    held_rate_acceleration = 0.0
+    trusted_sample_count = 1
     pending_measurement = None
     pending_timestamp = None
     for index in range(first_valid + 1, timestamps.size):
         dt = float(timestamps[index] - timestamps[index - 1])
         range_output = range_cann.step(rate_output.decoded_value, dt)
-        rate_output = rate_cann.step(0.0, dt)
+        rate_output = rate_cann.step(held_rate_acceleration, dt)
         reanchored = False
         range_substituted = False
         rate_substituted = False
@@ -733,8 +752,13 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
                 pending_measurement = None
                 pending_timestamp = None
             else:
-                range_substituted = abs(range_innovation) > 300.0
-                rate_substituted = abs(rate_innovation) > 0.5
+                warming_up = trusted_sample_count < 2
+                range_substituted = bool(
+                    not warming_up and abs(range_innovation) > 300.0
+                )
+                rate_substituted = bool(
+                    not warming_up and abs(rate_innovation) > 0.5
+                )
                 predicted_range = range_output.decoded_value
                 predicted_rate = rate_output.decoded_value
                 if not range_substituted:
@@ -752,6 +776,19 @@ def _radar_range_rate_line_cann(timestamps, measurement, available):
                     else measurement[index, 1],
                 ]
             if not recovery_pending:
+                if not range_substituted and not rate_substituted:
+                    held_rate_acceleration = float(
+                        (
+                            measurement[index, 1]
+                            - last_trusted_measurement[1]
+                        ) / max(
+                            float(timestamps[index]) - last_trusted_timestamp,
+                            1.0e-12,
+                        )
+                    )
+                    last_trusted_measurement = measurement[index].copy()
+                    last_trusted_timestamp = float(timestamps[index])
+                    trusted_sample_count += 1
                 last_valid_timestamp = float(timestamps[index])
         else:
             recovery_pending = False
@@ -834,7 +871,9 @@ def _optical_uv_plane_cann(timestamps, measurement, available):
         num_neurons=401, minimum_value=-2_000.0, maximum_value=2_000.0,
         tuning_width=40.0, cue_gain=1.0,
     )
-    observer = PlaneCANN(PlaneCANNConfig(x_axis=axis, y_axis=axis))
+    observer = PlaneCANN(PlaneCANNConfig(
+        x_axis=axis, y_axis=axis, materialize_joint_activity=False,
+    ))
     first_valid = int(np.flatnonzero(available)[0])
     output = observer.reset(
         measurement[first_valid], timestamp=timestamps[first_valid],

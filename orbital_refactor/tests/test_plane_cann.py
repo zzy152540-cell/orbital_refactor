@@ -27,3 +27,18 @@ def test_plane_cann_clamps_each_axis_without_wrapping():
     output = cann.step([1.0, -1.0], 2.0)
     assert np.allclose(output.decoded_position, [10.0, -10.0], atol=1e-8)
     assert output.saturated_at_boundary
+
+
+def test_compact_plane_cann_preserves_decoding_without_joint_activity():
+    full = PlaneCANN()
+    compact = PlaneCANN(PlaneCANNConfig(materialize_joint_activity=False))
+
+    full_output = full.reset([0.2, -0.3])
+    compact_output = compact.reset([0.2, -0.3])
+
+    np.testing.assert_allclose(
+        compact_output.decoded_position, full_output.decoded_position,
+    )
+    assert full_output.neural_activity.shape == (121, 121)
+    assert compact_output.neural_activity.shape == (0, 0)
+    assert compact_output.bump_concentration == full_output.bump_concentration

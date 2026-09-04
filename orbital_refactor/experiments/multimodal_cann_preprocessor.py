@@ -5,6 +5,7 @@ from typing import Sequence
 
 import numpy as np
 
+from brain_inspired.coupled_ring_line_cann import CoupledRingLineCANNConfig
 from experiments.single_satellite_cann_comparison import (
     _preprocess_valid_infrared_azimuth_with_cann,
     _preprocess_valid_optical_with_plane_cann,
@@ -21,6 +22,7 @@ class MultimodalCANNPreprocessorConfig:
     radar: bool = True
     optical: bool = True
     infrared_method: str = "hybrid_ring_line_cann"
+    infrared_coupled_config: CoupledRingLineCANNConfig | None = None
 
 
 class MultimodalCANNPreprocessor:
@@ -48,6 +50,7 @@ class MultimodalCANNPreprocessor:
         if self.config.infrared:
             result = _preprocess_valid_infrared_azimuth_with_cann(
                 result, timeline, method=self.config.infrared_method,
+                coupled_config=self.config.infrared_coupled_config,
             )
         if self.config.radar:
             result = _preprocess_valid_radar_with_line_cann(result, timeline)

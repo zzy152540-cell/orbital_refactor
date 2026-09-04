@@ -126,6 +126,28 @@ def test_chain_network_builds_expected_local_schmidt_dimensions():
         ) >= -1e-8
 
 
+def test_network_preprocessor_runs_once_before_routing():
+    timestamps, states, covariances, observations = _case()
+    calls = []
+
+    def preprocessor(messages, *, timestamps):
+        calls.append((len(messages), timestamps.copy()))
+        return list(messages)
+
+    history = run_network_schmidt_filter(
+        timestamps=timestamps,
+        initial_state_by_node=states,
+        initial_covariance_by_node=covariances,
+        topology=chain_topology(["sat_01", "sat_02", "sat_03"]),
+        observation_messages=observations,
+        observation_message_preprocessor=preprocessor,
+        process_noise_acceleration=0.0,
+    )
+    assert len(calls) == 1
+    assert calls[0][0] == len(observations)
+    np.testing.assert_array_equal(calls[0][1], timestamps)
+
+
 def test_network_runner_batches_same_directed_link_modalities():
     timestamps, states, covariances, observations = _case()
     sequential = run_network_schmidt_filter(
