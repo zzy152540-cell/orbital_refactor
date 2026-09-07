@@ -84,6 +84,13 @@ from .navigation_brain_state import (
     NavigationBrainStateHistory,
     build_navigation_brain_states,
 )
+from .navigation_place_cells import (
+    NavigationPlaceCellConfig,
+    NavigationPlaceCellEncoder,
+    NavigationPlaceCellHistory,
+    NavigationPlaceCellOutput,
+    build_navigation_place_cell_histories,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -115,4 +122,7 @@ __all__ = [
     "OrbitalRTMultiScaleHistory", "run_orbital_rt_multiscale_states",
     "NAVIGATION_BRAIN_FEATURE_NAMES", "NavigationBrainStateHistory",
     "build_navigation_brain_states",
+    "NavigationPlaceCellConfig", "NavigationPlaceCellEncoder",
+    "NavigationPlaceCellHistory", "NavigationPlaceCellOutput",
+    "build_navigation_place_cell_histories",
 ]
