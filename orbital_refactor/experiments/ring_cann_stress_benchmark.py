@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 
 import numpy as np
 
@@ -22,6 +23,7 @@ class RingCANNStressResult:
     hint_accepted: np.ndarray
     dead_reckoning_phase: np.ndarray
     gated_complementary_phase: np.ndarray
+    pll_phase: np.ndarray
     cann_no_cue_phase: np.ndarray
     cann_sparse_cue_phase: np.ndarray
     cann_gated_cue_phase: np.ndarray
@@ -29,6 +31,7 @@ class RingCANNStressResult:
     phase_rmse_deg_by_mode: dict[str, float]
     outage_rmse_deg_by_mode: dict[str, float]
     final_error_deg_by_mode: dict[str, float]
+    runtime_seconds_by_mode: dict[str, float]
 
 
 def run_ring_cann_stress_benchmark(
@@ -87,25 +90,42 @@ def run_ring_cann_stress_benchmark(
     dead_reckoning = (
         truth_phase[0] + _left_integral(measured_rate, sample_dt)
     ) % (2.0 * np.pi)
+    runtime = {}
+    started = perf_counter()
     complementary = _run_gated_integrator(
         timestamps, truth_phase[0], measured_rate, phase_hint,
         hint_available, np.deg2rad(gate_threshold_deg), complementary_gain,
     )
+    runtime["gated_complementary"] = perf_counter() - started
+    started = perf_counter()
+    pll = _run_gated_pll(
+        timestamps, truth_phase[0], measured_rate, phase_hint,
+        hint_available, np.deg2rad(gate_threshold_deg), kp=0.5, ki=0.05,
+    )
+    runtime["pll"] = perf_counter() - started
+    started = perf_counter()
     no_cue, no_quality, _ = _run_cann(
         timestamps, truth_phase[0], measured_rate, phase_hint,
         np.zeros_like(hint_available), cue_gain, None,
     )
+    runtime["cann_no_cue"] = perf_counter() - started
+    started = perf_counter()
     sparse, sparse_quality, _ = _run_cann(
         timestamps, truth_phase[0], measured_rate, phase_hint,
         hint_available, cue_gain, None,
     )
+    runtime["cann_sparse_cue"] = perf_counter() - started
+    started = perf_counter()
     gated, gated_quality, accepted = _run_cann(
         timestamps, truth_phase[0], measured_rate, phase_hint,
         hint_available, cue_gain, np.deg2rad(gate_threshold_deg),
     )
+    runtime["cann_gated_cue"] = perf_counter() - started
+    runtime["dead_reckoning"] = 0.0
     phases = {
         "dead_reckoning": dead_reckoning,
         "gated_complementary": complementary,
+        "pll": pll,
         "cann_no_cue": no_cue,
         "cann_sparse_cue": sparse,
         "cann_gated_cue": gated,
@@ -123,6 +143,7 @@ def run_ring_cann_stress_benchmark(
         hint_available=hint_available, hint_accepted=accepted,
         dead_reckoning_phase=dead_reckoning, cann_no_cue_phase=no_cue,
         gated_complementary_phase=complementary,
+        pll_phase=pll,
         cann_sparse_cue_phase=sparse, cann_gated_cue_phase=gated,
         concentration_by_mode={
             "cann_no_cue": no_quality, "cann_sparse_cue": sparse_quality,
@@ -138,6 +159,9 @@ def run_ring_cann_stress_benchmark(
         },
         final_error_deg_by_mode={
             mode: float(np.rad2deg(error[-1])) for mode, error in errors.items()
+        },
+        runtime_seconds_by_mode={
+            mode: float(runtime[mode]) for mode in phases
         },
     )
 
@@ -179,6 +203,7 @@ def generate_ring_cann_stress_figure(
     labels = {
         "dead_reckoning": "ordinary ring integration",
         "gated_complementary": "gated conventional correction",
+        "pll": "second-order PLL",
         "cann_no_cue": "CANN rate only",
         "cann_sparse_cue": "CANN all sparse cues",
         "cann_gated_cue": "CANN gated sparse cues",
@@ -253,10 +278,14 @@ def _run_cann(
     quality = [initial.bump_concentration]
     accepted = np.zeros(timestamps.size, dtype=bool)
     for index in range(1, timestamps.size):
+        dt = float(timestamps[index] - timestamps[index - 1])
+        predicted_phase = (
+            decoded[-1] + measured_rate[index - 1] * dt
+        ) % (2.0 * np.pi)
         use_hint = bool(hint_available[index])
         if use_hint and gate_threshold is not None:
             innovation = _circular_difference(
-                phase_hint[index], decoded[-1],
+                phase_hint[index], predicted_phase,
             )
             use_hint = bool(abs(innovation) <= gate_threshold)
         accepted[index] = use_hint
@@ -292,6 +321,27 @@ def _run_gated_integrator(
     return phase
 
 
+def _run_gated_pll(
+    timestamps, initial_phase, measured_rate, phase_hint, hint_available,
+    gate_threshold, *, kp, ki,
+):
+    """Second-order circular PLL using the same cue gate as all trackers."""
+    phase = np.empty(timestamps.size, dtype=float)
+    phase[0] = initial_phase
+    rate_bias = 0.0
+    for index in range(1, timestamps.size):
+        dt = float(timestamps[index] - timestamps[index - 1])
+        propagated = (
+            phase[index - 1] + (measured_rate[index - 1] + rate_bias) * dt
+        ) % (2.0 * np.pi)
+        innovation = _circular_difference(phase_hint[index], propagated)
+        if hint_available[index] and abs(innovation) <= gate_threshold:
+            propagated = (propagated + kp * innovation) % (2.0 * np.pi)
+            rate_bias += ki * innovation / dt
+        phase[index] = propagated
+    return phase
+
+
 def _left_integral(rate, dt):
     return np.concatenate(([0.0], np.cumsum(np.asarray(rate)[:-1] * dt)))
 
@@ -300,6 +350,7 @@ def _phase_by_mode(result):
     return {
         "dead_reckoning": result.dead_reckoning_phase,
         "gated_complementary": result.gated_complementary_phase,
+        "pll": result.pll_phase,
         "cann_no_cue": result.cann_no_cue_phase,
         "cann_sparse_cue": result.cann_sparse_cue_phase,
         "cann_gated_cue": result.cann_gated_cue_phase,

@@ -1,0 +1,38 @@
+{
+  "phase_rmse_deg_by_mode": {
+    "dead_reckoning": 2.1252018101663497,
+    "gated_complementary": 1.432319599047184,
+    "pll": 0.085649950719306,
+    "cann_no_cue": 2.1252017947672672,
+    "cann_sparse_cue": 1.3543632510681816,
+    "cann_gated_cue": 1.4377755679378952
+  },
+  "outage_rmse_deg_by_mode": {
+    "dead_reckoning": 1.9082244246066815,
+    "gated_complementary": 1.077435232186756,
+    "pll": 0.08906792159473988,
+    "cann_no_cue": 1.908224407298169,
+    "cann_sparse_cue": 1.1359600366103604,
+    "cann_gated_cue": 1.083802294562003
+  },
+  "final_error_deg_by_mode": {
+    "dead_reckoning": 3.361749827790692,
+    "gated_complementary": 2.4859389905353524,
+    "pll": -0.09665077091259333,
+    "cann_no_cue": 3.361749808882498,
+    "cann_sparse_cue": -0.44153474441598084,
+    "cann_gated_cue": 2.4929476940677384
+  },
+  "runtime_seconds_by_mode": {
+    "dead_reckoning": 0.0,
+    "gated_complementary": 0.00048470008186995983,
+    "pll": 0.0005016999784857035,
+    "cann_no_cue": 18.30521919997409,
+    "cann_sparse_cue": 18.182838100008667,
+    "cann_gated_cue": 17.62241580011323
+  },
+  "available_cue_count": 19,
+  "accepted_cue_count": 8,
+  "csv": "results\\cann\\direction_tracker_comparison\\ring_cann_stress.csv",
+  "figure": "results\\cann\\direction_tracker_comparison\\ring_cann_stress.png"
+}

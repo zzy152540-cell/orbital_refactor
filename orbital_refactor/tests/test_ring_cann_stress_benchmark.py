@@ -26,11 +26,13 @@ def test_short_stress_benchmark_is_reproducible_and_aligned():
     )
     assert first.timestamps.shape == first.truth_phase.shape
     assert set(first.phase_rmse_deg_by_mode) == {
-        "dead_reckoning", "gated_complementary", "cann_no_cue",
+        "dead_reckoning", "gated_complementary", "pll", "cann_no_cue",
         "cann_sparse_cue", "cann_gated_cue",
     }
     np.testing.assert_allclose(first.measured_phase_rate, second.measured_phase_rate)
     assert np.all(np.isfinite(tuple(first.phase_rmse_deg_by_mode.values())))
+    assert set(first.runtime_seconds_by_mode) == set(first.phase_rmse_deg_by_mode)
+    assert np.all(first.hint_accepted <= first.hint_available)
 
 
 def test_periodic_input_rejects_invalid_cue_gain():

@@ -37,6 +37,7 @@ def main(argv=None):
         "phase_rmse_deg_by_mode": result.phase_rmse_deg_by_mode,
         "outage_rmse_deg_by_mode": result.outage_rmse_deg_by_mode,
         "final_error_deg_by_mode": result.final_error_deg_by_mode,
+        "runtime_seconds_by_mode": result.runtime_seconds_by_mode,
         "available_cue_count": int(result.hint_available.sum()),
         "accepted_cue_count": int(result.hint_accepted.sum()),
         "csv": str(csv_path), "figure": str(figure_path),
