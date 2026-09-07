@@ -112,7 +112,11 @@ def run_walker_modality_shadow_quality_audit(
                 item.shadow_quality for item in selected
             ])),
         }
-    return {"records": modality, "summary": summary}
+    return {
+        "records": modality, "summary": summary, "case": case,
+        "observations": messages, "baseline_history": filtered,
+        "navigation_quality_by_node": navigation,
+    }
 
 
 def save_walker_modality_shadow_quality(

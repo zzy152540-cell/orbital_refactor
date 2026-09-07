@@ -74,7 +74,7 @@ def build_modality_shadow_quality(
             navigation_quality * frontend, minimum_quality, 1.0,
         )) if valid else minimum_quality
         link = (observation.observer_id, observation.target_id, modality)
-        feedback = float(previous_quality.get(link, minimum_quality))
+        feedback = float(previous_quality.get(link, 1.0))
         previous_quality[link] = quality
         results.append(ModalityShadowQuality(
             information_id=observation.information_id,

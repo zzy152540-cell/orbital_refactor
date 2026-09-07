@@ -54,7 +54,7 @@ def test_frontend_quality_and_link_delay_are_applied():
         navigation_quality_by_node=histories,
     )
     assert values[0].shadow_quality == pytest.approx(0.8)
-    assert values[0].feedback_quality == pytest.approx(0.05)
+    assert values[0].feedback_quality == pytest.approx(1.0)
     assert values[1].feedback_quality == pytest.approx(0.8)
 
 

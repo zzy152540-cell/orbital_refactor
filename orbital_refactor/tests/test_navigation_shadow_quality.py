@@ -42,7 +42,7 @@ def test_shadow_quality_is_bounded_and_feedback_is_delayed():
     )["sat"]
     assert np.all((quality.shadow_quality >= 0.05)
                   & (quality.shadow_quality <= 1.0))
-    assert quality.feedback_quality[0] == pytest.approx(0.05)
+    assert quality.feedback_quality[0] == pytest.approx(1.0)
     assert np.allclose(quality.feedback_quality[1:], quality.shadow_quality[:-1])
     assert quality.shadow_quality[0] > quality.shadow_quality[-1]
 

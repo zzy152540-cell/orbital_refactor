@@ -77,7 +77,7 @@ def build_navigation_shadow_quality(
                           settings.minimum_quality, 1.0)
         quality = np.where(valid & ~saturated, quality, settings.minimum_quality)
         feedback = np.empty_like(quality)
-        feedback[0] = settings.minimum_quality
+        feedback[0] = 1.0
         feedback[1:] = quality[:-1]
         result[node_id] = NavigationShadowQualityHistory(
             node_id=node_id, timestamps=direction.timestamps.copy(),
