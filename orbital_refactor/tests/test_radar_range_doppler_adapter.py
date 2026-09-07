@@ -40,6 +40,8 @@ def test_noiseless_range_doppler_centroid_recovers_measurement():
 
     assert frame.power.shape == (65, 65)
     assert message.valid_flag
+    assert 0.0 <= message.metadata["frontend_quality_score"] <= 1.0
+    assert message.metadata["peak_snr"] > 0.0
     assert abs(message.measurement[0] - expected[0]) < 1e-3
     assert abs(message.measurement[1] - expected[1]) < 1e-5
 

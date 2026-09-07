@@ -35,6 +35,8 @@ def test_noiseless_image_centroid_recovers_normalized_uv():
 
     assert frame.image.shape == (64, 64)
     assert message.valid_flag
+    assert 0.0 <= message.metadata["frontend_quality_score"] <= 1.0
+    assert message.metadata["peak_snr"] > 0.0
     np.testing.assert_allclose(message.measurement, [0.1, -0.05], atol=2e-6)
     assert message.metadata["raw_source_type"] == "POINT_SOURCE_IMAGE"
 

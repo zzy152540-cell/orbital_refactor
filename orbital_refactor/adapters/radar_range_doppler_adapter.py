@@ -7,6 +7,7 @@ import numpy as np
 from adapters.point_source_image import (
     PointSourceImageConfig,
     extract_point_source_centroid,
+    point_source_quality,
     render_gaussian_point_source,
 )
 from interfaces.data_objects import ObservationMessage
@@ -92,6 +93,9 @@ def radar_frame_to_observation_message(frame, *, config=None):
     bin_xy, detected = extract_point_source_centroid(
         frame.power, config=selected, target_in_frame=frame.target_in_window,
     )
+    frontend_quality = point_source_quality(
+        frame.power, bin_xy, config=selected, detected=detected,
+    )
     measurement = (
         radar_bin_to_measurement(bin_xy, frame, selected)
         if detected else np.zeros(2, dtype=float)
@@ -127,5 +131,6 @@ def radar_frame_to_observation_message(frame, *, config=None):
             "acquisition_center": frame.acquisition_center.copy(),
             "range_bin_size_m": selected.range_bin_size_m,
             "range_rate_bin_size_mps": selected.range_rate_bin_size_mps,
+            **frontend_quality,
         },
     )

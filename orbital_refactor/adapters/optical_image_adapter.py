@@ -9,6 +9,7 @@ from orbital_core.attitude import quat_to_dcm_i2b
 from adapters.point_source_image import (
     PointSourceImageConfig,
     extract_point_source_centroid,
+    point_source_quality,
     render_gaussian_point_source,
 )
 
@@ -107,6 +108,9 @@ def optical_frame_to_observation_message(frame, *, config=None):
     """Convert a raw image frame into the existing normalized-UV interface."""
     selected = config or OpticalCameraConfig()
     pixel_xy, detected = extract_optical_centroid(frame, config=selected)
+    frontend_quality = point_source_quality(
+        frame.image, pixel_xy, config=selected, detected=detected,
+    )
     measurement = (
         pixel_to_normalized_uv(pixel_xy, selected)
         if detected else np.zeros(2, dtype=float)
@@ -142,5 +146,6 @@ def optical_frame_to_observation_message(frame, *, config=None):
             "raw_image_shape": frame.image.shape,
             "centroid_pixel_xy": pixel_xy,
             "quaternion_i2b_wxyz": frame.quaternion_i2b_wxyz.copy(),
+            **frontend_quality,
         },
     )

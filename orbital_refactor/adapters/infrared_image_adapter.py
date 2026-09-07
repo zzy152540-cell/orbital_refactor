@@ -7,6 +7,7 @@ import numpy as np
 from adapters.point_source_image import (
     PointSourceImageConfig,
     extract_point_source_centroid,
+    point_source_quality,
     render_gaussian_point_source,
 )
 from interfaces.data_objects import ObservationMessage
@@ -100,6 +101,9 @@ def infrared_frame_to_observation_message(frame, *, config=None):
     pixel_xy, detected = extract_point_source_centroid(
         frame.image, config=selected, target_in_frame=frame.target_in_frame,
     )
+    frontend_quality = point_source_quality(
+        frame.image, pixel_xy, config=selected, detected=detected,
+    )
     measurement = (
         infrared_pixel_to_az_el(pixel_xy, selected)
         if detected else np.zeros(2, dtype=float)
@@ -124,6 +128,7 @@ def infrared_frame_to_observation_message(frame, *, config=None):
             "raw_image_shape": frame.image.shape,
             "centroid_pixel_xy": pixel_xy,
             "quaternion_i2b_wxyz": frame.quaternion_i2b_wxyz.copy(),
+            **frontend_quality,
         },
     )
 

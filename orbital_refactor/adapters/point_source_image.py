@@ -112,3 +112,32 @@ def extract_point_source_centroid(image, *, config, target_in_frame=True):
         float(np.sum(columns * patch) / total),
         float(np.sum(rows * patch) / total),
     ]), True
+
+
+def point_source_quality(image, centroid_xy, *, config, detected):
+    """Return bounded front-end diagnostics without changing detection."""
+    values = np.asarray(image, dtype=float)
+    centroid = np.asarray(centroid_xy, dtype=float).reshape(2)
+    if not detected or np.any(~np.isfinite(centroid)):
+        return {"peak_snr": 0.0, "edge_margin_pixels": 0.0,
+                "frontend_quality_score": 0.0}
+    peak_signal = max(float(np.max(values) - config.background), 0.0)
+    noise = max(float(config.read_noise_sigma), np.finfo(float).eps)
+    peak_snr = peak_signal / noise
+    edge_margin = float(min(
+        centroid[0], centroid[1],
+        config.width - 1 - centroid[0], config.height - 1 - centroid[1],
+    ))
+    snr_reference = max(2.0 * config.detection_sigma, 1.0)
+    snr_quality = 1.0 - np.exp(-peak_snr / snr_reference)
+    required_margin = max(
+        config.centroid_edge_margin_sigma * config.psf_sigma_pixels, 1.0,
+    )
+    edge_quality = np.clip(edge_margin / required_margin, 0.0, 1.0)
+    return {
+        "peak_snr": float(peak_snr),
+        "edge_margin_pixels": edge_margin,
+        "frontend_quality_score": float(np.clip(
+            snr_quality * edge_quality, 0.0, 1.0,
+        )),
+    }

@@ -49,6 +49,15 @@ from .orbital_radial_state import (
     RadialNavigationSnapshot,
 )
 from .orbital_radial_runner import OrbitalRadialHistory, run_orbital_radial_states
+from .navigation_shadow_quality import (
+    NavigationShadowQualityConfig,
+    NavigationShadowQualityHistory,
+    build_navigation_shadow_quality,
+)
+from .modality_shadow_quality import (
+    ModalityShadowQuality,
+    build_modality_shadow_quality,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -67,4 +76,7 @@ __all__ = [
     "OrbitalDirectionHistory", "run_orbital_direction_states",
     "OrbitalRadialConfig", "OrbitalRadialState", "RadialNavigationSnapshot",
     "OrbitalRadialHistory", "run_orbital_radial_states",
+    "NavigationShadowQualityConfig", "NavigationShadowQualityHistory",
+    "build_navigation_shadow_quality",
+    "ModalityShadowQuality", "build_modality_shadow_quality",
 ]

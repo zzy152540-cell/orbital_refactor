@@ -37,6 +37,8 @@ def test_noiseless_infrared_image_recovers_body_az_el():
         quaternion_i2b_wxyz=IDENTITY_QUATERNION,
     )
     assert message.valid_flag
+    assert 0.0 <= message.metadata["frontend_quality_score"] <= 1.0
+    assert message.metadata["peak_snr"] > 0.0
     np.testing.assert_allclose(message.measurement, expected, atol=2e-6)
     assert np.linalg.eigvalsh(message.covariance).min() > 0.0
 
