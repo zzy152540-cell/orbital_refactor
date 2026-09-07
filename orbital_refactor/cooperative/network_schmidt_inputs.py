@@ -29,6 +29,8 @@ def route_relative_observations(
     result = {float(timestamp): {} for timestamp in times}
     seen_message_ids: set[str] = set()
     for observation in observations:
+        if not observation.valid_flag:
+            continue
         source_timestamp = float(observation.timestamp)
         if source_timestamp not in result:
             raise ValueError("Observation timestamp is not in timestamps.")

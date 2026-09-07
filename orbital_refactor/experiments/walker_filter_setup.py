@@ -26,6 +26,8 @@ def build_walker_filter_case(
     *, seed, duration, dt, maximum_range, topology, truth_history_by_node,
     topology_type, topology_inactive_windows_by_undirected_edge=None,
     absolute_navigation_dropout_windows_by_node=None,
+    initial_position_sigma=10.0,
+    initial_velocity_sigma=0.02,
 ):
     """Build a physical-modality filter case for a Walker constellation."""
 
@@ -52,4 +54,6 @@ def build_walker_filter_case(
             absolute_navigation_dropout_windows_by_node
         ),
         relative_modalities=WALKER_FILTER_MODALITIES,
+        initial_position_sigma=initial_position_sigma,
+        initial_velocity_sigma=initial_velocity_sigma,
     )

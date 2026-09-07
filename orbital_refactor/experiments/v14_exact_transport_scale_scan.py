@@ -356,7 +356,9 @@ def build_exact_transport_case(
                 measurement_period_by_modality=None,
                 topology_override: NetworkTopology | None = None,
                 relative_modalities=("RANGE",),
-                future_noise_seed=None, future_noise_start_index=None):
+                future_noise_seed=None, future_noise_start_index=None,
+                initial_position_sigma=10.0,
+                initial_velocity_sigma=0.02):
     if (future_noise_seed is None) != (future_noise_start_index is None):
         raise ValueError(
             "future_noise_seed and future_noise_start_index must be set together."
@@ -395,7 +397,13 @@ def build_exact_transport_case(
         node_ids=scenario.node_ids,
         sample_count=len(timestamps),
     )
-    covariance = np.diag([10, 10, 10, 0.02, 0.02, 0.02]) ** 2
+    initial_sigmas = np.array(
+        [initial_position_sigma] * 3 + [initial_velocity_sigma] * 3,
+        dtype=float,
+    )
+    if np.any(~np.isfinite(initial_sigmas)) or np.any(initial_sigmas <= 0.0):
+        raise ValueError("Initial-state sigmas must be finite and positive.")
+    covariance = np.diag(initial_sigmas**2)
     initial_states = {node: truth_initials[node] + rng.multivariate_normal(np.zeros(6), covariance) for node in scenario.node_ids}
     initial_covariances = {node: covariance.copy() for node in scenario.node_ids}
     visibility_summary, visible_range_opportunities = build_visibility_selection(
