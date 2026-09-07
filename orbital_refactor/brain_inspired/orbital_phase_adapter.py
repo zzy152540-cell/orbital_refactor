@@ -79,6 +79,7 @@ class OrbitalPhaseState:
     argument_of_latitude: float
     argument_of_latitude_rate: float
     in_plane_radius: float
+    in_plane_radius_rate: float
     cross_track_position: float
     source_id: str | None = None
 
@@ -118,6 +119,9 @@ def extract_orbital_phase_state(
             (x * y_rate - y * x_rate) / radius_squared
         ),
         in_plane_radius=float(np.sqrt(radius_squared)),
+        in_plane_radius_rate=float(
+            (x * x_rate + y * y_rate) / np.sqrt(radius_squared)
+        ),
         cross_track_position=float(position @ frame.normal_axis),
         source_id=source_id,
     )

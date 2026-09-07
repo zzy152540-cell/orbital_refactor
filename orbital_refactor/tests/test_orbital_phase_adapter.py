@@ -38,10 +38,15 @@ def test_orbital_phase_extraction_matches_keplerian_argument_of_latitude():
     semilatus_rectum = semi_major_axis * (1.0 - eccentricity**2)
     radius = semilatus_rectum / (1.0 + eccentricity * np.cos(true_anomaly))
     expected_rate = np.sqrt(MU_EARTH * semilatus_rectum) / radius**2
+    expected_radius_rate = (
+        np.sqrt(MU_EARTH / semilatus_rectum)
+        * eccentricity * np.sin(true_anomaly)
+    )
     assert abs(_circular_error(
         phase.argument_of_latitude, argument_of_perigee + true_anomaly,
     )) < 1.0e-12
     assert phase.argument_of_latitude_rate == pytest.approx(expected_rate)
+    assert phase.in_plane_radius_rate == pytest.approx(expected_radius_rate)
     assert phase.cross_track_position == pytest.approx(0.0, abs=1.0e-8)
     assert phase.source_id == "sat-01"
 
