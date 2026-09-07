@@ -27,6 +27,7 @@ class OrbitalRTGridConfig:
     minimum_bias_baseline: float = 30.0
     maximum_rate_correction: float = 2.0
     bias_rate_deadband: float = 0.01
+    maximum_anchor_innovation: float = 100.0
 
     def validate(self):
         self.radial.validate()
@@ -46,6 +47,9 @@ class OrbitalRTGridConfig:
         if (not np.isfinite(self.bias_rate_deadband)
                 or self.bias_rate_deadband < 0.0):
             raise ValueError("bias_rate_deadband must be nonnegative.")
+        if (not np.isfinite(self.maximum_anchor_innovation)
+                or self.maximum_anchor_innovation <= 0.0):
+            raise ValueError("maximum_anchor_innovation must be positive.")
 
 
 @dataclass(frozen=True)
@@ -62,6 +66,9 @@ class OrbitalRTGridSnapshot:
     anchor_age: float
     rate_correction_rt: Array
     bias_update_applied: bool
+    anchor_innovation_norm: float
+    anchor_rejected: bool
+    anchor_rejection_reason: str
     radial_activity: Array
     along_track_activity: Array
 
@@ -96,7 +103,10 @@ class OrbitalRTGridState:
         self._bias_anchor_timestamp = float(timestamp)
         self._rate_correction.fill(0.0)
         return self._snapshot(radial, along, offset, cue_applied=False, gain=0.0,
-                              bias_update_applied=False)
+                              bias_update_applied=False,
+                              anchor_innovation_norm=0.0,
+                              anchor_rejected=False,
+                              anchor_rejection_reason="")
 
     def predict(
         self, *, timestamp: float, predicted_state_eci: Array,
@@ -120,7 +130,10 @@ class OrbitalRTGridState:
             offset.along_track_rate + bias[1] + self._rate_correction[1], dt,
         )
         return self._snapshot(radial, along, offset, cue_applied=False, gain=0.0,
-                              bias_update_applied=False)
+                              bias_update_applied=False,
+                              anchor_innovation_norm=0.0,
+                              anchor_rejected=False,
+                              anchor_rejection_reason="")
 
     def anchor(
         self, *, timestamp: float, posterior_state_eci: Array,
@@ -135,11 +148,21 @@ class OrbitalRTGridState:
             timestamp=timestamp, state_eci=posterior_state_eci,
             reference_state_eci=reference_state_eci, source_id=self.node_id,
         )
-        gain = self.config.maximum_anchor_gain * confidence if trusted else 0.0
+        decoded_before_anchor = np.array([
+            self._radial.output().decoded_value,
+            self._along_track.output().decoded_value,
+        ])
+        source_rt = np.array([
+            offset.radial_position, offset.along_track_position,
+        ])
+        innovation_norm = float(np.linalg.norm(source_rt - decoded_before_anchor))
+        rejected = bool(
+            trusted and innovation_norm > self.config.maximum_anchor_innovation
+        )
+        accepted = bool(trusted and not rejected)
+        gain = self.config.maximum_anchor_gain * confidence if accepted else 0.0
         bias_updated = self._update_rate_correction(
-            timestamp=float(timestamp), source_rt=np.array([
-                offset.radial_position, offset.along_track_position,
-            ]), trusted=bool(trusted),
+            timestamp=float(timestamp), source_rt=source_rt, trusted=accepted,
         )
         if gain > 0.0:
             radial = self._radial.apply_value_cue(
@@ -153,7 +176,12 @@ class OrbitalRTGridState:
             radial, along = self._radial.output(), self._along_track.output()
         return self._snapshot(radial, along, offset,
                               cue_applied=gain > 0.0, gain=gain,
-                              bias_update_applied=bias_updated)
+                              bias_update_applied=bias_updated,
+                              anchor_innovation_norm=innovation_norm,
+                              anchor_rejected=rejected,
+                              anchor_rejection_reason=(
+                                  "innovation_limit" if rejected else ""
+                              ))
 
     def _update_rate_correction(self, *, timestamp, source_rt, trusted):
         if not trusted or not self.config.rolling_bias_enabled:
@@ -182,7 +210,8 @@ class OrbitalRTGridState:
         return True
 
     def _snapshot(self, radial, along, offset, *, cue_applied, gain,
-                  bias_update_applied):
+                  bias_update_applied, anchor_innovation_norm,
+                  anchor_rejected, anchor_rejection_reason):
         decoded = np.array([radial.decoded_value, along.decoded_value])
         source = np.array([offset.radial_position, offset.along_track_position])
         return OrbitalRTGridSnapshot(
@@ -196,6 +225,9 @@ class OrbitalRTGridState:
             anchor_age=float(radial.timestamp - self._last_anchor_timestamp),
             rate_correction_rt=self._rate_correction.copy(),
             bias_update_applied=bool(bias_update_applied),
+            anchor_innovation_norm=float(anchor_innovation_norm),
+            anchor_rejected=bool(anchor_rejected),
+            anchor_rejection_reason=str(anchor_rejection_reason),
             radial_activity=radial.neural_activity.copy(),
             along_track_activity=along.neural_activity.copy(),
         )

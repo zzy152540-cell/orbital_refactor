@@ -27,12 +27,16 @@ class OrbitalRTGridHistory:
     anchor_age: Array
     rate_correction_rt: Array
     bias_update_applied: Array
+    anchor_innovation_norm: Array
+    anchor_rejected: Array
+    anchor_rejection_reason: Array
 
 
 def run_orbital_rt_grid_states(
     *, timestamps: Array,
     posterior_state_history_by_node: Mapping[str, Array],
     reference_state_history_by_node: Mapping[str, Array],
+    anchor_state_history_by_node: Mapping[str, Array] | None = None,
     anchor_mask_by_node: Mapping[str, Array] | None = None,
     anchor_confidence_by_node: Mapping[str, Array] | None = None,
     rate_bias_rt_by_node: Mapping[str, Array] | None = None,
@@ -47,6 +51,10 @@ def run_orbital_rt_grid_states(
     reference = _histories(reference_state_history_by_node, times.size)
     if set(posterior) != set(reference):
         raise ValueError("Posterior and reference histories must cover identical nodes.")
+    anchors = (posterior if anchor_state_history_by_node is None else
+               _histories(anchor_state_history_by_node, times.size))
+    if set(anchors) != set(posterior):
+        raise ValueError("Anchor and posterior histories must cover identical nodes.")
     result = {}
     for node, states in posterior.items():
         mask = _series(anchor_mask_by_node, node, times.size, False, bool)
@@ -55,20 +63,18 @@ def run_orbital_rt_grid_states(
             (confidence < 0.0) | (confidence > 1.0)
         ):
             raise ValueError("Anchor confidence values must lie in [0, 1].")
-        bias = np.asarray((rate_bias_rt_by_node or {}).get(
-            node, np.zeros(2),
-        ), dtype=float).reshape(-1)
-        if bias.shape != (2,) or np.any(~np.isfinite(bias)):
-            raise ValueError("Per-node RT rate bias must be a finite 2-vector.")
+        bias = _rate_bias_series(rate_bias_rt_by_node, node, times.size)
         result[node] = _run_node(
             node=node, times=times, posterior=states,
-            reference=reference[node], mask=mask, confidence=confidence,
+            anchors=anchors[node], reference=reference[node],
+            mask=mask, confidence=confidence,
             bias=bias, config=config,
         )
     return result
 
 
-def _run_node(*, node, times, posterior, reference, mask, confidence, bias, config):
+def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
+              bias, config):
     grid = OrbitalRTGridState(node_id=node, config=config)
     first = grid.initialize(
         timestamp=times[0], state_eci=posterior[0],
@@ -86,15 +92,18 @@ def _run_node(*, node, times, posterior, reference, mask, confidence, bias, conf
     ages = [first.anchor_age]
     corrections = [first.rate_correction_rt]
     bias_updates = [first.bias_update_applied]
+    innovations = [first.anchor_innovation_norm]
+    rejected = [first.anchor_rejected]
+    rejection_reasons = [first.anchor_rejection_reason]
     for index in range(1, times.size):
         dt = float(times[index] - times[index - 1])
         prior = rk4_step_absolute(posterior[index - 1], dt)
         prediction = grid.predict(
             timestamp=times[index], predicted_state_eci=prior,
-            reference_state_eci=reference[index], rate_bias_rt=bias,
+            reference_state_eci=reference[index], rate_bias_rt=bias[index],
         )
         endpoint = grid.anchor(
-            timestamp=times[index], posterior_state_eci=posterior[index],
+            timestamp=times[index], posterior_state_eci=anchors[index],
             reference_state_eci=reference[index],
             confidence=confidence[index], trusted=bool(mask[index]),
         )
@@ -110,6 +119,9 @@ def _run_node(*, node, times, posterior, reference, mask, confidence, bias, conf
         ages.append(endpoint.anchor_age)
         corrections.append(endpoint.rate_correction_rt)
         bias_updates.append(endpoint.bias_update_applied)
+        innovations.append(endpoint.anchor_innovation_norm)
+        rejected.append(endpoint.anchor_rejected)
+        rejection_reasons.append(endpoint.anchor_rejection_reason)
     return OrbitalRTGridHistory(
         node_id=node, timestamps=times.copy(), source_rt=np.asarray(source),
         predicted_rt=np.asarray(predicted), anchored_rt=np.asarray(anchored),
@@ -121,6 +133,9 @@ def _run_node(*, node, times, posterior, reference, mask, confidence, bias, conf
         anchor_age=np.asarray(ages),
         rate_correction_rt=np.asarray(corrections),
         bias_update_applied=np.asarray(bias_updates, dtype=bool),
+        anchor_innovation_norm=np.asarray(innovations),
+        anchor_rejected=np.asarray(rejected, dtype=bool),
+        anchor_rejection_reason=np.asarray(rejection_reasons, dtype=str),
     )
 
 
@@ -141,4 +156,18 @@ def _series(mapping, node, size, default, dtype):
               else np.asarray(mapping[node], dtype=dtype))
     if values.shape != (size,):
         raise ValueError("Per-node RT controls must have shape (N,).")
+    return values
+
+
+def _rate_bias_series(mapping, node, size):
+    values = np.asarray(
+        np.zeros(2) if mapping is None or node not in mapping else mapping[node],
+        dtype=float,
+    )
+    if values.shape == (2,):
+        values = np.broadcast_to(values, (size, 2)).copy()
+    if values.shape != (size, 2) or np.any(~np.isfinite(values)):
+        raise ValueError(
+            "Per-node RT rate bias must be a finite 2-vector or an (N, 2) series."
+        )
     return values

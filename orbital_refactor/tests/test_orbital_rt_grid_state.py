@@ -71,3 +71,29 @@ def test_rt_grid_rolling_anchor_learns_opposite_rate_correction():
     assert anchored.bias_update_applied
     assert anchored.rate_correction_rt[0] < 0.0
     assert abs(anchored.rate_correction_rt[0]) <= 2.0
+
+
+def test_rt_grid_rejects_large_anchor_before_cue_and_bias_update():
+    reference = _state()
+    outlier = reference.copy()
+    outlier[0] += 500.0
+    grid = OrbitalRTGridState(
+        node_id="sat",
+        config=OrbitalRTGridConfig(
+            rolling_bias_enabled=True, minimum_bias_baseline=1.0,
+            maximum_anchor_innovation=100.0,
+        ),
+    )
+    grid.initialize(timestamp=0.0, state_eci=reference,
+                    reference_state_eci=reference)
+    grid.predict(timestamp=2.0, predicted_state_eci=reference,
+                 reference_state_eci=reference)
+    rejected = grid.anchor(
+        timestamp=2.0, posterior_state_eci=outlier,
+        reference_state_eci=reference, confidence=1.0, trusted=True,
+    )
+    assert rejected.anchor_rejected
+    assert rejected.anchor_rejection_reason == "innovation_limit"
+    assert not rejected.cue_applied
+    assert not rejected.bias_update_applied
+    assert np.allclose(rejected.rate_correction_rt, 0.0)

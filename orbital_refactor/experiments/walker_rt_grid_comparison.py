@@ -220,6 +220,10 @@ def _metrics(histories, truth):
             np.count_nonzero(history.bias_update_applied)
             for history in histories.values()
         ])),
+        "anchor_rejection_count": float(np.sum([
+            np.count_nonzero(history.anchor_rejected)
+            for history in histories.values()
+        ])),
         "final_rate_correction_norm_mps": float(np.mean([
             np.linalg.norm(history.rate_correction_rt[-1])
             for history in histories.values()
