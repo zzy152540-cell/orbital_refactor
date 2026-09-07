@@ -1,0 +1,4 @@
+seed,policy,maximum_anchor_gain,phase_rmse_deg,maximum_phase_error_deg,valid_fraction,cue_count,maximum_anchor_age_s
+0,free_running,0.0,0.07734788081780265,0.13337918828226664,1.0,0,240.0
+0,outage_gain_0.25,0.25,0.06897571095399468,0.11631111918198535,1.0,100,195.0
+0,outage_gain_0.4,0.4,0.06627376763382317,0.11503035756974775,1.0,100,195.0

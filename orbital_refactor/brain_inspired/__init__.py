@@ -34,6 +34,15 @@ from .coupled_ring_line_cann import (
     CoupledRingLineCANNOutput,
 )
 from .plane_cann import PlaneCANN, PlaneCANNConfig, PlaneCANNOutput
+from .orbital_direction_state import (
+    DirectionNavigationSnapshot,
+    OrbitalDirectionConfig,
+    OrbitalDirectionState,
+)
+from .orbital_direction_runner import (
+    OrbitalDirectionHistory,
+    run_orbital_direction_states,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -47,4 +56,7 @@ __all__ = [
     "CoupledRingLineCANN", "CoupledRingLineCANNConfig",
     "CoupledRingLineCANNOutput",
     "PlaneCANN", "PlaneCANNConfig", "PlaneCANNOutput",
+    "DirectionNavigationSnapshot", "OrbitalDirectionConfig",
+    "OrbitalDirectionState",
+    "OrbitalDirectionHistory", "run_orbital_direction_states",
 ]
