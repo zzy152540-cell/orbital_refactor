@@ -79,6 +79,11 @@ from .orbital_rt_multiscale_runner import (
     OrbitalRTMultiScaleHistory,
     run_orbital_rt_multiscale_states,
 )
+from .navigation_brain_state import (
+    FEATURE_NAMES as NAVIGATION_BRAIN_FEATURE_NAMES,
+    NavigationBrainStateHistory,
+    build_navigation_brain_states,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -108,4 +113,6 @@ __all__ = [
     "OrbitalRTMultiScaleConfig", "OrbitalRTMultiScaleSnapshot",
     "OrbitalRTMultiScaleState",
     "OrbitalRTMultiScaleHistory", "run_orbital_rt_multiscale_states",
+    "NAVIGATION_BRAIN_FEATURE_NAMES", "NavigationBrainStateHistory",
+    "build_navigation_brain_states",
 ]
