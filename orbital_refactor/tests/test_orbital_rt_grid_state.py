@@ -5,6 +5,7 @@ from brain_inspired.orbital_rt_grid_state import (
     OrbitalRTGridConfig,
     OrbitalRTGridState,
 )
+from brain_inspired.line_cann import LineCANNConfig
 from orbital_core.dynamics import rk4_step_absolute
 
 
@@ -97,3 +98,62 @@ def test_rt_grid_rejects_large_anchor_before_cue_and_bias_update():
     assert not rejected.cue_applied
     assert not rejected.bias_update_applied
     assert np.allclose(rejected.rate_correction_rt, 0.0)
+
+
+def test_rt_grid_rolling_reference_preserves_physical_output_on_rebase():
+    reference = _state()
+    axis = LineCANNConfig(
+        num_neurons=81, minimum_value=-10.0,
+        maximum_value=10.0, tuning_width=0.25,
+    )
+    grid = OrbitalRTGridState(
+        node_id="sat",
+        config=OrbitalRTGridConfig(
+            radial=axis, along_track=axis,
+            rolling_reference_enabled=True,
+            rolling_reference_trigger_fraction=0.5,
+        ),
+    )
+    first = grid.initialize(timestamp=0.0, state_eci=reference,
+                            reference_state_eci=reference)
+    output = grid.predict(
+        timestamp=1.0, predicted_state_eci=reference,
+        reference_state_eci=reference, rate_bias_rt=(6.0, 0.0),
+    )
+    assert first.decoded_rt[0] == 0.0
+    assert output.reference_rebased.tolist() == [True, False]
+    assert output.decoded_rt[0] == pytest.approx(6.0, abs=1e-6)
+    assert output.reference_origin_rt[0] == pytest.approx(6.0, abs=1e-6)
+    assert output.reference_rebase_count.tolist() == [1, 0]
+    assert not output.saturated_at_boundary
+
+
+def test_disabled_rolling_reference_is_strictly_equivalent_to_default():
+    reference = _state()
+    state = reference.copy()
+    state[:2] += [100.0, 200.0]
+    default = OrbitalRTGridState(node_id="sat")
+    explicit_off = OrbitalRTGridState(
+        node_id="sat",
+        config=OrbitalRTGridConfig(rolling_reference_enabled=False),
+    )
+    first_outputs = [tracker.initialize(
+        timestamp=0.0, state_eci=state, reference_state_eci=reference,
+    ) for tracker in (default, explicit_off)]
+    next_reference = rk4_step_absolute(reference, 2.0)
+    next_state = rk4_step_absolute(state, 2.0)
+    predicted_outputs = [tracker.predict(
+        timestamp=2.0, predicted_state_eci=next_state,
+        reference_state_eci=next_reference, rate_bias_rt=(0.1, 0.2),
+    ) for tracker in (default, explicit_off)]
+    anchor_outputs = [tracker.anchor(
+        timestamp=2.0, posterior_state_eci=next_state,
+        reference_state_eci=next_reference, confidence=0.8, trusted=True,
+    ) for tracker in (default, explicit_off)]
+    for pair in (first_outputs, predicted_outputs, anchor_outputs):
+        assert np.array_equal(pair[0].decoded_rt, pair[1].decoded_rt)
+        assert np.array_equal(pair[0].residual_rt, pair[1].residual_rt)
+        assert np.array_equal(pair[0].radial_activity, pair[1].radial_activity)
+        assert np.array_equal(
+            pair[0].along_track_activity, pair[1].along_track_activity,
+        )

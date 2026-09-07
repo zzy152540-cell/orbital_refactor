@@ -585,6 +585,26 @@ impulsive anomalies; the infrared adapter uses the same fault-aware principle
 with circular azimuth handling. The original filter path remains selectable as
 the regression baseline.
 
+The navigation-state sidecar also includes an orbital-local radial/along-track
+(RT) representation. The lightweight baseline uses two bounded Line CANNs,
+optional delayed-anchor rate-bias correction, innovation-gated anchors, and an
+optional rolling local reference. A coarse/fine multiscale RT representation
+is retained as a research mode; it does not replace or feed back into the EKF.
+In the Walker-20 comparison, the rolling 10 km representation and a fixed
+50 km representation both handle a valid 15 km reference offset at about
+2.23 m RT RMSE without saturation, while the multiscale version doubles the
+population size and is mainly useful for fine-scale activity and cross-scale
+consistency features. See `docs/cann_rt_navigation_stage4_zh.md` for the tested
+scope and acceptance decision.
+
+Run the RT stress and representation comparisons with:
+
+```bash
+python -m experiments.walker_rt_grid_stress_matrix
+python -m experiments.multiscale_line_cann_benchmark
+python -m experiments.walker_rt_multiscale_comparison
+```
+
 Run the standalone static, velocity, wrapping, and external-cue benchmark with:
 
 ```bash

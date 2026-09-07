@@ -1,6 +1,8 @@
 import numpy as np
 
 from brain_inspired.orbital_rt_grid_runner import run_orbital_rt_grid_states
+from brain_inspired.line_cann import LineCANNConfig
+from brain_inspired.orbital_rt_grid_state import OrbitalRTGridConfig
 from orbital_core.dynamics import rk4_step_absolute
 
 
@@ -77,3 +79,26 @@ def test_rt_grid_runner_rejects_invalid_time_varying_bias_shape():
         assert "(N, 2)" in str(error)
     else:
         raise AssertionError("Expected invalid RT rate-bias shape rejection.")
+
+
+def test_rt_grid_runner_records_prediction_stage_reference_rebase():
+    state = np.array([7e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    axis = LineCANNConfig(
+        num_neurons=81, minimum_value=-10.0,
+        maximum_value=10.0, tuning_width=0.25,
+    )
+    history = run_orbital_rt_grid_states(
+        timestamps=np.array([0.0, 1.0]),
+        posterior_state_history_by_node={"sat": np.stack([state, state])},
+        reference_state_history_by_node={"sat": np.stack([state, state])},
+        rate_bias_rt_by_node={"sat": np.array([6.0, 0.0])},
+        config=OrbitalRTGridConfig(
+            radial=axis, along_track=axis,
+            rolling_reference_enabled=True,
+            rolling_reference_trigger_fraction=0.5,
+        ),
+    )["sat"]
+    assert history.reference_rebased.tolist() == [
+        [False, False], [True, False],
+    ]
+    assert history.reference_rebase_count[-1].tolist() == [1, 0]

@@ -28,6 +28,8 @@ class OrbitalRTGridConfig:
     maximum_rate_correction: float = 2.0
     bias_rate_deadband: float = 0.01
     maximum_anchor_innovation: float = 100.0
+    rolling_reference_enabled: bool = False
+    rolling_reference_trigger_fraction: float = 0.8
 
     def validate(self):
         self.radial.validate()
@@ -50,6 +52,11 @@ class OrbitalRTGridConfig:
         if (not np.isfinite(self.maximum_anchor_innovation)
                 or self.maximum_anchor_innovation <= 0.0):
             raise ValueError("maximum_anchor_innovation must be positive.")
+        if (not np.isfinite(self.rolling_reference_trigger_fraction)
+                or not 0.0 < self.rolling_reference_trigger_fraction < 1.0):
+            raise ValueError(
+                "rolling_reference_trigger_fraction must lie in (0, 1)."
+            )
 
 
 @dataclass(frozen=True)
@@ -69,6 +76,9 @@ class OrbitalRTGridSnapshot:
     anchor_innovation_norm: float
     anchor_rejected: bool
     anchor_rejection_reason: str
+    reference_origin_rt: Array
+    reference_rebased: Array
+    reference_rebase_count: Array
     radial_activity: Array
     along_track_activity: Array
 
@@ -86,6 +96,8 @@ class OrbitalRTGridState:
         self._last_anchor_timestamp: float | None = None
         self._bias_anchor_timestamp: float | None = None
         self._rate_correction = np.zeros(2)
+        self._reference_origin = np.zeros(2)
+        self._reference_rebase_count = np.zeros(2, dtype=int)
 
     def initialize(
         self, *, timestamp: float, state_eci: Array, reference_state_eci: Array,
@@ -94,9 +106,15 @@ class OrbitalRTGridState:
             timestamp=timestamp, state_eci=state_eci,
             reference_state_eci=reference_state_eci, source_id=self.node_id,
         )
-        radial = self._radial.reset(offset.radial_position, timestamp=timestamp)
+        source = np.array([offset.radial_position, offset.along_track_position])
+        self._reference_origin = (
+            source.copy() if self.config.rolling_reference_enabled else np.zeros(2)
+        )
+        self._reference_rebase_count.fill(0)
+        local = source - self._reference_origin
+        radial = self._radial.reset(local[0], timestamp=timestamp)
         along = self._along_track.reset(
-            offset.along_track_position, timestamp=timestamp,
+            local[1], timestamp=timestamp,
         )
         self._initialized = True
         self._last_anchor_timestamp = float(timestamp)
@@ -106,7 +124,8 @@ class OrbitalRTGridState:
                               bias_update_applied=False,
                               anchor_innovation_norm=0.0,
                               anchor_rejected=False,
-                              anchor_rejection_reason="")
+                              anchor_rejection_reason="",
+                              reference_rebased=np.zeros(2, dtype=bool))
 
     def predict(
         self, *, timestamp: float, predicted_state_eci: Array,
@@ -129,11 +148,13 @@ class OrbitalRTGridState:
         along = self._along_track.step(
             offset.along_track_rate + bias[1] + self._rate_correction[1], dt,
         )
+        radial, along, rebased = self._maybe_rebase(radial, along)
         return self._snapshot(radial, along, offset, cue_applied=False, gain=0.0,
                               bias_update_applied=False,
                               anchor_innovation_norm=0.0,
                               anchor_rejected=False,
-                              anchor_rejection_reason="")
+                              anchor_rejection_reason="",
+                              reference_rebased=rebased)
 
     def anchor(
         self, *, timestamp: float, posterior_state_eci: Array,
@@ -149,8 +170,8 @@ class OrbitalRTGridState:
             reference_state_eci=reference_state_eci, source_id=self.node_id,
         )
         decoded_before_anchor = np.array([
-            self._radial.output().decoded_value,
-            self._along_track.output().decoded_value,
+            self._reference_origin[0] + self._radial.output().decoded_value,
+            self._reference_origin[1] + self._along_track.output().decoded_value,
         ])
         source_rt = np.array([
             offset.radial_position, offset.along_track_position,
@@ -166,14 +187,15 @@ class OrbitalRTGridState:
         )
         if gain > 0.0:
             radial = self._radial.apply_value_cue(
-                offset.radial_position, cue_gain=gain,
+                offset.radial_position - self._reference_origin[0], cue_gain=gain,
             )
             along = self._along_track.apply_value_cue(
-                offset.along_track_position, cue_gain=gain,
+                offset.along_track_position - self._reference_origin[1], cue_gain=gain,
             )
             self._last_anchor_timestamp = float(timestamp)
         else:
             radial, along = self._radial.output(), self._along_track.output()
+        radial, along, rebased = self._maybe_rebase(radial, along)
         return self._snapshot(radial, along, offset,
                               cue_applied=gain > 0.0, gain=gain,
                               bias_update_applied=bias_updated,
@@ -181,7 +203,7 @@ class OrbitalRTGridState:
                               anchor_rejected=rejected,
                               anchor_rejection_reason=(
                                   "innovation_limit" if rejected else ""
-                              ))
+                              ), reference_rebased=rebased)
 
     def _update_rate_correction(self, *, timestamp, source_rt, trusted):
         if not trusted or not self.config.rolling_bias_enabled:
@@ -193,8 +215,8 @@ class OrbitalRTGridState:
         if elapsed < self.config.minimum_bias_baseline:
             return False
         decoded = np.array([
-            self._radial.output().decoded_value,
-            self._along_track.output().decoded_value,
+            self._reference_origin[0] + self._radial.output().decoded_value,
+            self._reference_origin[1] + self._along_track.output().decoded_value,
         ])
         innovation_rate = (source_rt - decoded) / elapsed
         significant = np.abs(innovation_rate) > self.config.bias_rate_deadband
@@ -209,10 +231,30 @@ class OrbitalRTGridState:
         self._bias_anchor_timestamp = timestamp
         return True
 
+    def _maybe_rebase(self, radial, along):
+        rebased = np.zeros(2, dtype=bool)
+        if not self.config.rolling_reference_enabled:
+            return radial, along, rebased
+        outputs = [radial, along]
+        canns = [self._radial, self._along_track]
+        configs = [self.config.radial, self.config.along_track]
+        for axis, (output, cann, config) in enumerate(zip(outputs, canns, configs)):
+            limit = min(abs(config.minimum_value), abs(config.maximum_value))
+            trigger = self.config.rolling_reference_trigger_fraction * limit
+            if abs(output.decoded_value) >= trigger:
+                self._reference_origin[axis] += output.decoded_value
+                outputs[axis] = cann.reset(0.0, timestamp=output.timestamp)
+                self._reference_rebase_count[axis] += 1
+                rebased[axis] = True
+        return outputs[0], outputs[1], rebased
+
     def _snapshot(self, radial, along, offset, *, cue_applied, gain,
                   bias_update_applied, anchor_innovation_norm,
-                  anchor_rejected, anchor_rejection_reason):
-        decoded = np.array([radial.decoded_value, along.decoded_value])
+                  anchor_rejected, anchor_rejection_reason,
+                  reference_rebased):
+        decoded = self._reference_origin + np.array([
+            radial.decoded_value, along.decoded_value,
+        ])
         source = np.array([offset.radial_position, offset.along_track_position])
         return OrbitalRTGridSnapshot(
             node_id=self.node_id, timestamp=float(radial.timestamp),
@@ -228,6 +270,9 @@ class OrbitalRTGridState:
             anchor_innovation_norm=float(anchor_innovation_norm),
             anchor_rejected=bool(anchor_rejected),
             anchor_rejection_reason=str(anchor_rejection_reason),
+            reference_origin_rt=self._reference_origin.copy(),
+            reference_rebased=np.asarray(reference_rebased, dtype=bool).copy(),
+            reference_rebase_count=self._reference_rebase_count.copy(),
             radial_activity=radial.neural_activity.copy(),
             along_track_activity=along.neural_activity.copy(),
         )

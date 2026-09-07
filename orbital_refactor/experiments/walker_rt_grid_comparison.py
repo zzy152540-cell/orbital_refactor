@@ -228,6 +228,10 @@ def _metrics(histories, truth):
             np.linalg.norm(history.rate_correction_rt[-1])
             for history in histories.values()
         ])),
+        "reference_rebase_event_count": float(np.sum([
+            np.count_nonzero(history.reference_rebased)
+            for history in histories.values()
+        ])),
     }
 
 

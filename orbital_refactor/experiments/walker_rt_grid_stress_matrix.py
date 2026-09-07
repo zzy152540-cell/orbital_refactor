@@ -100,6 +100,7 @@ def run_walker_rt_grid_stress_matrix(
     configs = {
         "fixed": base_config,
         "adaptive": replace(base_config, rolling_bias_enabled=True),
+        "rolling": replace(base_config, rolling_reference_enabled=True),
     }
     metrics = {}
     for case_name, profile in profiles.items():

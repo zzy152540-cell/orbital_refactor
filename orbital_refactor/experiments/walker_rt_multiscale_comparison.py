@@ -78,6 +78,10 @@ def run_walker_rt_multiscale_comparison(
         "single_50km": OrbitalRTGridConfig(
             radial=wide_axis, along_track=wide_axis,
         ),
+        "rolling_10km": OrbitalRTGridConfig(
+            radial=narrow_axis, along_track=narrow_axis,
+            rolling_reference_enabled=True,
+        ),
     }
     metrics = {}
     for scenario, references in {

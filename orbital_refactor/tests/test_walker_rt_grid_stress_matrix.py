@@ -15,7 +15,7 @@ def test_short_rt_grid_stress_matrix_covers_required_cases():
         "extreme_unanchored",
         "large_reference_offset",
     }
-    assert all(set(policies) == {"fixed", "adaptive"}
+    assert all(set(policies) == {"fixed", "adaptive", "rolling"}
                for policies in result.metrics.values())
     assert result.outlier_count_per_node > 0
     assert all(

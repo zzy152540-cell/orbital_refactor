@@ -30,6 +30,9 @@ class OrbitalRTGridHistory:
     anchor_innovation_norm: Array
     anchor_rejected: Array
     anchor_rejection_reason: Array
+    reference_origin_rt: Array
+    reference_rebased: Array
+    reference_rebase_count: Array
 
 
 def run_orbital_rt_grid_states(
@@ -95,6 +98,9 @@ def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
     innovations = [first.anchor_innovation_norm]
     rejected = [first.anchor_rejected]
     rejection_reasons = [first.anchor_rejection_reason]
+    reference_origins = [first.reference_origin_rt]
+    reference_rebased = [first.reference_rebased]
+    reference_rebase_counts = [first.reference_rebase_count]
     for index in range(1, times.size):
         dt = float(times[index] - times[index - 1])
         prior = rk4_step_absolute(posterior[index - 1], dt)
@@ -122,6 +128,11 @@ def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
         innovations.append(endpoint.anchor_innovation_norm)
         rejected.append(endpoint.anchor_rejected)
         rejection_reasons.append(endpoint.anchor_rejection_reason)
+        reference_origins.append(endpoint.reference_origin_rt)
+        reference_rebased.append(
+            prediction.reference_rebased | endpoint.reference_rebased
+        )
+        reference_rebase_counts.append(endpoint.reference_rebase_count)
     return OrbitalRTGridHistory(
         node_id=node, timestamps=times.copy(), source_rt=np.asarray(source),
         predicted_rt=np.asarray(predicted), anchored_rt=np.asarray(anchored),
@@ -136,6 +147,9 @@ def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
         anchor_innovation_norm=np.asarray(innovations),
         anchor_rejected=np.asarray(rejected, dtype=bool),
         anchor_rejection_reason=np.asarray(rejection_reasons, dtype=str),
+        reference_origin_rt=np.asarray(reference_origins),
+        reference_rebased=np.asarray(reference_rebased, dtype=bool),
+        reference_rebase_count=np.asarray(reference_rebase_counts, dtype=int),
     )
 
 
