@@ -94,7 +94,15 @@ from .navigation_place_cells import (
 from .hierarchical_navigation_place_cells import (
     HierarchicalNavigationPlaceCellConfig,
     HierarchicalNavigationPlaceCellEncoder,
+    HierarchicalNavigationPlaceCellHistory,
     HierarchicalNavigationPlaceCellOutput,
+    build_hierarchical_navigation_place_cell_histories,
+)
+from .navigation_graph_features import (
+    NAVIGATION_GRAPH_NODE_METRIC_NAMES,
+    NavigationGraphFeatureHistory,
+    build_navigation_graph_feature_histories,
+    navigation_graph_metrics_at_timestamp,
 )
 
 __all__ = [
@@ -132,5 +140,10 @@ __all__ = [
     "build_navigation_place_cell_histories",
     "HierarchicalNavigationPlaceCellConfig",
     "HierarchicalNavigationPlaceCellEncoder",
+    "HierarchicalNavigationPlaceCellHistory",
     "HierarchicalNavigationPlaceCellOutput",
+    "build_hierarchical_navigation_place_cell_histories",
+    "NAVIGATION_GRAPH_NODE_METRIC_NAMES", "NavigationGraphFeatureHistory",
+    "build_navigation_graph_feature_histories",
+    "navigation_graph_metrics_at_timestamp",
 ]

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from brain_inspired.navigation_brain_state import NavigationBrainStateHistory
 from brain_inspired.navigation_place_cells import (
     NavigationPlaceCellConfig,
     NavigationPlaceCellEncoder,
@@ -71,6 +72,21 @@ class HierarchicalNavigationPlaceCellOutput:
     peak_activity: float
     normalized_entropy: float
     valid: bool
+
+
+@dataclass(frozen=True)
+class HierarchicalNavigationPlaceCellHistory:
+    node_id: str
+    timestamps: Array
+    decoded_phase: Array
+    decoded_rt: Array
+    representation_residual_rt: Array
+    fine_scale_active: Array
+    scale_transition: Array
+    boundary_saturated: Array
+    peak_activity: Array
+    normalized_entropy: Array
+    valid: Array
 
 
 class HierarchicalNavigationPlaceCellEncoder:
@@ -160,3 +176,45 @@ class HierarchicalNavigationPlaceCellEncoder:
             abs(residual[0]) / radial_limit,
             abs(residual[1]) / along_limit,
         ))
+
+
+def build_hierarchical_navigation_place_cell_histories(
+    *, navigation_by_node: dict[str, NavigationBrainStateHistory], config=None,
+):
+    if not navigation_by_node:
+        raise ValueError("Navigation histories must be nonempty.")
+    result = {}
+    for node, navigation in navigation_by_node.items():
+        encoder = HierarchicalNavigationPlaceCellEncoder(config)
+        outputs = [encoder.encode(
+            phase=navigation.decoded_phase[index],
+            radial_position=navigation.decoded_rt[index, 0],
+            along_track_position=navigation.decoded_rt[index, 1],
+        ) for index in range(navigation.timestamps.size)]
+        decoded_rt = np.asarray([[
+            item.decoded_radial_position,
+            item.decoded_along_track_position,
+        ] for item in outputs])
+        result[node] = HierarchicalNavigationPlaceCellHistory(
+            node_id=node, timestamps=navigation.timestamps.copy(),
+            decoded_phase=np.asarray([item.decoded_phase for item in outputs]),
+            decoded_rt=decoded_rt,
+            representation_residual_rt=decoded_rt - navigation.decoded_rt,
+            fine_scale_active=np.asarray([
+                item.fine_scale_active for item in outputs
+            ], dtype=bool),
+            scale_transition=np.asarray([
+                item.scale_transition for item in outputs
+            ], dtype=bool),
+            boundary_saturated=np.asarray([
+                item.boundary_saturated for item in outputs
+            ], dtype=bool),
+            peak_activity=np.asarray([item.peak_activity for item in outputs]),
+            normalized_entropy=np.asarray([
+                item.normalized_entropy for item in outputs
+            ]),
+            valid=navigation.valid & np.asarray([
+                item.valid for item in outputs
+            ], dtype=bool),
+        )
+    return result
