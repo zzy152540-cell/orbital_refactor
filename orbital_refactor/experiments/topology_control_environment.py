@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from brain_inspired.online_navigation_graph_features import (
+    OnlineNavigationGraphFeatureConfig,
+    OnlineNavigationGraphFeatureProvider,
+)
 from cooperative.network_schmidt_orchestrator import NetworkSchmidtOrchestrator
 from cooperative.online_graph_observation import build_online_graph_observation
 from cooperative.topology import (
@@ -20,6 +24,7 @@ from cooperative.topology_action_space import (
 )
 from cooperative.topology_candidate_selection import select_top_k_addition_edges
 from cooperative.v15_policy_tensor import V15PolicyTensor, tensorize_v15_policy_observation
+from cooperative.v15_cann_policy_tensor import tensorize_v15_cann_policy_observation
 from experiments.v14_exact_transport_scale_scan import build_exact_transport_case
 from experiments.v14_online_topology_resynchronization import (
     _items_by_timestamp,
@@ -192,6 +197,8 @@ class TopologyControlEnvironment:
         treat_horizon_as_truncation: bool = False,
         randomize_stage1_conditions: bool = False,
         compact_scenario_distribution: CompactFleetScenarioDistribution | None = None,
+        cann_policy_features: bool = False,
+        cann_anchor_interval_epochs: int = 2,
     ) -> None:
         if scenario_type not in {
             "compact_fleet", "walker_20_5_3", "walker_delta",
@@ -246,6 +253,10 @@ class TopologyControlEnvironment:
             compact_scenario_distribution or CompactFleetScenarioDistribution()
         )
         self.compact_scenario_distribution.validate(self.node_count)
+        self.cann_policy_features = bool(cann_policy_features)
+        self.cann_anchor_interval_epochs = int(cann_anchor_interval_epochs)
+        if self.cann_anchor_interval_epochs < 1:
+            raise ValueError("CANN anchor interval must be positive.")
         self._case = self._orchestrator = None
 
     def reset(
@@ -287,6 +298,16 @@ class TopologyControlEnvironment:
             resynchronize_on_resume=True,
             batch_relative_observations=True,
         )
+        self._cann_feature_provider = (
+            OnlineNavigationGraphFeatureProvider(
+                initial_state_by_node=self._case["initial_states"],
+                initial_timestamp=float(self._case["timestamps"][0]),
+                config=OnlineNavigationGraphFeatureConfig(
+                    anchor_interval_epochs=self.cann_anchor_interval_epochs,
+                ),
+            ) if self.cann_policy_features else None
+        )
+        self._cann_node_metrics = {}
         self._active_edges = _topology_edges(baseline)
         self._topology_version = 1
         self._epoch_index = 0
@@ -458,7 +479,7 @@ class TopologyControlEnvironment:
     def _advance_one_epoch(self):
         timestamp = float(self._case["timestamps"][self._epoch_index])
         self._apply_dynamic_link_conditions(timestamp)
-        return self._orchestrator.step(
+        step = self._orchestrator.step(
             timestamp,
             topology_version=self._topology_version,
             active_neighbors_by_node=_neighbors(
@@ -471,6 +492,23 @@ class TopologyControlEnvironment:
             observations=self._relative_by_time.get(timestamp, ()),
             absolute_observations=self._absolute_by_time.get(timestamp, ()),
         )
+        if self._cann_feature_provider is not None:
+            self._cann_node_metrics = self._cann_feature_provider.update(
+                timestamp=timestamp,
+                state_by_node={
+                    node: session.state.active_state
+                    for node, session in self._orchestrator.sessions.items()
+                },
+                covariance_by_node={
+                    node: session.state.active_covariance
+                    for node, session in self._orchestrator.sessions.items()
+                },
+                anchor_trusted_by_node={
+                    node: not self._node_navigation_is_in_dropout(node, timestamp)
+                    for node in self._orchestrator.topology.node_ids
+                },
+            )
+        return step
 
     def _state(self, latest_step=None):
         current_observations = self._relative_by_time.get(
@@ -517,7 +555,8 @@ class TopologyControlEnvironment:
                         not self._node_navigation_is_in_dropout(
                             node, float(self._case["timestamps"][self._epoch_index])
                         )
-                    )
+                    ),
+                    **self._cann_node_metrics.get(node, {}),
                 }
                 for node in self._orchestrator.topology.node_ids
             },
@@ -527,7 +566,11 @@ class TopologyControlEnvironment:
         )
         return TopologyEnvironmentState(
             observation=observation,
-            policy_tensor=tensorize_v15_policy_observation(observation),
+            policy_tensor=(
+                tensorize_v15_cann_policy_observation(observation)
+                if self.cann_policy_features
+                else tensorize_v15_policy_observation(observation)
+            ),
             action_space=build_topology_action_space(
                 observation, cooldown_remaining=self._cooldown_remaining,
                 topology_switches_remaining=(
