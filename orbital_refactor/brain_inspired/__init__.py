@@ -91,6 +91,11 @@ from .navigation_place_cells import (
     NavigationPlaceCellOutput,
     build_navigation_place_cell_histories,
 )
+from .hierarchical_navigation_place_cells import (
+    HierarchicalNavigationPlaceCellConfig,
+    HierarchicalNavigationPlaceCellEncoder,
+    HierarchicalNavigationPlaceCellOutput,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -125,4 +130,7 @@ __all__ = [
     "NavigationPlaceCellConfig", "NavigationPlaceCellEncoder",
     "NavigationPlaceCellHistory", "NavigationPlaceCellOutput",
     "build_navigation_place_cell_histories",
+    "HierarchicalNavigationPlaceCellConfig",
+    "HierarchicalNavigationPlaceCellEncoder",
+    "HierarchicalNavigationPlaceCellOutput",
 ]

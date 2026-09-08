@@ -39,6 +39,8 @@ def test_place_cell_activity_changes_with_rt_position():
         phase=1.0, radial_position=100.0, along_track_position=-100.0,
     )
     assert not np.allclose(center.activity, shifted.activity)
+    assert not center.boundary_saturated
+    assert shifted.boundary_saturated
 
 
 def test_empty_place_cell_history_input_is_rejected():

@@ -5,6 +5,10 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from brain_inspired.orbital_rt_grid_runner import run_orbital_rt_grid_states
+from brain_inspired.orbital_phase_adapter import (
+    OrbitalPlaneFrame,
+    extract_orbital_phase_state,
+)
 from brain_inspired.orbital_rt_grid_state import OrbitalRTGridConfig
 from experiments.walker_direction_navigation_comparison import (
     _periodic_anchor_mask,
@@ -22,6 +26,9 @@ from experiments.walker_rt_grid_comparison import (
 class WalkerRTGridStressResult:
     timestamps: np.ndarray
     metrics: dict[str, dict[str, dict[str, float]]]
+    histories_by_case: dict[str, dict[str, dict[str, object]]]
+    truth_rt_by_case: dict[str, dict[str, np.ndarray]]
+    phase_by_node: dict[str, np.ndarray]
     injected_bias_rt_by_case: dict[str, np.ndarray]
     outlier_count_per_node: int
 
@@ -71,6 +78,20 @@ def run_walker_rt_grid_stress_matrix(
         for node in nodes
     }
     periodic = _periodic_anchor_mask(times.size, anchor_interval_samples)
+    frames = {
+        node: OrbitalPlaneFrame.from_state_eci(case["initial_states"][node])
+        for node in nodes
+    }
+    phase_by_node = {
+        node: np.asarray([
+            extract_orbital_phase_state(
+                timestamp=time, state_eci=posterior[node][index],
+                frame=frames[node], source_id=node,
+            ).argument_of_latitude
+            for index, time in enumerate(times)
+        ])
+        for node in nodes
+    }
     anchor_masks = {node: periodic.copy() for node in nodes}
     no_anchors = {node: np.zeros(times.size, dtype=bool) for node in nodes}
     normalized_time = ((times - times[0]) / max(times[-1] - times[0], 1.0))[:, None]
@@ -103,6 +124,8 @@ def run_walker_rt_grid_stress_matrix(
         "rolling": replace(base_config, rolling_reference_enabled=True),
     }
     metrics = {}
+    histories_by_case = {}
+    truth_rt_by_case = {}
     for case_name, profile in profiles.items():
         mask = no_anchors if case_name == "extreme_unanchored" else anchor_masks
         anchor_states = (anchors_with_outliers if case_name == "anchor_outliers"
@@ -112,6 +135,10 @@ def run_walker_rt_grid_stress_matrix(
         active_truth = (far_truth_rt if case_name == "large_reference_offset"
                         else truth_rt)
         metrics[case_name] = {}
+        histories_by_case[case_name] = {}
+        truth_rt_by_case[case_name] = {
+            node: values.copy() for node, values in active_truth.items()
+        }
         for policy_name, config in configs.items():
             histories = run_orbital_rt_grid_states(
                 timestamps=times,
@@ -123,10 +150,14 @@ def run_walker_rt_grid_stress_matrix(
                 rate_bias_rt_by_node={node: profile for node in nodes},
                 config=config,
             )
+            histories_by_case[case_name][policy_name] = histories
             metrics[case_name][policy_name] = _metrics(histories, active_truth)
     return WalkerRTGridStressResult(
         timestamps=times,
         metrics=metrics,
+        histories_by_case=histories_by_case,
+        truth_rt_by_case=truth_rt_by_case,
+        phase_by_node=phase_by_node,
         injected_bias_rt_by_case={name: values.copy()
                                   for name, values in profiles.items()},
         outlier_count_per_node=int(np.count_nonzero(outlier_mask)),

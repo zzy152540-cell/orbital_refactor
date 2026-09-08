@@ -100,6 +100,9 @@ def _summarize(navigation_by_node, place_by_node):
         "mean_normalized_entropy": float(np.mean(np.concatenate([
             history.normalized_entropy for history in place_by_node.values()
         ]))),
+        "boundary_saturation_fraction": float(np.mean(np.concatenate([
+            history.boundary_saturated for history in place_by_node.values()
+        ]))),
         "activity_effective_rank": effective_rank,
         "mean_node_separation_ratio": float(np.mean(
             separation[total_variance > 1.0e-15]

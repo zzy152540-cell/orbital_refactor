@@ -18,6 +18,11 @@ def test_short_rt_grid_stress_matrix_covers_required_cases():
     assert all(set(policies) == {"fixed", "adaptive", "rolling"}
                for policies in result.metrics.values())
     assert result.outlier_count_per_node > 0
+    assert set(result.histories_by_case) == set(result.metrics)
+    assert set(result.truth_rt_by_case) == set(result.metrics)
+    assert set(result.phase_by_node) == set(next(iter(
+        result.histories_by_case.values()
+    ))["fixed"])
     assert all(
         values["valid_fraction"] == 1.0
         for policies in result.metrics.values()

@@ -52,6 +52,7 @@ class NavigationPlaceCellOutput:
     activity: Array
     peak_activity: float
     normalized_entropy: float
+    boundary_saturated: bool
     valid: bool
 
 
@@ -64,6 +65,7 @@ class NavigationPlaceCellHistory:
     decoded_rt: Array
     peak_activity: Array
     normalized_entropy: Array
+    boundary_saturated: Array
     valid: Array
 
 
@@ -106,6 +108,12 @@ class NavigationPlaceCellEncoder:
         decoded_along = float(activity @ self.along_centers)
         entropy = -float(np.sum(activity * np.log(np.maximum(activity, 1e-15))))
         entropy /= np.log(activity.size)
+        boundary_saturated = bool(
+            radial_position <= np.min(self.radial_centers)
+            or radial_position >= np.max(self.radial_centers)
+            or along_track_position <= np.min(self.along_centers)
+            or along_track_position >= np.max(self.along_centers)
+        )
         return NavigationPlaceCellOutput(
             phase=float(np.mod(phase, 2.0 * np.pi)),
             radial_position=float(radial_position),
@@ -115,6 +123,7 @@ class NavigationPlaceCellEncoder:
             decoded_along_track_position=decoded_along,
             activity=activity, peak_activity=float(np.max(activity)),
             normalized_entropy=float(entropy),
+            boundary_saturated=boundary_saturated,
             valid=bool(
                 np.all(np.isfinite(activity)) and np.all(activity >= 0.0)
                 and np.isclose(np.sum(activity), 1.0)
@@ -147,6 +156,9 @@ def build_navigation_place_cell_histories(
             normalized_entropy=np.asarray([
                 item.normalized_entropy for item in outputs
             ]),
+            boundary_saturated=np.asarray([
+                item.boundary_saturated for item in outputs
+            ], dtype=bool),
             valid=navigation.valid & np.asarray([
                 item.valid for item in outputs
             ], dtype=bool),
