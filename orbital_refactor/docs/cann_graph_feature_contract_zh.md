@@ -62,3 +62,17 @@
 当前代码支持按严格对齐的决策时间提取每颗星的12项指标字典，并可由调用方传入 `build_online_graph_observation(..., additional_node_metrics_by_node=...)`。这只会把指标保存在 `GraphObservation` 中；现行 `v15.0` 张量白名单仍会忽略它们。
 
 因此本节点不改变任何已训练模型。下一节点若创建 `v15.1`，应把12项指标加入新的节点白名单，由现有机制自动生成逐字段可用性掩码，并重新生成数据与训练检查点。
+
+## 7. `v15.1-cann` 可选张量
+
+独立函数 `tensorize_v15_cann_policy_observation` 先调用原 `v15.0` 张量器，再在节点特征尾部追加12个CANN指标和12个逐字段可用性掩码。原有节点、边和全局列的名称、顺序和数值保持不变。
+
+连续量归一化规则为：
+
+- 方向残差除以 π；
+- RT残差使用 `log1p(residual / 100 m)`；
+- 锚点年龄使用 `log1p(age / 10 s)`；
+- 集中度与两个质量量保持[0,1]值；
+- 安全事件保持0/1。
+
+缺失CANN值编码为0，同时相应可用性掩码为0。新张量schema为 `v15.1-cann-policy-normalized`。旧 `tensorize_v15_policy_observation`、`v15.0-policy-normalized` 数据集和模型路径未修改；任何使用新张量的训练都必须创建新的数据版本与检查点。
