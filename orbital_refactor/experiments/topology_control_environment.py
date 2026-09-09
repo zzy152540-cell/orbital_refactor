@@ -199,6 +199,8 @@ class TopologyControlEnvironment:
         compact_scenario_distribution: CompactFleetScenarioDistribution | None = None,
         cann_policy_features: bool = False,
         cann_anchor_interval_epochs: int = 2,
+        cann_update_mode: str = "every_epoch",
+        cann_feature_config: OnlineNavigationGraphFeatureConfig | None = None,
     ) -> None:
         if scenario_type not in {
             "compact_fleet", "walker_20_5_3", "walker_delta",
@@ -257,6 +259,10 @@ class TopologyControlEnvironment:
         self.cann_anchor_interval_epochs = int(cann_anchor_interval_epochs)
         if self.cann_anchor_interval_epochs < 1:
             raise ValueError("CANN anchor interval must be positive.")
+        if cann_update_mode not in {"every_epoch", "decision_epoch"}:
+            raise ValueError("Unsupported CANN update mode.")
+        self.cann_update_mode = str(cann_update_mode)
+        self.cann_feature_config = cann_feature_config
         self._case = self._orchestrator = None
 
     def reset(
@@ -302,8 +308,11 @@ class TopologyControlEnvironment:
             OnlineNavigationGraphFeatureProvider(
                 initial_state_by_node=self._case["initial_states"],
                 initial_timestamp=float(self._case["timestamps"][0]),
-                config=OnlineNavigationGraphFeatureConfig(
-                    anchor_interval_epochs=self.cann_anchor_interval_epochs,
+                config=(
+                    self.cann_feature_config
+                    or OnlineNavigationGraphFeatureConfig(
+                        anchor_interval_epochs=self.cann_anchor_interval_epochs,
+                    )
                 ),
             ) if self.cann_policy_features else None
         )
@@ -437,11 +446,14 @@ class TopologyControlEnvironment:
         transmitted = dropped = resync = 0
         replay_before = self._replay_total()
         last_step = None
-        for _ in range(self.decision_interval_epochs):
-            if self._epoch_index + 1 >= len(self._case["timestamps"]):
-                break
+        remaining = len(self._case["timestamps"]) - self._epoch_index - 1
+        advance_count = min(self.decision_interval_epochs, remaining)
+        for advance_index in range(advance_count):
             self._epoch_index += 1
-            last_step = self._advance_one_epoch()
+            last_step = self._advance_one_epoch(update_cann=(
+                self.cann_update_mode == "every_epoch"
+                or advance_index + 1 == advance_count
+            ))
             transmitted += last_step.transmitted_message_count
             dropped += last_step.dropped_message_count
             resync += len(last_step.resynchronized_links)
@@ -476,7 +488,7 @@ class TopologyControlEnvironment:
             ),
         )
 
-    def _advance_one_epoch(self):
+    def _advance_one_epoch(self, *, update_cann=True):
         timestamp = float(self._case["timestamps"][self._epoch_index])
         self._apply_dynamic_link_conditions(timestamp)
         step = self._orchestrator.step(
@@ -492,7 +504,7 @@ class TopologyControlEnvironment:
             observations=self._relative_by_time.get(timestamp, ()),
             absolute_observations=self._absolute_by_time.get(timestamp, ()),
         )
-        if self._cann_feature_provider is not None:
+        if self._cann_feature_provider is not None and update_cann:
             self._cann_node_metrics = self._cann_feature_provider.update(
                 timestamp=timestamp,
                 state_by_node={
@@ -507,6 +519,7 @@ class TopologyControlEnvironment:
                     node: not self._node_navigation_is_in_dropout(node, timestamp)
                     for node in self._orchestrator.topology.node_ids
                 },
+                epoch_index=self._epoch_index,
             )
         return step
 

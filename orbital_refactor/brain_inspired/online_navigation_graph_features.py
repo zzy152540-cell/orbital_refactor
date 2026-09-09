@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -8,22 +8,34 @@ from brain_inspired.hierarchical_navigation_place_cells import (
     HierarchicalNavigationPlaceCellEncoder,
 )
 from brain_inspired.navigation_shadow_quality import NavigationShadowQualityConfig
-from brain_inspired.orbital_direction_state import OrbitalDirectionState
+from brain_inspired.orbital_direction_state import (
+    OrbitalDirectionConfig,
+    OrbitalDirectionState,
+)
 from brain_inspired.orbital_phase_adapter import OrbitalPlaneFrame
 from brain_inspired.orbital_radial_state import OrbitalRadialState
 from brain_inspired.orbital_rt_grid_state import OrbitalRTGridConfig, OrbitalRTGridState
+from brain_inspired.ring_cann import RingCANNConfig
 from orbital_core.dynamics import rk4_step_absolute
 
 
 @dataclass(frozen=True)
 class OnlineNavigationGraphFeatureConfig:
     anchor_interval_epochs: int = 2
-    rt_config: OrbitalRTGridConfig = OrbitalRTGridConfig()
-    quality_config: NavigationShadowQualityConfig = NavigationShadowQualityConfig()
+    direction_config: OrbitalDirectionConfig = field(
+        default_factory=lambda: OrbitalDirectionConfig(
+            ring=RingCANNConfig(num_neurons=90, internal_dt=0.002)
+        )
+    )
+    rt_config: OrbitalRTGridConfig = field(default_factory=OrbitalRTGridConfig)
+    quality_config: NavigationShadowQualityConfig = field(
+        default_factory=NavigationShadowQualityConfig
+    )
 
     def validate(self):
         if self.anchor_interval_epochs < 1:
             raise ValueError("anchor_interval_epochs must be positive.")
+        self.direction_config.validate()
         self.rt_config.validate()
         self.quality_config.validate()
 
@@ -47,7 +59,10 @@ class OnlineNavigationGraphFeatureProvider:
             for node, state in states.items()
         }
         self._direction = {
-            node: OrbitalDirectionState(node_id=node, frame=self._frames[node])
+            node: OrbitalDirectionState(
+                node_id=node, frame=self._frames[node],
+                config=self.config.direction_config,
+            )
             for node in states
         }
         self._radial = {
@@ -68,7 +83,7 @@ class OnlineNavigationGraphFeatureProvider:
         self._previous_quality = {node: 1.0 for node in states}
 
     def update(self, *, timestamp, state_by_node, covariance_by_node,
-               anchor_trusted_by_node=None):
+               anchor_trusted_by_node=None, epoch_index=None):
         states = {str(node): np.asarray(value, dtype=float)
                   for node, value in state_by_node.items()}
         covariance = {str(node): np.asarray(value, dtype=float)
@@ -81,6 +96,7 @@ class OnlineNavigationGraphFeatureProvider:
         else:
             result = self._advance(
                 float(timestamp), states, covariance, trusted,
+                epoch_index=epoch_index,
             )
         self._last_posterior = {
             node: state.copy() for node, state in states.items()
@@ -113,11 +129,14 @@ class OnlineNavigationGraphFeatureProvider:
             )
         return metrics
 
-    def _advance(self, timestamp, states, covariance, trusted):
+    def _advance(self, timestamp, states, covariance, trusted, *, epoch_index):
         dt = timestamp - self._last_timestamp
         if not np.isfinite(dt) or dt <= 0.0:
             raise ValueError("Online CANN timestamps must be strictly increasing.")
-        anchor_epoch = self._epoch_count % self.config.anchor_interval_epochs == 0
+        active_epoch = (
+            self._epoch_count if epoch_index is None else int(epoch_index)
+        )
+        anchor_epoch = active_epoch % self.config.anchor_interval_epochs == 0
         metrics = {}
         for node, state in states.items():
             reference = rk4_step_absolute(self._reference[node], dt)
