@@ -150,7 +150,7 @@ class CompactFleetScenarioDistribution:
             raise ValueError("Dynamic packet-loss range must lie within [0, 1].")
         if not (0.0 <= dynamic_delay_low <= dynamic_delay_high):
             raise ValueError("Dynamic communication-delay range must be nonnegative.")
-        supported = {"chain", "ring", "star"}
+        supported = {"chain", "ring", "star", "fully_connected"}
         if (
             not self.initial_topology_types
             or set(self.initial_topology_types) - supported
@@ -178,6 +178,23 @@ class CompactFleetScenarioDistribution:
             self.walker_initialization.validate(node_count)
 
 
+def _normalized_dropout_windows(values):
+    if values is None:
+        return {}
+    result = {}
+    for node, windows in values.items():
+        normalized = []
+        for start, end in windows:
+            start, end = float(start), float(end)
+            if not np.isfinite(start) or not np.isfinite(end) or end < start:
+                raise ValueError(
+                    "Navigation dropout windows must be finite and ordered."
+                )
+            normalized.append((start, end))
+        result[str(node)] = tuple(normalized)
+    return result
+
+
 class TopologyControlEnvironment:
     """Minimal truth-safe observation / truth-aware training environment."""
 
@@ -201,6 +218,7 @@ class TopologyControlEnvironment:
         cann_anchor_interval_epochs: int = 2,
         cann_update_mode: str = "every_epoch",
         cann_feature_config: OnlineNavigationGraphFeatureConfig | None = None,
+        navigation_dropout_by_node=None,
     ) -> None:
         if scenario_type not in {
             "compact_fleet", "walker_20_5_3", "walker_delta",
@@ -263,6 +281,9 @@ class TopologyControlEnvironment:
             raise ValueError("Unsupported CANN update mode.")
         self.cann_update_mode = str(cann_update_mode)
         self.cann_feature_config = cann_feature_config
+        self.navigation_dropout_by_node = _normalized_dropout_windows(
+            navigation_dropout_by_node
+        )
         self._case = self._orchestrator = None
 
     def reset(
@@ -272,6 +293,15 @@ class TopologyControlEnvironment:
         self._episode_conditions = self._sample_episode_conditions(condition_seed)
         self._condition_seed = condition_seed
         candidate, baseline, self._case = self._build_case(int(seed))
+        unknown_dropout_nodes = (
+            set(self._episode_conditions["navigation_dropout_by_node"])
+            - set(candidate.node_ids)
+        )
+        if unknown_dropout_nodes:
+            raise ValueError(
+                "Navigation dropout references unknown nodes: "
+                f"{sorted(unknown_dropout_nodes)}"
+            )
         self._episode_conditions["dynamic_link_events_by_link"] = (
             self._sample_dynamic_link_events(
                 np.random.default_rng(20261003 + condition_seed),
@@ -623,7 +653,9 @@ class TopologyControlEnvironment:
                 "communication_delay": self.communication_delay,
                 "packet_loss_rate_by_link": {},
                 "communication_delay_by_link": {},
-                "navigation_dropout_by_node": {},
+                "navigation_dropout_by_node": dict(
+                    self.navigation_dropout_by_node
+                ),
                 "initial_topology_type": "chain",
                 "physical_scenario_family": "legacy_compact",
                 "truth_initial_states": (),
@@ -695,17 +727,25 @@ class TopologyControlEnvironment:
                 and distribution.physical_scenario_families
             ) else None
         )
+        sampled_dropouts = {
+            node_ids[int(index)]: (
+                (start_epoch * self.dt, end_epoch * self.dt),
+            )
+            for index in dropout_indices
+        }
+        if self.navigation_dropout_by_node:
+            unknown = set(self.navigation_dropout_by_node) - set(node_ids)
+            if unknown:
+                raise ValueError(
+                    f"Navigation dropout references unknown nodes: {sorted(unknown)}"
+                )
+            sampled_dropouts = dict(self.navigation_dropout_by_node)
         return {
             "packet_loss": packet_loss,
             "communication_delay": communication_delay,
             "packet_loss_rate_by_link": packet_loss_by_link,
             "communication_delay_by_link": delay_by_link,
-            "navigation_dropout_by_node": {
-                node_ids[int(index)]: (
-                    (start_epoch * self.dt, end_epoch * self.dt),
-                )
-                for index in dropout_indices
-            },
+            "navigation_dropout_by_node": sampled_dropouts,
             "initial_topology_type": initial_topology_type,
             "physical_scenario_family": (
                 "legacy_compact" if physical_scenario is None
@@ -719,7 +759,6 @@ class TopologyControlEnvironment:
             "walker_config_candidates": walker_candidates,
             "dynamic_link_events_by_link": {},
         }
-
     def _sample_walker_initialization(self, rng):
         distribution = self.compact_scenario_distribution.walker_initialization
         if self.scenario_type not in {"walker_20_5_3", "walker_delta"} or (
@@ -813,6 +852,7 @@ def _compact_initial_topology(node_ids, topology_type):
         "chain": chain_topology,
         "ring": ring_topology,
         "star": star_topology,
+        "fully_connected": fully_connected_topology,
     }
     return builders[topology_type](node_ids)
 

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from brain_inspired.hierarchical_navigation_place_cells import (
+    HierarchicalNavigationPlaceCellConfig,
     HierarchicalNavigationPlaceCellEncoder,
 )
 from brain_inspired.navigation_shadow_quality import NavigationShadowQualityConfig
@@ -13,7 +14,10 @@ from brain_inspired.orbital_direction_state import (
     OrbitalDirectionState,
 )
 from brain_inspired.orbital_phase_adapter import OrbitalPlaneFrame
-from brain_inspired.orbital_radial_state import OrbitalRadialState
+from brain_inspired.orbital_radial_state import (
+    OrbitalRadialConfig,
+    OrbitalRadialState,
+)
 from brain_inspired.orbital_rt_grid_state import OrbitalRTGridConfig, OrbitalRTGridState
 from brain_inspired.ring_cann import RingCANNConfig
 from orbital_core.dynamics import rk4_step_absolute
@@ -27,7 +31,13 @@ class OnlineNavigationGraphFeatureConfig:
             ring=RingCANNConfig(num_neurons=90, internal_dt=0.002)
         )
     )
+    radial_config: OrbitalRadialConfig = field(
+        default_factory=OrbitalRadialConfig
+    )
     rt_config: OrbitalRTGridConfig = field(default_factory=OrbitalRTGridConfig)
+    place_config: HierarchicalNavigationPlaceCellConfig = field(
+        default_factory=HierarchicalNavigationPlaceCellConfig
+    )
     quality_config: NavigationShadowQualityConfig = field(
         default_factory=NavigationShadowQualityConfig
     )
@@ -36,7 +46,9 @@ class OnlineNavigationGraphFeatureConfig:
         if self.anchor_interval_epochs < 1:
             raise ValueError("anchor_interval_epochs must be positive.")
         self.direction_config.validate()
+        self.radial_config.validate()
         self.rt_config.validate()
+        self.place_config.validate()
         self.quality_config.validate()
 
 
@@ -66,7 +78,10 @@ class OnlineNavigationGraphFeatureProvider:
             for node in states
         }
         self._radial = {
-            node: OrbitalRadialState(node_id=node, frame=self._frames[node])
+            node: OrbitalRadialState(
+                node_id=node, frame=self._frames[node],
+                config=self.config.radial_config,
+            )
             for node in states
         }
         self._rt = {
@@ -74,7 +89,9 @@ class OnlineNavigationGraphFeatureProvider:
             for node in states
         }
         self._place = {
-            node: HierarchicalNavigationPlaceCellEncoder() for node in states
+            node: HierarchicalNavigationPlaceCellEncoder(
+                self.config.place_config
+            ) for node in states
         }
         self._reference = states
         self._last_posterior = None

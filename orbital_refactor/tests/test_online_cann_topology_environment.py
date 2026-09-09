@@ -85,3 +85,31 @@ def test_online_cann_stops_anchoring_during_navigation_dropout():
             break
     assert ages_during_dropout
     assert max(ages_during_dropout) > 0.0
+
+
+def test_explicit_navigation_dropout_window_is_used_exactly():
+    environment = TopologyControlEnvironment(
+        node_count=3, episode_epochs=6, dt=2.0,
+        relative_modalities=("RANGE",), cann_policy_features=True,
+        navigation_dropout_by_node={"sat_02": ((2.0, 8.0),)},
+    )
+    state = environment.reset(seed=9)
+    assert environment._episode_conditions["navigation_dropout_by_node"] == {
+        "sat_02": ((2.0, 8.0),)
+    }
+    observed = []
+    while True:
+        node = next(item for item in state.observation.nodes
+                    if item.node_id == "sat_02")
+        observed.append((
+            state.observation.timestamp,
+            dict(node.estimator_metrics)["absolute_navigation_available"],
+        ))
+        step = environment.step(0)
+        state = step.state
+        if step.terminated:
+            break
+    assert observed == [
+        (0.0, 1.0), (2.0, 0.0), (4.0, 0.0),
+        (6.0, 0.0), (8.0, 0.0), (10.0, 1.0),
+    ]

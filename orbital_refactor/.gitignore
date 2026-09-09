@@ -38,6 +38,10 @@ dist/
 .env.*
 !.env.example
 
+# Locally generated CANN policy datasets and checkpoints (kept on workspace drive)
+results/cann/datasets/*.npz
+results/cann/checkpoints/*.pt
+
 # Editor and operating-system artifacts
 *.swp
 *.swo

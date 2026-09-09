@@ -271,6 +271,23 @@ def test_compact_scenario_distribution_supports_seeded_five_node_faults():
     assert len(first["navigation_dropout_by_node"]) == 2
 
 
+def test_compact_distribution_supports_fully_connected_remove_control():
+    environment = TopologyControlEnvironment(
+        node_count=5, episode_epochs=2, relative_modalities=("RANGE",),
+        randomize_stage1_conditions=True,
+        compact_scenario_distribution=CompactFleetScenarioDistribution(
+            navigation_dropout_node_count=0,
+            initial_topology_types=("fully_connected",),
+        ),
+    )
+    state = environment.reset(seed=6)
+    assert environment._episode_conditions["initial_topology_type"] == (
+        "fully_connected"
+    )
+    assert len(environment._active_edges) == 10
+    assert not any(action.kind == "add" for action in state.action_space.actions)
+
+
 def test_compact_distribution_can_expose_seeded_heterogeneous_links():
     distribution = CompactFleetScenarioDistribution(
         link_condition_mode="undirected_independent",

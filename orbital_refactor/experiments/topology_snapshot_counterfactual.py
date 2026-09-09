@@ -435,7 +435,11 @@ def build_topology_snapshot_tensor_dataset(
         ):
             raise ValueError("V15 snapshot tensor schemas differ across groups.")
     return SnapshotActionTensorDataset(
-        feature_version="v15.0-online-snapshot-action-value",
+        feature_version=(
+            "v15.1-cann-online-snapshot-action-value"
+            if reference.schema_version == "v15.1-cann-policy-normalized"
+            else "v15.0-online-snapshot-action-value"
+        ),
         node_feature_names=reference.node_feature_names,
         edge_feature_names=reference.edge_feature_names,
         global_feature_names=reference.global_feature_names,
