@@ -33,6 +33,8 @@ class OrbitalRTGridHistory:
     reference_origin_rt: Array
     reference_rebased: Array
     reference_rebase_count: Array
+    radial_activity: Array | None = None
+    along_track_activity: Array | None = None
 
 
 def run_orbital_rt_grid_states(
@@ -44,6 +46,7 @@ def run_orbital_rt_grid_states(
     anchor_confidence_by_node: Mapping[str, Array] | None = None,
     rate_bias_rt_by_node: Mapping[str, Array] | None = None,
     config: OrbitalRTGridConfig | None = None,
+    retain_activity: bool = False,
 ) -> dict[str, OrbitalRTGridHistory]:
     """Run causal independent-axis RT grids around explicit references."""
     times = np.asarray(timestamps, dtype=float).reshape(-1)
@@ -72,12 +75,13 @@ def run_orbital_rt_grid_states(
             anchors=anchors[node], reference=reference[node],
             mask=mask, confidence=confidence,
             bias=bias, config=config,
+            retain_activity=retain_activity,
         )
     return result
 
 
 def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
-              bias, config):
+              bias, config, retain_activity):
     grid = OrbitalRTGridState(node_id=node, config=config)
     first = grid.initialize(
         timestamp=times[0], state_eci=posterior[0],
@@ -101,6 +105,10 @@ def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
     reference_origins = [first.reference_origin_rt]
     reference_rebased = [first.reference_rebased]
     reference_rebase_counts = [first.reference_rebase_count]
+    radial_activity = [first.radial_activity.copy()] if retain_activity else None
+    along_activity = (
+        [first.along_track_activity.copy()] if retain_activity else None
+    )
     for index in range(1, times.size):
         dt = float(times[index] - times[index - 1])
         prior = rk4_step_absolute(posterior[index - 1], dt)
@@ -133,6 +141,9 @@ def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
             prediction.reference_rebased | endpoint.reference_rebased
         )
         reference_rebase_counts.append(endpoint.reference_rebase_count)
+        if radial_activity is not None:
+            radial_activity.append(endpoint.radial_activity.copy())
+            along_activity.append(endpoint.along_track_activity.copy())
     return OrbitalRTGridHistory(
         node_id=node, timestamps=times.copy(), source_rt=np.asarray(source),
         predicted_rt=np.asarray(predicted), anchored_rt=np.asarray(anchored),
@@ -150,6 +161,12 @@ def _run_node(*, node, times, posterior, anchors, reference, mask, confidence,
         reference_origin_rt=np.asarray(reference_origins),
         reference_rebased=np.asarray(reference_rebased, dtype=bool),
         reference_rebase_count=np.asarray(reference_rebase_counts, dtype=int),
+        radial_activity=(
+            None if radial_activity is None else np.asarray(radial_activity)
+        ),
+        along_track_activity=(
+            None if along_activity is None else np.asarray(along_activity)
+        ),
     )
 
 

@@ -44,6 +44,8 @@ results/cann/datasets/*.npz
 results/cann/checkpoints/*.pt
 results/cann/test_*.json
 results/cann/test_*.csv
+results/test_visualization_*/
+results/visualization_recordings/
 
 # Editor and operating-system artifacts
 *.swp

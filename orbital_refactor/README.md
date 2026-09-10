@@ -1275,3 +1275,57 @@ The complete multi-satellite interface example:
 
 - Did not change the numerical logic of the original EKF, CI, NIS, or experiment
   workflows.
+### Interactive visualization replay
+
+The first visualization-window baseline is an offline, read-only replay. It
+keeps truth and presentation data outside every estimator and topology-policy
+input. Generate a short Walker-20 recording on the workspace drive with:
+
+```powershell
+python -m experiments.run_v15_visualization_recording `
+  --duration 20 --dt 2 `
+  --output results/visualization_recordings/walker20_20s_seed0
+```
+
+To create a bounded same-source raw-sensor demonstration for one directed
+link, add the capture endpoints. The three raw front ends replace the numeric
+measurements on that link only; all other links remain unchanged:
+
+```powershell
+python -m experiments.run_v15_visualization_recording `
+  --duration 20 --dt 2 `
+  --raw-observer sat_p01_s01 --raw-target sat_p02_s01 `
+  --include-cann `
+  --output results/visualization_recordings/walker20_20s_raw_link
+```
+
+This selected-link limit is intentional: retaining every 2-D sensor matrix for
+every directed link would dominate recording size. The radar acquisition
+center is supplied by the existing numerical measurement in this replay-only
+front-end experiment; it is not a flight acquisition-controller claim.
+
+Install the optional desktop dependencies and open the recording with:
+
+```powershell
+python -m pip install -e ".[visualization]"
+python -m experiments.run_v15_visualization_window `
+  results/visualization_recordings/walker20_20s_seed0
+```
+
+Paired recordings can be checked for display-layer non-intrusion with
+`experiments.run_v15_visualization_acceptance`. Full-window refresh performance
+can be measured with `experiments.run_v15_visualization_performance`; pass
+`--offscreen` for automated environments.
+
+The V1/V2 window provides a common time cursor, playback controls, satellite
+selection, the 3-D Walker constellation and configured topology, selected-node
+truth/estimate trails, fleet and node position-error curves, and per-node
+navigation/status values, and synchronized RADAR/INFRARED/OPTICAL tabs. Raw
+matrices are shown only when recorded from the same measurement front end;
+absent images are explicitly marked rather than synthesized. CANN heatmaps are
+shown in a dedicated navigation-cell tab when `--include-cann` is enabled. The
+tab includes a direction Ring time-neuron heatmap, the current RT Line pair,
+the current RT place-cell heatmap, decoded state, concentration and anchor
+age. See
+`docs/visualization_window_design_baseline_zh.md` for the interface and
+acceptance baseline.

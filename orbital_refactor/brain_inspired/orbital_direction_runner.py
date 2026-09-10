@@ -34,6 +34,7 @@ class OrbitalDirectionHistory:
     cue_applied: Array
     anchor_gain: Array
     anchor_age: Array
+    neural_activity: Array | None = None
 
 
 def run_orbital_direction_states(
@@ -43,6 +44,7 @@ def run_orbital_direction_states(
     anchor_confidence_by_node: Mapping[str, Array] | None = None,
     phase_rate_bias_by_node: Mapping[str, float] | None = None,
     config: OrbitalDirectionConfig | None = None,
+    retain_activity: bool = False,
 ) -> dict[str, OrbitalDirectionHistory]:
     """Run causal per-node direction states over stored posterior histories.
 
@@ -97,13 +99,14 @@ def run_orbital_direction_states(
             node_id=node_id, times=times, posterior=history, frame=frame,
             anchor_mask=anchor_mask, confidence=confidence, config=config,
             phase_rate_bias=rate_bias,
+            retain_activity=retain_activity,
         )
     return results
 
 
 def _run_node(
     *, node_id, times, posterior, frame, anchor_mask, confidence, config,
-    phase_rate_bias,
+    phase_rate_bias, retain_activity,
 ):
     direction = OrbitalDirectionState(
         node_id=node_id, frame=frame, config=config,
@@ -124,6 +127,7 @@ def _run_node(
     cue_applied = [False]
     anchor_gain = [0.0]
     anchor_age = [first.anchor_age]
+    neural_activity = [first.neural_activity.copy()] if retain_activity else None
 
     for index in range(1, times.size):
         delta_time = float(times[index] - times[index - 1])
@@ -152,6 +156,8 @@ def _run_node(
         cue_applied.append(anchored.cue_applied)
         anchor_gain.append(anchored.anchor_gain)
         anchor_age.append(anchored.anchor_age)
+        if neural_activity is not None:
+            neural_activity.append(anchored.neural_activity.copy())
     return OrbitalDirectionHistory(
         node_id=node_id, timestamps=times.copy(),
         source_phase=np.asarray(source_phase),
@@ -163,6 +169,9 @@ def _run_node(
         bump_width=np.asarray(width), valid=np.asarray(valid, dtype=bool),
         cue_applied=np.asarray(cue_applied, dtype=bool),
         anchor_gain=np.asarray(anchor_gain), anchor_age=np.asarray(anchor_age),
+        neural_activity=(
+            None if neural_activity is None else np.asarray(neural_activity)
+        ),
     )
 
 
