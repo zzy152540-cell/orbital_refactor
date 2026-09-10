@@ -1312,6 +1312,22 @@ python -m experiments.run_v15_visualization_window `
   results/visualization_recordings/walker20_20s_seed0
 ```
 
+The launcher configures the active conda environment's Qt platform-plugin
+path automatically. A phased 120 s Walker-20 demonstration can be generated
+and opened with:
+
+```powershell
+python -m experiments.run_v15_dynamic_visualization_recording
+python -m experiments.run_v15_visualization_window `
+  results/visualization_recordings/walker20_120s_dynamic_cann
+```
+
+Its timeline contains normal operation, a two-node absolute-navigation
+dropout, a recoverable topology-link suspension, and recovery. The orbit panel
+distinguishes configured topology, currently active topology, and state
+messages actually delivered in the current epoch. Clicking an event-table row
+jumps the shared timeline to that event.
+
 Paired recordings can be checked for display-layer non-intrusion with
 `experiments.run_v15_visualization_acceptance`. Full-window refresh performance
 can be measured with `experiments.run_v15_visualization_performance`; pass

@@ -28,6 +28,15 @@ class VisualizationReplayModel:
     def frame(self, index: int):
         return self._frames[index]
 
+    @property
+    def events(self):
+        return tuple(
+            event for frame in self._frames for event in frame.events
+        )
+
+    def nearest_index(self, timestamp: float) -> int:
+        return int(np.argmin(np.abs(self.timestamps - float(timestamp))))
+
     def node_position_history(self, node_id: str) -> tuple[np.ndarray, np.ndarray]:
         if node_id not in self.node_ids:
             raise KeyError(f"Unknown replay node: {node_id}")

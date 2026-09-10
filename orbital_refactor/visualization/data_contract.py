@@ -186,12 +186,19 @@ class VisualCANNSnapshot:
 
 @dataclass(frozen=True)
 class VisualDiagnosticEvent:
+    timestamp: float
     event_type: str
     severity: str
     description: str
     node_id: str | None = None
     target_id: str | None = None
     modality: str | None = None
+
+    def __post_init__(self) -> None:
+        if not np.isfinite(self.timestamp) or self.timestamp < 0.0:
+            raise ValueError("Visual event timestamp must be finite and nonnegative.")
+        if not self.event_type or not self.severity or not self.description:
+            raise ValueError("Visual event type, severity and description are required.")
 
 
 @dataclass(frozen=True)
@@ -240,6 +247,13 @@ class VisualizationFrame:
         for item in (*self.navigation, *self.cann):
             if item.node_id not in known:
                 raise ValueError("Visual auxiliary state references an unknown node.")
+        for event in self.events:
+            if not np.isclose(event.timestamp, self.timestamp, atol=1e-9, rtol=0.0):
+                raise ValueError("Frame events must match the frame timestamp.")
+            if event.node_id is not None and event.node_id not in known:
+                raise ValueError("Visual event references an unknown node.")
+            if event.target_id is not None and event.target_id not in known:
+                raise ValueError("Visual event references an unknown target.")
         object.__setattr__(self, "nodes", tuple(self.nodes))
         object.__setattr__(self, "edges", tuple(self.edges))
         object.__setattr__(self, "observations", tuple(self.observations))

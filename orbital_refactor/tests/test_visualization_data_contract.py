@@ -5,6 +5,7 @@ import pytest
 
 from visualization.data_contract import (
     VisualCANNSnapshot,
+    VisualDiagnosticEvent,
     VisualEdge,
     VisualNavigationState,
     VisualNodeState,
@@ -105,4 +106,17 @@ def test_frame_rejects_cross_epoch_unknown_nodes():
             scenario_id="walker5", run_id="seed-0", timestamp=0.0,
             epoch_index=0, nodes=(_node("sat_01"),),
             edges=(VisualEdge("sat_01", "sat_02", "COMMUNICATION"),),
+        )
+
+
+def test_frame_requires_event_time_and_node_alignment():
+    with pytest.raises(ValueError, match="frame timestamp"):
+        VisualizationFrame(
+            scenario_id="walker5", run_id="seed-0", timestamp=2.0,
+            epoch_index=1, nodes=(_node("sat_01"),),
+            events=(VisualDiagnosticEvent(
+                timestamp=1.0, event_type="NAVIGATION_DROPOUT",
+                severity="WARNING", description="navigation unavailable",
+                node_id="sat_01",
+            ),),
         )

@@ -261,6 +261,19 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self.node_table.horizontalHeader().setStretchLastSection(True)
         right.addWidget(self.node_table)
 
+        self.event_table = QtWidgets.QTableWidget()
+        self.event_table.setColumnCount(4)
+        self.event_table.setHorizontalHeaderLabels(
+            ("Time (s)", "Severity", "Event", "Description")
+        )
+        self.event_table.horizontalHeader().setStretchLastSection(True)
+        self.event_table.setSelectionBehavior(
+            QtWidgets.QAbstractItemView.SelectionBehavior.SelectRows
+        )
+        self.event_table.cellClicked.connect(self._jump_to_event)
+        self._populate_events()
+        right.addWidget(self.event_table)
+
     def _set_frame(self, index: int) -> None:
         self._current_index = int(index)
         if self.timeline.value() != self._current_index:
@@ -303,11 +316,23 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         values = np.asarray(list(positions.values()))
         axis.scatter(values[:, 0], values[:, 1], values[:, 2], s=22,
                      color="#1f77b4", label="satellites")
+        edge_styles = {
+            "CONFIGURED_TOPOLOGY": ("#9e9e9e", ":", 0.45),
+            "ACTIVE_TOPOLOGY": ("#1f77b4", "-", 0.85),
+            "ACTUAL_INFORMATION_FLOW": ("#2ca02c", "-", 1.0),
+        }
         for edge in frame.edges:
             left, right = positions[edge.source_node_id], positions[edge.target_node_id]
+            color, linestyle, alpha = edge_styles.get(
+                edge.edge_type, ("#7f7f7f", "--", 0.6)
+            )
+            if edge.status != "ACTIVE":
+                color, linestyle, alpha = "#d62728", "--", 0.8
             axis.plot(
                 (left[0], right[0]), (left[1], right[1]), (left[2], right[2]),
-                color="#7f7f7f", linewidth=0.65, alpha=0.55,
+                color=color, linestyle=linestyle,
+                linewidth=(1.7 if edge.edge_type == "ACTUAL_INFORMATION_FLOW" else 0.8),
+                alpha=alpha,
             )
         if selected:
             truth, estimate = self.model.node_position_history(selected)
@@ -319,7 +344,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             point = positions[selected]
             axis.scatter(*point, s=85, color="#ff7f0e", edgecolor="black")
         self._equalize_3d_axes(axis, values)
-        axis.set_title("Walker constellation and configured topology")
+        axis.set_title("Walker constellation: configured / active / information flow")
         axis.set_xlabel("ECI x (km)")
         axis.set_ylabel("ECI y (km)")
         axis.set_zlabel("ECI z (km)")
@@ -359,7 +384,10 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"Run: {frame.run_id}\n"
             f"Schema: {frame.schema_version}\n"
             f"Nodes: {len(frame.nodes)}\n"
-            f"Configured edges: {len(frame.edges)}\n"
+            f"Configured / active / flow edges: "
+            f"{sum(item.edge_type == 'CONFIGURED_TOPOLOGY' for item in frame.edges)} / "
+            f"{sum(item.edge_type == 'ACTIVE_TOPOLOGY' for item in frame.edges)} / "
+            f"{sum(item.edge_type == 'ACTUAL_INFORMATION_FLOW' for item in frame.edges)}\n"
             f"Observations this epoch: {len(frame.observations)}\n"
             f"Selected link: {selected} -> {target or 'none'}\n"
             f"RADAR / INFRARED / OPTICAL: "
@@ -392,6 +420,26 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             )
             for column, value in enumerate(values):
                 self.node_table.setItem(row, column, QtWidgets.QTableWidgetItem(value))
+
+    def _populate_events(self) -> None:
+        events = self.model.events
+        self.event_table.setRowCount(len(events))
+        for row, event in enumerate(events):
+            values = (
+                f"{event.timestamp:.1f}", event.severity,
+                event.event_type, event.description,
+            )
+            for column, value in enumerate(values):
+                item = QtWidgets.QTableWidgetItem(value)
+                item.setData(QtCore.Qt.ItemDataRole.UserRole, event.timestamp)
+                self.event_table.setItem(row, column, item)
+
+    def _jump_to_event(self, row: int, _column: int) -> None:
+        item = self.event_table.item(row, 0)
+        if item is not None:
+            self.timeline.setValue(self.model.nearest_index(
+                float(item.data(QtCore.Qt.ItemDataRole.UserRole))
+            ))
 
     def _refresh_selected_node(self) -> None:
         self._set_frame(self._current_index)
