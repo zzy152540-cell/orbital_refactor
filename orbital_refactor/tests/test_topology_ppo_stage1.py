@@ -51,6 +51,23 @@ def test_stage1_environment_configuration_selects_fleet_and_candidate_bound():
     assert len(state.observation.nodes) == 5
 
 
+def test_stage1_environment_can_opt_into_multimodal_cann_observations():
+    configuration = Stage1Configuration(
+        node_count=3, episode_epochs=2, training_episodes=1,
+    )
+    environment = build_stage1_environment(
+        configuration,
+        relative_modalities=("RANGE", "RANGE_RATE", "AZ_EL", "OPTICAL"),
+        cann_policy_features=True,
+    )
+    state = environment.reset(seed=0)
+    assert environment.relative_modalities == (
+        "RANGE", "RANGE_RATE", "AZ_EL", "OPTICAL",
+    )
+    assert environment.cann_policy_features is True
+    assert state.observation.nodes
+
+
 def test_five_node_baseline_freezes_distribution_and_disjoint_seed_split():
     configuration = five_node_stage1_configuration(training_episodes=1)
     assert configuration.node_count == 5

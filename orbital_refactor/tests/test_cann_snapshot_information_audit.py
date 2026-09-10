@@ -1,5 +1,9 @@
+import numpy as np
+
 from experiments.cann_snapshot_information_audit import (
     audit_cann_snapshot_information,
+    mask_cann_snapshot_features,
+    shuffle_cann_snapshot_features,
     strip_cann_snapshot_features,
 )
 from experiments.topology_control_baselines import AlwaysKeepPolicy
@@ -37,6 +41,30 @@ def test_cann_snapshot_dataset_keeps_its_schema_and_can_be_audited():
     assert base.groups[0].policy_tensor.node_features.shape[1] < (
         dataset.groups[0].policy_tensor.node_features.shape[1]
     )
+    zero = mask_cann_snapshot_features(dataset)
+    base_width = base.groups[0].policy_tensor.node_features.shape[1]
+    assert zero.groups[0].policy_tensor.node_features.shape == (
+        dataset.groups[0].policy_tensor.node_features.shape
+    )
+    assert np.count_nonzero(
+        zero.groups[0].policy_tensor.node_features[:, base_width:]
+    ) == 0
+    shuffled = shuffle_cann_snapshot_features(dataset, random_seed=7)
+    assert shuffled.groups[0].targets is dataset.groups[0].targets
+    for original_group, shuffled_group in zip(dataset.groups, shuffled.groups):
+        assert not np.array_equal(
+            original_group.policy_tensor.node_features[:, base_width:],
+            shuffled_group.policy_tensor.node_features[:, base_width:],
+        )
+    original = np.concatenate([
+        group.policy_tensor.node_features[:, base_width:].reshape(-1)
+        for group in dataset.groups
+    ])
+    randomized = np.concatenate([
+        group.policy_tensor.node_features[:, base_width:].reshape(-1)
+        for group in shuffled.groups
+    ])
+    np.testing.assert_allclose(np.sort(original), np.sort(randomized))
     cost_aware = apply_stage1_cost_aware_utility(dataset)
     keep_index = cost_aware.groups[0].action_kinds.index("keep")
     assert cost_aware.groups[0].targets[keep_index, 0] == 0.0

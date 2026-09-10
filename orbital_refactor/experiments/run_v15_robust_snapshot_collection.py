@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 from pathlib import Path
 
 from experiments.topology_control_baselines import AlwaysKeepPolicy
@@ -30,6 +31,26 @@ def main(argv=None) -> Path:
     parser.add_argument("--maximum-switches", type=int, default=1)
     parser.add_argument("--gain-std-penalty", type=float, default=0.0)
     parser.add_argument("--include-all-noise-observations", action="store_true")
+    parser.add_argument(
+        "--relative-modalities", nargs="+", default=("RANGE",),
+        choices=("RANGE", "RANGE_RATE", "AZ_EL", "OPTICAL"),
+    )
+    parser.add_argument("--cann-policy-features", action="store_true")
+    parser.add_argument(
+        "--navigation-dropout-node-count", type=int,
+        help=(
+            "Override the sampled absolute-navigation dropout-node count; "
+            "use zero for a no-dropout control shard."
+        ),
+    )
+    parser.add_argument(
+        "--initial-topology-types", nargs="+",
+        choices=("chain", "ring", "star", "fully_connected"),
+        help=(
+            "Override the sampled initial-topology families; use "
+            "fully_connected to collect remove-informative controls."
+        ),
+    )
     distribution = parser.add_mutually_exclusive_group()
     distribution.add_argument("--heterogeneous-links", action="store_true")
     distribution.add_argument(
@@ -41,8 +62,14 @@ def main(argv=None) -> Path:
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     maximum_epoch = max(arguments.epochs)
-    if arguments.episode_epochs <= maximum_epoch:
-        parser.error("--episode-epochs must exceed every decision epoch.")
+    if (
+        maximum_epoch * arguments.decision_interval
+        >= arguments.episode_epochs
+    ):
+        parser.error(
+            "Every --epochs decision index times --decision-interval must "
+            "remain below --episode-epochs."
+        )
     configuration_factory = five_node_stage1_configuration
     if arguments.heterogeneous_links:
         configuration_factory = five_node_heterogeneous_link_configuration
@@ -56,8 +83,35 @@ def main(argv=None) -> Path:
         decision_interval_epochs=arguments.decision_interval,
         maximum_topology_switches_per_episode=arguments.maximum_switches,
     )
+    distribution_changes = {}
+    if arguments.navigation_dropout_node_count is not None:
+        if arguments.navigation_dropout_node_count < 0:
+            parser.error("--navigation-dropout-node-count cannot be negative.")
+        distribution_changes["navigation_dropout_node_count"] = (
+            arguments.navigation_dropout_node_count
+        )
+    if arguments.initial_topology_types is not None:
+        if len(set(arguments.initial_topology_types)) != len(
+            arguments.initial_topology_types
+        ):
+            parser.error("--initial-topology-types must be unique.")
+        distribution_changes["initial_topology_types"] = tuple(
+            arguments.initial_topology_types
+        )
+    if distribution_changes:
+        configuration = replace(
+            configuration,
+            scenario_distribution=replace(
+                configuration.scenario_distribution,
+                **distribution_changes,
+            ),
+        )
     dataset = build_noise_robust_topology_snapshot_tensor_dataset(
-        build_stage1_environment(configuration),
+        build_stage1_environment(
+            configuration,
+            relative_modalities=arguments.relative_modalities,
+            cann_policy_features=arguments.cann_policy_features,
+        ),
         condition_seeds=arguments.condition_seeds,
         noise_seeds=arguments.noise_seeds,
         decision_epochs=arguments.epochs,

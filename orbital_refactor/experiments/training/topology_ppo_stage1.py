@@ -346,12 +346,16 @@ class Stage1TrainingSeedRecord:
     beats_keep_penalized_return: bool
 
 
-def build_stage1_environment(configuration: Stage1Configuration):
+def build_stage1_environment(
+    configuration: Stage1Configuration, *, relative_modalities=("RANGE",),
+    cann_policy_features=False,
+):
     return TopologyControlEnvironment(
         node_count=configuration.node_count,
         episode_epochs=configuration.episode_epochs,
         decision_interval_epochs=configuration.decision_interval_epochs,
-        relative_modalities=("RANGE",),
+        relative_modalities=tuple(relative_modalities),
+        cann_policy_features=bool(cann_policy_features),
         minimum_topology_dwell_decisions=(
             configuration.minimum_topology_dwell_decisions
         ),
