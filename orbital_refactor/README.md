@@ -1319,14 +1319,22 @@ and opened with:
 ```powershell
 python -m experiments.run_v15_dynamic_visualization_recording
 python -m experiments.run_v15_visualization_window `
-  results/visualization_recordings/walker20_120s_dynamic_cann
+  results/visualization_recordings/walker20_120s_online_mild_cann
 ```
 
 Its timeline contains normal operation, a two-node absolute-navigation
-dropout, a recoverable topology-link suspension, and recovery. The orbit panel
+dropout, two levels of communication degradation with a recoverable topology
+link suspension, and recovery. Transport failures and protocol-driven
+resynchronizations come from the online orchestrator rather than synthetic
+display events. The orbit panel
 distinguishes configured topology, currently active topology, and state
 messages actually delivered in the current epoch. Clicking an event-table row
 jumps the shared timeline to that event.
+
+The default `mild` profile uses 10% loss/2 s delay followed by 25% loss/2 s
+delay. `--communication-profile moderate` selects 30%/2 s followed by 60%/4 s;
+`aggressive` selects 50%/4 s followed by 80%/6 s. The latter two are stress
+tests rather than the default presentation case.
 
 Paired recordings can be checked for display-layer non-intrusion with
 `experiments.run_v15_visualization_acceptance`. Full-window refresh performance

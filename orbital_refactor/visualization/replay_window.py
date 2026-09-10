@@ -320,6 +320,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             "CONFIGURED_TOPOLOGY": ("#9e9e9e", ":", 0.45),
             "ACTIVE_TOPOLOGY": ("#1f77b4", "-", 0.85),
             "ACTUAL_INFORMATION_FLOW": ("#2ca02c", "-", 1.0),
+            "PENDING_INFORMATION_FLOW": ("#ffbf00", "--", 0.9),
         }
         for edge in frame.edges:
             left, right = positions[edge.source_node_id], positions[edge.target_node_id]
@@ -393,7 +394,15 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"RADAR / INFRARED / OPTICAL: "
             f"{counts['RADAR']} / {counts['INFRARED']} / {counts['OPTICAL']}\n"
             f"Fleet position RMSE: "
-            f"{frame.metadata.get('fleet_position_rmse_m', float('nan')):.3f} m"
+            f"{frame.metadata.get('fleet_position_rmse_m', float('nan')):.3f} m\n"
+            f"Topology version: {frame.metadata.get('topology_version', 'n/a')}\n"
+            f"Sent / delivered / dropped / delayed: "
+            f"{frame.metadata.get('transmitted_message_count', 'n/a')} / "
+            f"{frame.metadata.get('delivered_message_count', 'n/a')} / "
+            f"{frame.metadata.get('dropped_message_count', 'n/a')} / "
+            f"{frame.metadata.get('delayed_message_count', 'n/a')}\n"
+            f"Resynchronized links: "
+            f"{frame.metadata.get('resynchronization_count', 'n/a')}"
         )
         by_modality = {
             item.modality: item for item in selected_observations

@@ -6,7 +6,9 @@ from cooperative.exact_transport_protocol import (
     apply_exact_transport_state_message,
     build_exact_transport_state_message,
 )
-from cooperative.message_transport import MessageChannel, TypedMessageBuffer
+from cooperative.message_transport import (
+    CommunicationWindow, MessageChannel, TypedMessageBuffer,
+)
 from cooperative.multi_neighbor_schmidt import initialize_multi_neighbor_schmidt
 
 
@@ -66,3 +68,42 @@ def test_packet_loss_prevents_state_message_delivery():
     _, message = _case()
     channel = MessageChannel(packet_loss_rate={"b": 1.0}, random_seed=2)
     assert channel.transmit(message) is None
+
+
+def test_message_channel_applies_bounded_time_varying_conditions():
+    _, message = _case()
+    channel = MessageChannel(
+        delay_by_source={"b": 1.0},
+        schedule_by_source={"b": (
+            CommunicationWindow(2.0, 4.0, packet_loss_rate=0.0, delay=3.0),
+            CommunicationWindow(6.0, 8.0, packet_loss_rate=1.0, delay=0.0),
+        )},
+        random_seed=3,
+    )
+    baseline = channel.transmit(replace(message, timestamp=0.0))
+    delayed = channel.transmit(replace(message, timestamp=2.0))
+    dropped = channel.transmit(replace(message, timestamp=6.0))
+    restored = channel.transmit(replace(message, timestamp=10.0))
+
+    assert baseline.arrival_timestamp == 1.0
+    assert delayed.arrival_timestamp == 5.0
+    assert dropped is None
+    assert restored.arrival_timestamp == 11.0
+
+
+def test_empty_schedule_preserves_legacy_channel_sequence():
+    _, message = _case()
+    legacy = MessageChannel(
+        packet_loss_rate={"b": 0.4}, delay_by_source={"b": 2.0},
+        random_seed=17,
+    )
+    scheduled = MessageChannel(
+        packet_loss_rate={"b": 0.4}, delay_by_source={"b": 2.0},
+        schedule_by_source={"b": ()}, random_seed=17,
+    )
+    for timestamp in range(12):
+        candidate = replace(message, timestamp=float(timestamp))
+        left, right = legacy.transmit(candidate), scheduled.transmit(candidate)
+        assert (left is None) == (right is None)
+        if left is not None:
+            assert left.arrival_timestamp == right.arrival_timestamp

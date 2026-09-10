@@ -206,6 +206,54 @@ def test_online_orchestrator_buffers_delay_and_reports_packet_loss():
     assert result.protocol_rejected_message_count == 0
 
 
+def test_online_orchestrator_reports_scheduled_transport_conditions():
+    from cooperative.message_transport import CommunicationWindow
+
+    states = {
+        "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        "b": np.array([7.001e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+    }
+    topology = chain_topology(["a", "b"])
+    schedules = {
+        (receiver, source): (
+            CommunicationWindow(2.0, 2.0, packet_loss_rate=1.0, delay=0.0),
+        )
+        for receiver in topology.node_ids
+        for source in topology.neighbors(receiver)
+    }
+    orchestrator = NetworkSchmidtOrchestrator(
+        initial_state_by_node=states,
+        initial_covariance_by_node={node: np.eye(6) for node in states},
+        topology=topology, process_noise_acceleration=0.0,
+        communication_schedule_by_link=schedules,
+    )
+    active = {"a": ("b",), "b": ("a",)}
+
+    def updates(timestamp):
+        return {
+            node: TransportSourceUpdate(
+                state=value, error_transition=np.eye(6),
+                independent_process_noise=np.zeros((6, 6)),
+                information_ids=(f"{node}:{timestamp}",),
+            )
+            for node, value in states.items()
+        }
+
+    normal = orchestrator.step(
+        0.0, topology_version=0, active_neighbors_by_node=active,
+        source_update_by_node=updates(0.0),
+    )
+    degraded = orchestrator.step(
+        2.0, topology_version=0, active_neighbors_by_node=active,
+        source_update_by_node=updates(2.0),
+    )
+    assert normal.transmitted_message_count == 2
+    assert degraded.dropped_message_count == 2
+    assert {record["status"] for record in degraded.transport_diagnostic_records} == {
+        "DROPPED"
+    }
+
+
 def test_stop_and_wait_keeps_only_one_delayed_message_per_link():
     states = {
         "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),

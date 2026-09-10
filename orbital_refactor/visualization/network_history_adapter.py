@@ -27,7 +27,7 @@ def network_history_visualization_frames(
         str, tuple[np.ndarray, str]
     ] | None = None,
     navigation_by_epoch=None, cann_by_epoch=None,
-    edges_by_epoch=None, events_by_epoch=None,
+    edges_by_epoch=None, events_by_epoch=None, metadata_by_epoch=None,
     scenario_id: str, run_id: str,
 ) -> tuple[VisualizationFrame, ...]:
     """Project existing histories into immutable frames without estimator feedback."""
@@ -104,6 +104,7 @@ def network_history_visualization_frames(
                     np.sum(np.square(errors), axis=1)
                 ))),
                 "truth_usage": "DISPLAY_ONLY",
+                **({} if metadata_by_epoch is None else metadata_by_epoch[index]),
             },
         ))
     return tuple(frames)

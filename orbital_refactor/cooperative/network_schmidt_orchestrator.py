@@ -7,7 +7,7 @@ import numpy as np
 
 from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.link_lifecycle import LinkLifecycleState
-from cooperative.message_transport import MessageChannel
+from cooperative.message_transport import CommunicationWindow, MessageChannel
 from cooperative.multi_neighbor_schmidt import initialize_multi_neighbor_schmidt
 from cooperative.neighbor_measurement_quality import (
     NeighborLinkQuality,
@@ -47,6 +47,7 @@ class NetworkOrchestratorStepResult:
     stale_topology_message_count: int
     protocol_rejected_message_count: int
     message_diagnostic_records: tuple[dict[str, object], ...] = ()
+    transport_diagnostic_records: tuple[dict[str, object], ...] = ()
 
 
 class NetworkSchmidtOrchestrator:
@@ -64,6 +65,9 @@ class NetworkSchmidtOrchestrator:
         communication_delay: float = 0.0,
         packet_loss_rate_by_link: Mapping[tuple[str, str], float] | None = None,
         communication_delay_by_link: Mapping[tuple[str, str], float] | None = None,
+        communication_schedule_by_link: Mapping[
+            tuple[str, str], tuple[CommunicationWindow, ...]
+        ] | None = None,
         random_seed: int = 0,
         stop_and_wait: bool = True,
         resynchronize_on_resume: bool = False,
@@ -98,6 +102,7 @@ class NetworkSchmidtOrchestrator:
         )
         packet_loss_rate_by_link = packet_loss_rate_by_link or {}
         communication_delay_by_link = communication_delay_by_link or {}
+        communication_schedule_by_link = communication_schedule_by_link or {}
         for receiver in topology.node_ids:
             neighbor_states = {
                 neighbor: np.asarray(
@@ -156,6 +161,9 @@ class NetworkSchmidtOrchestrator:
                             edge, communication_delay
                         )
                     )},
+                    schedule_by_source={
+                        source: tuple(communication_schedule_by_link.get(edge, ()))
+                    },
                     random_seed=int(random_seed) + len(self.channels),
                 )
 
@@ -202,6 +210,7 @@ class NetworkSchmidtOrchestrator:
             )
 
         transmitted_count = dropped_count = 0
+        transport_diagnostic_records = []
         for (receiver, source), accumulator in self.accumulators.items():
             lifecycle = self.sessions[receiver].link_by_neighbor[source]
             if lifecycle.state != LinkLifecycleState.ACTIVE:
@@ -215,11 +224,25 @@ class NetworkSchmidtOrchestrator:
             message.metadata = {
                 "topology_version": lifecycle.topology_version
             }
-            transmitted = self.channels[(receiver, source)].transmit(message)
+            channel = self.channels[(receiver, source)]
+            loss_rate, delay = channel.conditions_at(source, timestamp)
+            transmitted = channel.transmit(message)
             if transmitted is None:
                 dropped_count += 1
+                transport_diagnostic_records.append({
+                    "timestamp": timestamp, "receiver_id": receiver,
+                    "source_id": source, "status": "DROPPED",
+                    "packet_loss_rate": loss_rate, "delay": delay,
+                })
                 continue
             transmitted_count += 1
+            transport_diagnostic_records.append({
+                "timestamp": timestamp, "receiver_id": receiver,
+                "source_id": source,
+                "status": "DELAYED" if delay > 0.0 else "SENT",
+                "packet_loss_rate": loss_rate, "delay": delay,
+                "arrival_timestamp": transmitted.arrival_timestamp,
+            })
             self.pending_deliveries[receiver].append((
                 transmitted, accumulator
             ))
@@ -327,6 +350,7 @@ class NetworkSchmidtOrchestrator:
             message_diagnostic_records=tuple(
                 message_diagnostic_records
             ),
+            transport_diagnostic_records=tuple(transport_diagnostic_records),
         )
         self.step_history.append(output)
         return output

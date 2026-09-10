@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Generic, TypeVar
+from typing import Generic, Mapping, TypeVar
 
 import numpy as np
 
@@ -11,12 +11,36 @@ Message = StateMessage | ObservationMessage
 MessageT = TypeVar("MessageT", StateMessage, ObservationMessage)
 
 
+@dataclass(frozen=True)
+class CommunicationWindow:
+    """Inclusive source-time window overriding default channel conditions."""
+
+    start: float
+    end: float
+    packet_loss_rate: float
+    delay: float
+
+    def __post_init__(self) -> None:
+        values = (self.start, self.end, self.packet_loss_rate, self.delay)
+        if any(not np.isfinite(float(value)) for value in values):
+            raise ValueError("Communication-window values must be finite.")
+        if float(self.end) < float(self.start):
+            raise ValueError("Communication-window end cannot precede start.")
+        if not 0.0 <= float(self.packet_loss_rate) <= 1.0:
+            raise ValueError("Communication-window packet loss must be in [0, 1].")
+        if float(self.delay) < 0.0:
+            raise ValueError("Communication-window delay cannot be negative.")
+
+
 @dataclass
 class MessageChannel:
     """Packet-loss and delay channel for one V14 message class."""
 
     packet_loss_rate: dict[str, float] = field(default_factory=dict)
     delay_by_source: dict[str, float] = field(default_factory=dict)
+    schedule_by_source: Mapping[
+        str, tuple[CommunicationWindow, ...]
+    ] = field(default_factory=dict)
     random_seed: int = 42
 
     def __post_init__(self) -> None:
@@ -27,13 +51,32 @@ class MessageChannel:
         for source, delay in self.delay_by_source.items():
             if float(delay) < 0.0:
                 raise ValueError(f"delay for {source} cannot be negative.")
+        normalized = {}
+        for source, windows in self.schedule_by_source.items():
+            ordered = tuple(sorted(windows, key=lambda item: float(item.start)))
+            if any(
+                float(right.start) <= float(left.end)
+                for left, right in zip(ordered, ordered[1:])
+            ):
+                raise ValueError(
+                    f"communication windows for {source} cannot overlap."
+                )
+            normalized[str(source)] = ordered
+        self.schedule_by_source = normalized
+
+    def conditions_at(self, source: str, timestamp: float) -> tuple[float, float]:
+        loss = float(self.packet_loss_rate.get(source, 0.0))
+        delay = float(self.delay_by_source.get(source, 0.0))
+        for window in self.schedule_by_source.get(source, ()):
+            if float(window.start) <= float(timestamp) <= float(window.end):
+                return float(window.packet_loss_rate), float(window.delay)
+        return loss, delay
 
     def transmit(self, message: MessageT) -> MessageT | None:
         source = message_source_id(message)
-        loss = float(self.packet_loss_rate.get(source, 0.0))
+        loss, delay = self.conditions_at(source, float(message.timestamp))
         if self._rng.random() < loss:
             return None
-        delay = float(self.delay_by_source.get(source, 0.0))
         source_timestamp = (
             float(message.timestamp)
             if message.source_timestamp is None
