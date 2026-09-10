@@ -1,0 +1,76 @@
+{
+  "profile": "smoke",
+  "passed": true,
+  "records": [
+    {
+      "case_id": "single_three_modal_cann_boundary",
+      "passed": true,
+      "runtime_seconds": 2.464568199997302,
+      "python_peak_memory_mb": 2.084493637084961,
+      "metrics": {
+        "baseline_position_rmse_m": 51.966796574585416,
+        "cann_position_rmse_m": 51.966796574585416,
+        "position_rmse_change_m": 0.0
+      },
+      "failure_reasons": []
+    },
+    {
+      "case_id": "three_satellite_multimodal_visibility",
+      "passed": true,
+      "runtime_seconds": 0.9537474999960978,
+      "python_peak_memory_mb": 1.5332822799682617,
+      "metrics": {
+        "comparison_count": 4,
+        "maximum_position_rmse_m": 3.359521189986369,
+        "message_rejection_count": 0,
+        "psd_failure_count": 0,
+        "all_three_sensor_suite": true
+      },
+      "failure_reasons": []
+    },
+    {
+      "case_id": "five_satellite_dynamic_resynchronization",
+      "passed": true,
+      "runtime_seconds": 1.0056737000122666,
+      "python_peak_memory_mb": 2.182737350463867,
+      "metrics": {
+        "mean_position_rmse_m": 1.7285354273980207,
+        "minimum_joint_covariance_eigenvalue": 0.00010440671370876157,
+        "resynchronization_count": 2,
+        "protocol_rejected_message_count": 0,
+        "maximum_local_dimension": 18
+      },
+      "failure_reasons": []
+    },
+    {
+      "case_id": "ten_satellite_dynamic_resynchronization",
+      "passed": true,
+      "runtime_seconds": 2.02110110000649,
+      "python_peak_memory_mb": 4.158893585205078,
+      "metrics": {
+        "mean_position_rmse_m": 2.7956939400699765,
+        "minimum_joint_covariance_eigenvalue": 0.0001043894329562274,
+        "resynchronization_count": 2,
+        "protocol_rejected_message_count": 0,
+        "maximum_local_dimension": 18
+      },
+      "failure_reasons": []
+    },
+    {
+      "case_id": "walker20_distributed_filter",
+      "passed": true,
+      "runtime_seconds": 3.4968739000032656,
+      "python_peak_memory_mb": 10.580460548400879,
+      "metrics": {
+        "node_count": 20,
+        "mean_position_rmse_m": 3.3575485262246176,
+        "message_acceptance_rate": 1.0,
+        "message_rejection_count": 0,
+        "psd_failure_count": 0,
+        "minimum_joint_eigenvalue": 0.00019412739367804106,
+        "mean_run_seconds": 1.1016240999888396
+      },
+      "failure_reasons": []
+    }
+  ]
+}

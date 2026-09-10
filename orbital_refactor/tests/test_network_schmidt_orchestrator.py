@@ -1,5 +1,6 @@
 import numpy as np
 
+from cooperative.link_lifecycle import LinkLifecycleState
 from cooperative.network_schmidt_orchestrator import (
     NetworkSchmidtOrchestrator,
     TransportSourceUpdate,
@@ -245,3 +246,45 @@ def test_stop_and_wait_keeps_only_one_delayed_message_per_link():
     assert first.transmitted_message_count == 2
     assert second.transmitted_message_count == 0
     assert delivered.accepted_message_count == 2
+
+
+def test_delayed_protocol_gap_is_resynchronized_on_active_link():
+    states = {
+        "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        "b": np.array([7.001e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+    }
+    orchestrator = NetworkSchmidtOrchestrator(
+        initial_state_by_node=states,
+        initial_covariance_by_node={node: np.eye(6) for node in states},
+        topology=chain_topology(["a", "b"]),
+        process_noise_acceleration=0.0, communication_delay=2.0,
+        history_window=0.5, max_pinned_age=0.5,
+    )
+    active = {"a": ("b",), "b": ("a",)}
+
+    def updates(timestamp):
+        return {
+            node: TransportSourceUpdate(
+                state=value, error_transition=np.eye(6),
+                independent_process_noise=np.zeros((6, 6)),
+                information_ids=(f"{node}:{timestamp}",),
+            )
+            for node, value in states.items()
+        }
+
+    orchestrator.step(
+        0.0, topology_version=0, active_neighbors_by_node=active,
+        source_update_by_node=updates(0.0),
+    )
+    recovered = orchestrator.step(
+        2.0, topology_version=0, active_neighbors_by_node=active,
+        source_update_by_node=updates(2.0),
+    )
+
+    assert recovered.protocol_rejected_message_count == 2
+    assert len(recovered.resynchronized_links) == 2
+    assert all(
+        lifecycle.state == LinkLifecycleState.ACTIVE
+        for session in orchestrator.sessions.values()
+        for lifecycle in session.link_by_neighbor.values()
+    )

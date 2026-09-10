@@ -27,6 +27,30 @@ class ExpansionConditionSplit:
     test: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class ExpansionCrossValidationFold:
+    fold_index: int
+    training: tuple[int, ...]
+    validation: tuple[int, ...]
+
+
+def physical_expansion_cross_validation_folds(
+) -> tuple[ExpansionCrossValidationFold, ...]:
+    """Leave one complete nine-condition collection batch out per fold."""
+    batches = tuple(tuple(
+        seed for shard in physical_expansion_batch(batch_index)
+        for seed in shard.condition_seeds
+    ) for batch_index in (1, 2, 3))
+    return tuple(ExpansionCrossValidationFold(
+        fold_index=index + 1,
+        training=tuple(
+            seed for batch_index, batch in enumerate(batches)
+            if batch_index != index for seed in batch
+        ),
+        validation=batch,
+    ) for index, batch in enumerate(batches))
+
+
 def physical_expansion_condition_split() -> ExpansionConditionSplit:
     """Return the frozen topology/pressure-stratified 27-condition split."""
     return ExpansionConditionSplit(

@@ -201,6 +201,9 @@ class MultiNeighborReplayCoordinator:
         self.integrity_by_information_id = {}
         self.last_relative_update: MultiNeighborSchmidtUpdateResult | None = None
         self._remote_events: dict[tuple[str, str], RemoteTransportEvent] = {}
+        self._remote_event_endpoint_states: dict[
+            tuple[str, str], MultiNeighborSchmidtState
+        ] = {}
         self._pinned_checkpoints: dict[tuple[str, str | None], tuple[float, MultiNeighborSchmidtState]] = {}
         self._resync_required: dict[tuple[str, str | None], str] = {}
         self.performance = ReplayPerformanceStats()
@@ -444,8 +447,13 @@ class MultiNeighborReplayCoordinator:
             self._replay_from(earliest[4], starting_state=earliest[3])
             mismatched = False
             for _, message, _, _, _, _, _ in staged:
-                endpoint = self._posterior_states.get(float(message.timestamp))
                 neighbor_id = str(message.source_node_id)
+                final_event_key = _transport_event_key(
+                    message.transport_events[-1]
+                )
+                endpoint = self._remote_event_endpoint_states.get(
+                    (neighbor_id, final_event_key)
+                )
                 if not (endpoint is not None and np.allclose(
                     endpoint.neighbor_state_by_id[neighbor_id], message.state_estimate,
                     rtol=1e-9, atol=1e-7,
@@ -536,10 +544,26 @@ class MultiNeighborReplayCoordinator:
 
     def establish_resynchronized_link(
         self, *, neighbor_id: str, lineage_id: str,
+        neighbor_state: Array | None = None,
+        neighbor_covariance: Array | None = None,
     ) -> ResynchronizationBaseline:
         neighbor_id = str(neighbor_id); lineage_id = str(lineage_id)
         if neighbor_id not in self.state.neighbor_ids:
             raise KeyError(f"Unknown consider neighbor: {neighbor_id}")
+        if (neighbor_state is None) != (neighbor_covariance is None):
+            raise ValueError(
+                "Resynchronization snapshot requires both state and covariance."
+            )
+        if neighbor_state is not None:
+            self.state = refresh_consider_neighbor(
+                self.state, neighbor_id=neighbor_id,
+                neighbor_state=neighbor_state,
+                neighbor_covariance=neighbor_covariance,
+                mode="zero_cross",
+            )
+            timestamp = float(self.state.timestamp)
+            self._checkpoints[timestamp] = self.state
+            self._posterior_states[timestamp] = self.state
         for key in tuple(self._pinned_checkpoints):
             if key[0] == neighbor_id:
                 self._pinned_checkpoints.pop(key, None)
@@ -564,6 +588,7 @@ class MultiNeighborReplayCoordinator:
         starting_state: MultiNeighborSchmidtState | None = None,
     ) -> dict[str, float]:
         started = perf_counter()
+        self._remote_event_endpoint_states = {}
         current_timestamp = float(self.state.timestamp)
         current = self._checkpoints[reference_timestamp] if starting_state is None else starting_state
         event_times = {
@@ -617,6 +642,11 @@ class MultiNeighborReplayCoordinator:
                     current,
                     transport_information_ids=(*current.transport_information_ids, *event_ids),
                 )
+                event_key = _transport_event_key(item.event)
+                if event_key is not None:
+                    self._remote_event_endpoint_states[
+                        (item.neighbor_id, event_key)
+                    ] = current
                 remote_count += 1
             observations = sorted(
                 (item for item in self._observations.values()

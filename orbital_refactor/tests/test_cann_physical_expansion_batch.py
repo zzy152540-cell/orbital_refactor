@@ -1,5 +1,6 @@
 from experiments.run_v15_cann_physical_expansion_batch import (
     physical_expansion_condition_split,
+    physical_expansion_cross_validation_folds,
     physical_expansion_batch,
 )
 
@@ -30,3 +31,14 @@ def test_physical_expansion_condition_split_is_disjoint_and_complete():
     )
     assert set.union(*groups) == set(range(124, 151))
     assert tuple(map(len, groups)) == (15, 6, 6)
+
+
+def test_physical_expansion_cross_validation_leaves_each_batch_out_once():
+    folds = physical_expansion_cross_validation_folds()
+    assert len(folds) == 3
+    assert all(len(fold.training) == 18 for fold in folds)
+    assert all(len(fold.validation) == 9 for fold in folds)
+    assert all(not set(fold.training) & set(fold.validation) for fold in folds)
+    assert set.union(*(set(fold.validation) for fold in folds)) == set(
+        range(124, 151)
+    )

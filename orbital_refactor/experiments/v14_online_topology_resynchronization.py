@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -50,10 +50,14 @@ class OnlineTopologyResynchronizationSummary:
     maximum_retained_journal_count: int
     maximum_pending_delivery_count: int
     maximum_local_dimension: int
+    absolute_observation_count: int
+    mean_position_rmse_by_node: dict[str, float]
+    mean_position_rmse_by_node_and_phase: dict[str, dict[str, float]]
 
 
 def run_v14_online_topology_resynchronization_experiment(
     *, seeds: int = 5, duration: float = 120.0, dt: float = 2.0,
+    seed_values: Iterable[int] | None = None,
     inactive_edge: tuple[str, str] | None = None,
     inactive_window: tuple[float, float] = (20.0, 100.0),
     max_pinned_age: float = 20.0,
@@ -73,12 +77,24 @@ def run_v14_online_topology_resynchronization_experiment(
     integrity_policy_by_modality: Mapping[
         str, MeasurementIntegrityPolicy
     ] | None = None,
+    absolute_navigation_dropout_windows_by_node: Mapping[
+        str, tuple[tuple[float, float], ...]
+    ] | None = None,
+    metric_phase_windows_by_node: Mapping[
+        str, tuple[tuple[float, float], ...]
+    ] | None = None,
     node_count: int = 3,
 ) -> OnlineTopologyResynchronizationSummary:
     if radar_actual_noise_scale <= 0.0:
         raise ValueError("radar_actual_noise_scale must be positive.")
     if infrared_outlier_bias is not None and infrared_outlier_window is None:
         raise ValueError("infrared_outlier_bias requires a window.")
+    selected_seeds = (
+        tuple(range(seeds))
+        if seed_values is None else tuple(int(seed) for seed in seed_values)
+    )
+    if not selected_seeds or len(set(selected_seeds)) != len(selected_seeds):
+        raise ValueError("seed_values must be nonempty and unique.")
     metrics = []
     total_resync = 0
     total_rejected = 0
@@ -97,7 +113,8 @@ def run_v14_online_topology_resynchronization_experiment(
     maximum_retained_journal_count = 0
     maximum_pending_delivery_count = 0
     maximum_local_dimension = 0
-    for seed in range(seeds):
+    absolute_observation_count = 0
+    for seed in selected_seeds:
         started = perf_counter()
         timestamps = np.arange(0.0, duration + 0.5 * dt, dt)
         initial_truth = None
@@ -123,7 +140,11 @@ def run_v14_online_topology_resynchronization_experiment(
                 for modality in ("RADAR", "INFRARED", "OPTICAL")
             },
             relative_modalities=("RADAR", "INFRARED", "OPTICAL"),
+            absolute_navigation_dropout_windows_by_node=(
+                absolute_navigation_dropout_windows_by_node
+            ),
         )
+        absolute_observation_count += len(case["absolute_observations"])
         selected_edge = (
             inactive_edge
             if inactive_edge is not None
@@ -210,7 +231,15 @@ def run_v14_online_topology_resynchronization_experiment(
                         step_result.state.joint_covariance
                     ).min()),
                 )
-        metrics.append(_metrics(states, covariances, case["truth"]))
+        metrics.append(_metrics(
+            states, covariances, case["truth"],
+            timestamps=case["timestamps"],
+            absolute_navigation_dropout_windows_by_node=(
+                metric_phase_windows_by_node
+                if metric_phase_windows_by_node is not None
+                else absolute_navigation_dropout_windows_by_node
+            ),
+        ))
         metrics[-1]["minimum_eigenvalue"] = minimum_eigenvalue
         final_lineages = {
             (receiver, source): lifecycle.lineage_id
@@ -244,7 +273,7 @@ def run_v14_online_topology_resynchronization_experiment(
         runtimes.append(perf_counter() - started)
     return OnlineTopologyResynchronizationSummary(
         node_count=node_count, topology_type=topology_type,
-        run_count=seeds,
+        run_count=len(selected_seeds),
         mean_position_rmse=float(np.mean([m["position_rmse"] for m in metrics])),
         mean_nees=float(np.mean([m["nees"] for m in metrics])),
         mean_nees_95_coverage=float(np.mean([m["coverage"] for m in metrics])),
@@ -268,6 +297,26 @@ def run_v14_online_topology_resynchronization_experiment(
         maximum_retained_journal_count=maximum_retained_journal_count,
         maximum_pending_delivery_count=maximum_pending_delivery_count,
         maximum_local_dimension=maximum_local_dimension,
+        absolute_observation_count=absolute_observation_count,
+        mean_position_rmse_by_node={
+            node: float(np.mean([
+                value["position_rmse_by_node"][node] for value in metrics
+            ]))
+            for node in case["topology"].node_ids
+        },
+        mean_position_rmse_by_node_and_phase={
+            node: {
+                phase: float(np.mean([
+                    value["position_rmse_by_node_and_phase"][node][phase]
+                    for value in metrics
+                ]))
+                for phase in metrics[0][
+                    "position_rmse_by_node_and_phase"
+                ].get(node, {})
+            }
+            for node in case["topology"].node_ids
+            if metrics[0]["position_rmse_by_node_and_phase"].get(node)
+        },
     )
 
 
@@ -306,17 +355,46 @@ def _items_by_timestamp(items):
     return result
 
 
-def _metrics(states, covariances, truth):
+def _metrics(
+    states, covariances, truth, *, timestamps,
+    absolute_navigation_dropout_windows_by_node,
+):
     errors = []
     nees = []
+    position_rmse_by_node = {}
     for node in truth:
-        errors.append(states[node][:, :3] - truth[node][:, :3])
+        position_error = states[node][:, :3] - truth[node][:, :3]
+        errors.append(position_error)
+        position_rmse_by_node[node] = compute_rmse(position_error)
         nees.extend(compute_nees_history(
             states[node], truth[node], covariances[node]
         ))
     nees = np.asarray(nees)
+    phase_rmse = {}
+    timestamps = np.asarray(timestamps, dtype=float)
+    for node, windows in (
+        absolute_navigation_dropout_windows_by_node or {}
+    ).items():
+        dropout = np.asarray([
+            any(start <= timestamp <= end for start, end in windows)
+            for timestamp in timestamps
+        ])
+        first_start = min(start for start, _ in windows)
+        last_end = max(end for _, end in windows)
+        masks = {
+            "pre_dropout": timestamps < first_start,
+            "dropout": dropout,
+            "post_recovery": timestamps > last_end,
+        }
+        error = states[node][:, :3] - truth[node][:, :3]
+        phase_rmse[node] = {
+            phase: compute_rmse(error[mask])
+            for phase, mask in masks.items() if np.any(mask)
+        }
     return {
         "position_rmse": compute_rmse(np.vstack(errors)),
         "nees": float(np.mean(nees)),
         "coverage": float(np.mean((nees >= 1.2373442458) & (nees <= 14.4493753354))),
+        "position_rmse_by_node": position_rmse_by_node,
+        "position_rmse_by_node_and_phase": phase_rmse,
     }

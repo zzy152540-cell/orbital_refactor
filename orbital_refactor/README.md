@@ -15,6 +15,31 @@ regression compatibility is required.
 
 Current package version: `0.4.0` (Python 3.10 or newer).
 
+Run the bounded non-learning system smoke acceptance with:
+
+```bash
+python -m experiments.run_v15_system_acceptance
+```
+
+It checks the single-satellite three-modal/CANN boundary, three-satellite
+multi-modal visibility path, five- and ten-satellite dynamic
+resynchronization, and the Walker-20 distributed filter. It writes unified
+JSON and CSV reports containing metrics, wall-clock runtime, and Python peak
+allocation. This is a workflow-health gate, not a formal performance
+qualification.
+
+Run the first non-learning formal pilot matrix with:
+
+```bash
+python -m experiments.run_v15_system_formal_matrix
+```
+
+The pilot compares normal communication, link outage/recovery, random packet
+loss, fixed communication delay, one- or two-node absolute-navigation dropout,
+and combined navigation/communication degradation for 5, 10, and 20 nodes
+over explicit random seeds. It is deliberately separate from the GNN/PPO
+training workflow.
+
 ## V14 foundation and V15 transition
 
 The architecture is organized into three layers:

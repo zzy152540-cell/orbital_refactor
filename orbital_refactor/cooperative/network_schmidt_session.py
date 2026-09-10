@@ -108,11 +108,14 @@ class NetworkSchmidtSession:
 
     def establish_resynchronized_link(
         self, neighbor_id: str, *, lineage_id: str,
+        neighbor_state=None, neighbor_covariance=None,
     ) -> ResynchronizationBaseline:
         neighbor_id = str(neighbor_id)
         lifecycle = self.link_by_neighbor[neighbor_id]
         baseline = self.coordinator.establish_resynchronized_link(
             neighbor_id=neighbor_id, lineage_id=lineage_id,
+            neighbor_state=neighbor_state,
+            neighbor_covariance=neighbor_covariance,
         )
         self.link_by_neighbor[neighbor_id] = (
             lifecycle.establish_resynchronized_lineage(
@@ -156,9 +159,23 @@ class NetworkSchmidtSession:
                     CoordinatorMessageResult(False, reason)
                 )
                 continue
-            message_results.append(self.coordinator.apply_state_message(
+            outcome = self.coordinator.apply_state_message(
                 message, expected_lineage_id=lifecycle.lineage_id,
-            ))
+            )
+            message_results.append(outcome)
+            if (
+                not outcome.accepted
+                and outcome.reason in {
+                    "history_unavailable",
+                    "resync_required",
+                    "event_bundle_endpoint_mismatch",
+                }
+            ):
+                self.link_by_neighbor[source] = (
+                    self.link_by_neighbor[source].require_resynchronization(
+                        reason=outcome.reason
+                    )
+                )
             self._synchronize_resource_requirements()
 
         nis_by_information_id = {}

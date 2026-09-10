@@ -1,0 +1,6 @@
+﻿case_id,passed,runtime_seconds,python_peak_memory_mb,failure_reasons,all_three_sensor_suite,baseline_position_rmse_m,cann_position_rmse_m,comparison_count,maximum_local_dimension,maximum_position_rmse_m,mean_position_rmse_m,mean_run_seconds,message_acceptance_rate,message_rejection_count,minimum_joint_covariance_eigenvalue,minimum_joint_eigenvalue,node_count,position_rmse_change_m,protocol_rejected_message_count,psd_failure_count,resynchronization_count
+single_three_modal_cann_boundary,True,2.464568199997302,2.084493637084961,,,51.966796574585416,51.966796574585416,,,,,,,,,,,0.0,,,
+three_satellite_multimodal_visibility,True,0.9537474999960978,1.5332822799682617,,True,,,4,,3.359521189986369,,,,0,,,,,,0,
+five_satellite_dynamic_resynchronization,True,1.0056737000122666,2.182737350463867,,,,,,18,,1.7285354273980207,,,,0.00010440671370876157,,,,0,,2
+ten_satellite_dynamic_resynchronization,True,2.02110110000649,4.158893585205078,,,,,,18,,2.7956939400699765,,,,0.0001043894329562274,,,,0,,2
+walker20_distributed_filter,True,3.4968739000032656,10.580460548400879,,,,,,,,3.3575485262246176,1.1016240999888396,1.0,0,,0.00019412739367804106,20,,,0,

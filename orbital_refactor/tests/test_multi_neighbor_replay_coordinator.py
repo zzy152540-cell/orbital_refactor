@@ -248,6 +248,26 @@ def test_pinned_age_limit_requires_explicit_new_lineage_resynchronization():
     ).accepted
 
 
+def test_snapshot_resynchronization_replaces_neighbor_and_zeros_cross_covariance():
+    state, _, observation = _case()
+    coordinator = MultiNeighborReplayCoordinator(state)
+    coordinator.apply_observation(observation)
+    snapshot_state = state.neighbor_state_by_id["left"] + 25.0
+    snapshot_covariance = np.eye(6) * 9.0
+
+    baseline = coordinator.establish_resynchronized_link(
+        neighbor_id="left", lineage_id="left:resync:snapshot",
+        neighbor_state=snapshot_state,
+        neighbor_covariance=snapshot_covariance,
+    )
+
+    assert np.allclose(baseline.state_estimate, snapshot_state)
+    assert np.allclose(baseline.covariance, snapshot_covariance)
+    assert np.allclose(
+        coordinator.state.active_cross_covariance("left"), 0.0
+    )
+
+
 def test_retained_event_limit_marks_link_for_resynchronization():
     state, messages, observation = _case()
     coordinator = MultiNeighborReplayCoordinator(

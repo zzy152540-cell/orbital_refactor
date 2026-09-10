@@ -67,6 +67,7 @@ class NetworkSchmidtOrchestrator:
         random_seed: int = 0,
         stop_and_wait: bool = True,
         resynchronize_on_resume: bool = False,
+        resynchronize_on_protocol_gap: bool = True,
         integrity_policy_by_modality: Mapping[
             str, MeasurementIntegrityPolicy
         ] | None = None,
@@ -92,6 +93,9 @@ class NetworkSchmidtOrchestrator:
         self.step_history: list[NetworkOrchestratorStepResult] = []
         self.stop_and_wait = bool(stop_and_wait)
         self.resynchronize_on_resume = bool(resynchronize_on_resume)
+        self.resynchronize_on_protocol_gap = bool(
+            resynchronize_on_protocol_gap
+        )
         packet_loss_rate_by_link = packet_loss_rate_by_link or {}
         communication_delay_by_link = communication_delay_by_link or {}
         for receiver in topology.node_ids:
@@ -298,6 +302,13 @@ class NetworkSchmidtOrchestrator:
                     rejection_counts[outcome.reason] = (
                         rejection_counts.get(outcome.reason, 0) + 1
                     )
+        if self.resynchronize_on_protocol_gap:
+            resynchronized.extend(
+                self._resynchronize_active_protocol_gaps(
+                    topology_version=int(topology_version),
+                    active_neighbors_by_node=active_neighbors_by_node,
+                )
+            )
         self.topology_version = int(topology_version)
         self.active_neighbors_by_node = {
             node: tuple(values)
@@ -319,6 +330,52 @@ class NetworkSchmidtOrchestrator:
         )
         self.step_history.append(output)
         return output
+
+    def _resynchronize_active_protocol_gaps(
+        self, *, topology_version: int,
+        active_neighbors_by_node: Mapping[str, tuple[str, ...]],
+    ) -> list[tuple[str, str, str]]:
+        resynchronized = []
+        for receiver, session in self.sessions.items():
+            active = set(active_neighbors_by_node[receiver])
+            for source, lifecycle in tuple(session.link_by_neighbor.items()):
+                if (
+                    source not in active
+                    or lifecycle.state != LinkLifecycleState.RESYNC_REQUIRED
+                ):
+                    continue
+                new_lineage = (
+                    f"{source}->{receiver}:resync:"
+                    f"{lifecycle.resynchronization_count + 1}"
+                )
+                source_snapshot = self.accumulators[
+                    (receiver, source)
+                ].build_message()
+                baseline = session.establish_resynchronized_link(
+                    source, lineage_id=new_lineage,
+                    neighbor_state=source_snapshot.state_estimate,
+                    neighbor_covariance=source_snapshot.covariance,
+                )
+                session.link_by_neighbor[source] = (
+                    session.link_by_neighbor[source].observe_topology_version(
+                        topology_version
+                    )
+                )
+                self.accumulators[(receiver, source)] = (
+                    ExactTransportAccumulator(
+                        source_node_id=source,
+                        lineage_id=baseline.lineage_id,
+                        reference_timestamp=baseline.timestamp,
+                        reference_state=baseline.state_estimate,
+                        reference_covariance=baseline.covariance,
+                    )
+                )
+                self.pending_deliveries[receiver] = [
+                    pending for pending in self.pending_deliveries[receiver]
+                    if str(pending[0].source_node_id) != source
+                ]
+                resynchronized.append((receiver, source, new_lineage))
+        return resynchronized
 
     def history_snapshot(self) -> tuple[NetworkOrchestratorStepResult, ...]:
         return tuple(self.step_history)
