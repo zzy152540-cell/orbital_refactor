@@ -40,6 +40,31 @@ and combined navigation/communication degradation for 5, 10, and 20 nodes
 over explicit random seeds. It is deliberately separate from the GNN/PPO
 training workflow.
 
+The contract-level metric definitions, paired-baseline rules, and staged test
+matrix are frozen in `docs/external_acceptance_baseline_v1_zh.md`. Machine-
+readable thresholds are stored in
+`configs/v15_external_acceptance_metrics.json`; the current Formal runner does
+not yet claim all of these contract metrics have passed.
+
+Run the paired P07 development pre-scan with:
+
+```bash
+python -m experiments.run_external_single_accuracy_acceptance \
+  --seeds 0 1 2 3 4 --duration 120 --dt 2
+```
+
+This compares the existing centralized EKF and three-modal Federated-CI on the
+same deterministic truth and measurement realization for each seed. A short
+pre-scan is reported separately from formal acceptance and cannot pass the
+formal sample-size gate.
+
+Run the paired P08 full-duration single-modality-loss pre-scan with:
+
+```bash
+python -m experiments.run_external_single_robustness_acceptance \
+  --seeds 0 1 2 3 4 --duration 120 --dt 2
+```
+
 ## V14 foundation and V15 transition
 
 The architecture is organized into three layers:

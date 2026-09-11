@@ -42,6 +42,11 @@ def run_single_satellite_cann_comparison(
     optical_fault_mode: str | None = None,
     infrared_fault_mode: str | None = None,
     fault_times_by_modality: dict[str, tuple[float, ...]] | None = None,
+    filter_architecture: str = "federated_ci",
+    observer_altitude_m: float = 702e3,
+    observer_raan_deg: float = 14.5,
+    ci_objective: str = "trace",
+    reset_feedback: bool = True,
 ):
     if adaptive_cann_preprocess_ir and hybrid_cann_preprocess_ir:
         raise ValueError("Select at most one infrared CANN preprocessor.")
@@ -51,8 +56,8 @@ def run_single_satellite_cann_comparison(
         np.deg2rad(15.0), 0.0, np.deg2rad(8.0),
     )
     observer = keplerian_to_eci(
-        R_EARTH + 702e3, 0.0012, np.deg2rad(54.5),
-        np.deg2rad(14.5), 0.0, np.deg2rad(7.0),
+        R_EARTH + float(observer_altitude_m), 0.0012, np.deg2rad(54.5),
+        np.deg2rad(float(observer_raan_deg)), 0.0, np.deg2rad(7.0),
     )
     scenario = generate_cooperative_scenario(
         timestamps=timestamps, target_id="target",
@@ -247,6 +252,9 @@ def run_single_satellite_cann_comparison(
         scenario=scenario,
         observations_by_node={"sat_01": observations},
         initial_error_by_node={"sat_01": np.array([50., -40., 30., .05, -.04, .03])},
+        architecture=filter_architecture,
+        ci_objective=ci_objective,
+        reset_feedback=reset_feedback,
         ci_grid_points=31,
     )["sat_01"]
     if enable_cann:
@@ -257,7 +265,10 @@ def run_single_satellite_cann_comparison(
             },
         }
     history = StateAwarenessModule().run_history(module_input)
-    estimate_eci = observer_track.state_history_eci + history.fused_state_history
+    relative_estimate = getattr(history, "fused_state_history", None)
+    if relative_estimate is None:
+        relative_estimate = history.state_history
+    estimate_eci = observer_track.state_history_eci + relative_estimate
     truth_eci = scenario.target_trajectory.state_history_eci
     # Use the same estimator-derived fixed frame as the integrated sidecar so
     # truth and decoded phase are compared in one coordinate convention.
@@ -275,6 +286,12 @@ def run_single_satellite_cann_comparison(
         )
     position_error = np.linalg.norm(estimate_eci[:, :3] - truth_eci[:, :3], axis=1)
     velocity_error = np.linalg.norm(estimate_eci[:, 3:] - truth_eci[:, 3:], axis=1)
+    local_state_history = getattr(
+        history, "prefeedback_local_state_history", {},
+    )
+    local_covariance_history = getattr(
+        history, "prefeedback_local_covariance_history", {},
+    )
     def _window_rmse(values, mask):
         return float(np.sqrt(np.mean(values[mask] ** 2))) if np.any(mask) else None
 
@@ -306,6 +323,11 @@ def run_single_satellite_cann_comparison(
             for name in sorted(requested_outages)
         },
         "velocity_rmse_recovery_mps": _window_rmse(velocity_error, recovery_window),
+        "filter_architecture": str(filter_architecture),
+        "observer_altitude_m": float(observer_altitude_m),
+        "observer_raan_deg": float(observer_raan_deg),
+        "ci_objective": str(ci_objective),
+        "reset_feedback": bool(reset_feedback),
         "cann_enabled": bool(enable_cann),
         "adaptive_cann_preprocess_ir": bool(adaptive_cann_preprocess_ir),
         "hybrid_cann_preprocess_ir": bool(hybrid_cann_preprocess_ir),
@@ -341,6 +363,30 @@ def run_single_satellite_cann_comparison(
         "measurement_valid_by_modality": {
             name: np.asarray(flags, dtype=bool).copy()
             for name, flags in history.measurement_valid_history.items()
+        },
+        "nis_by_modality": {
+            name: np.asarray(values, dtype=float).copy()
+            for name, values in history.nis_history.items()
+        },
+        "gate_by_modality": {
+            name: np.asarray(values, dtype=bool).copy()
+            for name, values in history.gate_history.items()
+        },
+        "filter_statistics": {
+            name: dict(values) for name, values in history.statistics.items()
+        },
+        "ci_weight_history": getattr(history, "ci_weight_history", None),
+        "local_position_error_by_modality": {
+            name: np.linalg.norm(
+                observer_track.state_history_eci[:, :3]
+                + np.asarray(values)[:, :3] - truth_eci[:, :3],
+                axis=1,
+            )
+            for name, values in local_state_history.items()
+        },
+        "local_covariance_trace_by_modality": {
+            name: np.trace(np.asarray(values), axis1=1, axis2=2)
+            for name, values in local_covariance_history.items()
         },
         "summary": summary,
     }

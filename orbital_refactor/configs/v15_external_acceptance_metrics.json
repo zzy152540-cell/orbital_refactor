@@ -1,0 +1,66 @@
+{
+  "schema_version": "v15.external-acceptance.v1",
+  "primary_error_metric": "position_rmse_m",
+  "required_report_metrics": [
+    "position_rmse_m",
+    "velocity_rmse_mps",
+    "acceleration_rmse_mps2",
+    "worst_node_position_rmse_m",
+    "position_error_p95_m"
+  ],
+  "requirements": {
+    "F05_minimum_node_count": {
+      "operator": ">=",
+      "threshold": 20,
+      "unit": "satellite"
+    },
+    "P06_mean_update_frequency": {
+      "operator": ">=",
+      "threshold": 5.0,
+      "unit": "Hz",
+      "measurement_scope": "algorithm_only_without_gui_or_recording"
+    },
+    "P07_single_improvement_over_ekf": {
+      "operator": ">=",
+      "threshold": 5.0,
+      "unit": "percent",
+      "metric": "paired_position_rmse_improvement"
+    },
+    "R08_single_modality_dropout_increase": {
+      "operator": "<=",
+      "threshold": 20.0,
+      "unit": "percent",
+      "modalities": ["RADAR", "INFRARED", "OPTICAL"]
+    },
+    "P09_cooperative_improvement_over_single": {
+      "operator": ">=",
+      "threshold": 5.0,
+      "unit": "percent",
+      "metric": "paired_fleet_position_rmse_improvement"
+    },
+    "R10_node_disconnection_increase": {
+      "operator": "<=",
+      "threshold": 15.0,
+      "unit": "percent",
+      "node_count": 20,
+      "disconnected_node_count": 4
+    },
+    "P11_mean_state_synchronization_latency": {
+      "operator": "<=",
+      "threshold": 150.0,
+      "unit": "ms",
+      "measurement_scope": "message_created_to_receiver_state_applied"
+    }
+  },
+  "statistical_protocol": {
+    "development_seed_count": 5,
+    "formal_minimum_seed_count": 20,
+    "confidence_level": 0.95,
+    "paired_runs": true
+  },
+  "unresolved_contract_interpretations": [
+    "Confirm the exact Kalman baseline intended by P07.",
+    "Confirm position RMSE as the primary pass metric for P07 through R10.",
+    "Confirm P11 as software wall-clock processing latency rather than simulated link delay."
+  ]
+}

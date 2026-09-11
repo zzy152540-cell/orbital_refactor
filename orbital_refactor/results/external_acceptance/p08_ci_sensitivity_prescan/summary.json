@@ -1,0 +1,1929 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "threshold_percent": 20.0,
+  "records": [
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 11.70176378452816,
+      "position_rmse_increase_percent": -2.713639547733009
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.028194264018582,
+      "position_rmse_increase_percent": 0.0002447756115106642
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.162262048665363,
+      "position_rmse_increase_percent": 1.1148602354987476
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.124212376223525,
+      "position_rmse_increase_percent": 0.7985220990921919
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.028187047541696,
+      "position_rmse_increase_percent": 0.00018477912000031493
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.635759925533394,
+      "position_rmse_increase_percent": 5.051436462005084
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 13.633726081458061,
+      "position_rmse_increase_percent": 13.348347675750391
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.028171000772817,
+      "position_rmse_increase_percent": 5.136916830384753e-05
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 11.338259528358977,
+      "position_rmse_increase_percent": -5.735748585548819
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 14.529754313967358,
+      "position_rmse_increase_percent": 20.797765319829256
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 12.028150921466308,
+      "position_rmse_increase_percent": -0.000115566576310435
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.028164822004586,
+      "outage_position_rmse_m": 10.898318503893842,
+      "position_rmse_increase_percent": -9.393339173768041
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 14.353429255796653,
+      "position_rmse_increase_percent": -6.072067003267663
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.281299348825216,
+      "position_rmse_increase_percent": -0.00014381512348959669
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.664620632476304,
+      "position_rmse_increase_percent": 2.5082864147088855
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 14.041372119261451,
+      "position_rmse_increase_percent": -8.114149162818027
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.28130177056847,
+      "position_rmse_increase_percent": -0.00012796738884466154
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 16.922253173503698,
+      "position_rmse_increase_percent": 10.73815420051524
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 14.38643516321469,
+      "position_rmse_increase_percent": -5.856078433204818
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.281313838165275,
+      "position_rmse_increase_percent": -4.899779879865751e-05
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.134648149120686,
+      "position_rmse_increase_percent": -0.9598199882703805
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.326945037796966,
+      "position_rmse_increase_percent": 0.29855868578560035
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 15.28126874652944,
+      "position_rmse_increase_percent": -0.00034407461103234775
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 15.281321325676352,
+      "outage_position_rmse_m": 16.411173915186016,
+      "position_rmse_increase_percent": 7.393683866926059
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 12.95475448999253,
+      "position_rmse_increase_percent": -3.3683665792563944
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.406325208201023,
+      "position_rmse_increase_percent": -2.6705338008418407e-05
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.660241153655278,
+      "position_rmse_increase_percent": 1.8939738779822861
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.539913508959087,
+      "position_rmse_increase_percent": 0.9964302879709146
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.406311193418563,
+      "position_rmse_increase_percent": -0.0001312438935002175
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 14.203497370338924,
+      "position_rmse_increase_percent": 5.94621088677059
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.66228633379227,
+      "position_rmse_increase_percent": 1.9092292112601101
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.406284050020215,
+      "position_rmse_increase_percent": -0.0003337109430328324
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.112209410638494,
+      "position_rmse_increase_percent": -2.1938845631049735
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.997740311775091,
+      "position_rmse_increase_percent": 4.411435320608375
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 13.406319191963366,
+      "position_rmse_increase_percent": -7.15814390823685e-05
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 13.40632878840644,
+      "outage_position_rmse_m": 15.10122784935477,
+      "position_rmse_increase_percent": 12.6425294180018
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 12.662655845964522,
+      "position_rmse_increase_percent": 4.833480004521136
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 12.078828104741369,
+      "position_rmse_increase_percent": 0.0
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 17.572728226708197,
+      "position_rmse_increase_percent": 45.48371807535101
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 13.072720922058371,
+      "position_rmse_increase_percent": 8.228387793074596
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 12.078828104735727,
+      "position_rmse_increase_percent": -4.6707422880872225e-11
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 24.08766653490515,
+      "position_rmse_increase_percent": 99.42055906441689
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 14.961524018559553,
+      "position_rmse_increase_percent": 23.86569200936491
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 12.078828104725662,
+      "position_rmse_increase_percent": -1.3003370060222678e-10
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 30.479330512779317,
+      "position_rmse_increase_percent": 152.33681817870308
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 18.909978305171897,
+      "position_rmse_increase_percent": 56.55474306939644
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 12.078828104728707,
+      "position_rmse_increase_percent": -1.0482698686865782e-10
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.078828104741369,
+      "outage_position_rmse_m": 33.07807731949263,
+      "position_rmse_increase_percent": 173.85171005545072
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 15.655874276766966,
+      "position_rmse_increase_percent": 3.8973489218533612
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 15.068598418750828,
+      "position_rmse_increase_percent": -2.899963024753303e-11
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 16.747978447585535,
+      "position_rmse_increase_percent": 11.14489869701544
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 16.498865662693845,
+      "position_rmse_increase_percent": 9.491707219156224
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 15.068598418751789,
+      "position_rmse_increase_percent": -2.2622069286591823e-11
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 18.19644889583904,
+      "position_rmse_increase_percent": 20.757408155431033
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 17.247178315604778,
+      "position_rmse_increase_percent": 14.457747404947773
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 15.068598418751453,
+      "position_rmse_increase_percent": -2.485008965926814e-11
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 18.038173301941725,
+      "position_rmse_increase_percent": 19.707041097401824
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 18.583207038881287,
+      "position_rmse_increase_percent": 23.324057901441034
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 15.06859841875518,
+      "position_rmse_increase_percent": -1.178846758029798e-13
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 15.068598418755197,
+      "outage_position_rmse_m": 19.89330842679773,
+      "position_rmse_increase_percent": 32.018306374383414
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 13.885193602427146,
+      "position_rmse_increase_percent": 5.433242133818101
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 13.16965439116664,
+      "position_rmse_increase_percent": -1.0183634087213477e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 15.078997401847245,
+      "position_rmse_increase_percent": 14.49804948533603
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 14.409326539310896,
+      "position_rmse_increase_percent": 9.413095524923431
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 13.16965439116664,
+      "position_rmse_increase_percent": -1.0183634087213477e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 15.570011886509311,
+      "position_rmse_increase_percent": 18.226427391679252
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 14.849964746842431,
+      "position_rmse_increase_percent": 12.75895559416748
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 13.1696543911727,
+      "position_rmse_increase_percent": 3.5838299032749944e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 16.46089358724467,
+      "position_rmse_increase_percent": 24.991082516819162
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 15.727021389283825,
+      "position_rmse_increase_percent": 19.418634097420973
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 13.16965439117278,
+      "position_rmse_increase_percent": 3.644527060086201e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 13.169654391167981,
+      "outage_position_rmse_m": 18.661022542136337,
+      "position_rmse_increase_percent": 41.69713181426427
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.064986089900943,
+      "position_rmse_increase_percent": 0.49904229580123466
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.005069230729816,
+      "position_rmse_increase_percent": -5.375944502974962e-05
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.260766822718765,
+      "position_rmse_increase_percent": 2.129858610179825
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.189057796630996,
+      "position_rmse_increase_percent": 1.5325360445269918
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.005100369414471,
+      "position_rmse_increase_percent": 0.00020561988312166652
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.785786130945919,
+      "position_rmse_increase_percent": 6.50316971642299
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.952341630882671,
+      "position_rmse_increase_percent": 7.890545392450762
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.005078845825722,
+      "position_rmse_increase_percent": 2.6332477402586414e-05
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 11.651388200066755,
+      "position_rmse_increase_percent": -2.946149560548552
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.781703112196828,
+      "position_rmse_increase_percent": 6.469158945842583
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 12.005116216157877,
+      "position_rmse_increase_percent": 0.00033762024548363506
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.00507568459188,
+      "outage_position_rmse_m": 10.929195069845656,
+      "position_rmse_increase_percent": -8.961881149379849
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.304105020676687,
+      "position_rmse_increase_percent": -2.7667990221549568
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.711153733291997,
+      "position_rmse_increase_percent": 0.00014439893195082053
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 15.378751908455298,
+      "position_rmse_increase_percent": 4.538191864625473
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 13.834439695251048,
+      "position_rmse_increase_percent": -5.959383452528203
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.711149735681884,
+      "position_rmse_increase_percent": 0.00011722488457056954
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 16.432915015859464,
+      "position_rmse_increase_percent": 11.7039427548416
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.797179143117946,
+      "position_rmse_increase_percent": 0.5849084195202334
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.711148198324517,
+      "position_rmse_increase_percent": 0.00010677458533134868
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.730841212185261,
+      "position_rmse_increase_percent": 0.13397147788646874
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.654940076437079,
+      "position_rmse_increase_percent": -0.381972048533515
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 14.711185854382297,
+      "position_rmse_increase_percent": 0.0003627443946144113
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 14.711132490573803,
+      "outage_position_rmse_m": 16.097703548232655,
+      "position_rmse_increase_percent": 9.425318265247771
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 12.742666425133935,
+      "position_rmse_increase_percent": -0.4261175825262331
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 12.797195912316287,
+      "position_rmse_increase_percent": -1.267136957346415e-05
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 13.291777550311297,
+      "position_rmse_increase_percent": 3.8647525374583003
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 13.071515104303717,
+      "position_rmse_increase_percent": 2.143575338902439
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 12.797199712654296,
+      "position_rmse_increase_percent": 1.702527298178474e-05
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 13.581763384055565,
+      "position_rmse_increase_percent": 6.130762989951279
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 13.182438694524404,
+      "position_rmse_increase_percent": 3.0103556626950363
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 12.797208198419163,
+      "position_rmse_increase_percent": 8.333482900133599e-05
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 12.568315686294232,
+      "position_rmse_increase_percent": -1.788531020139371
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 13.234620120308195,
+      "position_rmse_increase_percent": 3.418112326961382
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 12.797175191462548,
+      "position_rmse_increase_percent": -0.00017458848997209227
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "reference_position_rmse_m": 12.797197533896481,
+      "outage_position_rmse_m": 14.833881270825989,
+      "position_rmse_increase_percent": 15.915076183944622
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 12.772777074764722,
+      "position_rmse_increase_percent": 5.957757968520635
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 12.054593566012818,
+      "position_rmse_increase_percent": 0.0
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 17.552810201966963,
+      "position_rmse_increase_percent": 45.61096652363318
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 13.30481817400483,
+      "position_rmse_increase_percent": 10.371354298638012
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 12.054593566012818,
+      "position_rmse_increase_percent": 0.0
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 24.07036553917904,
+      "position_rmse_increase_percent": 99.67795187258697
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 15.330219671779842,
+      "position_rmse_increase_percent": 27.173260449049483
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 12.054593566026501,
+      "position_rmse_increase_percent": 1.1351089241597728e-10
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 30.470826403824816,
+      "position_rmse_increase_percent": 152.77356915404786
+    },
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 19.405002757220146,
+      "position_rmse_increase_percent": 60.97600181171892
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 12.05459356601875,
+      "position_rmse_increase_percent": 4.921801644415995e-11
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.054593566012818,
+      "outage_position_rmse_m": 33.06860160265426,
+      "position_rmse_increase_percent": 174.32365447715418
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 15.477699496826288,
+      "position_rmse_increase_percent": 4.452283744287256
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 14.817961792695414,
+      "position_rmse_increase_percent": 0.0
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 16.51877354274899,
+      "position_rmse_increase_percent": 11.478041135805858
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 16.37948726796096,
+      "position_rmse_increase_percent": 10.53805845305465
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 14.817961792695414,
+      "position_rmse_increase_percent": 0.0
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 17.981545796730497,
+      "position_rmse_increase_percent": 21.349656911617817
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 17.20715764372748,
+      "position_rmse_increase_percent": 16.12364699313662
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 14.817961792695414,
+      "position_rmse_increase_percent": 0.0
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 17.834365946552392,
+      "position_rmse_increase_percent": 20.356403910718203
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 18.535069149509035,
+      "position_rmse_increase_percent": 25.085146046509493
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 14.817961792695701,
+      "position_rmse_increase_percent": 1.9420336751353895e-12
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 14.817961792695414,
+      "outage_position_rmse_m": 19.702384733822772,
+      "position_rmse_increase_percent": 32.9628528502156
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 13.721493137020914,
+      "position_rmse_increase_percent": 5.911024869422067
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 12.955679688624768,
+      "position_rmse_increase_percent": 8.212905631921994e-12
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 14.884269955370927,
+      "position_rmse_increase_percent": 14.886060114937122
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 14.301796657353572,
+      "position_rmse_increase_percent": 10.39016864481363
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 12.955679688627063,
+      "position_rmse_increase_percent": 2.592755350578379e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 15.37777112802814,
+      "position_rmse_increase_percent": 18.695209341515746
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 14.757427292250348,
+      "position_rmse_increase_percent": 13.907009488732166
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 12.955679688626448,
+      "position_rmse_increase_percent": 2.1183537898696963e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 16.288203973066196,
+      "position_rmse_increase_percent": 25.722496731443268
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 15.758254610562858,
+      "position_rmse_increase_percent": 21.632017688736752
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 12.955679688627772,
+      "position_rmse_increase_percent": 3.139825358447641e-11
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "reference_position_rmse_m": 12.955679688623704,
+      "outage_position_rmse_m": 18.508246430072756,
+      "position_rmse_increase_percent": 42.858166262976724
+    }
+  ],
+  "groups": [
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -4.051357710085688,
+      "worst_position_rmse_increase_percent": -2.713639547733009,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 2.475171667088303e-05,
+      "worst_position_rmse_increase_percent": 0.0002447756115106642,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 1.8390401760633062,
+      "worst_position_rmse_increase_percent": 2.5082864147088855,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -2.10639892525164,
+      "worst_position_rmse_increase_percent": 0.9964302879709146,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -2.4810720781521367e-05,
+      "worst_position_rmse_increase_percent": 0.00018477912000031493,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 7.245267183096971,
+      "worst_position_rmse_increase_percent": 10.73815420051524,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 3.1338328179352275,
+      "worst_position_rmse_increase_percent": 13.348347675750391,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.00011044652450921412,
+      "worst_position_rmse_increase_percent": 5.136916830384753e-05,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -2.963151045641391,
+      "worst_position_rmse_increase_percent": -0.9598199882703805,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 8.502586442074412,
+      "worst_position_rmse_increase_percent": 20.797765319829256,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.00017707420880838374,
+      "worst_position_rmse_increase_percent": -7.15814390823685e-05,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 3.5476247037199395,
+      "worst_position_rmse_increase_percent": 12.6425294180018,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 4.721357020064199,
+      "worst_position_rmse_increase_percent": 5.433242133818101,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -1.3061088111582168e-11,
+      "worst_position_rmse_increase_percent": 0.0,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 23.708888752567493,
+      "worst_position_rmse_increase_percent": 45.48371807535101,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 9.044396845718085,
+      "worst_position_rmse_increase_percent": 9.491707219156224,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -2.650437541822584e-11,
+      "worst_position_rmse_increase_percent": -1.0183634087213477e-11,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 46.134798203842394,
+      "worst_position_rmse_increase_percent": 99.42055906441689,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 17.02746500282672,
+      "worst_position_rmse_increase_percent": 23.86569200936491,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -3.9681830409581655e-11,
+      "worst_position_rmse_increase_percent": 3.5838299032749944e-11,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 65.6783139309747,
+      "worst_position_rmse_increase_percent": 152.33681817870308,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 33.099145022752815,
+      "worst_position_rmse_increase_percent": 56.55474306939644,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -2.283320031453293e-11,
+      "worst_position_rmse_increase_percent": 3.644527060086201e-11,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "trace",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 82.5223827480328,
+      "worst_position_rmse_increase_percent": 173.85171005545072,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.897958102959985,
+      "worst_position_rmse_increase_percent": 0.49904229580123466,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 2.5989372449202255e-05,
+      "worst_position_rmse_increase_percent": 0.00014439893195082053,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 3.5109343374211996,
+      "worst_position_rmse_increase_percent": 4.538191864625473,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.761090689699591,
+      "worst_position_rmse_increase_percent": 2.143575338902439,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 0.00011329001355800693,
+      "worst_position_rmse_increase_percent": 0.00020561988312166652,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 8.112625153738623,
+      "worst_position_rmse_increase_percent": 11.7039427548416,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 3.8286031582220104,
+      "worst_position_rmse_increase_percent": 7.890545392450762,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 7.214729724509036e-05,
+      "worst_position_rmse_increase_percent": 0.00010677458533134868,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -1.5335697009338183,
+      "worst_position_rmse_increase_percent": 0.13397147788646874,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 3.1684330747568166,
+      "worst_position_rmse_increase_percent": 6.469158945842583,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 0.00017525871670865138,
+      "worst_position_rmse_increase_percent": 0.0003627443946144113,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": true,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 5.4595044332708484,
+      "worst_position_rmse_increase_percent": 15.915076183944622,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 5.440355527409987,
+      "worst_position_rmse_increase_percent": 5.957757968520635,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 2.7376352106406645e-12,
+      "worst_position_rmse_increase_percent": 8.212905631921994e-12,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 10.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 23.991689258125387,
+      "worst_position_rmse_increase_percent": 45.61096652363318,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 10.43319379883543,
+      "worst_position_rmse_increase_percent": 10.53805845305465,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 8.642517835261263e-12,
+      "worst_position_rmse_increase_percent": 2.592755350578379e-11,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 20.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 46.57427270857351,
+      "worst_position_rmse_increase_percent": 99.67795187258697,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 19.06797231030609,
+      "worst_position_rmse_increase_percent": 27.173260449049483,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 4.489814343822475e-11,
+      "worst_position_rmse_increase_percent": 1.1351089241597728e-10,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 40.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 66.28415659873644,
+      "worst_position_rmse_increase_percent": 152.77356915404786,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 35.89772184898839,
+      "worst_position_rmse_increase_percent": 60.97600181171892,
+      "threshold_met": false
+    },
+    {
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 2.7519434567923916e-11,
+      "worst_position_rmse_increase_percent": 4.921801644415995e-11,
+      "threshold_met": true
+    },
+    {
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "ci_objective": "logdet",
+      "reset_feedback": false,
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": 83.38155786344883,
+      "worst_position_rmse_increase_percent": 174.32365447715418,
+      "threshold_met": false
+    }
+  ]
+}

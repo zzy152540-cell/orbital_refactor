@@ -34,6 +34,8 @@ class FederatedCIHistory:
     fused_acceleration_history: Array
     local_state_history: dict[str, Array]
     local_covariance_history: dict[str, Array]
+    prefeedback_local_state_history: dict[str, Array]
+    prefeedback_local_covariance_history: dict[str, Array]
     local_output_valid_history: dict[str, Array]
     measurement_valid_history: dict[str, Array]
     nis_history: dict[str, Array]
@@ -208,6 +210,10 @@ def run_federated_ci_filter(
     fused_states[0] = initial_state
     fused_covariances[0] = initial_covariance
 
+    prefeedback_states = {name: values.copy() for name, values in local_states.items()}
+    prefeedback_covariances = {
+        name: values.copy() for name, values in local_covariances.items()
+    }
     previous_states = {name: initial_state.copy() for name in modalities}
     previous_covariances = {name: initial_covariance.copy() for name in modalities}
     ci_weight_history: list[dict[str, float] | None] = [None]
@@ -314,6 +320,8 @@ def run_federated_ci_filter(
 
             local_states[modality][index] = state
             local_covariances[modality][index] = covariance
+            prefeedback_states[modality][index] = state
+            prefeedback_covariances[modality][index] = covariance
             previous_states[modality] = state
             previous_covariances[modality] = covariance
 
@@ -363,6 +371,8 @@ def run_federated_ci_filter(
         fused_acceleration_history=acceleration_history,
         local_state_history=local_states,
         local_covariance_history=local_covariances,
+        prefeedback_local_state_history=prefeedback_states,
+        prefeedback_local_covariance_history=prefeedback_covariances,
         local_output_valid_history=local_output_valid,
         measurement_valid_history={
             name: np.asarray(valid_flags_by_modality[name], dtype=bool).copy()
