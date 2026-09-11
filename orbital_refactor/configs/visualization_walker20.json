@@ -1,0 +1,44 @@
+{
+  "schema_version": "v1.0",
+  "constellation": {
+    "total_satellites": 20,
+    "plane_count": 10,
+    "phasing": 1,
+    "altitude_km": 700.0,
+    "inclination_deg": 53.0
+  },
+  "simulation": {
+    "duration_s": 120.0,
+    "dt_s": 2.0,
+    "seed": 0,
+    "enable_absolute_navigation_dropout": true
+  },
+  "dynamics": {"process_noise_acceleration": 1e-8},
+  "measurements": {
+    "radar_enabled": true,
+    "infrared_enabled": true,
+    "optical_enabled": true,
+    "radar_range_sigma_m": 2.0,
+    "radar_range_rate_sigma_mps": 0.05,
+    "infrared_angle_sigma_deg": 0.05,
+    "optical_image_sigma": 0.001,
+    "absolute_navigation_sigma_m": 3.0
+  },
+  "visibility": {"maximum_range_km": 6000.0},
+  "filter": {
+    "replay_history_window_s": 10.0,
+    "max_pinned_age_s": 10.0
+  },
+  "integrity": {"policy": "validated_baseline"},
+  "communication": {"communication_profile": "mild"},
+  "topology": {"enable_link_suspension": true},
+  "cann": {
+    "cann_enabled": true,
+    "cann_node_limit": 3
+  },
+  "output": {
+    "output": "results/visualization_recordings/walker20_configured",
+    "open_after_run": true,
+    "auto_increment_output": true
+  }
+}

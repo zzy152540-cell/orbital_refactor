@@ -10,6 +10,7 @@ from visualization.data_contract import VisualDiagnosticEvent, VisualEdge
 
 
 COMMUNICATION_DEGRADATION_PROFILES = {
+    "nominal": (),
     "mild": ((60.0, 74.0, 0.10, 2.0), (76.0, 88.0, 0.25, 2.0)),
     "moderate": ((60.0, 74.0, 0.30, 2.0), (76.0, 88.0, 0.60, 4.0)),
     "aggressive": ((60.0, 74.0, 0.50, 4.0), (76.0, 88.0, 0.80, 6.0)),
@@ -175,10 +176,10 @@ def online_visualization_overlays(*, case, steps, dropout_nodes,
                 f"{links}{suffix}",
             ))
         d0, d1 = map(float, dropout_window)
-        if np.isclose(timestamp, d0):
+        if dropout_nodes and np.isclose(timestamp, d0):
             events.append(_event(timestamp, "ABS_NAV_DROPOUT_START", "WARNING",
                                  f"Absolute navigation lost on {', '.join(dropout_nodes)}"))
-        if np.isclose(timestamp, d1 + _step(timestamps)):
+        if dropout_nodes and np.isclose(timestamp, d1 + _step(timestamps)):
             events.append(_event(timestamp, "ABS_NAV_RECOVERED", "INFO",
                                  f"Absolute navigation restored on {', '.join(dropout_nodes)}"))
         edges_by_epoch.append(tuple(edges))

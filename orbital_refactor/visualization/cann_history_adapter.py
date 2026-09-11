@@ -34,14 +34,22 @@ class CANNVisualizationHistory:
 def build_cann_visualization_history(
     *, history, initial_state_by_node: Mapping[str, np.ndarray],
     absolute_position_observations: Iterable[AbsolutePositionObservation] = (),
+    cann_node_ids=None, progress_callback=None,
 ) -> CANNVisualizationHistory:
     """Create direction, RT and place-cell display state after filtering."""
     times = np.asarray(history.timestamps, dtype=float)
     nodes = tuple(history.node_ids)
-    posterior = history.active_state_history_by_node
+    selected_nodes = (
+        nodes if cann_node_ids is None else tuple(str(node) for node in cann_node_ids)
+    )
+    if not selected_nodes or not set(selected_nodes).issubset(nodes):
+        raise ValueError("CANN visualization nodes must be a nonempty history subset.")
+    posterior = {
+        node: history.active_state_history_by_node[node] for node in selected_nodes
+    }
     frames = {
         node: OrbitalPlaneFrame.from_state_eci(initial_state_by_node[node])
-        for node in nodes
+        for node in selected_nodes
     }
     masks = _absolute_navigation_masks(
         nodes, times, absolute_position_observations,
@@ -50,7 +58,7 @@ def build_cann_visualization_history(
         node: _posterior_anchor_confidence(
             history.active_covariance_history_by_node[node]
         )
-        for node in nodes
+        for node in selected_nodes
     }
     direction = run_orbital_direction_states(
         timestamps=times, posterior_state_history_by_node=posterior,
@@ -61,9 +69,11 @@ def build_cann_visualization_history(
         ),
         retain_activity=True,
     )
+    if progress_callback is not None:
+        progress_callback("direction_ring_complete")
     references = {
         node: _propagate_reference(initial_state_by_node[node], times)
-        for node in nodes
+        for node in selected_nodes
     }
     rt = run_orbital_rt_grid_states(
         timestamps=times, posterior_state_history_by_node=posterior,
@@ -71,6 +81,8 @@ def build_cann_visualization_history(
         anchor_mask_by_node=masks, anchor_confidence_by_node=confidence,
         retain_activity=True,
     )
+    if progress_callback is not None:
+        progress_callback("rt_line_complete")
     combined = build_navigation_brain_states(
         direction_by_node=direction, rt_by_node=rt,
     )
@@ -78,11 +90,23 @@ def build_cann_visualization_history(
     place = build_navigation_place_cell_histories(
         navigation_by_node=combined, config=place_config,
     )
+    if progress_callback is not None:
+        progress_callback("place_cells_complete")
 
     navigation_by_epoch, cann_by_epoch = [], []
     for index, timestamp in enumerate(times):
         navigation_items, cann_items = [], []
         for node in nodes:
+            if node not in direction:
+                navigation_items.append(VisualNavigationState(
+                    node_id=node,
+                    absolute_navigation_available=bool(masks[node][index]),
+                    last_absolute_navigation_timestamp=_last_available_timestamp(
+                        times, masks[node], index,
+                    ),
+                    status="CANN_NOT_RECORDED",
+                ))
+                continue
             direction_item = direction[node]
             rt_item = rt[node]
             place_item = place[node]
@@ -176,6 +200,8 @@ def build_cann_visualization_history(
             ))
         navigation_by_epoch.append(tuple(navigation_items))
         cann_by_epoch.append(tuple(cann_items))
+    if progress_callback is not None:
+        progress_callback("cann_snapshot_conversion_complete")
     return CANNVisualizationHistory(
         navigation_by_epoch=tuple(navigation_by_epoch),
         cann_by_epoch=tuple(cann_by_epoch),

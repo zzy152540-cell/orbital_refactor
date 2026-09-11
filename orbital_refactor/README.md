@@ -1336,6 +1336,42 @@ delay. `--communication-profile moderate` selects 30%/2 s followed by 60%/4 s;
 `aggressive` selects 50%/4 s followed by 80%/6 s. The latter two are stress
 tests rather than the default presentation case.
 
+The same simulation can be configured without editing Python. Copy or modify
+`configs/visualization_walker20.json`, then run:
+
+```powershell
+python -m experiments.run_v15_visualization_simulation `
+  --config configs/visualization_walker20.json
+```
+
+The versioned JSON groups constellation, simulation, dynamics, measurements,
+visibility, filter, integrity, communication, topology, CANN, and output
+settings. User-facing controls include Walker geometry, timing, enabled sensor
+modalities and noise, visibility range, process/absolute-navigation noise,
+replay resource bounds, fault switches and communication profile. Integrity
+remains on the validated fixed policy until stable user-level presets are
+defined. Relative output paths remain on the workspace drive when launched
+from the repository root.
+
+For an interactive setup form, launch:
+
+```powershell
+python -m experiments.run_v15_visualization_launcher
+```
+
+The launcher can load/save the same JSON format, edit the supported Walker and
+communication parameters, select an output directory, run the simulation on a
+background thread, open the completed replay automatically, or open an existing
+recording. Existing output directories are never overwritten implicitly. By
+default, a repeated run automatically selects `_001`, `_002`, and so on and
+shows the selected path in the form; this behavior can be disabled for strict
+path checking.
+For long-duration demonstrations, `CANN node limit` bounds full neural-activity
+generation to representative satellites (`0` means all nodes). Other nodes
+still retain filter estimates and navigation-availability status. The output
+recording includes `run_timing.json` with separate Direction Ring, RT Line,
+place-cell, snapshot-conversion, filtering, and write checkpoints.
+
 Paired recordings can be checked for display-layer non-intrusion with
 `experiments.run_v15_visualization_acceptance`. Full-window refresh performance
 can be measured with `experiments.run_v15_visualization_performance`; pass
@@ -1344,8 +1380,13 @@ can be measured with `experiments.run_v15_visualization_performance`; pass
 The V1/V2 window provides a common time cursor, playback controls, satellite
 selection, the 3-D Walker constellation and configured topology, selected-node
 truth/estimate trails, fleet and node position-error curves, and per-node
-navigation/status values, and synchronized RADAR/INFRARED/OPTICAL tabs. Raw
-matrices are shown only when recorded from the same measurement front end;
+navigation/status values, and synchronized RADAR/INFRARED/OPTICAL tabs.
+The 3-D ECI view includes a lightweight Earth sphere and latitude/longitude
+wireframe. Its layer controls independently toggle Earth, satellite markers,
+configured and active topology, delivered and delayed information flow, and
+the selected satellite's truth and estimate trajectories. The legend follows
+the currently visible layers.
+Raw matrices are shown only when recorded from the same measurement front end;
 absent images are explicitly marked rather than synthesized. CANN heatmaps are
 shown in a dedicated navigation-cell tab when `--include-cann` is enabled. The
 tab includes a direction Ring time-neuron heatmap, the current RT Line pair,

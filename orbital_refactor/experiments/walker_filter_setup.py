@@ -28,6 +28,10 @@ def build_walker_filter_case(
     absolute_navigation_dropout_windows_by_node=None,
     initial_position_sigma=10.0,
     initial_velocity_sigma=0.02,
+    relative_modalities=WALKER_FILTER_MODALITIES,
+    range_sigma=2.0, range_rate_sigma=0.05,
+    az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
+    absolute_sigma=3.0, process_noise_acceleration=1e-8,
 ):
     """Build a physical-modality filter case for a Walker constellation."""
 
@@ -36,16 +40,17 @@ def build_walker_filter_case(
     }
     return build_exact_transport_case(
         seed=seed, duration=duration, dt=dt,
-        range_sigma=2.0, range_rate_sigma=0.05,
-        az_el_sigma=np.deg2rad(0.05), optical_sigma=1e-3,
-        absolute_sigma=3.0, process_noise_acceleration=1e-8,
+        range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
+        az_el_sigma=az_el_sigma, optical_sigma=optical_sigma,
+        absolute_sigma=absolute_sigma,
+        process_noise_acceleration=process_noise_acceleration,
         packet_loss=0.0, delay=0.0, acknowledge_messages=True,
         node_count=len(truth_history_by_node), topology_type=topology_type,
         topology_override=topology,
         truth_initial_state_by_node=initial_truth,
         visibility_by_modality={
             modality: VisibilityConfig(maximum_range=maximum_range)
-            for modality in WALKER_FILTER_MODALITIES
+                for modality in relative_modalities
         },
         topology_inactive_windows_by_undirected_edge=(
             topology_inactive_windows_by_undirected_edge
@@ -53,7 +58,7 @@ def build_walker_filter_case(
         absolute_navigation_dropout_windows_by_node=(
             absolute_navigation_dropout_windows_by_node
         ),
-        relative_modalities=WALKER_FILTER_MODALITIES,
+        relative_modalities=tuple(relative_modalities),
         initial_position_sigma=initial_position_sigma,
         initial_velocity_sigma=initial_velocity_sigma,
     )

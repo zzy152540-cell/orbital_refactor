@@ -8,6 +8,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 import pyqtgraph as pg
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
 
 from visualization.replay_model import VisualizationReplayModel
 
@@ -71,24 +72,32 @@ class ModalityObservationPanel(QtWidgets.QWidget):
 class CANNObservationPanel(QtWidgets.QWidget):
     def __init__(self) -> None:
         super().__init__()
-        layout = QtWidgets.QGridLayout(self)
-        self.direction_plot = pg.PlotWidget(title="Direction Ring: time-neuron activity")
-        self.direction_image = pg.ImageItem()
-        self.direction_plot.addItem(self.direction_image)
-        self.direction_cursor = pg.InfiniteLine(
+        layout = QtWidgets.QVBoxLayout(self)
+        controls = QtWidgets.QHBoxLayout()
+        controls.addWidget(QtWidgets.QLabel("CANN view:"))
+        self.view_selector = QtWidgets.QComboBox()
+        self.view_selector.addItems(("Current neural activity", "Direction history"))
+        controls.addWidget(self.view_selector)
+        controls.addStretch(1)
+        layout.addLayout(controls)
+
+        self.views = QtWidgets.QStackedWidget()
+        layout.addWidget(self.views, 1)
+        self.view_selector.currentIndexChanged.connect(self.views.setCurrentIndex)
+
+        current = QtWidgets.QWidget()
+        current_layout = QtWidgets.QGridLayout(current)
+        self.direction_plot = self._activity_plot(
+            "Direction cells", "preferred orbital phase", "degree",
+        )
+        self.direction_curve = self.direction_plot.plot(
+            pen=pg.mkPen("#4aa3df", width=2),
+        )
+        self.direction_marker = pg.InfiniteLine(
             angle=90, movable=False, pen=pg.mkPen("#ff7f0e", width=2),
         )
-        self.direction_plot.addItem(self.direction_cursor)
-        self.direction_plot.setLabel("bottom", "simulation time", units="s")
-        self.direction_plot.setLabel("left", "ring neuron")
-        layout.addWidget(self.direction_plot, 0, 0, 1, 2)
-
-        self.rt_plot = pg.PlotWidget(title="RT Line CANN pair")
-        self.rt_image = pg.ImageItem()
-        self.rt_plot.addItem(self.rt_image)
-        self.rt_plot.setLabel("bottom", "line neuron")
-        self.rt_plot.setLabel("left", "R / T")
-        layout.addWidget(self.rt_plot, 1, 0)
+        self.direction_plot.addItem(self.direction_marker)
+        current_layout.addWidget(self.direction_plot, 0, 0)
 
         self.place_plot = pg.PlotWidget(title="RT place-cell activity")
         self.place_plot.setAspectLocked(True)
@@ -96,12 +105,61 @@ class CANNObservationPanel(QtWidgets.QWidget):
         self.place_plot.addItem(self.place_image)
         self.place_plot.setLabel("bottom", "along-track cell")
         self.place_plot.setLabel("left", "radial cell")
-        layout.addWidget(self.place_plot, 1, 1)
+        current_layout.addWidget(self.place_plot, 0, 1)
+
+        self.radial_plot = self._activity_plot(
+            "Radial Line CANN", "line neuron", None,
+        )
+        self.radial_curve = self.radial_plot.plot(
+            pen=pg.mkPen("#e85d75", width=2),
+        )
+        current_layout.addWidget(self.radial_plot, 1, 0)
+
+        self.along_plot = self._activity_plot(
+            "Along-track Line CANN", "line neuron", None,
+        )
+        self.along_curve = self.along_plot.plot(
+            pen=pg.mkPen("#55b76e", width=2),
+        )
+        current_layout.addWidget(self.along_plot, 1, 1)
+        self.views.addWidget(current)
+
+        history = QtWidgets.QWidget()
+        history_layout = QtWidgets.QVBoxLayout(history)
+        self.history_plot = pg.PlotWidget(
+            title="Direction Ring: time-neuron activity",
+        )
+        self.direction_image = pg.ImageItem()
+        self.history_plot.addItem(self.direction_image)
+        self.direction_cursor = pg.InfiniteLine(
+            angle=90, movable=False, pen=pg.mkPen("#ff7f0e", width=2),
+        )
+        self.history_plot.addItem(self.direction_cursor)
+        self.history_plot.setLabel("bottom", "simulation time", units="s")
+        self.history_plot.setLabel("left", "ring neuron")
+        history_layout.addWidget(self.history_plot)
+        self.views.addWidget(history)
 
         self.details = QtWidgets.QPlainTextEdit()
         self.details.setReadOnly(True)
-        self.details.setMaximumHeight(145)
-        layout.addWidget(self.details, 2, 0, 1, 2)
+        self.details.setMaximumHeight(125)
+        layout.addWidget(self.details)
+
+    @staticmethod
+    def _activity_plot(title: str, bottom_label: str, units: str | None):
+        plot = pg.PlotWidget(title=title)
+        plot.setLabel("bottom", bottom_label, units=units)
+        plot.setLabel("left", "normalized activity")
+        plot.showGrid(x=True, y=True, alpha=0.18)
+        plot.setYRange(0.0, 1.05, padding=0.0)
+        return plot
+
+    def _clear_activity(self) -> None:
+        self.direction_curve.clear()
+        self.radial_curve.clear()
+        self.along_curve.clear()
+        self.direction_image.clear()
+        self.place_image.clear()
 
     def set_frame(self, *, model, frame, node_id: str) -> None:
         snapshots = {
@@ -110,9 +168,7 @@ class CANNObservationPanel(QtWidgets.QWidget):
         }
         required = ("DIRECTION_RING", "RT_LINE_PAIR", "PLACE_CELL_RT")
         if any(name not in snapshots for name in required):
-            self.direction_image.clear()
-            self.rt_image.clear()
-            self.place_image.clear()
+            self._clear_activity()
             self.details.setPlainText(
                 "CANN navigation display is not enabled in this recording."
             )
@@ -120,6 +176,28 @@ class CANNObservationPanel(QtWidgets.QWidget):
         direction = snapshots["DIRECTION_RING"]
         rt = snapshots["RT_LINE_PAIR"]
         place = snapshots["PLACE_CELL_RT"]
+        direction_activity = np.asarray(direction.activity, dtype=float)
+        direction_peak = max(float(np.max(direction_activity)), 1e-15)
+        direction_axis = np.linspace(
+            0.0, 360.0, direction_activity.size, endpoint=False,
+        )
+        self.direction_curve.setData(
+            direction_axis, direction_activity / direction_peak,
+        )
+        self.direction_marker.setValue(
+            float(np.rad2deg(direction.decoded_value[0]) % 360.0),
+        )
+        self.direction_plot.setXRange(0.0, 360.0, padding=0.0)
+
+        rt_activity = np.asarray(rt.activity, dtype=float)
+        radial_peak = max(float(np.max(rt_activity[0])), 1e-15)
+        along_peak = max(float(np.max(rt_activity[1])), 1e-15)
+        self.radial_curve.setData(rt_activity[0] / radial_peak)
+        self.along_curve.setData(rt_activity[1] / along_peak)
+        self.radial_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
+        self.along_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
+        self.place_image.setImage(np.asarray(place.activity), autoLevels=True)
+
         history = model.cann_activity_history(node_id, "DIRECTION_RING")
         if history is not None:
             image = history
@@ -132,8 +210,6 @@ class CANNObservationPanel(QtWidgets.QWidget):
                 ),
             )
         self.direction_cursor.setValue(frame.timestamp)
-        self.rt_image.setImage(rt.activity.T, autoLevels=True)
-        self.place_image.setImage(place.activity, autoLevels=True)
         phase_deg = float(np.rad2deg(direction.decoded_value[0]))
         self.details.setPlainText(
             f"Node: {node_id}\n"
@@ -162,6 +238,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self._current_index = 0
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._advance)
+        self._earth_surface_km = self._build_earth_surface()
         self.setWindowTitle(
             f"Satellite Swarm State Estimation Replay - "
             f"{model.reader.manifest.scenario_id}"
@@ -204,6 +281,28 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         controls.addStretch(1)
         controls.addWidget(self.time_label)
         root.addLayout(controls)
+
+        layers = QtWidgets.QHBoxLayout()
+        layers.addWidget(QtWidgets.QLabel("3-D layers:"))
+        layer_defaults = (
+            ("earth", "Earth", True),
+            ("satellites", "Satellites", True),
+            ("configured", "Configured topology", False),
+            ("active", "Active topology", True),
+            ("delivered", "Delivered flow", True),
+            ("delayed", "Delayed flow", True),
+            ("truth", "Truth trajectory", True),
+            ("estimate", "Estimate trajectory", True),
+        )
+        self.layer_checkboxes = {}
+        for key, label, checked in layer_defaults:
+            checkbox = QtWidgets.QCheckBox(label)
+            checkbox.setChecked(checked)
+            checkbox.toggled.connect(self._refresh_selected_node)
+            self.layer_checkboxes[key] = checkbox
+            layers.addWidget(checkbox)
+        layers.addStretch(1)
+        root.addLayout(layers)
 
         self.timeline = QtWidgets.QSlider(QtCore.Qt.Orientation.Horizontal)
         self.timeline.setRange(0, len(self.model) - 1)
@@ -314,15 +413,38 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         }
         selected = self.node_selector.currentText()
         values = np.asarray(list(positions.values()))
-        axis.scatter(values[:, 0], values[:, 1], values[:, 2], s=22,
-                     color="#1f77b4", label="satellites")
+        if self._layer_visible("earth"):
+            self._draw_earth(axis)
+        legend_handles = []
+        if self._layer_visible("satellites"):
+            axis.scatter(values[:, 0], values[:, 1], values[:, 2], s=22,
+                         color="#1f77b4", label="satellites")
+            legend_handles.append(Line2D(
+                [], [], marker="o", linestyle="None", color="#1f77b4",
+                label="satellites",
+            ))
         edge_styles = {
             "CONFIGURED_TOPOLOGY": ("#9e9e9e", ":", 0.45),
             "ACTIVE_TOPOLOGY": ("#1f77b4", "-", 0.85),
             "ACTUAL_INFORMATION_FLOW": ("#2ca02c", "-", 1.0),
             "PENDING_INFORMATION_FLOW": ("#ffbf00", "--", 0.9),
         }
+        edge_layers = {
+            "CONFIGURED_TOPOLOGY": "configured",
+            "ACTIVE_TOPOLOGY": "active",
+            "ACTUAL_INFORMATION_FLOW": "delivered",
+            "PENDING_INFORMATION_FLOW": "delayed",
+        }
+        edge_labels = {
+            "CONFIGURED_TOPOLOGY": "configured topology",
+            "ACTIVE_TOPOLOGY": "active topology",
+            "ACTUAL_INFORMATION_FLOW": "delivered flow",
+            "PENDING_INFORMATION_FLOW": "delayed flow",
+        }
+        visible_edge_types = set()
         for edge in frame.edges:
+            if not self._layer_visible(edge_layers.get(edge.edge_type, "active")):
+                continue
             left, right = positions[edge.source_node_id], positions[edge.target_node_id]
             color, linestyle, alpha = edge_styles.get(
                 edge.edge_type, ("#7f7f7f", "--", 0.6)
@@ -335,22 +457,68 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
                 linewidth=(1.7 if edge.edge_type == "ACTUAL_INFORMATION_FLOW" else 0.8),
                 alpha=alpha,
             )
+            visible_edge_types.add(edge.edge_type)
+        for edge_type in edge_styles:
+            if edge_type not in visible_edge_types:
+                continue
+            color, linestyle, alpha = edge_styles[edge_type]
+            legend_handles.append(Line2D(
+                [], [], color=color, linestyle=linestyle, alpha=alpha,
+                linewidth=(1.7 if edge_type == "ACTUAL_INFORMATION_FLOW" else 0.8),
+                label=edge_labels[edge_type],
+            ))
         if selected:
             truth, estimate = self.model.node_position_history(selected)
             visible = slice(0, self._current_index + 1)
-            axis.plot(*(truth[visible].T / 1000.0), color="#2ca02c",
-                      linewidth=1.5, label=f"{selected} truth")
-            axis.plot(*(estimate[visible].T / 1000.0), color="#d62728",
-                      linestyle="--", linewidth=1.2, label="estimate")
+            if self._layer_visible("truth"):
+                axis.plot(*(truth[visible].T / 1000.0), color="#17becf",
+                          linewidth=1.8)
+                legend_handles.append(Line2D(
+                    [], [], color="#17becf", linewidth=1.8,
+                    label=f"{selected} truth",
+                ))
+            if self._layer_visible("estimate"):
+                axis.plot(*(estimate[visible].T / 1000.0), color="#d62728",
+                          linestyle="--", linewidth=1.4)
+                legend_handles.append(Line2D(
+                    [], [], color="#d62728", linestyle="--", linewidth=1.4,
+                    label=f"{selected} estimate",
+                ))
             point = positions[selected]
-            axis.scatter(*point, s=85, color="#ff7f0e", edgecolor="black")
+            if self._layer_visible("satellites"):
+                axis.scatter(*point, s=85, color="#ff7f0e", edgecolor="black")
         self._equalize_3d_axes(axis, values)
         axis.set_title("Walker constellation: configured / active / information flow")
         axis.set_xlabel("ECI x (km)")
         axis.set_ylabel("ECI y (km)")
         axis.set_zlabel("ECI z (km)")
-        axis.legend(loc="upper right", fontsize=8)
+        if legend_handles:
+            axis.legend(handles=legend_handles, loc="upper right", fontsize=7)
         self.orbit_canvas.draw_idle()
+
+    def _layer_visible(self, key: str) -> bool:
+        return self.layer_checkboxes[key].isChecked()
+
+    @staticmethod
+    def _build_earth_surface():
+        radius_km = 6378.137
+        longitude = np.linspace(0.0, 2.0 * np.pi, 25)
+        latitude = np.linspace(-0.5 * np.pi, 0.5 * np.pi, 13)
+        longitude, latitude = np.meshgrid(longitude, latitude)
+        cosine = np.cos(latitude)
+        return (
+            radius_km * cosine * np.cos(longitude),
+            radius_km * cosine * np.sin(longitude),
+            radius_km * np.sin(latitude),
+        )
+
+    def _draw_earth(self, axis) -> None:
+        x, y, z = self._earth_surface_km
+        axis.plot_surface(
+            x, y, z, color="#4f93ce", alpha=0.38,
+            edgecolor=(0.85, 0.94, 1.0, 0.28), linewidth=0.25,
+            antialiased=True, shade=True,
+        )
 
     @staticmethod
     def _equalize_3d_axes(axis, positions) -> None:
