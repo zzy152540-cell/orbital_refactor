@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Mapping
 
 import numpy as np
 
@@ -42,6 +42,42 @@ class Observation:
     frame: str
     valid_flag: bool
     metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class RawSensorFrame:
+    """Modality-independent external container for one raw 2-D sensor frame."""
+
+    timestamp: float
+    observer_id: str
+    target_id: str
+    modality: str
+    data: Array
+    data_kind: str
+    axes: Mapping[str, Array] = field(default_factory=dict)
+    calibration: Mapping[str, Any] = field(default_factory=dict)
+    valid_flag: bool = True
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        data = np.array(self.data, copy=True)
+        data.setflags(write=False)
+        axes = {}
+        for name, value in self.axes.items():
+            axis = np.array(value, dtype=float, copy=True).reshape(-1)
+            axis.setflags(write=False)
+            axes[str(name)] = axis
+        object.__setattr__(self, "data", data)
+        object.__setattr__(self, "axes", axes)
+        object.__setattr__(self, "calibration", dict(self.calibration))
+        object.__setattr__(self, "metadata", dict(self.metadata))
+
+    def visualization_payload(self) -> tuple[Array, str]:
+        return self.data, self.data_kind
+
+    def __getitem__(self, index: int):
+        """Preserve the former ``(data, kind)`` visualization payload access."""
+        return self.visualization_payload()[index]
 
 
 @dataclass

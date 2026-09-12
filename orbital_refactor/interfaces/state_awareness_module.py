@@ -6,6 +6,7 @@ from adapters.module_input_adapter import adapt_module_input, adapt_module_input
 from brain_inspired.orbital_phase_adapter import OrbitalPlaneFrame
 from brain_inspired.orbital_phase_sidecar import run_orbital_phase_sidecar
 from interfaces.data_objects import ModuleInput, ModuleOutput
+from interfaces.interface_contracts import validate_module_input
 from pipelines.centralized import run_centralized_filter
 from pipelines.federated_ci import run_federated_ci_filter
 
@@ -19,6 +20,7 @@ class StateAwarenessModule:
     """
 
     def run_history(self, module_input: ModuleInput):
+        validate_module_input(module_input)
         filter_config = module_input.config.get("filter", {})
         architecture = str(filter_config.get("architecture", "federated_ci")).lower()
         if architecture in {"centralized", "centralized_ekf"}:

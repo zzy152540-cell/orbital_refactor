@@ -21,6 +21,11 @@ from adapters.radar_range_doppler_adapter import (
     radar_frame_to_observation_message,
     render_radar_range_doppler_frame,
 )
+from adapters.raw_sensor_frame_adapter import (
+    raw_sensor_frame_from_infrared,
+    raw_sensor_frame_from_optical,
+    raw_sensor_frame_from_radar,
+)
 from experiments.inter_satellite_observation_factory import (
     target_pointing_quaternion,
 )
@@ -88,7 +93,7 @@ def replace_selected_link_with_raw_frontends(
             extracted = radar_frame_to_observation_message(
                 frame, config=radar_config,
             )
-            raw, kind = frame.power, "RANGE_DOPPLER_POWER_MAP"
+            raw = raw_sensor_frame_from_radar(frame, config=radar_config)
         elif modality == "INFRARED":
             quaternion = target_pointing_quaternion(observer, target)
             frame = render_infrared_point_source_frame(
@@ -100,7 +105,7 @@ def replace_selected_link_with_raw_frontends(
             extracted = infrared_frame_to_observation_message(
                 frame, config=infrared_config,
             )
-            raw, kind = frame.image, "INFRARED_POINT_SOURCE_IMAGE"
+            raw = raw_sensor_frame_from_infrared(frame, config=infrared_config)
         elif modality == "OPTICAL":
             quaternion = np.asarray(
                 message.metadata.get(
@@ -117,7 +122,7 @@ def replace_selected_link_with_raw_frontends(
             extracted = optical_frame_to_observation_message(
                 frame, config=optical_config,
             )
-            raw, kind = frame.image, "OPTICAL_POINT_SOURCE_IMAGE"
+            raw = raw_sensor_frame_from_optical(frame, config=optical_config)
         else:
             replaced.append(message)
             continue
@@ -133,7 +138,7 @@ def replace_selected_link_with_raw_frontends(
             },
         )
         replaced.append(preserved)
-        raw_by_information_id[preserved.information_id] = (raw, kind)
+        raw_by_information_id[preserved.information_id] = raw
     if not raw_by_information_id:
         raise ValueError("The selected raw capture link has no observations.")
     return tuple(replaced), raw_by_information_id

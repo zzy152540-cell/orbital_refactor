@@ -8,7 +8,9 @@ from typing import Iterable, Mapping
 import numpy as np
 
 from cooperative.topology import NetworkTopology
-from interfaces.data_objects import AbsolutePositionObservation, ObservationMessage
+from interfaces.data_objects import (
+    AbsolutePositionObservation, ObservationMessage, RawSensorFrame,
+)
 from visualization.data_contract import (
     VisualEdge,
     VisualNavigationState,
@@ -24,7 +26,7 @@ def network_history_visualization_frames(
     observation_messages: Iterable[ObservationMessage] = (),
     absolute_position_observations: Iterable[AbsolutePositionObservation] = (),
     raw_sensor_data_by_information_id: Mapping[
-        str, tuple[np.ndarray, str]
+        str, tuple[np.ndarray, str] | RawSensorFrame
     ] | None = None,
     navigation_by_epoch=None, cann_by_epoch=None,
     edges_by_epoch=None, events_by_epoch=None, metadata_by_epoch=None,
@@ -157,6 +159,7 @@ def _visual_observation(message, *, history, epoch_index, raw_payload=None):
     )[epoch_index].get(information_id)
     status = getattr(integrity, "status", "NOT_PROCESSED")
     covariance = np.asarray(message.covariance)
+    raw_data, raw_kind = _unpack_raw_payload(raw_payload)
     return VisualObservation(
         observer_id=message.observer_id, target_id=message.target_id,
         modality=message.modality, measurement=message.measurement,
@@ -164,14 +167,21 @@ def _visual_observation(message, *, history, epoch_index, raw_payload=None):
         visible=bool(message.metadata.get("geometrically_visible", message.valid_flag)),
         valid=bool(message.valid_flag), processing_status=str(status),
         frame=message.frame, nis=None if nis is None else float(nis),
-        raw_sensor_data=None if raw_payload is None else raw_payload[0],
-        raw_data_kind=None if raw_payload is None else raw_payload[1],
+        raw_sensor_data=raw_data, raw_data_kind=raw_kind,
         metadata={
             "information_id": information_id,
             "source_timestamp": message.source_timestamp,
             "arrival_timestamp": message.arrival_timestamp,
         },
     )
+
+
+def _unpack_raw_payload(raw_payload):
+    if raw_payload is None:
+        return None, None
+    if isinstance(raw_payload, RawSensorFrame):
+        return raw_payload.visualization_payload()
+    return raw_payload[0], raw_payload[1]
 
 
 def _last_absolute_timestamp(node_id, *, index, grouped):
