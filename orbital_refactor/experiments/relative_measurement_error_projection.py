@@ -42,9 +42,13 @@ class RelativeUpdateTruthDecomposition:
     unexplained_innovation: tuple[float, ...]
     active_error_norm_before: float
     active_error_norm_after: float
+    active_position_error_norm_before: float
+    active_position_error_norm_after: float
     neighbor_to_measurement_covariance_trace_ratio: float
     velocity_injection_risk: float
     position_injection_risk: float
+    predicted_position_covariance_reduction: float
+    predicted_position_covariance_reduction_fraction: float
 
     @property
     def active_error_norm_change(self) -> float:
@@ -171,6 +175,7 @@ def relative_update_truth_decomposition(
                 prior_covariance = np.asarray(
                     record["prior_active_covariance"], dtype=float
                 )
+                injected_covariance = gain @ innovation_covariance @ gain.T
                 output.append(RelativeUpdateTruthDecomposition(
                     node_id=node_id,
                     neighbor_id=neighbor_id,
@@ -189,6 +194,12 @@ def relative_update_truth_decomposition(
                     active_error_norm_after=float(
                         np.linalg.norm(active_error + correction)
                     ),
+                    active_position_error_norm_before=float(
+                        np.linalg.norm(active_error[:3])
+                    ),
+                    active_position_error_norm_after=float(
+                        np.linalg.norm(active_error[:3] + correction[:3])
+                    ),
                     neighbor_to_measurement_covariance_trace_ratio=float(
                         np.trace(record["projected_neighbor_covariance"])
                         / max(
@@ -203,6 +214,13 @@ def relative_update_truth_decomposition(
                     position_injection_risk=_subspace_injection_risk(
                         gain[:3], innovation_covariance,
                         prior_covariance[:3, :3],
+                    ),
+                    predicted_position_covariance_reduction=float(
+                        np.trace(injected_covariance[:3, :3])
+                    ),
+                    predicted_position_covariance_reduction_fraction=float(
+                        np.trace(injected_covariance[:3, :3])
+                        / max(np.trace(prior_covariance[:3, :3]), 1e-15)
                     ),
                 ))
     return tuple(output)

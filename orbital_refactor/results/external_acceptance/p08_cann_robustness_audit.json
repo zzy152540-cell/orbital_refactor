@@ -1,0 +1,97 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "records": [
+    {
+      "seed": 0,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": 0.5480812974446323,
+      "recovery_fault_cost_without_cann_m": 3570.764487290944,
+      "recovery_fault_cost_with_cann_m": 1.4621566714754195,
+      "recovery_fault_mitigation_m": 3569.3023306194686
+    },
+    {
+      "seed": 0,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": 1.0038697682901443e-05,
+      "recovery_fault_cost_without_cann_m": 0.0,
+      "recovery_fault_cost_with_cann_m": -8.639553293221525e-06,
+      "recovery_fault_mitigation_m": 8.639553293221525e-06
+    },
+    {
+      "seed": 0,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": -0.04060465445343242,
+      "recovery_fault_cost_without_cann_m": 108.32882151543463,
+      "recovery_fault_cost_with_cann_m": 0.34947139727775856,
+      "recovery_fault_mitigation_m": 107.97935011815687
+    },
+    {
+      "seed": 1,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": 0.5518975644224806,
+      "recovery_fault_cost_without_cann_m": 3575.2801386453352,
+      "recovery_fault_cost_with_cann_m": -0.07952007216201729,
+      "recovery_fault_mitigation_m": 3575.359658717497
+    },
+    {
+      "seed": 1,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": -5.1209725640433135e-05,
+      "recovery_fault_cost_without_cann_m": 0.0,
+      "recovery_fault_cost_with_cann_m": 1.9829155261774645e-05,
+      "recovery_fault_mitigation_m": -1.9829155261774645e-05
+    },
+    {
+      "seed": 1,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": 2.6470018516186578,
+      "recovery_fault_cost_without_cann_m": 97.80376119805504,
+      "recovery_fault_cost_with_cann_m": -5.5320436559162935,
+      "recovery_fault_mitigation_m": 103.33580485397134
+    },
+    {
+      "seed": 2,
+      "missing_modality": "opt",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": 0.7544866134419985,
+      "recovery_fault_cost_without_cann_m": 3577.6445378711805,
+      "recovery_fault_cost_with_cann_m": 0.8769742374026848,
+      "recovery_fault_mitigation_m": 3576.767563633778
+    },
+    {
+      "seed": 2,
+      "missing_modality": "ir",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": -1.9898065986012625e-06,
+      "recovery_fault_cost_without_cann_m": 0.0,
+      "recovery_fault_cost_with_cann_m": -9.772342378866483e-06,
+      "recovery_fault_mitigation_m": 9.772342378866483e-06
+    },
+    {
+      "seed": 2,
+      "missing_modality": "rad",
+      "outage_duration_seconds": 60.0,
+      "pure_outage_error_change_with_cann_m": 0.0,
+      "pure_outage_recovery_change_with_cann_m": 0.6894817177739254,
+      "recovery_fault_cost_without_cann_m": 103.05635938530521,
+      "recovery_fault_cost_with_cann_m": 1.1467085779845316,
+      "recovery_fault_mitigation_m": 101.90965080732069
+    }
+  ],
+  "conclusion": "Measurement-side CANN does not synthesize unavailable observations. Its tested benefit is causal rejection/reacquisition support when the first post-outage samples are impulsively corrupted."
+}

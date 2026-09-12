@@ -1,0 +1,524 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "node_id": "sat_p03_s01",
+  "run_count": 5,
+  "records": [
+    {
+      "seed": 0,
+      "node_id": "sat_p03_s01",
+      "variant": "full",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.6121012297559212,
+      "steady_position_rmse_m": 0.778725390513295,
+      "improvement_over_independent_percent": -25.548043739862038,
+      "steady_improvement_over_independent_percent": -15.208434522497441
+    },
+    {
+      "seed": 0,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p02_s01",
+      "retained_neighbors": [
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.2847698536101773,
+      "steady_position_rmse_m": 0.6712050517525484,
+      "improvement_over_independent_percent": -0.0559634838366968,
+      "steady_improvement_over_independent_percent": 0.698649102693197
+    },
+    {
+      "seed": 0,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p04_s01",
+      "retained_neighbors": [
+        "sat_p02_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.6825517560202043,
+      "steady_position_rmse_m": 0.7888711873592399,
+      "improvement_over_independent_percent": -31.034625841324537,
+      "steady_improvement_over_independent_percent": -16.709453220287855
+    },
+    {
+      "seed": 0,
+      "node_id": "sat_p03_s01",
+      "variant": "radar_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR"
+      ],
+      "position_rmse_m": 1.6126822722463496,
+      "steady_position_rmse_m": 0.7784013380534589,
+      "improvement_over_independent_percent": -25.593294463983177,
+      "steady_improvement_over_independent_percent": -15.16049262018413
+    },
+    {
+      "seed": 0,
+      "node_id": "sat_p03_s01",
+      "variant": "infrared_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "INFRARED"
+      ],
+      "position_rmse_m": 1.2836324586638832,
+      "steady_position_rmse_m": 0.6763502889339851,
+      "improvement_over_independent_percent": 0.03261514127138308,
+      "steady_improvement_over_independent_percent": -0.0625623951488595
+    },
+    {
+      "seed": 0,
+      "node_id": "sat_p03_s01",
+      "variant": "optical_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.2835767662263458,
+      "steady_position_rmse_m": 0.675877167460266,
+      "improvement_over_independent_percent": 0.036952385394067325,
+      "steady_improvement_over_independent_percent": 0.007433504548487889
+    },
+    {
+      "seed": 1,
+      "node_id": "sat_p03_s01",
+      "variant": "full",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.581788770182808,
+      "steady_position_rmse_m": 1.0513604269843855,
+      "improvement_over_independent_percent": -6.254892295724112,
+      "steady_improvement_over_independent_percent": -19.633180048367183
+    },
+    {
+      "seed": 1,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p02_s01",
+      "retained_neighbors": [
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.8207052689908305,
+      "steady_position_rmse_m": 1.2607121228284768,
+      "improvement_over_independent_percent": -22.303841009390894,
+      "steady_improvement_over_independent_percent": -43.45508591387979
+    },
+    {
+      "seed": 1,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p04_s01",
+      "retained_neighbors": [
+        "sat_p02_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.487897050042404,
+      "steady_position_rmse_m": 0.8668826812943418,
+      "improvement_over_independent_percent": 0.052179039613479056,
+      "steady_improvement_over_independent_percent": 1.3583455965120363
+    },
+    {
+      "seed": 1,
+      "node_id": "sat_p03_s01",
+      "variant": "radar_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR"
+      ],
+      "position_rmse_m": 1.5814948973000718,
+      "steady_position_rmse_m": 1.0509355908022135,
+      "improvement_over_independent_percent": -6.235151713357885,
+      "steady_improvement_over_independent_percent": -19.58483839295733
+    },
+    {
+      "seed": 1,
+      "node_id": "sat_p03_s01",
+      "variant": "infrared_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "INFRARED"
+      ],
+      "position_rmse_m": 1.488865215205133,
+      "steady_position_rmse_m": 0.8787405672224016,
+      "improvement_over_independent_percent": -0.012856372844496101,
+      "steady_improvement_over_independent_percent": 0.009049421941783816
+    },
+    {
+      "seed": 1,
+      "node_id": "sat_p03_s01",
+      "variant": "optical_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.4886495100659083,
+      "steady_position_rmse_m": 0.878748104335734,
+      "improvement_over_independent_percent": 0.001633378738011151,
+      "steady_improvement_over_independent_percent": 0.008191781865931787
+    },
+    {
+      "seed": 2,
+      "node_id": "sat_p03_s01",
+      "variant": "full",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.6184980366440465,
+      "steady_position_rmse_m": 1.1707908895935657,
+      "improvement_over_independent_percent": -1.7951855465390234,
+      "steady_improvement_over_independent_percent": 9.044475883739532
+    },
+    {
+      "seed": 2,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p02_s01",
+      "retained_neighbors": [
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.4091820505478758,
+      "steady_position_rmse_m": 1.2314955915428574,
+      "improvement_over_independent_percent": 11.369711265258942,
+      "steady_improvement_over_independent_percent": 4.328494549074432
+    },
+    {
+      "seed": 2,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p04_s01",
+      "retained_neighbors": [
+        "sat_p02_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.8737103341662071,
+      "steady_position_rmse_m": 1.352868479019054,
+      "improvement_over_independent_percent": -17.84672381957585,
+      "steady_improvement_over_independent_percent": -5.100631259833839
+    },
+    {
+      "seed": 2,
+      "node_id": "sat_p03_s01",
+      "variant": "radar_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR"
+      ],
+      "position_rmse_m": 1.618860319545468,
+      "steady_position_rmse_m": 1.171257294172506,
+      "improvement_over_independent_percent": -1.8179712740070764,
+      "steady_improvement_over_independent_percent": 9.008242194782097
+    },
+    {
+      "seed": 2,
+      "node_id": "sat_p03_s01",
+      "variant": "infrared_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "INFRARED"
+      ],
+      "position_rmse_m": 1.589407550758009,
+      "steady_position_rmse_m": 1.2867992309360154,
+      "improvement_over_independent_percent": 0.03445609735715988,
+      "steady_improvement_over_independent_percent": 0.032106909529712985
+    },
+    {
+      "seed": 2,
+      "node_id": "sat_p03_s01",
+      "variant": "optical_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.5900327407827,
+      "steady_position_rmse_m": 1.2870649113258203,
+      "improvement_over_independent_percent": -0.004865133268008342,
+      "steady_improvement_over_independent_percent": 0.011466930762449135
+    },
+    {
+      "seed": 3,
+      "node_id": "sat_p03_s01",
+      "variant": "full",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.5039943814668708,
+      "steady_position_rmse_m": 1.0269446991406945,
+      "improvement_over_independent_percent": -10.238638299572726,
+      "steady_improvement_over_independent_percent": -37.036323209764426
+    },
+    {
+      "seed": 3,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p02_s01",
+      "retained_neighbors": [
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.3685322400798388,
+      "steady_position_rmse_m": 0.738441495520426,
+      "improvement_over_independent_percent": -0.3096371067052055,
+      "steady_improvement_over_independent_percent": 1.4617753650090908
+    },
+    {
+      "seed": 3,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p04_s01",
+      "retained_neighbors": [
+        "sat_p02_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.5332450575399823,
+      "steady_position_rmse_m": 1.0038873623619973,
+      "improvement_over_independent_percent": -12.382632146475759,
+      "steady_improvement_over_independent_percent": -33.95953372167822
+    },
+    {
+      "seed": 3,
+      "node_id": "sat_p03_s01",
+      "variant": "radar_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR"
+      ],
+      "position_rmse_m": 1.5036235517268781,
+      "steady_position_rmse_m": 1.026884924949877,
+      "improvement_over_independent_percent": -10.211457502834701,
+      "steady_improvement_over_independent_percent": -37.028346893864146
+    },
+    {
+      "seed": 3,
+      "node_id": "sat_p03_s01",
+      "variant": "infrared_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "INFRARED"
+      ],
+      "position_rmse_m": 1.3645754542288193,
+      "steady_position_rmse_m": 0.7491846737165461,
+      "improvement_over_independent_percent": -0.0196156214959489,
+      "steady_improvement_over_independent_percent": 0.02819706150795774
+    },
+    {
+      "seed": 3,
+      "node_id": "sat_p03_s01",
+      "variant": "optical_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.3645761022075416,
+      "steady_position_rmse_m": 0.7494662192252377,
+      "improvement_over_independent_percent": -0.019663116548368293,
+      "steady_improvement_over_independent_percent": -0.009372596682603767
+    },
+    {
+      "seed": 4,
+      "node_id": "sat_p03_s01",
+      "variant": "full",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.2739690571298985,
+      "steady_position_rmse_m": 0.7679152333085344,
+      "improvement_over_independent_percent": 15.309502453562443,
+      "steady_improvement_over_independent_percent": 24.51415529797252
+    },
+    {
+      "seed": 4,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p02_s01",
+      "retained_neighbors": [
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.4250994560525465,
+      "steady_position_rmse_m": 0.8925550245524747,
+      "improvement_over_independent_percent": 5.262705313931767,
+      "steady_improvement_over_independent_percent": 12.262099970203
+    },
+    {
+      "seed": 4,
+      "node_id": "sat_p03_s01",
+      "variant": "without_sat_p04_s01",
+      "retained_neighbors": [
+        "sat_p02_s01"
+      ],
+      "retained_modalities": [
+        "RADAR",
+        "INFRARED",
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.3741472887063455,
+      "steady_position_rmse_m": 0.977627639928105,
+      "improvement_over_independent_percent": 8.649886799595686,
+      "steady_improvement_over_independent_percent": 3.8994865539120545
+    },
+    {
+      "seed": 4,
+      "node_id": "sat_p03_s01",
+      "variant": "radar_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "RADAR"
+      ],
+      "position_rmse_m": 1.273166289749008,
+      "steady_position_rmse_m": 0.7673213558851707,
+      "improvement_over_independent_percent": 15.362868560471535,
+      "steady_improvement_over_independent_percent": 24.572533276436275
+    },
+    {
+      "seed": 4,
+      "node_id": "sat_p03_s01",
+      "variant": "infrared_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "INFRARED"
+      ],
+      "position_rmse_m": 1.5049939962968846,
+      "steady_position_rmse_m": 1.0179949674060644,
+      "improvement_over_independent_percent": -0.048497753888861045,
+      "steady_improvement_over_independent_percent": -0.06861002871276249
+    },
+    {
+      "seed": 4,
+      "node_id": "sat_p03_s01",
+      "variant": "optical_only",
+      "retained_neighbors": [
+        "sat_p02_s01",
+        "sat_p04_s01"
+      ],
+      "retained_modalities": [
+        "OPTICAL"
+      ],
+      "position_rmse_m": 1.5043554564502761,
+      "steady_position_rmse_m": 1.0174343483193915,
+      "improvement_over_independent_percent": -0.006049111192368149,
+      "steady_improvement_over_independent_percent": -0.013501335099202635
+    }
+  ],
+  "mean_improvement_by_variant": {
+    "full": -5.7054514856270915,
+    "infrared_only": -0.0027797019201526163,
+    "optical_only": 0.001601680624666739,
+    "radar_only": -5.699001278742263,
+    "without_sat_p02_s01": -1.2074050041484168,
+    "without_sat_p04_s01": -10.512383193633395
+  },
+  "mean_steady_improvement_by_variant": {
+    "full": -7.663861319783399,
+    "infrared_only": -0.012363806176433489,
+    "optical_only": 0.0008436570790124817,
+    "radar_only": -7.638580487157446,
+    "without_sat_p02_s01": -4.9408133853800145,
+    "without_sat_p04_s01": -10.102357210275164
+  }
+}

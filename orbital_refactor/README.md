@@ -65,6 +65,50 @@ python -m experiments.run_external_single_robustness_acceptance \
   --seeds 0 1 2 3 4 --duration 120 --dt 2
 ```
 
+Audit the measurement-side CANN boundary around a finite outage and corrupted
+reacquisition with:
+
+```bash
+python -m experiments.run_external_single_cann_robustness_audit
+```
+
+The audit does not treat CANN as an observation source: missing measurements
+remain missing. It reports pure-outage invariance separately from rejection of
+impulsive samples during reacquisition.
+
+Run the paired Walker-20 P09 cooperative-accuracy pre-scan with:
+
+```bash
+python -m experiments.run_external_cooperative_accuracy_acceptance \
+  --seeds 0 1 2 3 4 --duration 120 --dt 2
+```
+
+For every seed, the independent and cooperative arms share truth, initial
+errors and absolute-navigation measurements. The independent arm disables
+inter-satellite observations and state messages; the cooperative arm enables
+the current three-modal Schmidt/exact-replay chain. The five-seed result is a
+development pre-scan and cannot satisfy the formal 20-seed sample-size gate.
+
+Investigate a persistently degraded node with the paired edge/modality
+ablation runner:
+
+```bash
+python -m experiments.run_external_cooperative_node_ablation \
+  --node sat_p03_s01 --seeds 0 1 2 3 4 --duration 120 --dt 2
+```
+
+The corresponding read-only predicted-information audit is available through:
+
+```bash
+python -m experiments.run_external_cooperative_information_gain_audit \
+  --node sat_p03_s01 --modality RADAR \
+  --seeds 0 1 2 3 4 --duration 120 --dt 2
+```
+
+It records predicted active-position covariance reduction alongside the
+truth-only post-run error change. The truth comparison is diagnostic and is
+never exposed to the online estimator or topology policy.
+
 ## V14 foundation and V15 transition
 
 The architecture is organized into three layers:
