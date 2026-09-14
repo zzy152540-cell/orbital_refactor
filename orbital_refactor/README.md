@@ -117,6 +117,18 @@ development estimates, not online per-epoch CANN latency. GUI rendering and
 recording I/O are excluded. The formal P06 decision uses the core-filter
 profile and keeps the optional CANN results visible as an engineering budget.
 
+Profile the nested core-filter costs without changing the production path:
+
+```bash
+python -m experiments.run_external_update_frequency_ablation \
+  --seeds 0 1 2 3 4 --duration 4 --dt 0.2
+```
+
+The three nested profiles retain, in order, the complete exact-replay
+three-modal path, the three-modal path without state-message replay, and only
+dynamics plus absolute navigation. Their timing differences are diagnostic
+engineering estimates and are not accuracy comparisons.
+
 Investigate a persistently degraded node with the paired edge/modality
 ablation runner:
 

@@ -444,7 +444,47 @@ class MultiNeighborReplayCoordinator:
             ))
         if staged:
             earliest = min(staged, key=lambda item: item[4])
-            self._replay_from(earliest[4], starting_state=earliest[3])
+            current_timestamp = float(self.state.timestamp)
+            current_epoch_observation_exists = any(
+                np.isclose(float(item.timestamp), current_timestamp)
+                for item in (
+                    *self._observations.values(),
+                    *self._absolute_observations.values(),
+                )
+            )
+            current_epoch_remote_already_applied = any(
+                np.isclose(
+                    float(item.event.timestamp), current_timestamp
+                )
+                and bool(
+                    set(_transport_event_tracking_ids(item.event))
+                    & set(self.state.transport_information_ids)
+                )
+                for item in self._remote_events.values()
+            )
+            current_epoch_only = (
+                bool(all_new_keys)
+                and not current_epoch_observation_exists
+                and not current_epoch_remote_already_applied
+                and all(
+                np.isclose(
+                    float(self._remote_events[key].event.timestamp),
+                    current_timestamp,
+                )
+                for key in all_new_keys
+                )
+            )
+            if current_epoch_only:
+                # The coordinator has already predicted to this epoch. Newly
+                # arrived transport events at exactly this timestamp cannot
+                # affect that completed propagation, so replay them directly
+                # on the current prior. Delayed or mixed-age bundles retain
+                # the original full-history replay path below.
+                self._replay_from(
+                    current_timestamp, starting_state=self.state
+                )
+            else:
+                self._replay_from(earliest[4], starting_state=earliest[3])
             mismatched = False
             for _, message, _, _, _, _, _ in staged:
                 neighbor_id = str(message.source_node_id)

@@ -95,6 +95,42 @@ def test_two_neighbor_batch_matches_sequential_result_with_one_replay():
     assert batched.performance.maximum_pinned_checkpoint_count == 2
 
 
+def test_current_epoch_transport_uses_zero_span_replay_after_prediction():
+    state, _, _ = _case()
+    neighbor = state.neighbor_state_by_id["left"]
+    covariance = state.neighbor_covariance("left")
+    accumulator = ExactTransportAccumulator(
+        source_node_id="left", lineage_id="left:current-epoch",
+        reference_timestamp=0.0, reference_state=neighbor,
+        reference_covariance=covariance,
+    )
+    transition = numerical_jacobian_discrete(
+        lambda value: rk4_step_absolute(value, 1.0), neighbor
+    )
+    updated = rk4_step_absolute(neighbor, 1.0)
+    accumulator.append(
+        timestamp=1.0, updated_state=updated,
+        error_transition=transition,
+        independent_process_noise=np.zeros((6, 6)),
+        information_ids=("left:prediction:1",),
+        event_error_transition=np.eye(6),
+        event_process_noise=np.zeros((6, 6)),
+    )
+    coordinator = MultiNeighborReplayCoordinator(
+        state, process_noise_acceleration=0.0
+    )
+    coordinator.advance(1.0)
+
+    result = coordinator.apply_state_message(accumulator.build_message())
+
+    assert result.accepted
+    assert coordinator.performance.replay_count == 1
+    assert coordinator.performance.maximum_replay_span == 0.0
+    assert np.allclose(
+        coordinator.state.neighbor_state_by_id["left"], updated
+    )
+
+
 def test_duplicate_message_is_idempotent_and_conflict_is_rejected():
     state, messages, _ = _case()
     coordinator = MultiNeighborReplayCoordinator(state)

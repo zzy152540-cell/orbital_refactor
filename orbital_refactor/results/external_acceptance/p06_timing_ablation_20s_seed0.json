@@ -1,0 +1,52 @@
+{
+  "walker_definition": [
+    20,
+    10,
+    1
+  ],
+  "duration_seconds": 20.0,
+  "dt_seconds": 0.2,
+  "timing_scope": "algorithm_only_without_cann_gui_or_io",
+  "records": [
+    {
+      "seed": 0,
+      "profile": "production_exact_replay_three_modal",
+      "epoch_count": 101,
+      "total_seconds": 21.163553899999897,
+      "mean_frequency_hz": 4.772355365135555,
+      "mean_epoch_latency_ms": 208.9017514851035,
+      "p95_epoch_latency_ms": 258.00299999991694,
+      "p99_epoch_latency_ms": 315.99099999993996,
+      "maximum_epoch_latency_ms": 347.7950999999848
+    },
+    {
+      "seed": 0,
+      "profile": "propagate_only_three_modal",
+      "epoch_count": 101,
+      "total_seconds": 9.658938000000035,
+      "mean_frequency_hz": 10.456636122936045,
+      "mean_epoch_latency_ms": 95.09582970295104,
+      "p95_epoch_latency_ms": 119.09400000013193,
+      "p99_epoch_latency_ms": 135.1067000000512,
+      "maximum_epoch_latency_ms": 158.23189999991882
+    },
+    {
+      "seed": 0,
+      "profile": "propagate_only_absolute_only",
+      "epoch_count": 101,
+      "total_seconds": 4.121374800000012,
+      "mean_frequency_hz": 24.50638558764413,
+      "mean_epoch_latency_ms": 40.716923762379295,
+      "p95_epoch_latency_ms": 53.56949999986682,
+      "p99_epoch_latency_ms": 64.5622000001822,
+      "maximum_epoch_latency_ms": 66.50700000000143
+    }
+  ],
+  "mean_latency_by_profile_ms": {
+    "production_exact_replay_three_modal": 208.9017514851035,
+    "propagate_only_three_modal": 95.09582970295104,
+    "propagate_only_absolute_only": 40.716923762379295
+  },
+  "exact_replay_increment_ms": 113.80592178215245,
+  "relative_measurement_increment_ms": 54.37890594057174
+}

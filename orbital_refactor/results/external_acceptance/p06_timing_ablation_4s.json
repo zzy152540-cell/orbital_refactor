@@ -1,0 +1,184 @@
+{
+  "walker_definition": [
+    20,
+    10,
+    1
+  ],
+  "duration_seconds": 4.0,
+  "dt_seconds": 0.2,
+  "timing_scope": "algorithm_only_without_cann_gui_or_io",
+  "records": [
+    {
+      "seed": 0,
+      "profile": "production_exact_replay_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 3.5389835000000858,
+      "mean_frequency_hz": 5.933907292870818,
+      "mean_epoch_latency_ms": 167.87638571423443,
+      "p95_epoch_latency_ms": 193.96610000012515,
+      "p99_epoch_latency_ms": 194.81433999981164,
+      "maximum_epoch_latency_ms": 195.02639999973326
+    },
+    {
+      "seed": 0,
+      "profile": "propagate_only_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 1.9327971000002435,
+      "mean_frequency_hz": 10.865082527285121,
+      "mean_epoch_latency_ms": 91.42339999995048,
+      "p95_epoch_latency_ms": 103.05809999999838,
+      "p99_epoch_latency_ms": 113.68506000007984,
+      "maximum_epoch_latency_ms": 116.34180000010019
+    },
+    {
+      "seed": 0,
+      "profile": "propagate_only_absolute_only",
+      "epoch_count": 21,
+      "total_seconds": 0.9194330999998783,
+      "mean_frequency_hz": 22.840160964405978,
+      "mean_epoch_latency_ms": 43.68323809525724,
+      "p95_epoch_latency_ms": 58.94619999980932,
+      "p99_epoch_latency_ms": 63.714679999793596,
+      "maximum_epoch_latency_ms": 64.90679999978965
+    },
+    {
+      "seed": 1,
+      "profile": "production_exact_replay_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 3.620894899999712,
+      "mean_frequency_hz": 5.799671235970331,
+      "mean_epoch_latency_ms": 171.73833333329944,
+      "p95_epoch_latency_ms": 190.20629999977245,
+      "p99_epoch_latency_ms": 206.9570200001181,
+      "maximum_epoch_latency_ms": 211.14470000020447
+    },
+    {
+      "seed": 1,
+      "profile": "propagate_only_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 1.903041299999586,
+      "mean_frequency_hz": 11.034968079780805,
+      "mean_epoch_latency_ms": 90.1183619048208,
+      "p95_epoch_latency_ms": 96.73780000002807,
+      "p99_epoch_latency_ms": 100.71644000008746,
+      "maximum_epoch_latency_ms": 101.7111000001023
+    },
+    {
+      "seed": 1,
+      "profile": "propagate_only_absolute_only",
+      "epoch_count": 21,
+      "total_seconds": 0.813007899999775,
+      "mean_frequency_hz": 25.83000730989922,
+      "mean_epoch_latency_ms": 38.624585714301034,
+      "p95_epoch_latency_ms": 43.12210000034611,
+      "p99_epoch_latency_ms": 46.80746000021827,
+      "maximum_epoch_latency_ms": 47.72880000018631
+    },
+    {
+      "seed": 2,
+      "profile": "production_exact_replay_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 3.4563594999999623,
+      "mean_frequency_hz": 6.075756876563398,
+      "mean_epoch_latency_ms": 163.93156666656847,
+      "p95_epoch_latency_ms": 187.53659999993033,
+      "p99_epoch_latency_ms": 188.63715999968917,
+      "maximum_epoch_latency_ms": 188.91229999962889
+    },
+    {
+      "seed": 2,
+      "profile": "propagate_only_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 1.9225413999997727,
+      "mean_frequency_hz": 10.92304176128664,
+      "mean_epoch_latency_ms": 91.03496666663584,
+      "p95_epoch_latency_ms": 95.5349999999271,
+      "p99_epoch_latency_ms": 95.83884000012404,
+      "maximum_epoch_latency_ms": 95.91480000017327
+    },
+    {
+      "seed": 2,
+      "profile": "propagate_only_absolute_only",
+      "epoch_count": 21,
+      "total_seconds": 0.8120567000000847,
+      "mean_frequency_hz": 25.860263205756212,
+      "mean_epoch_latency_ms": 38.55893809523401,
+      "p95_epoch_latency_ms": 41.471399999863934,
+      "p99_epoch_latency_ms": 41.598200000225916,
+      "maximum_epoch_latency_ms": 41.62990000031641
+    },
+    {
+      "seed": 3,
+      "profile": "production_exact_replay_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 3.3812488999997186,
+      "mean_frequency_hz": 6.210722907740317,
+      "mean_epoch_latency_ms": 160.37939523812383,
+      "p95_epoch_latency_ms": 184.0194999999767,
+      "p99_epoch_latency_ms": 190.9311800000978,
+      "maximum_epoch_latency_ms": 192.6591000001281
+    },
+    {
+      "seed": 3,
+      "profile": "propagate_only_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 1.88217080000004,
+      "mean_frequency_hz": 11.157329611106258,
+      "mean_epoch_latency_ms": 89.11301904767502,
+      "p95_epoch_latency_ms": 94.03269999984332,
+      "p99_epoch_latency_ms": 94.15877999981603,
+      "maximum_epoch_latency_ms": 94.19029999980921
+    },
+    {
+      "seed": 3,
+      "profile": "propagate_only_absolute_only",
+      "epoch_count": 21,
+      "total_seconds": 0.8168548999997256,
+      "mean_frequency_hz": 25.708360199598552,
+      "mean_epoch_latency_ms": 38.78849047623589,
+      "p95_epoch_latency_ms": 41.906099999778235,
+      "p99_epoch_latency_ms": 42.98081999995702,
+      "maximum_epoch_latency_ms": 43.24950000000172
+    },
+    {
+      "seed": 4,
+      "profile": "production_exact_replay_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 3.456276500000058,
+      "mean_frequency_hz": 6.075902781504792,
+      "mean_epoch_latency_ms": 163.82385238096373,
+      "p95_epoch_latency_ms": 187.4496000000363,
+      "p99_epoch_latency_ms": 197.54680000005465,
+      "maximum_epoch_latency_ms": 200.07110000005923
+    },
+    {
+      "seed": 4,
+      "profile": "propagate_only_three_modal",
+      "epoch_count": 21,
+      "total_seconds": 1.9313465000000178,
+      "mean_frequency_hz": 10.873243097496905,
+      "mean_epoch_latency_ms": 91.41146190471599,
+      "p95_epoch_latency_ms": 97.8517999997166,
+      "p99_epoch_latency_ms": 98.62707999973281,
+      "maximum_epoch_latency_ms": 98.82089999973687
+    },
+    {
+      "seed": 4,
+      "profile": "propagate_only_absolute_only",
+      "epoch_count": 21,
+      "total_seconds": 0.8260722999998507,
+      "mean_frequency_hz": 25.42150366257747,
+      "mean_epoch_latency_ms": 39.23922380956702,
+      "p95_epoch_latency_ms": 42.803100000128325,
+      "p99_epoch_latency_ms": 43.9204600001176,
+      "maximum_epoch_latency_ms": 44.19980000011492
+    }
+  ],
+  "mean_latency_by_profile_ms": {
+    "production_exact_replay_three_modal": 165.54990666663798,
+    "propagate_only_three_modal": 90.62024190475964,
+    "propagate_only_absolute_only": 39.778895238119034
+  },
+  "exact_replay_increment_ms": 74.92966476187834,
+  "relative_measurement_increment_ms": 50.841346666640604
+}
