@@ -131,6 +131,36 @@ def test_current_epoch_transport_uses_zero_span_replay_after_prediction():
     )
 
 
+def test_delayed_transport_closes_historical_endpoint_without_overwriting_current_covariance():
+    state, messages, _ = _case()
+    message = messages["left"]
+
+    in_order = MultiNeighborReplayCoordinator(
+        state, process_noise_acceleration=0.0
+    )
+    assert in_order.apply_state_message(message).accepted
+    in_order.advance(1.0)
+
+    delayed = MultiNeighborReplayCoordinator(
+        state, process_noise_acceleration=0.0
+    )
+    delayed.advance(1.0)
+    assert delayed.apply_state_message(message).accepted
+
+    assert np.allclose(
+        delayed.state.joint_covariance,
+        in_order.state.joint_covariance,
+        rtol=1e-10,
+        atol=1e-10,
+    )
+    assert not np.allclose(
+        delayed.state.neighbor_covariance("left"),
+        message.covariance,
+        rtol=1e-10,
+        atol=1e-10,
+    )
+
+
 def test_duplicate_message_is_idempotent_and_conflict_is_rejected():
     state, messages, _ = _case()
     coordinator = MultiNeighborReplayCoordinator(state)

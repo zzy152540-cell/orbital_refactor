@@ -33,6 +33,9 @@ class StateSyncLatencyRecord:
     endpoint_state_max_abs_error: float | None
     endpoint_covariance_max_abs_error: float | None
     endpoint_covariance_relative_fro_error: float | None
+    reference_state_max_abs_error: float | None
+    reference_covariance_max_abs_error: float | None
+    reference_covariance_relative_fro_error: float | None
 
 
 @dataclass(frozen=True)
@@ -209,6 +212,15 @@ def _run_scenario(*, seed, scenario, delay, exercise_resync, case, history_windo
                 ),
                 endpoint_covariance_relative_fro_error=item.get(
                     "endpoint_covariance_relative_fro_error"
+                ),
+                reference_state_max_abs_error=item.get(
+                    "reference_state_max_abs_error"
+                ),
+                reference_covariance_max_abs_error=item.get(
+                    "reference_covariance_max_abs_error"
+                ),
+                reference_covariance_relative_fro_error=item.get(
+                    "reference_covariance_relative_fro_error"
                 ),
             ))
     return records, rejection_counts

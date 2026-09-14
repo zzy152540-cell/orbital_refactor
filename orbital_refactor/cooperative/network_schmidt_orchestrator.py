@@ -318,6 +318,9 @@ class NetworkSchmidtOrchestrator:
                     "current_timestamp": timestamp,
                     "message_timestamp": float(message.timestamp),
                     "reference_timestamp": message.reference_timestamp,
+                    "message_age_seconds": (
+                        timestamp - float(message.timestamp)
+                    ),
                     "arrival_timestamp": message.arrival_timestamp,
                     "lineage_id": message.lineage_id,
                     "information_ids": "|".join(message.information_ids),

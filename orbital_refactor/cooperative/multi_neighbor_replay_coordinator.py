@@ -523,17 +523,21 @@ class MultiNeighborReplayCoordinator:
                             diagnostics=endpoint_diagnostics.get(index, {}),
                         )
             else:
-                for _, message, _, _, _, _, _ in staged:
-                    self.state = _snap_neighbor_endpoint(
-                        self.state, message
-                    )
-                self._posterior_states[float(self.state.timestamp)] = (
-                    self.state
-                )
                 for index, message, _, _, _, link_key, new_keys in staged:
-                    self._pinned_checkpoints[link_key] = (
-                        float(message.timestamp), self._posterior_states[float(message.timestamp)]
+                    message_timestamp = float(message.timestamp)
+                    endpoint_state = _snap_neighbor_endpoint(
+                        self._posterior_states[message_timestamp], message
                     )
+                    # ACK references the message endpoint, not the receiver's
+                    # later application epoch.  In particular, never write a
+                    # delayed message covariance directly into the current
+                    # propagated state.
+                    self._posterior_states[message_timestamp] = endpoint_state
+                    self._pinned_checkpoints[link_key] = (
+                        message_timestamp, endpoint_state,
+                    )
+                    if np.isclose(message_timestamp, float(self.state.timestamp)):
+                        self.state = endpoint_state
                     self._resync_required.pop(link_key, None)
                     results[index] = CoordinatorMessageResult(True, "accepted", len(new_keys))
                 self._enforce_resource_limits(float(self.state.timestamp))
@@ -595,6 +599,7 @@ class MultiNeighborReplayCoordinator:
         candidates = [self._checkpoints.get(reference_timestamp), self._posterior_states.get(reference_timestamp)]
         if pinned is not None and np.isclose(pinned[0], reference_timestamp): candidates.append(pinned[1])
         last_reason = "history_unavailable"
+        best_diagnostics = {}
         for checkpoint in candidates:
             if checkpoint is None: continue
             validation = apply_exact_transport_state_message(
@@ -603,7 +608,24 @@ class MultiNeighborReplayCoordinator:
             if validation.accepted:
                 return checkpoint, reference_timestamp, link_key
             last_reason = validation.reason
-        return CoordinatorMessageResult(False, last_reason)
+            diagnostics = _reference_mismatch_diagnostics(
+                checkpoint, message
+            )
+            if (
+                not best_diagnostics
+                or diagnostics.get(
+                    "reference_covariance_relative_fro_error",
+                    float("inf"),
+                )
+                < best_diagnostics.get(
+                    "reference_covariance_relative_fro_error",
+                    float("inf"),
+                )
+            ):
+                best_diagnostics = diagnostics
+        return CoordinatorMessageResult(
+            False, last_reason, diagnostics=best_diagnostics
+        )
 
     @property
     def checkpoint_timestamps(self) -> tuple[float, ...]:
@@ -980,6 +1002,40 @@ def _snap_neighbor_endpoint(state, message):
     if np.min(np.linalg.eigvalsh(covariance)) < -1e-7:
         raise ValueError("Endpoint covariance snapping broke joint PSD.")
     return replace(state, joint_covariance=covariance)
+
+
+def _reference_mismatch_diagnostics(state, message):
+    neighbor_id = str(message.source_node_id)
+    if (
+        message.reference_state_estimate is None
+        or message.reference_covariance is None
+        or neighbor_id not in state.neighbor_ids
+    ):
+        return {}
+    reference_state = np.asarray(
+        message.reference_state_estimate, dtype=float
+    ).reshape(6)
+    reference_covariance = np.asarray(
+        message.reference_covariance, dtype=float
+    ).reshape(6, 6)
+    state_delta = (
+        state.neighbor_state_by_id[neighbor_id] - reference_state
+    )
+    covariance_delta = (
+        state.neighbor_covariance(neighbor_id) - reference_covariance
+    )
+    scale = max(float(np.linalg.norm(reference_covariance)), 1e-30)
+    return {
+        "reference_state_max_abs_error": float(
+            np.max(np.abs(state_delta))
+        ),
+        "reference_covariance_max_abs_error": float(
+            np.max(np.abs(covariance_delta))
+        ),
+        "reference_covariance_relative_fro_error": float(
+            np.linalg.norm(covariance_delta) / scale
+        ),
+    }
 
 
 def _relative_observation_batches(observations, *, enabled, start_time):
