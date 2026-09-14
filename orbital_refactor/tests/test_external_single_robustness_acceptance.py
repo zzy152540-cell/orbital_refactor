@@ -21,3 +21,23 @@ def test_short_p08_pairs_each_full_modality_outage_with_reference():
         assert run.remaining_modality_valid_count > 0
         assert run.finite
         assert np.isfinite(run.position_rmse_increase_percent)
+        assert (
+            run.dropout_optical_valid_count
+            + run.dropout_infrared_valid_count
+            + run.dropout_radar_valid_count
+            == run.remaining_modality_valid_count
+        )
+        assert np.isclose(
+            run.dropout_mean_ci_weight_optical
+            + run.dropout_mean_ci_weight_infrared
+            + run.dropout_mean_ci_weight_radar,
+            1.0,
+        )
+        assert np.all(np.isfinite([
+            run.reference_local_position_rmse_optical_m,
+            run.reference_local_position_rmse_infrared_m,
+            run.reference_local_position_rmse_radar_m,
+            run.dropout_local_position_rmse_optical_m,
+            run.dropout_local_position_rmse_infrared_m,
+            run.dropout_local_position_rmse_radar_m,
+        ]))

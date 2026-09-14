@@ -40,6 +40,21 @@ class SingleRobustnessRun:
     acceleration_rmse_increase_percent: float
     missing_modality_valid_count: int
     remaining_modality_valid_count: int
+    dropout_optical_valid_count: int
+    dropout_infrared_valid_count: int
+    dropout_radar_valid_count: int
+    reference_mean_ci_weight_optical: float
+    reference_mean_ci_weight_infrared: float
+    reference_mean_ci_weight_radar: float
+    dropout_mean_ci_weight_optical: float
+    dropout_mean_ci_weight_infrared: float
+    dropout_mean_ci_weight_radar: float
+    reference_local_position_rmse_optical_m: float
+    reference_local_position_rmse_infrared_m: float
+    reference_local_position_rmse_radar_m: float
+    dropout_local_position_rmse_optical_m: float
+    dropout_local_position_rmse_infrared_m: float
+    dropout_local_position_rmse_radar_m: float
     finite: bool
 
 
@@ -144,6 +159,10 @@ def _compare(seed, modality, reference, dropout, *, duration, dt):
         degraded[_VALID_COUNT_KEYS[name]]
         for name in _MODALITY_NAMES if name != modality
     )
+    reference_weights = _mean_ci_weights(reference["ci_weight_history"])
+    dropout_weights = _mean_ci_weights(dropout["ci_weight_history"])
+    reference_local_rmse = _local_position_rmse(reference)
+    dropout_local_rmse = _local_position_rmse(dropout)
     values = (
         ref["position_rmse_m"], degraded["position_rmse_m"],
         ref["velocity_rmse_mps"], degraded["velocity_rmse_mps"],
@@ -165,6 +184,21 @@ def _compare(seed, modality, reference, dropout, *, duration, dt):
             degraded[_VALID_COUNT_KEYS[modality]]
         ),
         remaining_modality_valid_count=int(remaining),
+        dropout_optical_valid_count=int(degraded["optical_valid_count"]),
+        dropout_infrared_valid_count=int(degraded["infrared_valid_count"]),
+        dropout_radar_valid_count=int(degraded["radar_valid_count"]),
+        reference_mean_ci_weight_optical=reference_weights["opt"],
+        reference_mean_ci_weight_infrared=reference_weights["ir"],
+        reference_mean_ci_weight_radar=reference_weights["rad"],
+        dropout_mean_ci_weight_optical=dropout_weights["opt"],
+        dropout_mean_ci_weight_infrared=dropout_weights["ir"],
+        dropout_mean_ci_weight_radar=dropout_weights["rad"],
+        reference_local_position_rmse_optical_m=reference_local_rmse["opt"],
+        reference_local_position_rmse_infrared_m=reference_local_rmse["ir"],
+        reference_local_position_rmse_radar_m=reference_local_rmse["rad"],
+        dropout_local_position_rmse_optical_m=dropout_local_rmse["opt"],
+        dropout_local_position_rmse_infrared_m=dropout_local_rmse["ir"],
+        dropout_local_position_rmse_radar_m=dropout_local_rmse["rad"],
         finite=bool(np.all(np.isfinite(values))),
     )
 
@@ -186,6 +220,27 @@ def _summarize(modality, runs, threshold):
         worst_position_rmse_increase_percent=float(np.max(increases)),
         threshold_met=bool(mean <= threshold),
     )
+
+
+def _mean_ci_weights(history):
+    samples = {name: [] for name in _MODALITY_NAMES}
+    for weights in history or ():
+        if not weights:
+            continue
+        for name in samples:
+            samples[name].append(float(weights.get(name, 0.0)))
+    return {
+        name: float(np.mean(values)) if values else 0.0
+        for name, values in samples.items()
+    }
+
+
+def _local_position_rmse(result):
+    errors = result["local_position_error_by_modality"]
+    return {
+        name: float(np.sqrt(np.mean(np.asarray(errors[name]) ** 2)))
+        for name in _MODALITY_NAMES
+    }
 
 
 def _acceleration_rmse(result):
