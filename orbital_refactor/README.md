@@ -129,6 +129,20 @@ three-modal path, the three-modal path without state-message replay, and only
 dynamics plus absolute navigation. Their timing differences are diagnostic
 engineering estimates and are not accuracy comparisons.
 
+Run the P11 online state-synchronization latency scan with:
+
+```bash
+python -m experiments.run_external_state_sync_latency_acceptance \
+  --seeds 0 1 2 3 4 --duration 4 --dt 0.2
+```
+
+This opt-in diagnostic uses a monotonic wall clock from completed message
+construction to receiver application. Ordinary zero-delay messages form the
+formal 150 ms comparison. Delayed historical replay, explicit
+resynchronization, and unaffected background traffic during a topology resume
+are reported separately; simulated link delay is never treated as software
+processing latency.
+
 Investigate a persistently degraded node with the paired edge/modality
 ablation runner:
 

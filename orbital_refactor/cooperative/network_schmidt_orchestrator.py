@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Iterable, Mapping
 
 import numpy as np
@@ -82,6 +83,7 @@ class NetworkSchmidtOrchestrator:
             tuple[str, str, float], NeighborLinkQuality
         ] | None = None,
         batch_relative_observations: bool = False,
+        record_wall_clock_latency: bool = False,
     ) -> None:
         self.topology = topology
         self.topology_version = 0
@@ -95,6 +97,8 @@ class NetworkSchmidtOrchestrator:
             node: [] for node in topology.node_ids
         }
         self.step_history: list[NetworkOrchestratorStepResult] = []
+        self.record_wall_clock_latency = bool(record_wall_clock_latency)
+        self._message_created_wall_clock: dict[int, float] = {}
         self.stop_and_wait = bool(stop_and_wait)
         self.resynchronize_on_resume = bool(resynchronize_on_resume)
         self.resynchronize_on_protocol_gap = bool(
@@ -222,8 +226,12 @@ class NetworkSchmidtOrchestrator:
                 continue
             message = accumulator.build_message()
             message.metadata = {
-                "topology_version": lifecycle.topology_version
+                "topology_version": lifecycle.topology_version,
+                "resynchronization_message": (
+                    (receiver, source) in resynchronized_edges
+                ),
             }
+            created_wall_clock = perf_counter()
             channel = self.channels[(receiver, source)]
             loss_rate, delay = channel.conditions_at(source, timestamp)
             transmitted = channel.transmit(message)
@@ -236,6 +244,10 @@ class NetworkSchmidtOrchestrator:
                 })
                 continue
             transmitted_count += 1
+            if self.record_wall_clock_latency:
+                self._message_created_wall_clock[id(transmitted)] = (
+                    created_wall_clock
+                )
             transport_diagnostic_records.append({
                 "timestamp": timestamp, "receiver_id": receiver,
                 "source_id": source,
@@ -250,6 +262,7 @@ class NetworkSchmidtOrchestrator:
         deliveries_by_receiver = {
             node: [] for node in self.topology.node_ids
         }
+        received_wall_clock_by_message_id = {}
         for receiver, pending in self.pending_deliveries.items():
             remaining = []
             for message, accumulator in pending:
@@ -261,6 +274,10 @@ class NetworkSchmidtOrchestrator:
                     deliveries_by_receiver[receiver].append((
                         message, accumulator
                     ))
+                    if self.record_wall_clock_latency:
+                        received_wall_clock_by_message_id[id(message)] = (
+                            perf_counter()
+                        )
                 else:
                     remaining.append((message, accumulator))
             self.pending_deliveries[receiver] = remaining
@@ -288,11 +305,14 @@ class NetworkSchmidtOrchestrator:
                 observations=observations_by_node[receiver],
                 absolute_observations=absolute_by_node[receiver],
             )
+            applied_wall_clock = (
+                perf_counter() if self.record_wall_clock_latency else None
+            )
             results[receiver] = result
             for (message, accumulator), outcome in zip(
                 deliveries, result.message_results
             ):
-                message_diagnostic_records.append({
+                record = {
                     "receiver_id": receiver,
                     "source_id": str(message.source_node_id),
                     "current_timestamp": timestamp,
@@ -312,7 +332,29 @@ class NetworkSchmidtOrchestrator:
                         == LinkLifecycleState.RESYNC_REQUIRED
                     )),
                     **message.metadata,
-                })
+                }
+                if self.record_wall_clock_latency:
+                    created = self._message_created_wall_clock.pop(
+                        id(message)
+                    )
+                    received = received_wall_clock_by_message_id[id(message)]
+                    record.update({
+                        "created_wall_clock": created,
+                        "received_wall_clock": received,
+                        "applied_wall_clock": applied_wall_clock,
+                        "creation_to_applied_ms": 1000.0 * (
+                            applied_wall_clock - created
+                        ),
+                        "receive_to_applied_ms": 1000.0 * (
+                            applied_wall_clock - received
+                        ),
+                        "simulated_link_delay_seconds": max(
+                            float(message.arrival_timestamp or message.timestamp)
+                            - float(message.timestamp),
+                            0.0,
+                        ),
+                    })
+                message_diagnostic_records.append(record)
                 if outcome.accepted:
                     accepted += 1
                     accumulator.acknowledge(message)

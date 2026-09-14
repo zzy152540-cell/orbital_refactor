@@ -1,0 +1,68 @@
+{
+  "walker_definition": [
+    20,
+    10,
+    1
+  ],
+  "duration_seconds": 4.0,
+  "dt_seconds": 0.2,
+  "threshold_ms": 150.0,
+  "formal_category": "ordinary_update",
+  "timing_clock": "time.perf_counter_monotonic_wall_clock",
+  "threshold_met": true,
+  "formal_sample_size_met": false,
+  "formal_duration_met": false,
+  "protocol_clean": false,
+  "rejected_message_count_by_scenario": {
+    "ordinary_zero_delay": 4,
+    "delayed_history_replay": 4,
+    "link_resume_resynchronization": 4
+  },
+  "rejection_counts_by_reason": {
+    "event_bundle_endpoint_mismatch": 12
+  },
+  "passed": false,
+  "groups": [
+    {
+      "category": "ordinary_update",
+      "sample_count": 4196,
+      "mean_creation_to_applied_ms": 109.80249451857898,
+      "p95_creation_to_applied_ms": 267.7330249998704,
+      "maximum_creation_to_applied_ms": 441.6024000001926,
+      "mean_receive_to_applied_ms": 109.14831634889697,
+      "mean_simulated_link_delay_seconds": 0.0,
+      "threshold_met": true
+    },
+    {
+      "category": "historical_replay",
+      "sample_count": 1396,
+      "mean_creation_to_applied_ms": 1077.1907752149102,
+      "p95_creation_to_applied_ms": 2528.1172250001873,
+      "maximum_creation_to_applied_ms": 3288.868700000421,
+      "mean_receive_to_applied_ms": 781.8653666905503,
+      "mean_simulated_link_delay_seconds": 0.3999999999999999,
+      "threshold_met": null
+    },
+    {
+      "category": "explicit_resynchronization",
+      "sample_count": 10,
+      "mean_creation_to_applied_ms": 27.293470000131492,
+      "p95_creation_to_applied_ms": 55.89624000022013,
+      "maximum_creation_to_applied_ms": 56.27100000037899,
+      "mean_receive_to_applied_ms": 25.490289999925153,
+      "mean_simulated_link_delay_seconds": 0.0,
+      "threshold_met": null
+    },
+    {
+      "category": "resynchronization_background",
+      "sample_count": 4116,
+      "mean_creation_to_applied_ms": 126.31141533041685,
+      "p95_creation_to_applied_ms": 308.34872499985977,
+      "maximum_creation_to_applied_ms": 447.8377999994336,
+      "mean_receive_to_applied_ms": 125.53493022351556,
+      "mean_simulated_link_delay_seconds": 0.0,
+      "threshold_met": null
+    }
+  ],
+  "records_file": "communication_latency.csv"
+}

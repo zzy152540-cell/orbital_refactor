@@ -485,23 +485,20 @@ class MultiNeighborReplayCoordinator:
                 )
             else:
                 self._replay_from(earliest[4], starting_state=earliest[3])
-            mismatched = False
-            for _, message, _, _, _, _, _ in staged:
-                neighbor_id = str(message.source_node_id)
-                final_event_key = _transport_event_key(
-                    message.transport_events[-1]
-                )
-                endpoint = self._remote_event_endpoint_states.get(
-                    (neighbor_id, final_event_key)
-                )
-                if not (endpoint is not None and np.allclose(
-                    endpoint.neighbor_state_by_id[neighbor_id], message.state_estimate,
-                    rtol=1e-9, atol=1e-7,
-                ) and np.allclose(
-                    endpoint.neighbor_covariance(neighbor_id), message.covariance,
-                    rtol=1e-8, atol=1e-10,
-                )):
-                    mismatched = True; break
+            mismatched = self._staged_endpoint_mismatch(staged)
+            if mismatched and current_epoch_only:
+                # The fast path is an optimization only. Numerical or ordering
+                # sensitivity must fall back to the original full-history
+                # replay before a protocol rejection is considered.
+                new_events = {
+                    key: self._remote_events[key] for key in all_new_keys
+                }
+                for key in all_new_keys:
+                    self._remote_events.pop(key, None)
+                self._replay_from(earliest[4], starting_state=earliest[3])
+                self._remote_events.update(new_events)
+                self._replay_from(earliest[4], starting_state=earliest[3])
+                mismatched = self._staged_endpoint_mismatch(staged)
             if mismatched:
                 for key in all_new_keys: self._remote_events.pop(key, None)
                 self._replay_from(earliest[4], starting_state=earliest[3])
@@ -528,6 +525,29 @@ class MultiNeighborReplayCoordinator:
         if any(result is None for result in results):
             raise RuntimeError("Every batched state message must produce a result.")
         return tuple(results)  # type: ignore[return-value]
+
+    def _staged_endpoint_mismatch(self, staged) -> bool:
+        for _, message, _, _, _, _, _ in staged:
+            neighbor_id = str(message.source_node_id)
+            final_event_key = _transport_event_key(
+                message.transport_events[-1]
+            )
+            endpoint = self._remote_event_endpoint_states.get(
+                (neighbor_id, final_event_key)
+            )
+            if not (
+                endpoint is not None
+                and np.allclose(
+                    endpoint.neighbor_state_by_id[neighbor_id],
+                    message.state_estimate, rtol=1e-9, atol=1e-7,
+                )
+                and np.allclose(
+                    endpoint.neighbor_covariance(neighbor_id),
+                    message.covariance, rtol=1e-8, atol=1e-10,
+                )
+            ):
+                return True
+        return False
 
     def _validated_checkpoint(self, message, expected_lineage_id):
         if not message.transport_events:

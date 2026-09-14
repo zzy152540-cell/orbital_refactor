@@ -172,6 +172,43 @@ def test_online_orchestrator_converts_to_shared_network_history():
     assert len(history.refresh_diagnostic_records) == 2
 
 
+def test_online_orchestrator_reports_opt_in_wall_clock_message_latency():
+    states = {
+        "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+        "b": np.array([7.001e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),
+    }
+    orchestrator = NetworkSchmidtOrchestrator(
+        initial_state_by_node=states,
+        initial_covariance_by_node={node: np.eye(6) for node in states},
+        topology=chain_topology(["a", "b"]),
+        process_noise_acceleration=0.0,
+        record_wall_clock_latency=True,
+    )
+    updates = {
+        node: TransportSourceUpdate(
+            state=value, error_transition=np.eye(6),
+            independent_process_noise=np.zeros((6, 6)),
+            information_ids=(f"{node}:0",),
+            event_error_transition=np.eye(6),
+            event_process_noise=np.zeros((6, 6)),
+        )
+        for node, value in states.items()
+    }
+
+    result = orchestrator.step(
+        0.0, topology_version=0,
+        active_neighbors_by_node={"a": ("b",), "b": ("a",)},
+        source_update_by_node=updates,
+    )
+
+    assert len(result.message_diagnostic_records) == 2
+    for record in result.message_diagnostic_records:
+        assert record["creation_to_applied_ms"] >= 0.0
+        assert record["receive_to_applied_ms"] >= 0.0
+        assert record["creation_to_applied_ms"] >= record["receive_to_applied_ms"]
+        assert record["simulated_link_delay_seconds"] == 0.0
+
+
 def test_online_orchestrator_buffers_delay_and_reports_packet_loss():
     states = {
         "a": np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0]),

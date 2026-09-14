@@ -8,7 +8,10 @@ import numpy as np
 
 from cooperative.network_schmidt_orchestrator import (
     NetworkSchmidtOrchestrator,
-    TransportSourceUpdate,
+)
+from experiments.online_filter_inputs import (
+    items_by_timestamp,
+    source_updates_from_messages,
 )
 from experiments.scenario_controls import (
     topology_runtime_schedule,
@@ -166,11 +169,11 @@ def run_v14_online_topology_resynchronization_experiment(
             case["timestamps"], topology=case["topology"],
             inactive_windows=inactive,
         )
-        source_updates = _source_updates_from_messages(
+        source_updates = source_updates_from_messages(
             case["transmitted_messages"], case["topology"].node_ids,
         )
-        observations_by_time = _items_by_timestamp(case["observations"])
-        absolute_by_time = _items_by_timestamp(case["absolute_observations"])
+        observations_by_time = items_by_timestamp(case["observations"])
+        absolute_by_time = items_by_timestamp(case["absolute_observations"])
         orchestrator = NetworkSchmidtOrchestrator(
             initial_state_by_node=case["initial_states"],
             initial_covariance_by_node=case["initial_covariances"],
@@ -318,41 +321,6 @@ def run_v14_online_topology_resynchronization_experiment(
             if metrics[0]["position_rmse_by_node_and_phase"].get(node)
         },
     )
-
-
-def _source_updates_from_messages(messages, node_ids):
-    updates = {}
-    for message in messages:
-        source = str(message.source_node_id)
-        for event in message.transport_events:
-            key = (source, float(event.timestamp))
-            updates.setdefault(key, TransportSourceUpdate(
-                state=event.state_estimate,
-                error_transition=(
-                    message.error_transition
-                    if event.source_error_transition is None
-                    else event.source_error_transition
-                ),
-                independent_process_noise=(
-                    message.accumulated_process_noise
-                    if event.source_process_noise is None
-                    else event.source_process_noise
-                ),
-                information_ids=event.information_ids,
-                event_error_transition=event.error_transition,
-                event_process_noise=event.independent_process_noise,
-            ))
-    missing_sources = set(node_ids) - {source for source, _ in updates}
-    if missing_sources:
-        raise RuntimeError("Source updates are unavailable for some nodes.")
-    return updates
-
-
-def _items_by_timestamp(items):
-    result = {}
-    for item in items:
-        result.setdefault(float(item.timestamp), []).append(item)
-    return result
 
 
 def _metrics(
