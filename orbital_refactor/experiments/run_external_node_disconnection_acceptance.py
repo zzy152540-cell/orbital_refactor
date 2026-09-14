@@ -14,12 +14,21 @@ def main():
     parser.add_argument("--seeds", nargs="+", type=int, default=[0, 1, 2, 3, 4])
     parser.add_argument("--duration", type=float, default=120.0)
     parser.add_argument("--dt", type=float, default=2.0)
-    parser.add_argument("--selection-pattern", choices=("dispersed", "adjacent"), default="dispersed")
+    parser.add_argument(
+        "--selection-pattern",
+        choices=("dispersed", "adjacent", "random"),
+        default="dispersed",
+    )
+    parser.add_argument(
+        "--selection-seed", type=int, default=0,
+        help="Seed used only to choose the fixed four-node random group.",
+    )
     parser.add_argument("--output", type=Path, default=Path("results/external_acceptance/r10_node_disconnection"))
     args = parser.parse_args()
     report = run_external_node_disconnection_acceptance(
         seeds=args.seeds, duration=args.duration, dt=args.dt,
         selection_pattern=args.selection_pattern,
+        selection_seed=args.selection_seed,
     )
     paths = save_external_node_disconnection_report(report, args.output)
     print(f"paired_mean_position_rmse_increase_percent={report.paired_mean_position_rmse_increase_percent:.6f}")

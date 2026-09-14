@@ -3,6 +3,7 @@ import numpy as np
 from cooperative.topology import ring_topology
 from experiments.external_node_disconnection_acceptance import (
     isolate_nodes, run_external_node_disconnection_acceptance,
+    select_disconnected_nodes,
 )
 
 
@@ -15,6 +16,23 @@ def test_isolation_removes_all_edges_of_selected_nodes():
         neighbor not in {"sat_01", "sat_04"}
         for node in result.node_ids for neighbor in result.neighbors(node)
     )
+
+
+def test_random_node_selection_is_unique_reproducible_and_seeded():
+    topology = ring_topology(tuple(f"sat_{index:02d}" for index in range(20)))
+    first = select_disconnected_nodes(
+        topology, "random", selection_seed=17
+    )
+    repeated = select_disconnected_nodes(
+        topology, "random", selection_seed=17
+    )
+    different = select_disconnected_nodes(
+        topology, "random", selection_seed=18
+    )
+
+    assert first == repeated
+    assert first != different
+    assert len(first) == len(set(first)) == 4
 
 
 def test_short_r10_run_reports_fleet_affected_and_remaining_groups():

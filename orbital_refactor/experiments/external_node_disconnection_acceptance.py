@@ -51,6 +51,7 @@ class NodeDisconnectionReport:
     run_count: int
     disconnected_node_count: int
     selection_pattern: str
+    selection_seed: int | None
     threshold_percent: float
     formal_minimum_run_count: int
     formal_minimum_duration_seconds: float
@@ -69,7 +70,7 @@ class NodeDisconnectionReport:
 def run_external_node_disconnection_acceptance(
     *, seeds=(0, 1, 2, 3, 4), duration=120.0, dt=2.0,
     maximum_range=6000e3, threshold_percent=15.0,
-    selection_pattern="dispersed", disconnected_nodes=None,
+    selection_pattern="dispersed", selection_seed=0, disconnected_nodes=None,
     formal_minimum_run_count=20, formal_minimum_duration_seconds=1200.0,
 ):
     seeds = tuple(map(int, seeds))
@@ -81,7 +82,9 @@ def run_external_node_disconnection_acceptance(
     )
     topology = audit.persistent_topology
     selected = (
-        select_disconnected_nodes(topology, selection_pattern)
+        select_disconnected_nodes(
+            topology, selection_pattern, selection_seed=selection_seed
+        )
         if disconnected_nodes is None else tuple(map(str, disconnected_nodes))
     )
     if len(selected) != 4 or len(set(selected)) != 4:
@@ -146,7 +149,11 @@ def run_external_node_disconnection_acceptance(
     return NodeDisconnectionReport(
         walker_definition=(20, 10, 1), duration_seconds=float(duration),
         dt_seconds=float(dt), run_count=len(records), disconnected_node_count=4,
-        selection_pattern=selection_pattern, threshold_percent=threshold_percent,
+        selection_pattern=selection_pattern,
+        selection_seed=(
+            int(selection_seed) if selection_pattern == "random" else None
+        ),
+        threshold_percent=threshold_percent,
         formal_minimum_run_count=formal_minimum_run_count,
         formal_minimum_duration_seconds=formal_minimum_duration_seconds,
         paired_mean_position_rmse_increase_percent=float(np.mean(increases)),
@@ -180,7 +187,7 @@ def save_external_node_disconnection_report(report, output_directory):
     return json_path, csv_path
 
 
-def select_disconnected_nodes(topology, pattern):
+def select_disconnected_nodes(topology, pattern, *, selection_seed=0):
     nodes = tuple(sorted(topology.node_ids))
     if len(nodes) != 20:
         raise ValueError("R10 requires a 20-node topology.")
@@ -197,7 +204,13 @@ def select_disconnected_nodes(topology, pattern):
                 raise ValueError("Could not select four connected nodes.")
             selected.append(candidates[0])
         return tuple(selected)
-    raise ValueError("selection_pattern must be 'dispersed' or 'adjacent'.")
+    if pattern == "random":
+        rng = np.random.default_rng(int(selection_seed))
+        indices = np.sort(rng.choice(len(nodes), size=4, replace=False))
+        return tuple(nodes[index] for index in indices)
+    raise ValueError(
+        "selection_pattern must be 'dispersed', 'adjacent', or 'random'."
+    )
 
 
 def isolate_nodes(topology, selected):

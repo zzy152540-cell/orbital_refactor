@@ -97,11 +97,17 @@ python -m experiments.run_external_node_disconnection_acceptance \
   --selection-pattern dispersed
 ```
 
+Use `--selection-pattern adjacent` for the connected four-node group, or
+`--selection-pattern random --selection-seed 2026` for a reproducible random
+four-node group.  The selection seed fixes the failed nodes and is deliberately
+separate from the simulation seeds used for paired statistics.
+
 The degraded arm removes every incoming and outgoing inter-satellite
 observation and state message for four of twenty nodes while retaining their
 local dynamics, absolute navigation and local estimates. The runner reports
 fleet-wide, disconnected-node and remaining-node metrics separately. Random
-packet loss is not used as a substitute for complete node isolation.
+node selection still performs complete isolation; random packet loss is not
+used as a substitute for node failure.
 
 Run the Walker-20 P06 algorithm update-frequency scan with:
 
