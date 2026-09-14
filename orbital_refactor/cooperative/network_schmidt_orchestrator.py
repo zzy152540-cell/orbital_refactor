@@ -324,6 +324,7 @@ class NetworkSchmidtOrchestrator:
                     "transport_event_count": len(message.transport_events),
                     "accepted": bool(outcome.accepted),
                     "reason": outcome.reason,
+                    **outcome.diagnostics,
                     "resync_required_neighbors": tuple(sorted(
                         neighbor
                         for neighbor, lifecycle

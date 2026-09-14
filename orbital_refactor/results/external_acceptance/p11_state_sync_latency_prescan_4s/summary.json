@@ -12,54 +12,54 @@
   "threshold_met": true,
   "formal_sample_size_met": false,
   "formal_duration_met": false,
-  "protocol_clean": false,
+  "protocol_clean": true,
   "rejected_message_count_by_scenario": {
-    "ordinary_zero_delay": 4,
-    "delayed_history_replay": 4,
-    "link_resume_resynchronization": 4
+    "ordinary_zero_delay": 0,
+    "delayed_history_replay": 10,
+    "link_resume_resynchronization": 0
   },
   "rejection_counts_by_reason": {
-    "event_bundle_endpoint_mismatch": 12
+    "reference_covariance_mismatch": 10
   },
   "passed": false,
   "groups": [
     {
       "category": "ordinary_update",
-      "sample_count": 4196,
-      "mean_creation_to_applied_ms": 109.80249451857898,
-      "p95_creation_to_applied_ms": 267.7330249998704,
-      "maximum_creation_to_applied_ms": 441.6024000001926,
-      "mean_receive_to_applied_ms": 109.14831634889697,
+      "sample_count": 4200,
+      "mean_creation_to_applied_ms": 87.40245340475971,
+      "p95_creation_to_applied_ms": 181.13258999992456,
+      "maximum_creation_to_applied_ms": 336.0460999992938,
+      "mean_receive_to_applied_ms": 86.90194983332992,
       "mean_simulated_link_delay_seconds": 0.0,
       "threshold_met": true
     },
     {
       "category": "historical_replay",
-      "sample_count": 1396,
-      "mean_creation_to_applied_ms": 1077.1907752149102,
-      "p95_creation_to_applied_ms": 2528.1172250001873,
-      "maximum_creation_to_applied_ms": 3288.868700000421,
-      "mean_receive_to_applied_ms": 781.8653666905503,
+      "sample_count": 1390,
+      "mean_creation_to_applied_ms": 700.7289615827555,
+      "p95_creation_to_applied_ms": 1251.998330000242,
+      "maximum_creation_to_applied_ms": 1563.8026999986323,
+      "mean_receive_to_applied_ms": 512.0623868345247,
       "mean_simulated_link_delay_seconds": 0.3999999999999999,
       "threshold_met": null
     },
     {
       "category": "explicit_resynchronization",
       "sample_count": 10,
-      "mean_creation_to_applied_ms": 27.293470000131492,
-      "p95_creation_to_applied_ms": 55.89624000022013,
-      "maximum_creation_to_applied_ms": 56.27100000037899,
-      "mean_receive_to_applied_ms": 25.490289999925153,
+      "mean_creation_to_applied_ms": 17.447850000280596,
+      "p95_creation_to_applied_ms": 27.31588499937061,
+      "maximum_creation_to_applied_ms": 27.364800000214018,
+      "mean_receive_to_applied_ms": 16.559659999984433,
       "mean_simulated_link_delay_seconds": 0.0,
       "threshold_met": null
     },
     {
       "category": "resynchronization_background",
-      "sample_count": 4116,
-      "mean_creation_to_applied_ms": 126.31141533041685,
-      "p95_creation_to_applied_ms": 308.34872499985977,
-      "maximum_creation_to_applied_ms": 447.8377999994336,
-      "mean_receive_to_applied_ms": 125.53493022351556,
+      "sample_count": 4120,
+      "mean_creation_to_applied_ms": 88.33073910193191,
+      "p95_creation_to_applied_ms": 181.99353000027247,
+      "maximum_creation_to_applied_ms": 496.6770999999426,
+      "mean_receive_to_applied_ms": 87.81590206310538,
       "mean_simulated_link_delay_seconds": 0.0,
       "threshold_met": null
     }

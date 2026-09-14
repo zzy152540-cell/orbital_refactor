@@ -30,6 +30,9 @@ class StateSyncLatencyRecord:
     simulated_link_delay_seconds: float
     creation_to_applied_ms: float
     receive_to_applied_ms: float
+    endpoint_state_max_abs_error: float | None
+    endpoint_covariance_max_abs_error: float | None
+    endpoint_covariance_relative_fro_error: float | None
 
 
 @dataclass(frozen=True)
@@ -198,6 +201,15 @@ def _run_scenario(*, seed, scenario, delay, exercise_resync, case, history_windo
                 ),
                 creation_to_applied_ms=float(item["creation_to_applied_ms"]),
                 receive_to_applied_ms=float(item["receive_to_applied_ms"]),
+                endpoint_state_max_abs_error=item.get(
+                    "endpoint_state_max_abs_error"
+                ),
+                endpoint_covariance_max_abs_error=item.get(
+                    "endpoint_covariance_max_abs_error"
+                ),
+                endpoint_covariance_relative_fro_error=item.get(
+                    "endpoint_covariance_relative_fro_error"
+                ),
             ))
     return records, rejection_counts
 

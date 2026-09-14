@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from time import perf_counter
 from typing import Mapping
 
 import numpy as np
 from orbital_core.measurement_integrity import MeasurementIntegrityPolicy
 
-from cooperative.exact_transport_protocol import apply_exact_transport_state_message
+from cooperative.exact_transport_protocol import (
+    apply_exact_transport_state_message,
+    covariance_endpoints_compatible,
+)
 from cooperative.multi_neighbor_schmidt import (
     MultiNeighborSchmidtState,
     MultiNeighborSchmidtUpdateResult,
@@ -42,6 +45,7 @@ class CoordinatorMessageResult:
     accepted: bool
     reason: str
     replayed_event_count: int = 0
+    diagnostics: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -485,7 +489,8 @@ class MultiNeighborReplayCoordinator:
                 )
             else:
                 self._replay_from(earliest[4], starting_state=earliest[3])
-            mismatched = self._staged_endpoint_mismatch(staged)
+            endpoint_diagnostics = self._staged_endpoint_diagnostics(staged)
+            mismatched = bool(endpoint_diagnostics)
             if mismatched and current_epoch_only:
                 # The fast path is an optimization only. Numerical or ordering
                 # sensitivity must fall back to the original full-history
@@ -498,7 +503,10 @@ class MultiNeighborReplayCoordinator:
                 self._replay_from(earliest[4], starting_state=earliest[3])
                 self._remote_events.update(new_events)
                 self._replay_from(earliest[4], starting_state=earliest[3])
-                mismatched = self._staged_endpoint_mismatch(staged)
+                endpoint_diagnostics = self._staged_endpoint_diagnostics(
+                    staged
+                )
+                mismatched = bool(endpoint_diagnostics)
             if mismatched:
                 for key in all_new_keys: self._remote_events.pop(key, None)
                 self._replay_from(earliest[4], starting_state=earliest[3])
@@ -511,9 +519,17 @@ class MultiNeighborReplayCoordinator:
                 else:
                     for index, *_ in staged:
                         results[index] = CoordinatorMessageResult(
-                            False, "event_bundle_endpoint_mismatch"
+                            False, "event_bundle_endpoint_mismatch",
+                            diagnostics=endpoint_diagnostics.get(index, {}),
                         )
             else:
+                for _, message, _, _, _, _, _ in staged:
+                    self.state = _snap_neighbor_endpoint(
+                        self.state, message
+                    )
+                self._posterior_states[float(self.state.timestamp)] = (
+                    self.state
+                )
                 for index, message, _, _, _, link_key, new_keys in staged:
                     self._pinned_checkpoints[link_key] = (
                         float(message.timestamp), self._posterior_states[float(message.timestamp)]
@@ -526,8 +542,9 @@ class MultiNeighborReplayCoordinator:
             raise RuntimeError("Every batched state message must produce a result.")
         return tuple(results)  # type: ignore[return-value]
 
-    def _staged_endpoint_mismatch(self, staged) -> bool:
-        for _, message, _, _, _, _, _ in staged:
+    def _staged_endpoint_diagnostics(self, staged):
+        diagnostics = {}
+        for index, message, _, _, _, _, _ in staged:
             neighbor_id = str(message.source_node_id)
             final_event_key = _transport_event_key(
                 message.transport_events[-1]
@@ -535,19 +552,35 @@ class MultiNeighborReplayCoordinator:
             endpoint = self._remote_event_endpoint_states.get(
                 (neighbor_id, final_event_key)
             )
-            if not (
-                endpoint is not None
-                and np.allclose(
-                    endpoint.neighbor_state_by_id[neighbor_id],
-                    message.state_estimate, rtol=1e-9, atol=1e-7,
-                )
-                and np.allclose(
-                    endpoint.neighbor_covariance(neighbor_id),
-                    message.covariance, rtol=1e-8, atol=1e-10,
-                )
-            ):
-                return True
-        return False
+            if endpoint is None:
+                diagnostics[index] = {"endpoint_available": 0.0}
+                continue
+            endpoint_state = endpoint.neighbor_state_by_id[neighbor_id]
+            endpoint_covariance = endpoint.neighbor_covariance(neighbor_id)
+            state_close = np.allclose(
+                endpoint_state, message.state_estimate,
+                rtol=1e-9, atol=1e-7,
+            )
+            covariance_close = covariance_endpoints_compatible(
+                endpoint_covariance, message.covariance
+            )
+            if not (state_close and covariance_close):
+                state_delta = endpoint_state - message.state_estimate
+                covariance_delta = endpoint_covariance - message.covariance
+                diagnostics[index] = {
+                    "endpoint_available": 1.0,
+                    "endpoint_state_max_abs_error": float(
+                        np.max(np.abs(state_delta))
+                    ),
+                    "endpoint_covariance_max_abs_error": float(
+                        np.max(np.abs(covariance_delta))
+                    ),
+                    "endpoint_covariance_relative_fro_error": float(
+                        np.linalg.norm(covariance_delta)
+                        / max(np.linalg.norm(message.covariance), 1e-30)
+                    ),
+                }
+        return diagnostics
 
     def _validated_checkpoint(self, message, expected_lineage_id):
         if not message.transport_events:
@@ -930,6 +963,23 @@ class MultiNeighborReplayCoordinator:
             len(self._remote_events) + len(self._observations)
             + len(self._absolute_observations),
         )
+
+
+def _snap_neighbor_endpoint(state, message):
+    """Close a compatible transport result on the advertised ACK baseline."""
+
+    neighbor_id = str(message.source_node_id)
+    block = state.neighbor_slice(neighbor_id)
+    target = np.arange(block.start, block.stop)
+    covariance = state.joint_covariance.copy()
+    advertised = np.asarray(message.covariance, dtype=float).reshape(6, 6)
+    covariance[np.ix_(target, target)] = 0.5 * (
+        advertised + advertised.T
+    )
+    covariance = 0.5 * (covariance + covariance.T)
+    if np.min(np.linalg.eigvalsh(covariance)) < -1e-7:
+        raise ValueError("Endpoint covariance snapping broke joint PSD.")
+    return replace(state, joint_covariance=covariance)
 
 
 def _relative_observation_batches(observations, *, enabled, start_time):

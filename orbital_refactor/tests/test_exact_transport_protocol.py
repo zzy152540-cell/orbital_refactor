@@ -5,6 +5,7 @@ import numpy as np
 from cooperative.exact_transport_protocol import (
     apply_exact_transport_state_message,
     build_exact_transport_state_message,
+    covariance_endpoints_compatible,
 )
 from cooperative.message_transport import (
     CommunicationWindow, MessageChannel, TypedMessageBuffer,
@@ -52,6 +53,17 @@ def test_protocol_rejects_wrong_lineage_and_tampered_covariance():
     assert apply_exact_transport_state_message(
         state, tampered, expected_lineage_id="b:epoch0"
     ).reason == "advertised_covariance_mismatch"
+
+
+def test_covariance_compatibility_accepts_roundoff_but_rejects_real_change():
+    covariance = np.diag([4.0, 4.0, 4.0, 0.2, 0.2, 0.2])
+    roundoff = covariance.copy()
+    roundoff[0, 1] = roundoff[1, 0] = 2.0e-10
+    material = covariance.copy()
+    material[0, 1] = material[1, 0] = 2.0e-6
+
+    assert covariance_endpoints_compatible(covariance, roundoff)
+    assert not covariance_endpoints_compatible(covariance, material)
 
 
 def test_protocol_rejects_stale_message_after_local_baseline_changes():

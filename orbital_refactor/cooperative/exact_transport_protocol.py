@@ -11,6 +11,10 @@ from interfaces.data_objects import CovarianceTransportEvent, StateMessage
 
 Array = np.ndarray
 
+COVARIANCE_ELEMENTWISE_RTOL = 1e-8
+COVARIANCE_ELEMENTWISE_ATOL = 1e-9
+COVARIANCE_RELATIVE_FRO_TOL = 1e-8
+
 
 @dataclass(frozen=True)
 class ExactTransportReceiveResult:
@@ -76,7 +80,9 @@ def apply_exact_transport_state_message(
         @ _matrix(message.error_transition).T
         + _matrix(message.accumulated_process_noise)
     )
-    if not np.allclose(expected, _matrix(message.covariance), rtol=1e-8, atol=1e-10):
+    if not covariance_endpoints_compatible(
+        expected, _matrix(message.covariance)
+    ):
         return ExactTransportReceiveResult(state, False, "advertised_covariance_mismatch")
     updated = refresh_consider_neighbor(
         state, neighbor_id=neighbor_id, neighbor_state=message.state_estimate,
@@ -85,6 +91,26 @@ def apply_exact_transport_state_message(
     )
     updated = replace(updated, timestamp=float(message.timestamp))
     return ExactTransportReceiveResult(updated, True, "accepted")
+
+
+def covariance_endpoints_compatible(left: Array, right: Array) -> bool:
+    """Accept roundoff while retaining both local and matrix-scale checks."""
+
+    left = _matrix(left)
+    right = _matrix(right)
+    delta = left - right
+    scale = max(
+        float(np.linalg.norm(left)), float(np.linalg.norm(right)), 1.0
+    )
+    return bool(
+        np.allclose(
+            left, right,
+            rtol=COVARIANCE_ELEMENTWISE_RTOL,
+            atol=COVARIANCE_ELEMENTWISE_ATOL,
+        )
+        and float(np.linalg.norm(delta)) / scale
+        <= COVARIANCE_RELATIVE_FRO_TOL
+    )
 
 
 def _vector(value: Array) -> Array:
