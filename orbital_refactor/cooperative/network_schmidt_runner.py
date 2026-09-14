@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from time import perf_counter
 from typing import Callable, Iterable, Mapping
 
 import numpy as np
@@ -146,6 +147,7 @@ def run_network_schmidt_filter(
     neighbor_link_quality_by_node_and_time: Mapping[
         tuple[str, str, float], NeighborLinkQuality
     ] | None = None,
+    epoch_timing_callback: Callable[[int, float, float], None] | None = None,
 ) -> NetworkSchmidtHistory:
     """Run one local multi-neighbor Schmidt filter at every topology node.
 
@@ -295,6 +297,9 @@ def run_network_schmidt_filter(
     }
 
     for index, timestamp in enumerate(times):
+        epoch_started = (
+            perf_counter() if epoch_timing_callback is not None else None
+        )
         if consider_refresh_mode == "exact_transport_event_replay":
             if index > 0:
                 for coordinator in coordinators.values():
@@ -646,6 +651,10 @@ def run_network_schmidt_filter(
                       local_states[node_id].active_covariance)
             for node_id in node_ids
         }
+        if epoch_timing_callback is not None:
+            epoch_timing_callback(
+                index, float(timestamp), perf_counter() - epoch_started
+            )
 
     return NetworkSchmidtHistory(
         timestamps=times.copy(),

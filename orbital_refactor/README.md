@@ -89,6 +89,34 @@ inter-satellite observations and state messages; the cooperative arm enables
 the current three-modal Schmidt/exact-replay chain. The five-seed result is a
 development pre-scan and cannot satisfy the formal 20-seed sample-size gate.
 
+Run the paired Walker-20 R10 complete node-disconnection pre-scan with:
+
+```bash
+python -m experiments.run_external_node_disconnection_acceptance \
+  --seeds 0 1 2 3 4 --duration 120 --dt 2 \
+  --selection-pattern dispersed
+```
+
+The degraded arm removes every incoming and outgoing inter-satellite
+observation and state message for four of twenty nodes while retaining their
+local dynamics, absolute navigation and local estimates. The runner reports
+fleet-wide, disconnected-node and remaining-node metrics separately. Random
+packet loss is not used as a substitute for complete node isolation.
+
+Run the Walker-20 P06 algorithm update-frequency scan with:
+
+```bash
+python -m experiments.run_external_update_frequency_acceptance \
+  --seeds 0 1 2 3 4 --duration 20 --dt 0.2
+```
+
+The core-filter profile records real wall-clock latency around every network
+filter epoch. Optional one-node and all-node CANN profiles add the amortized
+cost of the current offline CANN history adapter; they are conservative
+development estimates, not online per-epoch CANN latency. GUI rendering and
+recording I/O are excluded. The formal P06 decision uses the core-filter
+profile and keeps the optional CANN results visible as an engineering budget.
+
 Investigate a persistently degraded node with the paired edge/modality
 ablation runner:
 
