@@ -3,12 +3,17 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 from adapters.infrared_image_adapter import InfraredCameraConfig
+from adapters.multimodal_sensor_simulator import MultimodalSensorSimulationConfig
+from adapters.optical_image_adapter import OpticalCameraConfig
 from adapters.radar_range_doppler_adapter import RadarRangeDopplerConfig
 from experiments.inter_satellite_observation_factory import (
     target_pointing_quaternion,
 )
 from experiments.walker_raw_sensor_comparison import (
+    _run,
+    _walker_case,
     build_lagged_radar_acquisition_centers,
+    replace_multimodal_messages_with_shared_frontend,
     replace_infrared_messages_with_body_pair,
     replace_radar_messages_with_power_maps,
     replace_radar_messages_with_reacquisition,
@@ -61,6 +66,58 @@ def test_radar_map_replacement_preserves_message_identity():
     assert result[1].metadata["raw_source_type"] == (
         "RANGE_DOPPLER_POWER_MAP"
     )
+
+
+def test_shared_frontend_replaces_all_existing_modalities_and_identities():
+    times, truth, infrared, radar = _case()
+    quaternion = target_pointing_quaternion(truth["a"][0], truth["b"][0])
+    optical = ObservationMessage(
+        message_id="optical", observer_id="a", target_id="b", timestamp=0.0,
+        modality="OPTICAL", measurement=np.zeros(2), covariance=np.eye(2),
+        metadata={"quaternion_i2b_wxyz": quaternion},
+    )
+    infrared = replace(
+        infrared, metadata={"quaternion_i2b_wxyz": quaternion},
+    )
+    result = replace_multimodal_messages_with_shared_frontend(
+        [infrared, radar, optical], timestamps=times,
+        truth_state_history_by_node=truth,
+        config=MultimodalSensorSimulationConfig(
+            optical=OpticalCameraConfig(read_noise_sigma=0.0),
+            infrared=InfraredCameraConfig(read_noise_sigma=0.0),
+            radar=RadarRangeDopplerConfig(read_noise_sigma=0.0),
+        ),
+        random_seed=4,
+    )
+    by_modality = {item.modality: item for item in result}
+    assert set(by_modality) == {"RADAR", "INFRARED", "OPTICAL"}
+    assert by_modality["RADAR"].message_id == "radar"
+    assert by_modality["INFRARED"].message_id == "ir"
+    assert by_modality["OPTICAL"].message_id == "optical"
+    assert all("raw_source_type" in item.metadata for item in result)
+
+
+def test_shared_frontend_messages_run_through_walker_schmidt_filter():
+    case = _walker_case(seed=0, duration=2.0, dt=2.0)
+    messages = replace_multimodal_messages_with_shared_frontend(
+        case["observations"], timestamps=case["timestamps"],
+        truth_state_history_by_node=case["truth"],
+        config=MultimodalSensorSimulationConfig(
+            optical=OpticalCameraConfig(
+                source_peak=1000.0, read_noise_sigma=1.0,
+            ),
+            infrared=InfraredCameraConfig(
+                source_peak=1000.0, read_noise_sigma=1.0,
+            ),
+            radar=RadarRangeDopplerConfig(
+                source_peak=1000.0, read_noise_sigma=1.0,
+            ),
+        ), random_seed=5,
+    )
+    history = _run(case, messages)
+    assert all(np.isfinite(values).all() for values in (
+        history.active_state_history_by_node.values()
+    ))
 
 
 def test_lagged_radar_centers_do_not_use_current_epoch_posterior():

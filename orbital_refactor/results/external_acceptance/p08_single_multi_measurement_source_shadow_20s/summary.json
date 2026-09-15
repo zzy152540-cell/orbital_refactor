@@ -1,0 +1,58 @@
+{
+  "duration_seconds": 20.0,
+  "dt_seconds": 2.0,
+  "seed": 0,
+  "single_observer_raan_deg": 20.0,
+  "single_all_modalities_observable": true,
+  "empirical_calibration_modalities": [],
+  "shared_truth_and_initialization": true,
+  "production_default_unchanged": true,
+  "raw_frontend_nis_alignment_ready": false,
+  "interpretation": "This is an implementation-source shadow, not a sensor-performance claim. Analytic and raw arms share scenario truth and initialization but represent different noise-generation mechanisms. The raw source must not replace the analytic default until its empirical residual covariance is aligned with the filter covariance.",
+  "arms": [
+    {
+      "scope": "single",
+      "source": "analytic",
+      "position_rmse_m": 49.307531160722185,
+      "valid_radar_count": 11,
+      "valid_infrared_count": 11,
+      "valid_optical_count": 11,
+      "radar_mean_nis": null,
+      "infrared_mean_nis": null,
+      "optical_mean_nis": null
+    },
+    {
+      "scope": "single",
+      "source": "raw_frontend",
+      "position_rmse_m": 32.78000739118131,
+      "valid_radar_count": 11,
+      "valid_infrared_count": 11,
+      "valid_optical_count": 11,
+      "radar_mean_nis": null,
+      "infrared_mean_nis": null,
+      "optical_mean_nis": null
+    },
+    {
+      "scope": "walker",
+      "source": "analytic",
+      "position_rmse_m": 2.3683326649319505,
+      "valid_radar_count": 440,
+      "valid_infrared_count": 440,
+      "valid_optical_count": 440,
+      "radar_mean_nis": 1.8278927942086183,
+      "infrared_mean_nis": 1.9377043802794602,
+      "optical_mean_nis": 1.9581917568721963
+    },
+    {
+      "scope": "walker",
+      "source": "raw_frontend",
+      "position_rmse_m": 2.3291928110656417,
+      "valid_radar_count": 440,
+      "valid_infrared_count": 440,
+      "valid_optical_count": 440,
+      "radar_mean_nis": 0.8534691508402259,
+      "infrared_mean_nis": 0.0004620136197739173,
+      "optical_mean_nis": 0.0008231967055492625
+    }
+  ]
+}

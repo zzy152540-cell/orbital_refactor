@@ -10,6 +10,12 @@ from adapters.infrared_image_adapter import (
     infrared_frame_to_observation_message,
     render_infrared_point_source_frame,
 )
+from adapters.multimodal_sensor_simulator import (
+    MeasurementSource,
+    MultimodalMeasurementSourceConfig,
+    single_spri_observation_from_message,
+    simulate_multimodal_sensor_history,
+)
 from adapters.synthetic_measurement_adapter import (
     create_infrared_observations,
     create_optical_observations,
@@ -27,7 +33,7 @@ from cooperative.multi_sat_pipeline import build_module_inputs
 from interfaces.state_awareness_module import StateAwarenessModule
 from interfaces.data_objects import Observation
 from orbital_core.constants import R_EARTH
-from orbital_core.coordinates import state_history_eci_to_spri
+from orbital_core.coordinates import dcm_to_quat_wxyz, state_history_eci_to_spri
 from orbital_core.orbit_elements import keplerian_to_eci
 from scenarios.multi_satellite_scenario import generate_cooperative_scenario
 from experiments.cann_inter_satellite_azimuth import _cann_tracker, _difference
@@ -57,6 +63,7 @@ def run_single_satellite_cann_comparison(
     infrared_boresight_spri_history: np.ndarray | None = None,
     ci_objective: str = "trace",
     reset_feedback: bool = True,
+    measurement_source_config: MultimodalMeasurementSourceConfig | None = None,
 ):
     if adaptive_cann_preprocess_ir and hybrid_cann_preprocess_ir:
         raise ValueError("Select at most one infrared CANN preprocessor.")
@@ -273,6 +280,51 @@ def run_single_satellite_cann_comparison(
                 )) for item in processed_infrared if item.valid_flag
             )),
         }
+    source_config = (
+        measurement_source_config or MultimodalMeasurementSourceConfig()
+    )
+    if source_config.source is MeasurementSource.RAW_FRONTEND:
+        incompatible = bool(
+            optical_cann_preprocess or radar_cann_preprocess
+            or adaptive_cann_preprocess_ir or hybrid_cann_preprocess_ir
+            or optical_fault_mode is not None or infrared_fault_mode is not None
+            or radar_fault_mode is not None or infrared_image_config is not None
+        )
+        if incompatible:
+            raise ValueError(
+                "raw_frontend measurement source currently requires the pure "
+                "measurement baseline without fault injection, measurement "
+                "CANN preprocessing, or the legacy infrared-only image path."
+            )
+        # Both raw camera adapters use BODY +X as boresight.  Build the
+        # attitude in the same SPRI frame as the relative state so that BODY
+        # measurements and their attitude metadata remain self-consistent.
+        camera_attitude = np.asarray([
+            dcm_to_quat_wxyz(_tracking_camera_basis_spri(relative[:3]).T)
+            for relative in spri
+        ])
+        shared = simulate_multimodal_sensor_history(
+            timestamps=timestamps, observer_id="sat_01", target_id="target",
+            observer_state_history=np.zeros_like(spri),
+            target_state_history=spri,
+            quaternion_i2b_wxyz_history_by_modality={
+                "OPTICAL": camera_attitude,
+                "INFRARED": camera_attitude,
+            },
+            config=source_config.sensors, random_seed=2_000_000 + int(seed),
+            covariance_calibration_by_modality=(
+                source_config.covariance_calibration_by_modality
+            ),
+            valid_history_by_modality={
+                "OPTICAL": available_by_modality["opt"],
+                "INFRARED": available_by_modality["ir"],
+                "RADAR": available_by_modality["rad"],
+            },
+        )
+        observations = [
+            single_spri_observation_from_message(message)
+            for message in shared.messages
+        ]
     module_input = build_module_inputs(
         scenario=scenario,
         observations_by_node={"sat_01": observations},
@@ -352,6 +404,7 @@ def run_single_satellite_cann_comparison(
         },
         "velocity_rmse_recovery_mps": _window_rmse(velocity_error, recovery_window),
         "filter_architecture": str(filter_architecture),
+        "measurement_source": source_config.source.value,
         "observer_altitude_m": float(observer_altitude_m),
         "observer_raan_deg": float(observer_raan_deg),
         "infrared_angle_sigma_deg": float(infrared_angle_sigma_deg),
@@ -536,7 +589,9 @@ def _create_infrared_image_observations_spri(
 
 
 def _tracking_camera_basis_spri(boresight):
-    forward = np.asarray(boresight, dtype=float).reshape(3)
+    # The normalization below must not modify a caller-owned state-history
+    # view (for example ``spri[index, :3]``).
+    forward = np.array(boresight, dtype=float, copy=True).reshape(3)
     norm = np.linalg.norm(forward)
     if not np.isfinite(norm) or norm <= 0.0:
         raise ValueError("Infrared boresight must be finite and nonzero.")

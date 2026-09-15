@@ -14,6 +14,10 @@ from adapters.radar_range_doppler_adapter import (
     radar_frame_to_observation_message,
     render_radar_range_doppler_frame,
 )
+from adapters.multimodal_sensor_simulator import (
+    MultimodalSensorSimulationConfig,
+    simulate_multimodal_sensor_epoch,
+)
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from experiments.inter_satellite_observation_factory import (
     target_pointing_quaternion,
@@ -482,6 +486,70 @@ def replace_radar_messages_with_power_maps(
             }),
         ))
     return result
+
+
+def replace_multimodal_messages_with_shared_frontend(
+    messages, *, timestamps, truth_state_history_by_node,
+    config=None, random_seed=0, covariance_calibration_by_modality=None,
+):
+    """Replace existing three-modal opportunities through one shared renderer."""
+    selected = config or MultimodalSensorSimulationConfig()
+    index_by_time = _index_by_time(timestamps)
+    grouped = {}
+    passthrough = []
+    for message in messages:
+        modality = message.modality.upper()
+        if modality not in {"RADAR", "INFRARED", "OPTICAL"}:
+            passthrough.append(message)
+            continue
+        key = (float(message.timestamp), message.observer_id, message.target_id)
+        grouped.setdefault(key, {})[modality] = message
+    seed_sequence = np.random.SeedSequence(int(random_seed))
+    rngs = {
+        modality: np.random.default_rng(child)
+        for modality, child in zip(
+            ("RADAR", "INFRARED", "OPTICAL"), seed_sequence.spawn(3)
+        )
+    }
+    replaced_messages = []
+    for (timestamp, observer_id, target_id), originals in sorted(grouped.items()):
+        index = index_by_time[timestamp]
+        observer = truth_state_history_by_node[observer_id][index]
+        target = truth_state_history_by_node[target_id][index]
+        fallback = target_pointing_quaternion(observer, target)
+        attitudes = {
+            modality: np.asarray(
+                originals.get(modality, next(iter(originals.values()))).metadata.get(
+                    "quaternion_i2b_wxyz", fallback,
+                ), dtype=float,
+            )
+            for modality in ("OPTICAL", "INFRARED")
+        }
+        epoch = simulate_multimodal_sensor_epoch(
+            timestamp=timestamp, observer_id=observer_id, target_id=target_id,
+            observer_state=observer, target_state=target,
+            quaternion_i2b_wxyz_by_modality=attitudes,
+            config=selected, rng_by_modality=rngs,
+            covariance_calibration_by_modality=(
+                covariance_calibration_by_modality
+            ),
+            valid_by_modality={
+                modality: original.valid_flag
+                for modality, original in originals.items()
+            },
+        )
+        generated = {message.modality.upper(): message for message in epoch.messages}
+        for modality, original in originals.items():
+            replaced_messages.append(_preserve_message_identity(
+                original, generated[modality],
+            ))
+    return sorted(
+        passthrough + replaced_messages,
+        key=lambda item: (
+            float(item.timestamp), str(item.observer_id),
+            str(item.target_id), str(item.modality),
+        ),
+    )
 
 
 def build_lagged_radar_acquisition_centers(case, history):
