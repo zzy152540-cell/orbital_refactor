@@ -133,21 +133,28 @@ def radar_frame_to_observation_message(
     ])
     covariance_metadata = {"covariance_source": "reported_centroid_sigma"}
     if detected and covariance_calibration is not None:
-        covariance, calibrated_bias, match = covariance_calibration.lookup(
-            coordinate_xy=bin_xy,
-            principal_xy=np.array([selected.principal_x, selected.principal_y]),
-            peak_snr=frontend_quality["peak_snr"],
+        applicable, reason = covariance_calibration.applicability(
+            config=selected, peak_snr=frontend_quality["peak_snr"],
         )
-        if covariance_calibration.apply_bias_correction:
-            measurement = measurement - calibrated_bias
-        covariance_metadata = {
-            "covariance_source": "radar_empirical_table",
-            "radar_covariance_calibration": match,
-            "radar_bias_correction_applied": bool(
-                covariance_calibration.apply_bias_correction
-            ),
-            "radar_calibrated_bias": calibrated_bias,
-        }
+        if applicable:
+            covariance, calibrated_bias, match = covariance_calibration.lookup(
+                coordinate_xy=bin_xy,
+                principal_xy=np.array([selected.principal_x, selected.principal_y]),
+                peak_snr=frontend_quality["peak_snr"],
+            )
+            if covariance_calibration.apply_bias_correction:
+                measurement = measurement - calibrated_bias
+            covariance_metadata = {
+                "covariance_source": "radar_empirical_table",
+                "radar_covariance_calibration": match,
+                "radar_bias_correction_applied": bool(
+                    covariance_calibration.apply_bias_correction
+                ),
+                "radar_calibrated_bias": calibrated_bias,
+                "radar_calibration_applicability": reason,
+            }
+        else:
+            covariance_metadata["radar_calibration_applicability"] = reason
     information_id = (
         f"{frame.observer_id}->{frame.target_id}:range_doppler:"
         f"{frame.timestamp:g}"

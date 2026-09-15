@@ -19,7 +19,7 @@ def test_radar_optical_error_budget_reports_detection_bias_and_nis():
             RadarErrorProfile("biased", range_bias_m=2.0),
         ),
     )
-    assert len(report.records) == 8
+    assert len(report.records) == 16
     assert {record.modality for record in report.records} == {"OPTICAL", "RADAR"}
     assert all(0.0 <= record.detection_fraction <= 1.0 for record in report.records)
     assert all(np.isfinite(record.mean_nis) for record in report.records)

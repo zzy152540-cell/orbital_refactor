@@ -121,6 +121,8 @@ def run_radar_optical_error_budget_audit(
     for profile in optical_profiles:
         for label, normalized_uv in {
             "center_high_snr": (np.array([0.0, 0.0]), 1000.0),
+            "center_low_snr": (np.array([0.0, 0.0]), 100.0),
+            "off_axis_high_snr": (np.array([0.08, 0.04]), 1000.0),
             "off_axis_low_snr": (np.array([0.08, 0.04]), 100.0),
         }.items():
             records.append(_evaluate_optical(
@@ -130,6 +132,8 @@ def run_radar_optical_error_budget_audit(
     for profile in radar_profiles:
         for label, values in {
             "center_high_snr": (1000.0, 0.0, 0.0),
+            "center_low_snr": (100.0, 0.0, 0.0),
+            "offset_high_snr": (1000.0, 12.0, 0.08),
             "offset_low_snr": (100.0, 12.0, 0.08),
         }.items():
             records.append(_evaluate_radar(

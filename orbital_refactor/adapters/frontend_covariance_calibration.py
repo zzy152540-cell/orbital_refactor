@@ -42,6 +42,8 @@ class FrontendCovarianceCalibrationTable:
     profile: str
     off_center_radius_bins: float = 8.0
     apply_bias_correction: bool = False
+    expected_error_settings: tuple[tuple[str, float | bool], ...] = ()
+    snr_extrapolation_factor: float = 2.0
 
     def __post_init__(self):
         modality = str(self.modality).upper()
@@ -51,7 +53,36 @@ class FrontendCovarianceCalibrationTable:
             raise ValueError("Calibration entries must match the table modality.")
         if self.off_center_radius_bins <= 0.0:
             raise ValueError("off_center_radius_bins must be positive.")
+        if self.snr_extrapolation_factor < 1.0:
+            raise ValueError("snr_extrapolation_factor must be at least one.")
         object.__setattr__(self, "modality", modality)
+
+    def applicability(self, *, config, peak_snr):
+        # Manually constructed legacy tables carry no domain fingerprint and
+        # retain their former unconditional opt-in behavior.
+        if not self.expected_error_settings:
+            return True, "applicable_unbounded_legacy_table"
+        for name, expected in self.expected_error_settings:
+            actual = getattr(config, name, None)
+            if actual is None:
+                return False, f"missing_config_field:{name}"
+            if isinstance(expected, bool):
+                matches = bool(actual) is expected
+            else:
+                matches = bool(np.isclose(
+                    float(actual), float(expected), rtol=1.0e-9, atol=1.0e-12,
+                ))
+            if not matches:
+                return False, f"error_setting_mismatch:{name}"
+        snr = float(peak_snr)
+        nominal = np.asarray([
+            entry.nominal_peak_snr for entry in self.entries
+        ], dtype=float)
+        lower = float(nominal.min() / self.snr_extrapolation_factor)
+        upper = float(nominal.max() * self.snr_extrapolation_factor)
+        if not np.isfinite(snr) or not lower <= snr <= upper:
+            return False, "peak_snr_outside_calibration_domain"
+        return True, "applicable"
 
     def lookup(self, *, coordinate_xy, principal_xy, peak_snr):
         coordinate = np.asarray(coordinate_xy, dtype=float).reshape(2)
@@ -93,7 +124,22 @@ def calibration_table_from_error_budget(report, *, modality, profile):
         ]),
         bias=np.array([record.component_0_bias, record.component_1_bias]),
     ) for record in records)
+    profiles = (
+        report.optical_profiles if modality == "OPTICAL"
+        else report.radar_profiles
+    )
+    selected_profile = next(
+        (item for item in profiles if item.name == profile), None
+    )
+    if selected_profile is None:
+        raise ValueError(f"Missing profile definition for {profile!r}.")
+    settings = tuple(sorted(
+        (name, value)
+        for name, value in vars(selected_profile).items()
+        if name != "name"
+    ))
     return FrontendCovarianceCalibrationTable(
         entries=entries, modality=modality, profile=profile,
         off_center_radius_bins=8.0 if modality == "OPTICAL" else 1.0,
+        expected_error_settings=settings,
     )

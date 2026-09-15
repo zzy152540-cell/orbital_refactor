@@ -1644,3 +1644,9 @@ python -m experiments.run_radar_optical_filter_calibration_shadow \
 The held-out moderate-error audit supports explicit bias correction plus the
 empirical covariance as a research candidate. It remains opt-in and does not
 replace the fixed-covariance production baseline.
+
+Calibration tables carry an error-setting fingerprint and a bounded SNR domain.
+The adapter applies a table only when the active sensor configuration matches;
+otherwise it preserves the reported fixed covariance and records the rejection
+reason in observation metadata. The current four-cell development grid crosses
+center/off-axis location with high/low SNR instead of confounding both factors.

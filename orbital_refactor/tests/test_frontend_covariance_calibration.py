@@ -51,7 +51,7 @@ def test_radar_empirical_covariance_and_bias_correction_are_opt_in():
     covariance = np.diag([4.0, 1.0e-4])
     bias = np.array([1.0, -0.01])
     entry = FrontendCovarianceCalibrationEntry(
-        "RADAR", "center_high_snr", 1000.0, covariance, bias,
+        "RADAR", "center_high_snr", 100.0, covariance, bias,
     )
     table = FrontendCovarianceCalibrationTable(
         (entry,), "RADAR", "test", apply_bias_correction=True,
@@ -84,3 +84,21 @@ def test_frontend_covariance_table_rejects_mixed_modalities():
     )
     with np.testing.assert_raises(ValueError):
         FrontendCovarianceCalibrationTable((entry,), "OPTICAL", "bad")
+
+
+def test_calibration_applicability_rejects_error_setting_and_snr_mismatch():
+    entry = FrontendCovarianceCalibrationEntry(
+        "OPTICAL", "center_high_snr", 100.0, np.eye(2), np.zeros(2),
+    )
+    table = FrontendCovarianceCalibrationTable(
+        (entry,), "OPTICAL", "test",
+        expected_error_settings=(("pointing_jitter_sigma_pixels", 0.1),),
+    )
+    config = OpticalCameraConfig(pointing_jitter_sigma_pixels=0.2)
+    applicable, reason = table.applicability(config=config, peak_snr=100.0)
+    assert not applicable
+    assert reason == "error_setting_mismatch:pointing_jitter_sigma_pixels"
+    matching = OpticalCameraConfig(pointing_jitter_sigma_pixels=0.1)
+    applicable, reason = table.applicability(config=matching, peak_snr=1000.0)
+    assert not applicable
+    assert reason == "peak_snr_outside_calibration_domain"
