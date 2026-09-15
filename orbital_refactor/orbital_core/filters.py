@@ -143,6 +143,23 @@ class LocalDynamicsEKF:
             return lambda x: h_ir_spri(x, q_eci2pri)
         return lambda x: h_radar_spri(x, q_eci2pri)
 
+    def measurement_jacobian(self, state: Array, q_eci2pri: Array) -> Array:
+        """Return the Jacobian used by this filter without applying an update."""
+
+        state = np.asarray(state, dtype=float).reshape(6)
+        return self._measurement_jacobian(
+            self.measurement_function(q_eci2pri), state
+        )
+
+    def discrete_transition_jacobian(
+        self, state: Array, chief_state_eci: Array, dt: float,
+    ) -> Array:
+        """Return the exact prediction linearization configured for this filter."""
+
+        state = np.asarray(state, dtype=float).reshape(6)
+        propagate = lambda value: rk4_step_rel(value, chief_state_eci, dt)
+        return self._discrete_jacobian(propagate, state)
+
     def update(
         self,
         predicted_state: Array,

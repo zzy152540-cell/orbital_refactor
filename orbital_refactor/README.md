@@ -65,6 +65,19 @@ python -m experiments.run_external_single_robustness_acceptance \
   --seeds 0 1 2 3 4 --duration 120 --dt 2
 ```
 
+Audit the physical observability behind P08, without changing the estimator:
+
+```bash
+python -m experiments.run_single_modality_observability_audit \
+  --duration 120 --dt 2 --infrared-noise-scales 0.25 0.5 1 2 \
+  --output results/external_acceptance/p08_observability_audit_120s
+```
+
+The audit uses the production measurement functions, measurement covariances,
+and fixed-step filter Jacobians. It reports scaled finite-horizon singular
+values and the optical/infrared direction-row-space overlap; these diagnostics
+explain information geometry but do not replace paired RMSE acceptance.
+
 Audit the measurement-side CANN boundary around a finite outage and corrupted
 reacquisition with:
 
