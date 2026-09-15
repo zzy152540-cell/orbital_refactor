@@ -1,0 +1,55 @@
+{
+  "profile": "moderate_combined",
+  "calibration_seed": 0,
+  "validation_seed": 101,
+  "calibration_sample_count": 300,
+  "validation_sample_count": 300,
+  "chi_square_2d_95_threshold": 5.991,
+  "interpretation": "Held-out two-dimensional NIS should have mean near 2 and 95-percent threshold exceedance near 0.05. Bias correction is reported separately and never enabled implicitly.",
+  "records": [
+    {
+      "modality": "OPTICAL",
+      "operating_point": "center_high_snr",
+      "validation_sample_count": 300,
+      "fixed_mean_nis": 0.07773447619675364,
+      "empirical_mean_nis": 2.625141424442416,
+      "bias_corrected_mean_nis": 1.9051921557636486,
+      "fixed_nis_95_exceedance_fraction": 0.0,
+      "empirical_nis_95_exceedance_fraction": 0.1,
+      "bias_corrected_nis_95_exceedance_fraction": 0.04666666666666667
+    },
+    {
+      "modality": "OPTICAL",
+      "operating_point": "off_axis_low_snr",
+      "validation_sample_count": 300,
+      "fixed_mean_nis": 0.6569614332862902,
+      "empirical_mean_nis": 2.3558731820665595,
+      "bias_corrected_mean_nis": 2.260279669109088,
+      "fixed_nis_95_exceedance_fraction": 0.0,
+      "empirical_nis_95_exceedance_fraction": 0.08333333333333333,
+      "bias_corrected_nis_95_exceedance_fraction": 0.06333333333333334
+    },
+    {
+      "modality": "RADAR",
+      "operating_point": "center_high_snr",
+      "validation_sample_count": 300,
+      "fixed_mean_nis": 0.2439963112145226,
+      "empirical_mean_nis": 2.7597158689066124,
+      "bias_corrected_mean_nis": 1.8729487532370717,
+      "fixed_nis_95_exceedance_fraction": 0.0,
+      "empirical_nis_95_exceedance_fraction": 0.11333333333333333,
+      "bias_corrected_nis_95_exceedance_fraction": 0.03666666666666667
+    },
+    {
+      "modality": "RADAR",
+      "operating_point": "offset_low_snr",
+      "validation_sample_count": 300,
+      "fixed_mean_nis": 0.34684967785156895,
+      "empirical_mean_nis": 3.0499233257404192,
+      "bias_corrected_mean_nis": 1.8139320958813168,
+      "fixed_nis_95_exceedance_fraction": 0.0,
+      "empirical_nis_95_exceedance_fraction": 0.12333333333333334,
+      "bias_corrected_nis_95_exceedance_fraction": 0.03666666666666667
+    }
+  ]
+}

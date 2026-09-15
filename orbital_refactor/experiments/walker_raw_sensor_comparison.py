@@ -444,6 +444,7 @@ def replace_radar_messages_with_power_maps(
     messages, *, timestamps, truth_state_history_by_node, config, rng,
     acquisition_center_by_message_id=None,
     acquisition_center_mode="truth_calibration",
+    covariance_calibration=None,
 ):
     index_by_time = _index_by_time(timestamps)
     result = []
@@ -469,7 +470,10 @@ def replace_radar_messages_with_power_maps(
             acquisition_range_rate_mps=center[1],
             config=config, rng=rng,
         )
-        extracted = radar_frame_to_observation_message(frame, config=config)
+        extracted = radar_frame_to_observation_message(
+            frame, config=config,
+            covariance_calibration=covariance_calibration,
+        )
         result.append(_preserve_message_identity(
             message,
             replace(extracted, metadata={

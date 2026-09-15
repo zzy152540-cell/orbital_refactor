@@ -103,7 +103,7 @@ def run_walker_optical_image_comparison(
 
 def replace_optical_messages_with_images(
     messages, *, timestamps, truth_state_history_by_node, config, rng,
-    retain_raw_frames=False,
+    retain_raw_frames=False, covariance_calibration=None,
 ):
     """Replace only OPTICAL measurements while preserving message lineage."""
     times = np.asarray(timestamps, dtype=float).reshape(-1)
@@ -129,7 +129,10 @@ def replace_optical_messages_with_images(
             quaternion_i2b_wxyz=quaternion,
             config=config, rng=rng,
         )
-        extracted = optical_frame_to_observation_message(frame, config=config)
+        extracted = optical_frame_to_observation_message(
+            frame, config=config,
+            covariance_calibration=covariance_calibration,
+        )
         result.append(replace(
             extracted,
             message_id=message.message_id,

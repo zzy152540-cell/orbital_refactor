@@ -81,6 +81,43 @@ def test_noisy_centroid_is_repeatable_and_nearly_unbiased():
     )
 
 
+def test_optical_error_model_is_opt_in_and_reports_applied_errors():
+    observer, target = _states((1000.0, 100.0, -50.0))
+    baseline = OpticalCameraConfig(read_noise_sigma=0.0)
+    enabled = OpticalCameraConfig(
+        read_noise_sigma=0.0,
+        fixed_pixel_bias_x=1.5,
+        fixed_pixel_bias_y=-0.5,
+        pointing_jitter_sigma_pixels=0.1,
+        radial_distortion_k1_per_pixel2=1.0e-6,
+        stray_light_drift_sigma=0.2,
+    )
+    default_frame = render_optical_point_source_frame(
+        timestamp=0.0, observer_id="a", target_id="b",
+        observer_state=observer, target_state=target,
+        quaternion_i2b_wxyz=IDENTITY_QUATERNION,
+        config=baseline, rng=np.random.default_rng(7),
+    )
+    error_frame = render_optical_point_source_frame(
+        timestamp=0.0, observer_id="a", target_id="b",
+        observer_state=observer, target_state=target,
+        quaternion_i2b_wxyz=IDENTITY_QUATERNION,
+        config=enabled, rng=np.random.default_rng(7),
+    )
+    assert default_frame.error_diagnostics == {}
+    assert error_frame.error_diagnostics["fixed_bias_norm_pixels"] > 0.0
+    message = optical_frame_to_observation_message(error_frame, config=enabled)
+    assert message.metadata["optical_error_diagnostics"]
+    assert not np.allclose(message.measurement, [0.1, -0.05])
+
+
+def test_optical_error_configuration_rejects_invalid_scales():
+    with np.testing.assert_raises(ValueError):
+        OpticalCameraConfig(pointing_jitter_sigma_pixels=-1.0)
+    with np.testing.assert_raises(ValueError):
+        OpticalCameraConfig(photon_gain_counts_per_intensity=0.0)
+
+
 def test_image_derived_optical_message_runs_through_network_schmidt():
     config = OpticalCameraConfig(
         width=64, height=64, focal_length_x_pixels=50.0,

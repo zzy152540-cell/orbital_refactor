@@ -1,0 +1,60 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "seed": 2,
+  "calibration_seed": 701,
+  "calibration_sample_count": 300,
+  "profile": "moderate_combined",
+  "paired_raw_measurements": true,
+  "default_filter_unchanged": true,
+  "arms": [
+    {
+      "modality": "OPTICAL",
+      "name": "fixed_reported_covariance",
+      "position_rmse_m": 1.5382592399758002,
+      "relative_position_rmse_m": 1.9353641906350485,
+      "mean_nis": 0.09208566810305674,
+      "valid_measurement_count": 2440
+    },
+    {
+      "modality": "OPTICAL",
+      "name": "empirical_covariance",
+      "position_rmse_m": 1.5398815319546253,
+      "relative_position_rmse_m": 1.9369997767081737,
+      "mean_nis": 2.827167871712278,
+      "valid_measurement_count": 2440
+    },
+    {
+      "modality": "OPTICAL",
+      "name": "bias_corrected_empirical_covariance",
+      "position_rmse_m": 1.5393903933699487,
+      "relative_position_rmse_m": 1.937102984140697,
+      "mean_nis": 2.1574677179557735,
+      "valid_measurement_count": 2440
+    },
+    {
+      "modality": "RADAR",
+      "name": "fixed_reported_covariance",
+      "position_rmse_m": 1.5227074979523252,
+      "relative_position_rmse_m": 1.9430294660187266,
+      "mean_nis": 0.8137032825195676,
+      "valid_measurement_count": 2440
+    },
+    {
+      "modality": "RADAR",
+      "name": "empirical_covariance",
+      "position_rmse_m": 1.5822201210151743,
+      "relative_position_rmse_m": 1.9874828154183537,
+      "mean_nis": 2.497237648342677,
+      "valid_measurement_count": 2440
+    },
+    {
+      "modality": "RADAR",
+      "name": "bias_corrected_empirical_covariance",
+      "position_rmse_m": 1.5245866472743983,
+      "relative_position_rmse_m": 1.9504175429955728,
+      "mean_nis": 2.2373886897478705,
+      "valid_measurement_count": 2440
+    }
+  ]
+}

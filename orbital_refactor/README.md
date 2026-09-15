@@ -1624,3 +1624,23 @@ The exact-center arm is a diagnostic, not a validated upper bound, because its
 fixed subpixel distribution does not match the random-subpixel calibration set.
 Raw infrared rendering uses a modality-specific deterministic random stream so
 future image changes cannot alter earlier radar noise in paired outage tests.
+
+Radar and optical raw front ends now expose the same opt-in error-model boundary.
+Optical images can add photon noise, stray-light drift, pointing jitter, radial
+distortion, and fixed focal-plane bias. Radar range-Doppler maps can add
+background drift, echo-amplitude fluctuation, range/range-rate jitter, and fixed
+bias. Every new switch defaults to disabled.
+
+Run their error-budget, held-out covariance, and Walker filter shadows with:
+
+```bash
+python -m experiments.run_radar_optical_error_budget_audit --samples 200
+python -m experiments.run_radar_optical_covariance_consistency_audit \
+  --calibration-samples 300 --validation-samples 300
+python -m experiments.run_radar_optical_filter_calibration_shadow \
+  --duration 120 --dt 2 --seed 0 --calibration-samples 300
+```
+
+The held-out moderate-error audit supports explicit bias correction plus the
+empirical covariance as a research candidate. It remains opt-in and does not
+replace the fixed-covariance production baseline.

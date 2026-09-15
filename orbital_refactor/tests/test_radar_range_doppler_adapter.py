@@ -58,6 +58,48 @@ def test_target_outside_range_doppler_window_is_invalid():
     assert not message.valid_flag
 
 
+def test_radar_error_model_is_opt_in_and_reports_physical_shift():
+    observer, target = _states()
+    expected_range = measure_relative_range(observer, target)
+    expected_rate = measure_relative_range_rate(observer, target)
+    baseline = RadarRangeDopplerConfig(read_noise_sigma=0.0)
+    enabled = RadarRangeDopplerConfig(
+        read_noise_sigma=0.0,
+        range_bias_m=5.0,
+        range_rate_bias_mps=-0.02,
+        range_jitter_sigma_m=0.2,
+        range_rate_jitter_sigma_mps=0.002,
+        background_drift_sigma=0.1,
+        echo_amplitude_sigma_fraction=0.05,
+    )
+    default_frame = render_radar_range_doppler_frame(
+        timestamp=0.0, observer_id="a", target_id="b",
+        observer_state=observer, target_state=target,
+        acquisition_range_m=expected_range,
+        acquisition_range_rate_mps=expected_rate,
+        config=baseline, rng=np.random.default_rng(9),
+    )
+    error_frame = render_radar_range_doppler_frame(
+        timestamp=0.0, observer_id="a", target_id="b",
+        observer_state=observer, target_state=target,
+        acquisition_range_m=expected_range,
+        acquisition_range_rate_mps=expected_rate,
+        config=enabled, rng=np.random.default_rng(9),
+    )
+    assert default_frame.error_diagnostics == {}
+    assert error_frame.error_diagnostics["applied_range_bias_m"] != 0.0
+    message = radar_frame_to_observation_message(error_frame, config=enabled)
+    assert message.metadata["radar_error_diagnostics"]
+    assert abs(message.measurement[0] - expected_range) > 1.0
+
+
+def test_radar_error_configuration_rejects_invalid_scales():
+    with np.testing.assert_raises(ValueError):
+        RadarRangeDopplerConfig(range_jitter_sigma_m=-1.0)
+    with np.testing.assert_raises(ValueError):
+        RadarRangeDopplerConfig(echo_amplitude_sigma_fraction=-0.1)
+
+
 def test_range_doppler_message_runs_through_network_schmidt():
     observer, target = _states()
     expected_range = measure_relative_range(observer, target)
