@@ -1,0 +1,26 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "calibration_samples": 300,
+  "run_count": 3,
+  "all_single_modalities_observable": true,
+  "all_raw_frontend_nis_aligned": true,
+  "all_position_rmse_finite": true,
+  "walker_raw_mean_nis": {
+    "radar": 2.0792506612954678,
+    "infrared": 1.980512487322817,
+    "optical": 2.184649597963631
+  },
+  "mean_position_rmse_m": {
+    "single:analytic": 27.259657612172514,
+    "single:raw_frontend": 15.43434878531295,
+    "walker:analytic": 1.4967003149346452,
+    "walker:raw_frontend": 1.4861367313731246
+  },
+  "acceptance_passed": true
+}
