@@ -27,6 +27,13 @@ from experiments.v14_observation_faults import apply_observation_faults
 from scenarios.measurement_visibility import VisibilityConfig
 
 
+# Backward-compatible imports for experiment modules that predate the shared
+# online-filter input helpers. Keep the implementation in one place while
+# those callers migrate to the public names.
+_items_by_timestamp = items_by_timestamp
+_source_updates_from_messages = source_updates_from_messages
+
+
 @dataclass(frozen=True)
 class OnlineTopologyResynchronizationSummary:
     node_count: int

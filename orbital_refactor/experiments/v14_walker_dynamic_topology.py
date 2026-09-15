@@ -441,7 +441,13 @@ def run_v14_walker_online_dynamic_filter_smoke(
             ).min())
             minimum_eigenvalue = min(minimum_eigenvalue, eigenvalue)
             psd_failures += int(eigenvalue < -1e-8)
-    metrics = _online_metrics(states, covariances, case["truth"])
+    metrics = _online_metrics(
+        states,
+        covariances,
+        case["truth"],
+        timestamps=case["timestamps"],
+        absolute_navigation_dropout_windows_by_node=None,
+    )
     performances = [
         session.coordinator.performance
         for session in orchestrator.sessions.values()
