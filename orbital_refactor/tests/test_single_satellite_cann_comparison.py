@@ -1,5 +1,6 @@
 import numpy as np
 
+from adapters.infrared_image_adapter import InfraredCameraConfig
 from experiments.single_satellite_cann_comparison import run_single_satellite_cann_comparison
 
 
@@ -48,3 +49,15 @@ def test_original_filter_runs_without_constructing_cann_sidecar():
     assert result["cann"] is None
     assert result["summary"]["cann_enabled"] is False
     assert result["summary"]["cann_phase_rmse_deg"] is None
+
+
+def test_optional_tracking_infrared_image_frontend_produces_valid_samples():
+    result = run_single_satellite_cann_comparison(
+        duration=4.0, dt=2.0, enable_cann=False, outage_modalities=(),
+        infrared_image_config=InfraredCameraConfig(
+            width=64, height=64, focal_length_x_pixels=300.0,
+            focal_length_y_pixels=300.0, read_noise_sigma=0.0,
+        ),
+    )
+    assert result["summary"]["infrared_raw_image_enabled"]
+    assert result["summary"]["infrared_valid_count"] == 3

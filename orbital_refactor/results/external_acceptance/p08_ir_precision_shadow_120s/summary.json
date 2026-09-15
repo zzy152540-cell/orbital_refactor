@@ -1,0 +1,276 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "threshold_percent": 20.0,
+  "baseline_sigma_deg": 0.05,
+  "baseline_unchanged": true,
+  "runs": [
+    {
+      "seed": 0,
+      "infrared_angle_sigma_deg": 0.05,
+      "reference_position_rmse_m": 12.028164822004586,
+      "optical_outage_position_rmse_m": 32.06840761824238,
+      "position_rmse_increase_percent": 166.6109759285618,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.86
+    },
+    {
+      "seed": 1,
+      "infrared_angle_sigma_deg": 0.05,
+      "reference_position_rmse_m": 15.281321325676352,
+      "optical_outage_position_rmse_m": 24.751043762826484,
+      "position_rmse_increase_percent": 61.969264537607,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8599999999999999
+    },
+    {
+      "seed": 2,
+      "infrared_angle_sigma_deg": 0.05,
+      "reference_position_rmse_m": 13.40632878840644,
+      "optical_outage_position_rmse_m": 19.644674020945878,
+      "position_rmse_increase_percent": 46.532837818614816,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.86
+    },
+    {
+      "seed": 3,
+      "infrared_angle_sigma_deg": 0.05,
+      "reference_position_rmse_m": 16.07923398905704,
+      "optical_outage_position_rmse_m": 39.88316588016925,
+      "position_rmse_increase_percent": 148.04145463218165,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8599999999999999
+    },
+    {
+      "seed": 4,
+      "infrared_angle_sigma_deg": 0.05,
+      "reference_position_rmse_m": 21.49744821460775,
+      "optical_outage_position_rmse_m": 35.88962158377238,
+      "position_rmse_increase_percent": 66.94828718966278,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8599999999999999
+    },
+    {
+      "seed": 0,
+      "infrared_angle_sigma_deg": 0.025,
+      "reference_position_rmse_m": 12.028164822004586,
+      "optical_outage_position_rmse_m": 19.647003872684706,
+      "position_rmse_increase_percent": 63.341658211583955,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8183333333333332
+    },
+    {
+      "seed": 1,
+      "infrared_angle_sigma_deg": 0.025,
+      "reference_position_rmse_m": 15.281321325676352,
+      "optical_outage_position_rmse_m": 19.708663175845484,
+      "position_rmse_increase_percent": 28.97224497681438,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8183333333333332
+    },
+    {
+      "seed": 2,
+      "infrared_angle_sigma_deg": 0.025,
+      "reference_position_rmse_m": 13.40632878840644,
+      "optical_outage_position_rmse_m": 15.749924386245073,
+      "position_rmse_increase_percent": 17.481263027543626,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8183333333333332
+    },
+    {
+      "seed": 3,
+      "infrared_angle_sigma_deg": 0.025,
+      "reference_position_rmse_m": 16.07923398905704,
+      "optical_outage_position_rmse_m": 27.68652774621946,
+      "position_rmse_increase_percent": 72.18810152935104,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8183333333333331
+    },
+    {
+      "seed": 4,
+      "infrared_angle_sigma_deg": 0.025,
+      "reference_position_rmse_m": 21.49744821460775,
+      "optical_outage_position_rmse_m": 27.691268585154862,
+      "position_rmse_increase_percent": 28.811886456078742,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.8183333333333331
+    },
+    {
+      "seed": 0,
+      "infrared_angle_sigma_deg": 0.0125,
+      "reference_position_rmse_m": 12.028164822004586,
+      "optical_outage_position_rmse_m": 14.263229099536897,
+      "position_rmse_increase_percent": 18.581922600889506,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.7544444444444445
+    },
+    {
+      "seed": 1,
+      "infrared_angle_sigma_deg": 0.0125,
+      "reference_position_rmse_m": 15.281321325676352,
+      "optical_outage_position_rmse_m": 16.86329269216502,
+      "position_rmse_increase_percent": 10.352320540702012,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.7544444444444445
+    },
+    {
+      "seed": 2,
+      "infrared_angle_sigma_deg": 0.0125,
+      "reference_position_rmse_m": 13.40632878840644,
+      "optical_outage_position_rmse_m": 13.908647107163087,
+      "position_rmse_increase_percent": 3.7468745298194,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.7544444444444445
+    },
+    {
+      "seed": 3,
+      "infrared_angle_sigma_deg": 0.0125,
+      "reference_position_rmse_m": 16.07923398905704,
+      "optical_outage_position_rmse_m": 20.91863788355317,
+      "position_rmse_increase_percent": 30.09722912042736,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.7544444444444445
+    },
+    {
+      "seed": 4,
+      "infrared_angle_sigma_deg": 0.0125,
+      "reference_position_rmse_m": 21.49744821460775,
+      "optical_outage_position_rmse_m": 23.642524381314377,
+      "position_rmse_increase_percent": 9.978282749154499,
+      "reference_mean_infrared_ci_weight": 0.0,
+      "optical_outage_mean_infrared_ci_weight": 0.7544444444444445
+    },
+    {
+      "seed": 0,
+      "infrared_angle_sigma_deg": 0.00625,
+      "reference_position_rmse_m": 11.7989382830504,
+      "optical_outage_position_rmse_m": 12.096887074956948,
+      "position_rmse_increase_percent": 2.5252169708740784,
+      "reference_mean_infrared_ci_weight": 0.25666666666666665,
+      "optical_outage_mean_infrared_ci_weight": 0.65
+    },
+    {
+      "seed": 1,
+      "infrared_angle_sigma_deg": 0.00625,
+      "reference_position_rmse_m": 15.237055745400404,
+      "optical_outage_position_rmse_m": 15.661219311655291,
+      "position_rmse_increase_percent": 2.7837633027163298,
+      "reference_mean_infrared_ci_weight": 0.25666666666666665,
+      "optical_outage_mean_infrared_ci_weight": 0.65
+    },
+    {
+      "seed": 2,
+      "infrared_angle_sigma_deg": 0.00625,
+      "reference_position_rmse_m": 13.150289551158833,
+      "optical_outage_position_rmse_m": 13.212077741951907,
+      "position_rmse_increase_percent": 0.46986182739701593,
+      "reference_mean_infrared_ci_weight": 0.25666666666666665,
+      "optical_outage_mean_infrared_ci_weight": 0.65
+    },
+    {
+      "seed": 3,
+      "infrared_angle_sigma_deg": 0.00625,
+      "reference_position_rmse_m": 16.373377610694167,
+      "optical_outage_position_rmse_m": 17.40664233690281,
+      "position_rmse_increase_percent": 6.310638835653386,
+      "reference_mean_infrared_ci_weight": 0.25666666666666665,
+      "optical_outage_mean_infrared_ci_weight": 0.65
+    },
+    {
+      "seed": 4,
+      "infrared_angle_sigma_deg": 0.00625,
+      "reference_position_rmse_m": 21.26036989808152,
+      "optical_outage_position_rmse_m": 21.762590338248824,
+      "position_rmse_increase_percent": 2.3622375460768534,
+      "reference_mean_infrared_ci_weight": 0.25666666666666665,
+      "optical_outage_mean_infrared_ci_weight": 0.65
+    },
+    {
+      "seed": 0,
+      "infrared_angle_sigma_deg": 0.005,
+      "reference_position_rmse_m": 11.743305656886525,
+      "optical_outage_position_rmse_m": 11.895455644757613,
+      "position_rmse_increase_percent": 1.2956316757527613,
+      "reference_mean_infrared_ci_weight": 0.5188888888888888,
+      "optical_outage_mean_infrared_ci_weight": 0.6094444444444445
+    },
+    {
+      "seed": 1,
+      "infrared_angle_sigma_deg": 0.005,
+      "reference_position_rmse_m": 15.322616682695251,
+      "optical_outage_position_rmse_m": 15.367024125258409,
+      "position_rmse_increase_percent": 0.28981631194435153,
+      "reference_mean_infrared_ci_weight": 0.5188888888888888,
+      "optical_outage_mean_infrared_ci_weight": 0.6094444444444445
+    },
+    {
+      "seed": 2,
+      "infrared_angle_sigma_deg": 0.005,
+      "reference_position_rmse_m": 13.149311594451156,
+      "optical_outage_position_rmse_m": 13.21972485108214,
+      "position_rmse_increase_percent": 0.5354900606408698,
+      "reference_mean_infrared_ci_weight": 0.5188888888888888,
+      "optical_outage_mean_infrared_ci_weight": 0.6094444444444445
+    },
+    {
+      "seed": 3,
+      "infrared_angle_sigma_deg": 0.005,
+      "reference_position_rmse_m": 16.5450175746228,
+      "optical_outage_position_rmse_m": 16.86658242923561,
+      "position_rmse_increase_percent": 1.943575177013014,
+      "reference_mean_infrared_ci_weight": 0.5188888888888888,
+      "optical_outage_mean_infrared_ci_weight": 0.6094444444444445
+    },
+    {
+      "seed": 4,
+      "infrared_angle_sigma_deg": 0.005,
+      "reference_position_rmse_m": 21.28756640391256,
+      "optical_outage_position_rmse_m": 21.551243172546574,
+      "position_rmse_increase_percent": 1.238642142699557,
+      "reference_mean_infrared_ci_weight": 0.518888888888889,
+      "optical_outage_mean_infrared_ci_weight": 0.6094444444444445
+    }
+  ],
+  "groups": [
+    {
+      "infrared_angle_sigma_deg": 0.05,
+      "run_count": 5,
+      "mean_position_rmse_increase_percent": 98.02056402132561,
+      "position_increase_95_half_width_percent": 48.255229126532846,
+      "worst_position_rmse_increase_percent": 166.6109759285618,
+      "threshold_met": false
+    },
+    {
+      "infrared_angle_sigma_deg": 0.025,
+      "run_count": 5,
+      "mean_position_rmse_increase_percent": 42.159030840274355,
+      "position_increase_95_half_width_percent": 21.07104195418475,
+      "worst_position_rmse_increase_percent": 72.18810152935104,
+      "threshold_met": false
+    },
+    {
+      "infrared_angle_sigma_deg": 0.0125,
+      "run_count": 5,
+      "mean_position_rmse_increase_percent": 14.551325908198555,
+      "position_increase_95_half_width_percent": 8.90885606677612,
+      "worst_position_rmse_increase_percent": 30.09722912042736,
+      "threshold_met": true
+    },
+    {
+      "infrared_angle_sigma_deg": 0.00625,
+      "run_count": 5,
+      "mean_position_rmse_increase_percent": 2.8903436965435327,
+      "position_increase_95_half_width_percent": 1.8584233988159375,
+      "worst_position_rmse_increase_percent": 6.310638835653386,
+      "threshold_met": true
+    },
+    {
+      "infrared_angle_sigma_deg": 0.005,
+      "run_count": 5,
+      "mean_position_rmse_increase_percent": 1.0606310736101108,
+      "position_increase_95_half_width_percent": 0.5775239019834387,
+      "worst_position_rmse_increase_percent": 1.943575177013014,
+      "threshold_met": true
+    }
+  ]
+}

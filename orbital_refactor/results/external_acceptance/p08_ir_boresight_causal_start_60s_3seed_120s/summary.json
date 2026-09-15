@@ -1,0 +1,308 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "calibration_profile": "moderate_combined",
+  "optical_outage_start_seconds": 60.0,
+  "lagged_definition": "At k>0, propagate the corresponding analytic tracker's posterior from k-1 with constant velocity; k=0 uses the configured initial error.",
+  "runs": [
+    {
+      "seed": 0,
+      "mode": "exact_center_truth_tracking_diagnostic",
+      "reference_position_rmse_m": 103662.78057231073,
+      "optical_outage_position_rmse_m": 103662.78054342406,
+      "position_rmse_increase_percent": -2.7866001728200485e-08,
+      "reference_valid_fraction": 1.0,
+      "outage_valid_fraction": 1.0,
+      "reference_boresight_mean_error_deg": 0.0,
+      "outage_boresight_mean_error_deg": 0.0,
+      "outage_boresight_max_error_deg": 0.0,
+      "outage_infrared_mean_nis": 7223.140829252379,
+      "outage_infrared_ci_weight": 0.12666666666666668,
+      "reference_rmse_first_third_m": 100233.35761001636,
+      "reference_rmse_last_third_m": 105755.51114069496,
+      "outage_rmse_first_third_m": 100233.35761001636,
+      "outage_rmse_last_third_m": 105755.51108127313,
+      "reference_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.5286987543773621,
+          0.49187718025077093
+        ],
+        "centroid_fractional_std_xy": [
+          0.04439402436095165,
+          0.039341776157848486
+        ],
+        "ideal_radius_mean_pixels": 0.0,
+        "ideal_radius_max_pixels": 0.0,
+        "near_center_fraction": 1.0,
+        "off_axis_fraction": 0.0
+      },
+      "outage_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.5286987543773621,
+          0.49187718025077093
+        ],
+        "centroid_fractional_std_xy": [
+          0.04439402436095165,
+          0.039341776157848486
+        ],
+        "ideal_radius_mean_pixels": 0.0,
+        "ideal_radius_max_pixels": 0.0,
+        "near_center_fraction": 1.0,
+        "off_axis_fraction": 0.0
+      },
+      "pre_outage_state_max_abs_difference": 0.0
+    },
+    {
+      "seed": 0,
+      "mode": "lagged_posterior_prediction",
+      "reference_position_rmse_m": 13.530209507209639,
+      "optical_outage_position_rmse_m": 13.490004722968886,
+      "position_rmse_increase_percent": -0.2971482756370479,
+      "reference_valid_fraction": 1.0,
+      "outage_valid_fraction": 1.0,
+      "reference_boresight_mean_error_deg": 0.09771187822337243,
+      "outage_boresight_mean_error_deg": 0.09725818157415127,
+      "outage_boresight_max_error_deg": 0.10392112099154201,
+      "outage_infrared_mean_nis": 1.6381882483536823,
+      "outage_infrared_ci_weight": 0.5700000000000001,
+      "reference_rmse_first_third_m": 20.598185092199486,
+      "reference_rmse_last_third_m": 8.271054805719169,
+      "outage_rmse_first_third_m": 20.598185092199486,
+      "outage_rmse_last_third_m": 8.125641916527197,
+      "reference_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.49464899200737233,
+          0.4697300385377122
+        ],
+        "centroid_fractional_std_xy": [
+          0.07737409939823887,
+          0.06311042599873339
+        ],
+        "ideal_radius_mean_pixels": 1.0232374056867548,
+        "ideal_radius_max_pixels": 1.088260627587669,
+        "near_center_fraction": 0.09836065573770492,
+        "off_axis_fraction": 0.0
+      },
+      "outage_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.494056280549199,
+          0.47489956471366235
+        ],
+        "centroid_fractional_std_xy": [
+          0.07762622642027067,
+          0.0623498304402663
+        ],
+        "ideal_radius_mean_pixels": 1.0184862924386846,
+        "ideal_radius_max_pixels": 1.088260627587669,
+        "near_center_fraction": 0.19672131147540983,
+        "off_axis_fraction": 0.0
+      },
+      "pre_outage_state_max_abs_difference": 0.0
+    },
+    {
+      "seed": 1,
+      "mode": "exact_center_truth_tracking_diagnostic",
+      "reference_position_rmse_m": 103670.23547852227,
+      "optical_outage_position_rmse_m": 103670.23537453524,
+      "position_rmse_increase_percent": -1.0030557499509858e-07,
+      "reference_valid_fraction": 1.0,
+      "outage_valid_fraction": 1.0,
+      "reference_boresight_mean_error_deg": 0.0,
+      "outage_boresight_mean_error_deg": 0.0,
+      "outage_boresight_max_error_deg": 0.0,
+      "outage_infrared_mean_nis": 7187.56613444444,
+      "outage_infrared_ci_weight": 0.12611111111111115,
+      "reference_rmse_first_third_m": 100229.35839861815,
+      "reference_rmse_last_third_m": 105768.8313974863,
+      "outage_rmse_first_third_m": 100229.35839861815,
+      "outage_rmse_last_third_m": 105768.83115842567,
+      "reference_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.5327892015884003,
+          0.48716056760511384
+        ],
+        "centroid_fractional_std_xy": [
+          0.03674167040344161,
+          0.04329671096774634
+        ],
+        "ideal_radius_mean_pixels": 0.0,
+        "ideal_radius_max_pixels": 0.0,
+        "near_center_fraction": 1.0,
+        "off_axis_fraction": 0.0
+      },
+      "outage_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.5327892015884003,
+          0.48716056760511384
+        ],
+        "centroid_fractional_std_xy": [
+          0.03674167040344161,
+          0.04329671096774634
+        ],
+        "ideal_radius_mean_pixels": 0.0,
+        "ideal_radius_max_pixels": 0.0,
+        "near_center_fraction": 1.0,
+        "off_axis_fraction": 0.0
+      },
+      "pre_outage_state_max_abs_difference": 0.0
+    },
+    {
+      "seed": 1,
+      "mode": "lagged_posterior_prediction",
+      "reference_position_rmse_m": 13.930266539884885,
+      "optical_outage_position_rmse_m": 13.940578314079152,
+      "position_rmse_increase_percent": 0.07402424185311213,
+      "reference_valid_fraction": 1.0,
+      "outage_valid_fraction": 1.0,
+      "reference_boresight_mean_error_deg": 0.09821619716223329,
+      "outage_boresight_mean_error_deg": 0.09698852098568062,
+      "outage_boresight_max_error_deg": 0.10192962163679024,
+      "outage_infrared_mean_nis": 1.5251422052855454,
+      "outage_infrared_ci_weight": 0.5700000000000001,
+      "reference_rmse_first_third_m": 23.23602559317503,
+      "reference_rmse_last_third_m": 5.152771900465517,
+      "outage_rmse_first_third_m": 23.23602559317503,
+      "outage_rmse_last_third_m": 5.081337877675663,
+      "reference_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.48210567088308803,
+          0.4639143422003788
+        ],
+        "centroid_fractional_std_xy": [
+          0.06350065181243048,
+          0.06903502540214052
+        ],
+        "ideal_radius_mean_pixels": 1.0285186355184446,
+        "ideal_radius_max_pixels": 1.067405627824708,
+        "near_center_fraction": 0.03278688524590164,
+        "off_axis_fraction": 0.0
+      },
+      "outage_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.4960993040392398,
+          0.4547290176261886
+        ],
+        "centroid_fractional_std_xy": [
+          0.06790863802850244,
+          0.06829397427128381
+        ],
+        "ideal_radius_mean_pixels": 1.015662403881632,
+        "ideal_radius_max_pixels": 1.067405627824708,
+        "near_center_fraction": 0.16393442622950818,
+        "off_axis_fraction": 0.0
+      },
+      "pre_outage_state_max_abs_difference": 0.0
+    },
+    {
+      "seed": 2,
+      "mode": "exact_center_truth_tracking_diagnostic",
+      "reference_position_rmse_m": 103659.02369220182,
+      "optical_outage_position_rmse_m": 103659.02406289894,
+      "position_rmse_increase_percent": 3.5761201016386765e-07,
+      "reference_valid_fraction": 1.0,
+      "outage_valid_fraction": 1.0,
+      "reference_boresight_mean_error_deg": 0.0,
+      "outage_boresight_mean_error_deg": 0.0,
+      "outage_boresight_max_error_deg": 0.0,
+      "outage_infrared_mean_nis": 7332.935717519745,
+      "outage_infrared_ci_weight": 0.12277777777777779,
+      "reference_rmse_first_third_m": 100219.72783638099,
+      "reference_rmse_last_third_m": 105758.38750351935,
+      "outage_rmse_first_third_m": 100219.72783638099,
+      "outage_rmse_last_third_m": 105758.38850381922,
+      "reference_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.518003052554895,
+          0.4832760701841897
+        ],
+        "centroid_fractional_std_xy": [
+          0.03816383682233859,
+          0.04385720150718522
+        ],
+        "ideal_radius_mean_pixels": 0.0,
+        "ideal_radius_max_pixels": 0.0,
+        "near_center_fraction": 1.0,
+        "off_axis_fraction": 0.0
+      },
+      "outage_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.518003052554895,
+          0.4832760701841897
+        ],
+        "centroid_fractional_std_xy": [
+          0.03816383682233859,
+          0.04385720150718522
+        ],
+        "ideal_radius_mean_pixels": 0.0,
+        "ideal_radius_max_pixels": 0.0,
+        "near_center_fraction": 1.0,
+        "off_axis_fraction": 0.0
+      },
+      "pre_outage_state_max_abs_difference": 0.0
+    },
+    {
+      "seed": 2,
+      "mode": "lagged_posterior_prediction",
+      "reference_position_rmse_m": 10.674756977500877,
+      "optical_outage_position_rmse_m": 10.680438313731951,
+      "position_rmse_increase_percent": 0.05322215993346416,
+      "reference_valid_fraction": 1.0,
+      "outage_valid_fraction": 1.0,
+      "reference_boresight_mean_error_deg": 0.09748075604883802,
+      "outage_boresight_mean_error_deg": 0.09811274225715472,
+      "outage_boresight_max_error_deg": 0.10301136214067425,
+      "outage_infrared_mean_nis": 1.579108986897565,
+      "outage_infrared_ci_weight": 0.5700000000000001,
+      "reference_rmse_first_third_m": 18.121645487903166,
+      "reference_rmse_last_third_m": 1.9972231942899443,
+      "outage_rmse_first_third_m": 18.121645487903166,
+      "outage_rmse_last_third_m": 2.361231011914029,
+      "reference_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.49146971466561273,
+          0.46176467110347047
+        ],
+        "centroid_fractional_std_xy": [
+          0.06710874108303051,
+          0.06539857946331865
+        ],
+        "ideal_radius_mean_pixels": 1.0208170912814574,
+        "ideal_radius_max_pixels": 1.078733624141532,
+        "near_center_fraction": 0.03278688524590164,
+        "off_axis_fraction": 0.0
+      },
+      "outage_frontend_diagnostics": {
+        "valid_count": 61,
+        "centroid_fractional_mean_xy": [
+          0.48429544638361177,
+          0.4761992684039198
+        ],
+        "centroid_fractional_std_xy": [
+          0.06668539600894831,
+          0.06874453378604677
+        ],
+        "ideal_radius_mean_pixels": 1.0274352551564399,
+        "ideal_radius_max_pixels": 1.078733624141532,
+        "near_center_fraction": 0.03278688524590164,
+        "off_axis_fraction": 0.0
+      },
+      "pre_outage_state_max_abs_difference": 0.0
+    }
+  ]
+}

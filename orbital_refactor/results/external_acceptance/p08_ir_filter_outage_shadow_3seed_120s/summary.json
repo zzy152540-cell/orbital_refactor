@@ -1,0 +1,122 @@
+{
+  "duration_seconds": 120.0,
+  "dt_seconds": 2.0,
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "profile": "moderate_combined",
+  "calibration_sample_count": 300,
+  "paired_raw_images": true,
+  "ci_weight_available": false,
+  "runs": [
+    {
+      "seed": 0,
+      "arm": "fixed_reported_covariance",
+      "reference_position_rmse_m": 1.4666265778489849,
+      "optical_outage_position_rmse_m": 1.4665213755783446,
+      "position_rmse_increase_percent": -0.007173078152896485,
+      "reference_infrared_mean_nis": 0.06195714849862105,
+      "optical_outage_infrared_mean_nis": 0.061957146000799844
+    },
+    {
+      "seed": 0,
+      "arm": "empirical_covariance",
+      "reference_position_rmse_m": 1.4656153855291638,
+      "optical_outage_position_rmse_m": 1.4655115831374927,
+      "position_rmse_increase_percent": -0.007082512417375623,
+      "reference_infrared_mean_nis": 2.532901243235503,
+      "optical_outage_infrared_mean_nis": 2.5329011296150328
+    },
+    {
+      "seed": 0,
+      "arm": "bias_corrected_empirical_covariance",
+      "reference_position_rmse_m": 1.4658344674636274,
+      "optical_outage_position_rmse_m": 1.4657298831901806,
+      "position_rmse_increase_percent": -0.007134794260077972,
+      "reference_infrared_mean_nis": 1.9502223929478384,
+      "optical_outage_infrared_mean_nis": 1.950222485357639
+    },
+    {
+      "seed": 1,
+      "arm": "fixed_reported_covariance",
+      "reference_position_rmse_m": 1.485343717743669,
+      "optical_outage_position_rmse_m": 1.4853658482449141,
+      "position_rmse_increase_percent": 0.001489924586527871,
+      "reference_infrared_mean_nis": 0.0630797444433205,
+      "optical_outage_infrared_mean_nis": 0.06307974772293987
+    },
+    {
+      "seed": 1,
+      "arm": "empirical_covariance",
+      "reference_position_rmse_m": 1.4882312936370723,
+      "optical_outage_position_rmse_m": 1.4882530493757353,
+      "position_rmse_increase_percent": 0.0014618519820170698,
+      "reference_infrared_mean_nis": 2.5802992555827475,
+      "optical_outage_infrared_mean_nis": 2.580299397173297
+    },
+    {
+      "seed": 1,
+      "arm": "bias_corrected_empirical_covariance",
+      "reference_position_rmse_m": 1.4859282468160124,
+      "optical_outage_position_rmse_m": 1.4859508242043311,
+      "position_rmse_increase_percent": 0.0015194130919212647,
+      "reference_infrared_mean_nis": 2.012101971572171,
+      "optical_outage_infrared_mean_nis": 2.0121019662495936
+    },
+    {
+      "seed": 2,
+      "arm": "fixed_reported_covariance",
+      "reference_position_rmse_m": 1.53827052923465,
+      "optical_outage_position_rmse_m": 1.5383404069310271,
+      "position_rmse_increase_percent": 0.0045426142573242,
+      "reference_infrared_mean_nis": 0.06119224191984968,
+      "optical_outage_infrared_mean_nis": 0.06119224428231277
+    },
+    {
+      "seed": 2,
+      "arm": "empirical_covariance",
+      "reference_position_rmse_m": 1.539678379213235,
+      "optical_outage_position_rmse_m": 1.5397473633587933,
+      "position_rmse_increase_percent": 0.00448042568432946,
+      "reference_infrared_mean_nis": 2.5025188478290104,
+      "optical_outage_infrared_mean_nis": 2.5025189527226086
+    },
+    {
+      "seed": 2,
+      "arm": "bias_corrected_empirical_covariance",
+      "reference_position_rmse_m": 1.538884805444961,
+      "optical_outage_position_rmse_m": 1.5389544758148272,
+      "position_rmse_increase_percent": 0.0045273284666693765,
+      "reference_infrared_mean_nis": 1.895651825263597,
+      "optical_outage_infrared_mean_nis": 1.8956518495916117
+    }
+  ],
+  "groups": [
+    {
+      "arm": "fixed_reported_covariance",
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.0003801797696814712,
+      "worst_position_rmse_increase_percent": 0.0045426142573242,
+      "mean_reference_infrared_nis": 0.062076378287263735,
+      "mean_optical_outage_infrared_nis": 0.062076379335350824
+    },
+    {
+      "arm": "empirical_covariance",
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.00038007825034303087,
+      "worst_position_rmse_increase_percent": 0.00448042568432946,
+      "mean_reference_infrared_nis": 2.5385731155490867,
+      "mean_optical_outage_infrared_nis": 2.538573159836979
+    },
+    {
+      "arm": "bias_corrected_empirical_covariance",
+      "run_count": 3,
+      "mean_position_rmse_increase_percent": -0.00036268423382911026,
+      "worst_position_rmse_increase_percent": 0.0045273284666693765,
+      "mean_reference_infrared_nis": 1.9526587299278688,
+      "mean_optical_outage_infrared_nis": 1.9526587670662814
+    }
+  ]
+}

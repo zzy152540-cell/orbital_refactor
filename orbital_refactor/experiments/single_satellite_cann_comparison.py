@@ -5,6 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
+from adapters.infrared_image_adapter import (
+    InfraredCameraConfig,
+    infrared_frame_to_observation_message,
+    render_infrared_point_source_frame,
+)
 from adapters.synthetic_measurement_adapter import (
     create_infrared_observations,
     create_optical_observations,
@@ -20,6 +25,7 @@ from brain_inspired.line_cann import LineCANN, LineCANNConfig
 from brain_inspired.plane_cann import PlaneCANN, PlaneCANNConfig
 from cooperative.multi_sat_pipeline import build_module_inputs
 from interfaces.state_awareness_module import StateAwarenessModule
+from interfaces.data_objects import Observation
 from orbital_core.constants import R_EARTH
 from orbital_core.coordinates import state_history_eci_to_spri
 from orbital_core.orbit_elements import keplerian_to_eci
@@ -45,6 +51,10 @@ def run_single_satellite_cann_comparison(
     filter_architecture: str = "federated_ci",
     observer_altitude_m: float = 702e3,
     observer_raan_deg: float = 14.5,
+    infrared_angle_sigma_deg: float = 0.05,
+    infrared_image_config: InfraredCameraConfig | None = None,
+    infrared_covariance_calibration=None,
+    infrared_boresight_spri_history: np.ndarray | None = None,
     ci_objective: str = "trace",
     reset_feedback: bool = True,
 ):
@@ -156,12 +166,27 @@ def run_single_satellite_cann_comparison(
                 )) for item in processed_optical if item.valid_flag
             )),
         }
-    observations += create_infrared_observations(
-        timestamps=timestamps, relative_position_spri=spri[:, :3],
-        covariance=np.diag(np.deg2rad([0.05, 0.05])) ** 2,
-        observer_id="sat_01", target_id="target", rng=rng,
-        valid_flags=available_by_modality["ir"],
-    )
+    if infrared_angle_sigma_deg <= 0.0:
+        raise ValueError("infrared_angle_sigma_deg must be positive.")
+    if infrared_image_config is None:
+        observations += create_infrared_observations(
+            timestamps=timestamps, relative_position_spri=spri[:, :3],
+            covariance=np.diag(
+                np.deg2rad([infrared_angle_sigma_deg] * 2)
+            ) ** 2,
+            observer_id="sat_01", target_id="target", rng=rng,
+            valid_flags=available_by_modality["ir"],
+        )
+    else:
+        infrared_image_rng = np.random.default_rng(1_500_000 + int(seed))
+        observations += _create_infrared_image_observations_spri(
+            timestamps=timestamps, relative_position_spri=spri[:, :3],
+            valid_flags=available_by_modality["ir"],
+            config=infrared_image_config,
+            covariance_calibration=infrared_covariance_calibration,
+            boresight_spri_history=infrared_boresight_spri_history,
+            rng=infrared_image_rng,
+        )
     if infrared_fault_mode is not None:
         _inject_infrared_faults(
             observations, timestamps, mode=infrared_fault_mode,
@@ -268,6 +293,9 @@ def run_single_satellite_cann_comparison(
     relative_estimate = getattr(history, "fused_state_history", None)
     if relative_estimate is None:
         relative_estimate = history.state_history
+    relative_estimate_spri = state_history_eci_to_spri(
+        relative_estimate, observer_track.q_eci2pri_history,
+    )
     estimate_eci = observer_track.state_history_eci + relative_estimate
     truth_eci = scenario.target_trajectory.state_history_eci
     # Use the same estimator-derived fixed frame as the integrated sidecar so
@@ -326,6 +354,15 @@ def run_single_satellite_cann_comparison(
         "filter_architecture": str(filter_architecture),
         "observer_altitude_m": float(observer_altitude_m),
         "observer_raan_deg": float(observer_raan_deg),
+        "infrared_angle_sigma_deg": float(infrared_angle_sigma_deg),
+        "infrared_raw_image_enabled": bool(infrared_image_config is not None),
+        "infrared_empirical_covariance_enabled": bool(
+            infrared_covariance_calibration is not None
+        ),
+        "infrared_boresight_mode": (
+            "lagged_prediction" if infrared_boresight_spri_history is not None
+            else "truth_tracking_upper_bound"
+        ),
         "ci_objective": str(ci_objective),
         "reset_feedback": bool(reset_feedback),
         "cann_enabled": bool(enable_cann),
@@ -350,13 +387,26 @@ def run_single_satellite_cann_comparison(
         "cann_valid_fraction": float(np.mean(cann.valid)) if cann is not None else None,
         "optical_valid_count": int(np.count_nonzero(history.measurement_valid_history["opt"])),
         "infrared_valid_count": int(np.count_nonzero(history.measurement_valid_history["ir"])),
+        "infrared_boresight_error_mean_deg": _mean_metadata_value(
+            observations, "infrared", "boresight_error_deg"
+        ),
+        "infrared_boresight_error_max_deg": _max_metadata_value(
+            observations, "infrared", "boresight_error_deg"
+        ),
+        "infrared_frontend_diagnostics": _infrared_frontend_diagnostics(
+            observations, infrared_image_config,
+        ),
         "radar_valid_count": int(np.count_nonzero(history.measurement_valid_history["rad"])),
     }
+
+
     return {
         "timestamps": timestamps, "position_error_m": position_error,
         "velocity_error_mps": velocity_error, "truth_phase": truth_phase,
         "estimated_state_history_eci": estimate_eci,
         "truth_state_history_eci": truth_eci,
+        "estimated_relative_state_history_spri": relative_estimate_spri,
+        "truth_relative_state_history_spri": spri,
         "cann": cann,
         "available": np.logical_and.reduce(tuple(available_by_modality.values())),
         "available_by_modality": available_by_modality,
@@ -389,6 +439,170 @@ def run_single_satellite_cann_comparison(
             for name, values in local_covariance_history.items()
         },
         "summary": summary,
+    }
+
+
+def _create_infrared_image_observations_spri(
+    *, timestamps, relative_position_spri, valid_flags, config,
+    covariance_calibration, boresight_spri_history, rng,
+):
+    """Render tracked focal-plane residuals and map the ray back to SPRI."""
+    result = []
+    observer = np.zeros(6)
+    identity = np.array([1.0, 0.0, 0.0, 0.0])
+    boresights = (
+        np.asarray(boresight_spri_history, dtype=float)
+        if boresight_spri_history is not None
+        else np.asarray(relative_position_spri, dtype=float)
+    )
+    if boresights.shape != np.asarray(relative_position_spri).shape:
+        raise ValueError("infrared_boresight_spri_history must have shape (N, 3).")
+    for index, timestamp in enumerate(timestamps):
+        relative = np.asarray(relative_position_spri[index], dtype=float)
+        basis = _tracking_camera_basis_spri(boresights[index])
+        relative_camera = (
+            np.array([np.linalg.norm(relative), 0.0, 0.0])
+            if boresight_spri_history is None else basis.T @ relative
+        )
+        target = np.r_[relative_camera, np.zeros(3)]
+        frame = render_infrared_point_source_frame(
+            timestamp=timestamp, observer_id="sat_01", target_id="target",
+            observer_state=observer, target_state=target,
+            quaternion_i2b_wxyz=identity, config=config, rng=rng,
+        )
+        message = infrared_frame_to_observation_message(
+            frame, config=config,
+            covariance_calibration=covariance_calibration,
+        )
+        if boresight_spri_history is None:
+            ideal_spri = np.array([
+                np.arctan2(relative[1], relative[0]),
+                np.arctan2(relative[2], np.linalg.norm(relative[:2])),
+            ])
+            measurement_spri = ideal_spri + message.measurement
+            transformed_covariance = message.covariance.copy()
+            covariance_spri = message.covariance.copy()
+            covariance_projection = "TRUE_LOS_TANGENT_PLANE_UPPER_BOUND"
+        else:
+            measurement_spri = _camera_angles_to_spri(message.measurement, basis)
+            epsilon = 1.0e-6
+            jacobian = np.empty((2, 2))
+            for axis in range(2):
+                offset = np.zeros(2)
+                offset[axis] = epsilon
+                difference = (
+                    _camera_angles_to_spri(message.measurement + offset, basis)
+                    - _camera_angles_to_spri(message.measurement - offset, basis)
+                )
+                difference[0] = (
+                    (difference[0] + np.pi) % (2.0 * np.pi) - np.pi
+                )
+                jacobian[:, axis] = difference / (2.0 * epsilon)
+            transformed_covariance = jacobian @ message.covariance @ jacobian.T
+            conservative_variance = float(np.max(np.linalg.eigvalsh(
+                transformed_covariance
+            )))
+            covariance_spri = np.eye(2) * conservative_variance
+            covariance_projection = "MAX_EIGENVALUE_ISOTROPIC_ENVELOPE"
+        measurement_spri[0] = (
+            (measurement_spri[0] + np.pi) % (2.0 * np.pi) - np.pi
+        )
+        result.append(Observation(
+            timestamp=float(timestamp), observer_id="sat_01",
+            target_id="target", modality="INFRARED",
+            source_type="RAW_IMAGE", measurement=measurement_spri,
+            covariance=covariance_spri, confidence=1.0,
+            frame="SPRI",
+            valid_flag=bool(valid_flags[index] and message.valid_flag),
+            metadata={
+                **message.metadata,
+                "measurement_type": "AZIMUTH_ELEVATION",
+                "virtual_sensor_alignment": (
+                    "LAGGED_PREDICTED_LOS" if boresight_spri_history is not None
+                    else "TRACKING_BORESIGHT_AT_TRUE_LOS"
+                ),
+                "boresight_spri": boresights[index].copy(),
+                "ideal_pixel_xy": frame.ideal_pixel_xy.copy(),
+                "full_transformed_covariance_spri": transformed_covariance,
+                "covariance_projection": covariance_projection,
+                "boresight_error_deg": float(np.rad2deg(np.arccos(np.clip(
+                    np.dot(relative, boresights[index])
+                    / (np.linalg.norm(relative) * np.linalg.norm(boresights[index])),
+                    -1.0, 1.0,
+                )))),
+            },
+        ))
+    return result
+
+
+def _tracking_camera_basis_spri(boresight):
+    forward = np.asarray(boresight, dtype=float).reshape(3)
+    norm = np.linalg.norm(forward)
+    if not np.isfinite(norm) or norm <= 0.0:
+        raise ValueError("Infrared boresight must be finite and nonzero.")
+    forward /= norm
+    reference = np.array([0.0, 0.0, 1.0])
+    lateral = np.cross(reference, forward)
+    if np.linalg.norm(lateral) < 1.0e-8:
+        lateral = np.cross(np.array([0.0, 1.0, 0.0]), forward)
+    lateral /= np.linalg.norm(lateral)
+    vertical = np.cross(forward, lateral)
+    return np.column_stack((forward, lateral, vertical))
+
+
+def _camera_angles_to_spri(camera_az_el, basis):
+    azimuth, elevation = np.asarray(camera_az_el, dtype=float).reshape(2)
+    u = np.tan(azimuth)
+    v = np.tan(elevation) * np.sqrt(1.0 + u**2)
+    ray = np.asarray(basis, dtype=float).reshape(3, 3) @ np.array([1.0, u, v])
+    return np.array([
+        np.arctan2(ray[1], ray[0]),
+        np.arctan2(ray[2], np.linalg.norm(ray[:2])),
+    ])
+
+
+def _metadata_values(observations, modality, key):
+    return np.asarray([
+        item.metadata[key] for item in observations
+        if item.modality.lower() == modality and key in item.metadata
+    ], dtype=float)
+
+
+def _mean_metadata_value(observations, modality, key):
+    values = _metadata_values(observations, modality, key)
+    return float(np.mean(values)) if values.size else None
+
+
+def _max_metadata_value(observations, modality, key):
+    values = _metadata_values(observations, modality, key)
+    return float(np.max(values)) if values.size else None
+
+
+def _infrared_frontend_diagnostics(observations, config):
+    if config is None:
+        return None
+    infrared = [item for item in observations if item.modality.lower() == "infrared"]
+    centroids = np.asarray([
+        item.metadata["centroid_pixel_xy"] for item in infrared
+        if item.valid_flag and "centroid_pixel_xy" in item.metadata
+    ], dtype=float)
+    ideal = np.asarray([
+        item.metadata["ideal_pixel_xy"] for item in infrared
+        if item.valid_flag and "ideal_pixel_xy" in item.metadata
+    ], dtype=float)
+    if not len(centroids):
+        return {"valid_count": 0}
+    principal = np.array([config.principal_x, config.principal_y])
+    fractional = centroids - np.floor(centroids)
+    ideal_radius = np.linalg.norm(ideal - principal, axis=1)
+    return {
+        "valid_count": int(len(centroids)),
+        "centroid_fractional_mean_xy": np.mean(fractional, axis=0).tolist(),
+        "centroid_fractional_std_xy": np.std(fractional, axis=0).tolist(),
+        "ideal_radius_mean_pixels": float(np.mean(ideal_radius)),
+        "ideal_radius_max_pixels": float(np.max(ideal_radius)),
+        "near_center_fraction": float(np.mean(ideal_radius < 1.0)),
+        "off_axis_fraction": float(np.mean(ideal_radius >= 8.0)),
     }
 
 

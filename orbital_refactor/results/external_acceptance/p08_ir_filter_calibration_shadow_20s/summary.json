@@ -1,0 +1,32 @@
+{
+  "duration_seconds": 20.0,
+  "dt_seconds": 2.0,
+  "seed": 0,
+  "calibration_seed": 701,
+  "calibration_sample_count": 300,
+  "profile": "moderate_combined",
+  "default_filter_unchanged": true,
+  "arms": [
+    {
+      "name": "fixed_reported_covariance",
+      "position_rmse_m": 2.368381928839928,
+      "relative_position_rmse_m": 3.3962703143694335,
+      "infrared_measurement_rmse_deg": 0.005963656484105514,
+      "infrared_mean_nis": 0.062064855803167146
+    },
+    {
+      "name": "empirical_covariance",
+      "position_rmse_m": 2.365442628139134,
+      "relative_position_rmse_m": 3.3925825517134727,
+      "infrared_measurement_rmse_deg": 0.005963656484105514,
+      "infrared_mean_nis": 2.5363807422674003
+    },
+    {
+      "name": "bias_corrected_empirical_covariance",
+      "position_rmse_m": 2.3676283587182647,
+      "relative_position_rmse_m": 3.3928743625948727,
+      "infrared_measurement_rmse_deg": 0.005336474643894173,
+      "infrared_mean_nis": 2.0459931517963406
+    }
+  ]
+}

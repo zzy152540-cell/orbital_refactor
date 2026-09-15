@@ -401,7 +401,7 @@ def replace_radar_messages_with_reacquisition(
 
 def replace_infrared_messages_with_body_pair(
     messages, *, timestamps, truth_state_history_by_node, config,
-    analytic_rng, image_rng,
+    analytic_rng, image_rng, covariance_calibration=None,
 ):
     index_by_time = _index_by_time(timestamps)
     analytic_result = []
@@ -432,7 +432,10 @@ def replace_infrared_messages_with_body_pair(
             observer_state=observer, target_state=target,
             quaternion_i2b_wxyz=quaternion, config=config, rng=image_rng,
         )
-        extracted = infrared_frame_to_observation_message(frame, config=config)
+        extracted = infrared_frame_to_observation_message(
+            frame, config=config,
+            covariance_calibration=covariance_calibration,
+        )
         image_result.append(_preserve_message_identity(message, extracted))
     return analytic_result, image_result
 

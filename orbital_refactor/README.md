@@ -78,6 +78,38 @@ and fixed-step filter Jacobians. It reports scaled finite-horizon singular
 values and the optical/infrared direction-row-space overlap; these diagnostics
 explain information geometry but do not replace paired RMSE acceptance.
 
+Evaluate two infrared shadow candidates without changing the default 0.05 deg
+infrared baseline:
+
+```bash
+python -m experiments.run_infrared_extent_observability_audit \
+  --duration 120 --dt 2 --effective-target-diameter 10
+python -m experiments.run_infrared_precision_robustness_shadow \
+  --seeds 0 1 2 3 4 --duration 120 --dt 2
+```
+
+The first adds a theoretical log angular-extent component and explicitly
+reports whether that extent is resolvable at the current 300-pixel focal
+length. The second performs paired RMSE scans over infrared angular precision.
+Both are shadow studies; neither enables a new production measurement mode.
+
+Calibrate the angular-precision target against the current raw point-source
+front end with:
+
+```bash
+python -m experiments.run_infrared_image_precision_audit \
+  --samples 200 \
+  --output results/external_acceptance/p08_ir_image_precision_audit_120s
+```
+
+This scan varies focal length, PSF width, and peak SNR. It reports empirical
+centroid angular RMSE and fixed-boresight field-of-view coverage separately.
+The infrared renderer now has optional photon noise, pointing jitter, thermal
+background drift, radial distortion, and fixed calibration-bias models. They
+default to disabled, so this original scan remains the frozen simplified
+baseline rather than a production sensor claim. The error-budget audit below
+tests the extended assumptions separately.
+
 Audit the measurement-side CANN boundary around a finite outage and corrupted
 reacquisition with:
 
@@ -1536,3 +1568,59 @@ the current RT place-cell heatmap, decoded state, concentration and anchor
 age. See
 `docs/visualization_window_design_baseline_zh.md` for the interface and
 acceptance baseline.
+
+Validate optional infrared-only focal-plane error sources with:
+
+```bash
+python -m experiments.run_infrared_error_budget_audit --samples 500 \
+  --output results/external_acceptance/p08_ir_error_covariance_calibration_500mc
+```
+
+The audit compares the unchanged simplified image baseline with photon noise,
+moderate combined errors, and a stressed combined profile at two focal lengths,
+two signal levels, and center/off-axis locations.  These are development
+sensitivity assumptions rather than calibrated detector specifications.  All
+new error switches default to disabled; radar, optical, EKF, and CI behavior is
+unchanged.
+
+Build the table on one Monte Carlo seed and validate its NIS on an independent
+seed with:
+
+```bash
+python -m experiments.run_infrared_covariance_consistency_audit \
+  --calibration-samples 300 --validation-samples 300 \
+  --output results/external_acceptance/p08_ir_bias_covariance_consistency_300mc
+```
+
+The empirical table is an explicit observation-adapter option. It does not
+change the default reported-centroid covariance, and it deliberately leaves
+fixed calibration bias uncorrected so covariance mismatch and systematic bias
+remain distinguishable.
+
+Run the three-arm Walker filter shadow (fixed covariance, empirical covariance,
+and explicit bias correction plus empirical covariance) with:
+
+```bash
+python -m experiments.run_infrared_filter_calibration_shadow \
+  --duration 20 --dt 2 --calibration-samples 300 \
+  --output results/external_acceptance/p08_ir_filter_calibration_shadow_20s
+```
+
+This shadow changes only infrared image measurements and their reported
+covariance. The estimator, radar, optical, CI, and default production path are
+unchanged.
+
+Compare the exact-center diagnostic with a staged one-step lagged posterior
+boresight using:
+
+```bash
+python -m experiments.run_infrared_boresight_shadow \
+  --seeds 0 1 2 --duration 120 --dt 2 --calibration-samples 300 \
+  --output results/external_acceptance/p08_ir_boresight_causal_start_0s_3seed_120s
+```
+
+The lagged arm uses only the preceding posterior propagated to the next epoch.
+The exact-center arm is a diagnostic, not a validated upper bound, because its
+fixed subpixel distribution does not match the random-subpixel calibration set.
+Raw infrared rendering uses a modality-specific deterministic random stream so
+future image changes cannot alter earlier radar noise in paired outage tests.
