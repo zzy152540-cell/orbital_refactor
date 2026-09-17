@@ -6,4 +6,6 @@ circular dependency while pipelines are importing the data-object module.
 
 from .data_objects import *
 from .interface_contracts import *
+from .module_serialization import *
+from .public_api import *
 from .raw_sensor_serialization import *

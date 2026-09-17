@@ -7,6 +7,7 @@ reject malformed data before it reaches an estimator.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from enum import Enum
 from typing import Any
 
@@ -93,10 +94,21 @@ class InterfaceValidationError(ValueError):
     def __init__(self, code: InterfaceErrorCode, message: str, *, field: str | None = None):
         self.code = code
         self.field = field
+        self.detail = str(message)
         prefix = f"{code.value}"
         if field is not None:
             prefix += f"[{field}]"
         super().__init__(f"{prefix}: {message}")
+
+    def to_dict(self) -> dict[str, str | None]:
+        """Return a stable, JSON-compatible error response for external callers."""
+
+        return {
+            "error_type": "InterfaceValidationError",
+            "code": self.code.value,
+            "field": self.field,
+            "message": self.detail,
+        }
 
 
 _MODALITY_ALIASES = {
@@ -277,6 +289,59 @@ def validate_module_config(config: dict[str, Any]) -> None:
             field="config.schema_version",
         )
 
+    for section_name in ("runtime", "filter", "modalities", "brain_inspired"):
+        section = config.get(section_name)
+        if section is not None and not isinstance(section, Mapping):
+            raise InterfaceValidationError(
+                InterfaceErrorCode.INVALID_CONFIG,
+                "section must be a mapping",
+                field=f"config.{section_name}",
+            )
+
+    runtime = config.get("runtime", {})
+    filter_config = config.get("filter", {})
+    architecture = str(filter_config.get("architecture", "federated_ci")).lower()
+    if architecture not in {
+        "centralized", "centralized_ekf", "federated", "federated_ci", "ci",
+    }:
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            f"unsupported filter architecture {architecture!r}",
+            field="config.filter.architecture",
+        )
+
+    timestamps = _required_config_array(config, runtime, "timestamps", ndim=1)
+    if timestamps.size == 0 or not np.all(np.diff(timestamps) > 0.0):
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            "timestamps must be non-empty and strictly increasing",
+            field="config.runtime.timestamps",
+        )
+    _required_config_array(
+        config, runtime, "chief_state_history_eci", shape=(timestamps.size, 6)
+    )
+    _required_config_array(
+        config, runtime, "q_eci2pri_history", shape=(timestamps.size, 4)
+    )
+    process_noise = _required_config_array(
+        config, filter_config, "process_noise", shape=(6, 6)
+    )
+    _validate_covariance(process_noise, 6, "config.filter.process_noise")
+
+    ci_grid_points = filter_config.get("ci_grid_points", config.get("ci_grid_points", 101))
+    if isinstance(ci_grid_points, bool) or not isinstance(ci_grid_points, (int, np.integer)):
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            "ci_grid_points must be an integer",
+            field="config.filter.ci_grid_points",
+        )
+    if int(ci_grid_points) < 2:
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            "ci_grid_points must be at least 2",
+            field="config.filter.ci_grid_points",
+        )
+
 
 def validate_module_input(module_input: ModuleInput) -> None:
     if not isinstance(module_input, ModuleInput):
@@ -289,8 +354,88 @@ def validate_module_input(module_input: ModuleInput) -> None:
     for observation in module_input.sensor_measurements:
         validate_observation(observation)
     target_id = str(module_input.initial_state.target_id)
+    runtime = module_input.config.get("runtime", {})
+    timestamps = np.asarray(
+        runtime.get("timestamps", module_input.config.get("timestamps")), dtype=float
+    ).reshape(-1)
+    timestamp_set = set(timestamps.tolist())
+    seen: set[tuple[str, float]] = set()
+    for observation in module_input.sensor_measurements:
+        if str(observation.target_id) != target_id:
+            raise InterfaceValidationError(
+                InterfaceErrorCode.TARGET_MISMATCH,
+                f"observation target {observation.target_id!r} differs from {target_id!r}",
+                field="observation.target_id",
+            )
+        timestamp = float(observation.timestamp)
+        if timestamp not in timestamp_set:
+            raise InterfaceValidationError(
+                InterfaceErrorCode.INVALID_TIMESTAMP,
+                "observation timestamp is absent from config.runtime.timestamps",
+                field="observation.timestamp",
+            )
+        modality = canonical_modality(observation.modality)
+        stream = "LEARNING" if (
+            modality == Modality.OPTICAL.value
+            and str(observation.source_type).upper() == "LEARNING"
+        ) else modality
+        key = (stream, timestamp)
+        if key in seen:
+            raise InterfaceValidationError(
+                InterfaceErrorCode.INVALID_CONFIG,
+                "only one observation per modality stream and timestamp is supported",
+                field="sensor_measurements",
+            )
+        seen.add(key)
     for report in module_input.node_reports:
         validate_node_report(report, target_id=target_id)
+
+
+def _required_config_array(
+    root: Mapping[str, Any],
+    section: Mapping[str, Any],
+    key: str,
+    *,
+    ndim: int | None = None,
+    shape: tuple[int, ...] | None = None,
+) -> np.ndarray:
+    if key in section:
+        value = section[key]
+    elif key in root:
+        value = root[key]
+    else:
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            "required field is missing",
+            field=f"config.{key}",
+        )
+    try:
+        array = np.asarray(value, dtype=float)
+    except (TypeError, ValueError) as exc:
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            "value must be a finite numeric array",
+            field=f"config.{key}",
+        ) from exc
+    if not np.all(np.isfinite(array)):
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            "value must be a finite numeric array",
+            field=f"config.{key}",
+        )
+    if ndim is not None and array.ndim != ndim:
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            f"expected an array with {ndim} dimensions",
+            field=f"config.{key}",
+        )
+    if shape is not None and array.shape != shape:
+        raise InterfaceValidationError(
+            InterfaceErrorCode.INVALID_CONFIG,
+            f"expected shape {shape}, received {array.shape}",
+            field=f"config.{key}",
+        )
+    return array
 
 
 def _expected_measurement_dimension(modality: str, metadata: dict[str, Any]) -> int | None:

@@ -946,6 +946,42 @@ Run a complete observation history with:
 output = StateAwarenessModule().run_history(module_input)
 ```
 
+Persist public requests and responses for cross-project or cross-platform
+integration with the versioned, pickle-free JSON+NPZ bundle format:
+
+```python
+from interfaces.module_serialization import (
+    load_module_input,
+    load_module_output,
+    save_module_input,
+    save_module_output,
+)
+
+save_module_input(module_input, "exchange/request_001")
+portable_input = load_module_input("exchange/request_001")
+output = StateAwarenessModule().run(portable_input)
+save_module_output(output, "exchange/response_001")
+portable_output = load_module_output("exchange/response_001")
+```
+
+Each bundle contains a human-readable `module_bundle.json` manifest and an
+`arrays.npz` numeric archive loaded with `allow_pickle=False`. Writers refuse
+to overwrite an existing directory. Readers check the schema version, bundle
+type, array dtype/shape and, for input bundles, the complete public interface
+contract before estimator execution.
+
+An external process can inspect the supported protocol or execute one request
+without importing estimator internals:
+
+```bash
+python -m examples.run_external_bundle_interface --describe
+python -m examples.run_external_bundle_interface exchange/request_001 exchange/response_001
+```
+
+The command returns a small JSON status object. Public validation failures use
+the stable fields `error_type`, `code`, `field`, and `message`, so an integrating
+system does not need to parse Python traceback text.
+
 Select the single-satellite fusion architecture through the filter
 configuration:
 

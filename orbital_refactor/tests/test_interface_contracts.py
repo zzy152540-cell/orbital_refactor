@@ -75,3 +75,55 @@ def test_optional_schema_version_rejects_incompatible_contract():
     with pytest.raises(InterfaceValidationError) as error:
         validate_module_input(module_input)
     assert error.value.code == InterfaceErrorCode.INVALID_CONFIG
+
+
+@pytest.mark.parametrize(
+    ("mutate", "field"),
+    [
+        (lambda value: value.config.pop("runtime"), "config.timestamps"),
+        (
+            lambda value: value.config["runtime"].update(
+                chief_state_history_eci=np.zeros((2, 6))
+            ),
+            "config.chief_state_history_eci",
+        ),
+        (
+            lambda value: value.config["filter"].update(architecture="unknown"),
+            "config.filter.architecture",
+        ),
+        (
+            lambda value: value.config["filter"].update(ci_grid_points=1),
+            "config.filter.ci_grid_points",
+        ),
+    ],
+)
+def test_public_config_contract_reports_machine_readable_errors(mutate, field):
+    module_input = build_demo_input()
+    mutate(module_input)
+    with pytest.raises(InterfaceValidationError) as error:
+        validate_module_input(module_input)
+    assert error.value.code == InterfaceErrorCode.INVALID_CONFIG
+    assert error.value.field == field
+
+
+def test_module_input_rejects_target_and_runtime_timestamp_mismatches():
+    wrong_target = build_demo_input()
+    wrong_target.sensor_measurements[0].target_id = "another_target"
+    with pytest.raises(InterfaceValidationError) as error:
+        validate_module_input(wrong_target)
+    assert error.value.code == InterfaceErrorCode.TARGET_MISMATCH
+
+    wrong_time = build_demo_input()
+    wrong_time.sensor_measurements[0].timestamp = 0.5
+    with pytest.raises(InterfaceValidationError) as error:
+        validate_module_input(wrong_time)
+    assert error.value.code == InterfaceErrorCode.INVALID_TIMESTAMP
+
+
+def test_module_input_rejects_duplicate_modality_sample():
+    module_input = build_demo_input()
+    module_input.sensor_measurements.append(_radar(target_id="target_01"))
+    with pytest.raises(InterfaceValidationError) as error:
+        validate_module_input(module_input)
+    assert error.value.code == InterfaceErrorCode.INVALID_CONFIG
+    assert error.value.field == "sensor_measurements"
