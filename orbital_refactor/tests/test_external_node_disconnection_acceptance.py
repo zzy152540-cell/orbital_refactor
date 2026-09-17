@@ -40,6 +40,7 @@ def test_short_r10_run_reports_fleet_affected_and_remaining_groups():
         seeds=(0,), duration=4.0, dt=2.0, formal_minimum_run_count=2,
     )
     assert report.walker_definition == (20, 10, 1)
+    assert report.measurement_source == "analytic"
     assert report.disconnected_node_count == 4
     assert not report.formal_sample_size_met
     assert not report.formal_duration_met

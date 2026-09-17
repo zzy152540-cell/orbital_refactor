@@ -19,7 +19,7 @@ from experiments.single_modality_observability_audit import (
     _whiten,
 )
 from orbital_core.filters import LocalDynamicsEKF
-from orbital_core.measurements import h_ir_spri
+from orbital_core.measurements import h_ir_with_log_extent_spri
 
 
 _COMBINATIONS = (
@@ -83,7 +83,7 @@ def run_infrared_extent_observability_audit(
     jacobians["ir_extent"] = tuple(
         _fixed_step_jacobian(
             lambda value, quaternion=observer.q_eci2pri_history[index]:
-                h_ir_with_log_extent(value, quaternion, diameter),
+                h_ir_with_log_extent_spri(value, quaternion, diameter),
             state,
         )
         for index, state in enumerate(relative)
@@ -164,14 +164,10 @@ def run_infrared_extent_observability_audit(
 
 
 def h_ir_with_log_extent(relative_state_eci, q_eci2pri, diameter):
-    state = np.asarray(relative_state_eci, dtype=float).reshape(6)
-    rho = float(np.linalg.norm(state[:3]))
-    if rho <= 0.0:
-        raise ValueError("Infrared extent requires positive target range.")
-    angular_extent = 2.0 * np.arctan(float(diameter) / (2.0 * rho))
-    return np.concatenate((
-        h_ir_spri(state, q_eci2pri), [np.log(angular_extent)],
-    ))
+    """Backward-compatible audit alias for the canonical measurement model."""
+    return h_ir_with_log_extent_spri(
+        relative_state_eci, q_eci2pri, diameter,
+    )
 
 
 def save_infrared_extent_observability_audit(report, output_directory):

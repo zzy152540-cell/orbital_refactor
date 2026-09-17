@@ -8,6 +8,7 @@ import numpy as np
 from .dynamics import numerical_jacobian_discrete, rk4_step_rel
 from .measurements import (
     h_ir_spri,
+    h_ir_with_log_extent_spri,
     h_nn_position_eci,
     h_nn_position_spri,
     h_nn_position_velocity_eci,
@@ -64,6 +65,7 @@ class LocalDynamicsEKF:
         nn_meas_frame: str = "eci",
         nn_use_pseudo_velocity: bool = False,
         integrity_policy: MeasurementIntegrityPolicy | None = None,
+        infrared_effective_target_diameter_m: float | None = None,
     ) -> None:
         mode = mode_name.lower()
         if mode not in self._SUPPORTED_MODES:
@@ -84,6 +86,10 @@ class LocalDynamicsEKF:
         self.legacy_fixed_jacobian_step = bool(legacy_fixed_jacobian_step)
         self.nn_meas_frame = nn_meas_frame.lower()
         self.nn_use_pseudo_velocity = bool(nn_use_pseudo_velocity)
+        self.infrared_effective_target_diameter_m = (
+            None if infrared_effective_target_diameter_m is None
+            else float(infrared_effective_target_diameter_m)
+        )
         if integrity_policy is None:
             if not self.gate_enable or not np.isfinite(self.gate_threshold):
                 integrity_policy = MeasurementIntegrityPolicy()
@@ -140,6 +146,16 @@ class LocalDynamicsEKF:
         if self.mode_name == "opt":
             return lambda x: h_optical_spri(x, q_eci2pri)
         if self.mode_name == "ir":
+            if self.R.shape == (3, 3):
+                if self.infrared_effective_target_diameter_m is None:
+                    raise ValueError(
+                        "Three-channel infrared measurements require an "
+                        "effective target diameter."
+                    )
+                return lambda x: h_ir_with_log_extent_spri(
+                    x, q_eci2pri,
+                    self.infrared_effective_target_diameter_m,
+                )
             return lambda x: h_ir_spri(x, q_eci2pri)
         return lambda x: h_radar_spri(x, q_eci2pri)
 

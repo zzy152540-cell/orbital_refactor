@@ -40,4 +40,10 @@ def test_short_p08_pairs_each_full_modality_outage_with_reference():
             run.dropout_local_position_rmse_optical_m,
             run.dropout_local_position_rmse_infrared_m,
             run.dropout_local_position_rmse_radar_m,
+            run.reference_radial_rmse_m,
+            run.reference_transverse_rmse_m,
+            run.reference_normal_rmse_m,
+            run.dropout_radial_rmse_m,
+            run.dropout_transverse_rmse_m,
+            run.dropout_normal_rmse_m,
         ]))

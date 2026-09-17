@@ -63,6 +63,7 @@ class SingleAccuracyRun:
 
 @dataclass(frozen=True)
 class SingleAccuracyAcceptance:
+    measurement_source: str
     threshold_percent: float
     formal_minimum_seed_count: int
     threshold_met: bool
@@ -80,6 +81,7 @@ class SingleAccuracyAcceptance:
 def run_external_single_accuracy_acceptance(
     *, seeds=range(5), duration=120.0, dt=2.0, threshold_percent=5.0,
     formal_minimum_seed_count=20,
+    measurement_source_config=None,
 ):
     """Compare existing centralized EKF and Federated-CI on paired data."""
     seed_values = tuple(int(seed) for seed in seeds)
@@ -88,7 +90,10 @@ def run_external_single_accuracy_acceptance(
     if duration <= 0.0 or dt <= 0.0 or duration < dt:
         raise ValueError("duration and dt must define at least two epochs.")
     runs = tuple(
-        _run_pair(seed, duration=float(duration), dt=float(dt))
+        _run_pair(
+            seed, duration=float(duration), dt=float(dt),
+            measurement_source_config=measurement_source_config,
+        )
         for seed in seed_values
     )
     centralized_improvements = np.asarray([
@@ -109,6 +114,10 @@ def run_external_single_accuracy_acceptance(
         and threshold_met and sample_size_met
     )
     return SingleAccuracyAcceptance(
+        measurement_source=(
+            "analytic" if measurement_source_config is None
+            else measurement_source_config.source.value
+        ),
         threshold_percent=float(threshold_percent),
         formal_minimum_seed_count=int(formal_minimum_seed_count),
         threshold_met=threshold_met,
@@ -151,7 +160,7 @@ def save_external_single_accuracy_acceptance(report, output_directory):
     return json_path, csv_path
 
 
-def _run_pair(seed, *, duration, dt):
+def _run_pair(seed, *, duration, dt, measurement_source_config=None):
     common = {
         "duration": duration,
         "dt": dt,
@@ -161,6 +170,7 @@ def _run_pair(seed, *, duration, dt):
         # Put the target on the positive-SPRI-depth side of the observer so
         # that the three-modal acceptance case genuinely includes optical.
         "observer_raan_deg": 15.5,
+        "measurement_source_config": measurement_source_config,
     }
     started = perf_counter()
     ekf = run_single_satellite_cann_comparison(

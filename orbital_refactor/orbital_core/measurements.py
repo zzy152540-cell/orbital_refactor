@@ -49,6 +49,22 @@ def h_ir_spri(x_rel_eci: np.ndarray, q_eci2pri: np.ndarray) -> np.ndarray:
     return np.array([np.arctan2(r[1], r[0]), np.arctan2(r[2], rho_xy)], dtype=float)
 
 
+def h_ir_with_log_extent_spri(
+    x_rel_eci: np.ndarray, q_eci2pri: np.ndarray,
+    effective_target_diameter_m: float,
+) -> np.ndarray:
+    """Infrared az/el augmented by one model-based angular-extent channel."""
+    state = np.asarray(x_rel_eci, dtype=float).reshape(6)
+    rho = float(np.linalg.norm(state[:3]))
+    diameter = float(effective_target_diameter_m)
+    if rho <= 0.0 or diameter <= 0.0:
+        raise ValueError("Infrared extent requires positive range and diameter.")
+    angular_extent = 2.0 * np.arctan(diameter / (2.0 * rho))
+    return np.concatenate((
+        h_ir_spri(state, q_eci2pri), [np.log(angular_extent)],
+    ))
+
+
 def h_radar_spri(x_rel_eci: np.ndarray, q_eci2pri: np.ndarray) -> np.ndarray:
     state = state_eci_to_spri(x_rel_eci, q_eci2pri)
     r, v = state[:3], state[3:]
@@ -175,7 +191,8 @@ def measure_relative_optical_uv(
 def measurement_residual(z: np.ndarray, z_pred: np.ndarray, mode: str) -> np.ndarray:
     residual = np.asarray(z, dtype=float) - np.asarray(z_pred, dtype=float)
     if mode.lower() == "ir":
-        residual = wrap_angle(residual)
+        residual = residual.copy()
+        residual[:2] = wrap_angle(residual[:2])
     return residual
 
 

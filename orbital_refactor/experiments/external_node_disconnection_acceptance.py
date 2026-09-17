@@ -9,10 +9,14 @@ from pathlib import Path
 
 import numpy as np
 
+from adapters.multimodal_sensor_simulator import MeasurementSource
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from cooperative.topology import NetworkTopology
 from experiments.v14_walker_geometry_audit import run_v14_walker_geometry_audit
 from experiments.walker_filter_setup import build_walker_filter_case
+from experiments.walker_raw_sensor_comparison import (
+    replace_multimodal_messages_with_shared_frontend,
+)
 from orbital_core.dynamics import accel_two_body_j2
 from orbital_core.metrics import compute_rmse
 
@@ -48,6 +52,7 @@ class NodeDisconnectionReport:
     walker_definition: tuple[int, int, int]
     duration_seconds: float
     dt_seconds: float
+    measurement_source: str
     run_count: int
     disconnected_node_count: int
     selection_pattern: str
@@ -72,6 +77,7 @@ def run_external_node_disconnection_acceptance(
     maximum_range=6000e3, threshold_percent=15.0,
     selection_pattern="dispersed", selection_seed=0, disconnected_nodes=None,
     formal_minimum_run_count=20, formal_minimum_duration_seconds=1200.0,
+    measurement_source_config=None,
 ):
     seeds = tuple(map(int, seeds))
     if not seeds:
@@ -101,6 +107,7 @@ def run_external_node_disconnection_acceptance(
             truth_history_by_node=audit.scenario.truth_state_history_by_node,
             topology_type="walker_persistent",
         )
+        _apply_measurement_source(case, measurement_source_config, seed=seed)
         normal = _run(case, topology)
         observations, messages, lineages = isolate_case_inputs(case, selected)
         degraded = _run(
@@ -148,7 +155,12 @@ def run_external_node_disconnection_acceptance(
     protocol_ok = all(item.protocol_rejection_count == 0 for item in records)
     return NodeDisconnectionReport(
         walker_definition=(20, 10, 1), duration_seconds=float(duration),
-        dt_seconds=float(dt), run_count=len(records), disconnected_node_count=4,
+        dt_seconds=float(dt),
+        measurement_source=(
+            "analytic" if measurement_source_config is None
+            else measurement_source_config.source.value
+        ),
+        run_count=len(records), disconnected_node_count=4,
         selection_pattern=selection_pattern,
         selection_seed=(
             int(selection_seed) if selection_pattern == "random" else None
@@ -169,6 +181,21 @@ def run_external_node_disconnection_acceptance(
         formal_duration_met=duration_met,
         passed=bool(threshold_met and sample_met and duration_met and protocol_ok),
         records=tuple(records),
+    )
+
+
+def _apply_measurement_source(case, source_config, *, seed):
+    if source_config is None or source_config.source is MeasurementSource.ANALYTIC:
+        return
+    case["observations"] = tuple(
+        replace_multimodal_messages_with_shared_frontend(
+            case["observations"], timestamps=case["timestamps"],
+            truth_state_history_by_node=case["truth"],
+            config=source_config.sensors, random_seed=3_000_000 + int(seed),
+            covariance_calibration_by_modality=(
+                source_config.covariance_calibration_by_modality
+            ),
+        )
     )
 
 

@@ -34,6 +34,19 @@ def test_public_enums_remain_string_compatible():
     assert canonical_modality("ir") == "INFRARED"
 
 
+def test_infrared_log_extent_contract_accepts_three_components():
+    validate_observation(Observation(
+        timestamp=0.0, observer_id="sat_a", target_id="sat_b",
+        modality="INFRARED", source_type="SIMULATED_INFRARED",
+        measurement=np.array([0.1, -0.2, -9.0]),
+        covariance=np.diag([1e-6, 1e-6, 0.01]), confidence=1.0,
+        frame="SPRI", valid_flag=True,
+        metadata={
+            "measurement_type": "AZIMUTH_ELEVATION_LOG_ANGULAR_EXTENT"
+        },
+    ))
+
+
 def test_standard_interface_demo_passes_contract_and_preserves_result():
     module_input = build_demo_input()
     validate_module_input(module_input)

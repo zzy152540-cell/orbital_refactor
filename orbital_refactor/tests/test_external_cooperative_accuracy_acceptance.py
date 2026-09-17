@@ -9,6 +9,7 @@ def test_short_p09_run_is_paired_and_distinguishes_cooperative_arm():
     )
 
     assert report.walker_definition == (20, 10, 1)
+    assert report.measurement_source == "analytic"
     assert report.run_count == 1
     assert len(report.node_records) == 20
     assert not report.formal_sample_size_met

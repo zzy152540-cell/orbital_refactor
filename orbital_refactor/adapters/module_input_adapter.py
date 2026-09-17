@@ -105,6 +105,9 @@ def adapt_module_input(module_input: ModuleInput) -> FederatedAdapterResult:
             legacy_fixed_jacobian_step=bool(filter_config.get("legacy_fixed_jacobian_step", True)),
             nn_meas_frame=str(modality_config.get("nn_meas_frame", "eci")),
             nn_use_pseudo_velocity=bool(modality_config.get("nn_use_pseudo_velocity", measurement_array.shape[1] == 6)),
+            infrared_effective_target_diameter_m=modality_config.get(
+                "effective_target_diameter_m"
+            ),
         )
 
     node_id = str(runtime.get("node_id", config.get("node_id", "node_0")))

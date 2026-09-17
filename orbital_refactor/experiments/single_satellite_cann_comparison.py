@@ -64,6 +64,9 @@ def run_single_satellite_cann_comparison(
     ci_objective: str = "trace",
     reset_feedback: bool = True,
     measurement_source_config: MultimodalMeasurementSourceConfig | None = None,
+    infrared_extent_enabled: bool = False,
+    infrared_effective_target_diameter_m: float = 10.0,
+    infrared_extent_fractional_sigma: float = 0.1,
 ):
     if adaptive_cann_preprocess_ir and hybrid_cann_preprocess_ir:
         raise ValueError("Select at most one infrared CANN preprocessor.")
@@ -325,6 +328,20 @@ def run_single_satellite_cann_comparison(
             single_spri_observation_from_message(message)
             for message in shared.messages
         ]
+    if infrared_extent_enabled:
+        observations = _augment_infrared_with_log_extent(
+            observations, spri,
+            effective_target_diameter_m=infrared_effective_target_diameter_m,
+            fractional_sigma=infrared_extent_fractional_sigma,
+            rng=np.random.default_rng(2_500_000 + int(seed)),
+        )
+    modality_config = ({
+        "sat_01": {"ir": {
+            "effective_target_diameter_m": float(
+                infrared_effective_target_diameter_m
+            ),
+        }},
+    } if infrared_extent_enabled else None)
     module_input = build_module_inputs(
         scenario=scenario,
         observations_by_node={"sat_01": observations},
@@ -333,6 +350,7 @@ def run_single_satellite_cann_comparison(
         ci_objective=ci_objective,
         reset_feedback=reset_feedback,
         ci_grid_points=31,
+        modality_config_by_node=modality_config,
     )["sat_01"]
     if enable_cann:
         module_input.config["brain_inspired"] = {
@@ -405,6 +423,13 @@ def run_single_satellite_cann_comparison(
         "velocity_rmse_recovery_mps": _window_rmse(velocity_error, recovery_window),
         "filter_architecture": str(filter_architecture),
         "measurement_source": source_config.source.value,
+        "infrared_extent_enabled": bool(infrared_extent_enabled),
+        "infrared_effective_target_diameter_m": float(
+            infrared_effective_target_diameter_m
+        ),
+        "infrared_extent_fractional_sigma": float(
+            infrared_extent_fractional_sigma
+        ),
         "observer_altitude_m": float(observer_altitude_m),
         "observer_raan_deg": float(observer_raan_deg),
         "infrared_angle_sigma_deg": float(infrared_angle_sigma_deg),
@@ -452,7 +477,6 @@ def run_single_satellite_cann_comparison(
         "radar_valid_count": int(np.count_nonzero(history.measurement_valid_history["rad"])),
     }
 
-
     return {
         "timestamps": timestamps, "position_error_m": position_error,
         "velocity_error_mps": velocity_error, "truth_phase": truth_phase,
@@ -493,6 +517,45 @@ def run_single_satellite_cann_comparison(
         },
         "summary": summary,
     }
+
+
+def _augment_infrared_with_log_extent(
+    observations, relative_state_spri, *, effective_target_diameter_m,
+    fractional_sigma, rng,
+):
+    diameter = float(effective_target_diameter_m)
+    sigma = float(fractional_sigma)
+    if diameter <= 0.0 or sigma <= 0.0:
+        raise ValueError("Infrared extent diameter and sigma must be positive.")
+    infrared = [
+        item for item in observations
+        if item.modality.lower() in {"ir", "infrared"}
+    ]
+    if len(infrared) != len(relative_state_spri):
+        raise ValueError("Expected one infrared observation per epoch.")
+    replacements = {}
+    for item, state in zip(infrared, relative_state_spri):
+        rho = float(np.linalg.norm(np.asarray(state)[:3]))
+        extent = 2.0 * np.arctan(diameter / (2.0 * rho))
+        log_extent = np.log(extent) + float(rng.normal(0.0, sigma))
+        covariance = np.zeros((3, 3))
+        covariance[:2, :2] = item.covariance
+        covariance[2, 2] = sigma**2
+        replacements[id(item)] = Observation(
+            timestamp=item.timestamp, observer_id=item.observer_id,
+            target_id=item.target_id, modality=item.modality,
+            source_type=item.source_type,
+            measurement=np.r_[item.measurement, log_extent],
+            covariance=covariance, confidence=item.confidence,
+            frame=item.frame, valid_flag=item.valid_flag,
+            metadata={
+                **item.metadata,
+                "measurement_type": "AZIMUTH_ELEVATION_LOG_ANGULAR_EXTENT",
+                "effective_target_diameter_m": diameter,
+                "extent_fractional_sigma": sigma,
+            },
+        )
+    return [replacements.get(id(item), item) for item in observations]
 
 
 def _create_infrared_image_observations_spri(

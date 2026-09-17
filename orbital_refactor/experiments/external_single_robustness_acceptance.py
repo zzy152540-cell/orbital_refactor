@@ -55,6 +55,12 @@ class SingleRobustnessRun:
     dropout_local_position_rmse_optical_m: float
     dropout_local_position_rmse_infrared_m: float
     dropout_local_position_rmse_radar_m: float
+    reference_radial_rmse_m: float
+    reference_transverse_rmse_m: float
+    reference_normal_rmse_m: float
+    dropout_radial_rmse_m: float
+    dropout_transverse_rmse_m: float
+    dropout_normal_rmse_m: float
     finite: bool
 
 
@@ -70,6 +76,7 @@ class ModalityRobustnessGroup:
 
 @dataclass(frozen=True)
 class SingleRobustnessAcceptance:
+    measurement_source: str
     threshold_percent: float
     formal_minimum_seed_count: int
     formal_sample_size_met: bool
@@ -82,6 +89,10 @@ class SingleRobustnessAcceptance:
 def run_external_single_robustness_acceptance(
     *, seeds=range(5), duration=120.0, dt=2.0, threshold_percent=20.0,
     formal_minimum_seed_count=20,
+    measurement_source_config=None,
+    infrared_extent_enabled=False,
+    infrared_effective_target_diameter_m=10.0,
+    infrared_extent_fractional_sigma=0.1,
 ):
     seed_values = tuple(int(seed) for seed in seeds)
     if not seed_values or len(set(seed_values)) != len(seed_values):
@@ -90,11 +101,27 @@ def run_external_single_robustness_acceptance(
         raise ValueError("duration and dt must define at least two epochs.")
     runs = []
     for seed in seed_values:
-        reference = _run(seed, duration=duration, dt=dt)
+        reference = _run(
+            seed, duration=duration, dt=dt,
+            measurement_source_config=measurement_source_config,
+            infrared_extent_enabled=infrared_extent_enabled,
+            infrared_effective_target_diameter_m=(
+                infrared_effective_target_diameter_m
+            ),
+            infrared_extent_fractional_sigma=infrared_extent_fractional_sigma,
+        )
         for modality in _MODALITY_NAMES:
             dropout = _run(
                 seed, duration=duration, dt=dt,
                 outage_windows={modality: (0.0, duration)},
+                measurement_source_config=measurement_source_config,
+                infrared_extent_enabled=infrared_extent_enabled,
+                infrared_effective_target_diameter_m=(
+                    infrared_effective_target_diameter_m
+                ),
+                infrared_extent_fractional_sigma=(
+                    infrared_extent_fractional_sigma
+                ),
             )
             runs.append(_compare(
                 seed, modality, reference, dropout,
@@ -111,6 +138,10 @@ def run_external_single_robustness_acceptance(
         and all(run.finite for run in runs)
     )
     return SingleRobustnessAcceptance(
+        measurement_source=(
+            "analytic" if measurement_source_config is None
+            else measurement_source_config.source.value
+        ),
         threshold_percent=float(threshold_percent),
         formal_minimum_seed_count=int(formal_minimum_seed_count),
         formal_sample_size_met=sample_size_met, passed=passed,
@@ -141,12 +172,24 @@ def save_external_single_robustness_acceptance(report, output_directory):
     return json_path, csv_path
 
 
-def _run(seed, *, duration, dt, outage_windows=None):
+def _run(
+    seed, *, duration, dt, outage_windows=None,
+    measurement_source_config=None,
+    infrared_extent_enabled=False,
+    infrared_effective_target_diameter_m=10.0,
+    infrared_extent_fractional_sigma=0.1,
+):
     return run_single_satellite_cann_comparison(
         duration=duration, dt=dt, seed=seed,
         outage_modalities=(), outage_windows=outage_windows,
         enable_cann=False, filter_architecture="federated_ci",
         observer_raan_deg=15.5,
+        measurement_source_config=measurement_source_config,
+        infrared_extent_enabled=infrared_extent_enabled,
+        infrared_effective_target_diameter_m=(
+            infrared_effective_target_diameter_m
+        ),
+        infrared_extent_fractional_sigma=infrared_extent_fractional_sigma,
     )
 
 
@@ -163,6 +206,8 @@ def _compare(seed, modality, reference, dropout, *, duration, dt):
     dropout_weights = _mean_ci_weights(dropout["ci_weight_history"])
     reference_local_rmse = _local_position_rmse(reference)
     dropout_local_rmse = _local_position_rmse(dropout)
+    reference_components = _spri_position_component_rmse(reference)
+    dropout_components = _spri_position_component_rmse(dropout)
     values = (
         ref["position_rmse_m"], degraded["position_rmse_m"],
         ref["velocity_rmse_mps"], degraded["velocity_rmse_mps"],
@@ -199,6 +244,12 @@ def _compare(seed, modality, reference, dropout, *, duration, dt):
         dropout_local_position_rmse_optical_m=dropout_local_rmse["opt"],
         dropout_local_position_rmse_infrared_m=dropout_local_rmse["ir"],
         dropout_local_position_rmse_radar_m=dropout_local_rmse["rad"],
+        reference_radial_rmse_m=reference_components[0],
+        reference_transverse_rmse_m=reference_components[1],
+        reference_normal_rmse_m=reference_components[2],
+        dropout_radial_rmse_m=dropout_components[0],
+        dropout_transverse_rmse_m=dropout_components[1],
+        dropout_normal_rmse_m=dropout_components[2],
         finite=bool(np.all(np.isfinite(values))),
     )
 
@@ -241,6 +292,14 @@ def _local_position_rmse(result):
         name: float(np.sqrt(np.mean(np.asarray(errors[name]) ** 2)))
         for name in _MODALITY_NAMES
     }
+
+
+def _spri_position_component_rmse(result):
+    error = (
+        np.asarray(result["estimated_relative_state_history_spri"])[:, :3]
+        - np.asarray(result["truth_relative_state_history_spri"])[:, :3]
+    )
+    return tuple(float(value) for value in np.sqrt(np.mean(error**2, axis=0)))
 
 
 def _acceleration_rmse(result):

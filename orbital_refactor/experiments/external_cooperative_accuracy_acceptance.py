@@ -10,10 +10,14 @@ from time import perf_counter
 
 import numpy as np
 
+from adapters.multimodal_sensor_simulator import MeasurementSource
 from cooperative.network_schmidt_runner import run_network_schmidt_filter
 from experiments.network_filter_metrics import modality_from_information_id
 from experiments.v14_walker_geometry_audit import run_v14_walker_geometry_audit
 from experiments.walker_filter_setup import build_walker_filter_case
+from experiments.walker_raw_sensor_comparison import (
+    replace_multimodal_messages_with_shared_frontend,
+)
 from orbital_core.metrics import compute_rmse
 
 
@@ -61,6 +65,7 @@ class CooperativeAccuracyReport:
     walker_definition: tuple[int, int, int]
     duration_seconds: float
     dt_seconds: float
+    measurement_source: str
     run_count: int
     threshold_percent: float
     formal_minimum_run_count: int
@@ -82,6 +87,7 @@ def run_external_cooperative_accuracy_acceptance(
     *, seeds=(0, 1, 2, 3, 4), duration=120.0, dt=2.0,
     maximum_range=6000e3, threshold_percent=5.0,
     formal_minimum_run_count=20, formal_minimum_duration_seconds=1200.0,
+    measurement_source_config=None,
 ):
     """Compare identical Walker cases with and without cooperative inputs.
 
@@ -110,6 +116,7 @@ def run_external_cooperative_accuracy_acceptance(
             truth_history_by_node=audit.scenario.truth_state_history_by_node,
             topology_type="walker_persistent",
         )
+        _apply_measurement_source(case, measurement_source_config, seed=seed)
         independent_started = perf_counter()
         independent = run_network_schmidt_filter(
             timestamps=case["timestamps"],
@@ -228,7 +235,12 @@ def run_external_cooperative_accuracy_acceptance(
     duration_met = duration >= formal_minimum_duration_seconds
     return CooperativeAccuracyReport(
         walker_definition=(20, 10, 1), duration_seconds=float(duration),
-        dt_seconds=float(dt), run_count=len(records),
+        dt_seconds=float(dt),
+        measurement_source=(
+            "analytic" if measurement_source_config is None
+            else measurement_source_config.source.value
+        ),
+        run_count=len(records),
         threshold_percent=float(threshold_percent),
         formal_minimum_run_count=int(formal_minimum_run_count),
         formal_minimum_duration_seconds=float(formal_minimum_duration_seconds),
@@ -246,6 +258,21 @@ def run_external_cooperative_accuracy_acceptance(
         passed=bool(threshold_met and sample_met and duration_met),
         records=tuple(records),
         node_records=tuple(node_records),
+    )
+
+
+def _apply_measurement_source(case, source_config, *, seed):
+    if source_config is None or source_config.source is MeasurementSource.ANALYTIC:
+        return
+    case["observations"] = tuple(
+        replace_multimodal_messages_with_shared_frontend(
+            case["observations"], timestamps=case["timestamps"],
+            truth_state_history_by_node=case["truth"],
+            config=source_config.sensors, random_seed=3_000_000 + int(seed),
+            covariance_calibration_by_modality=(
+                source_config.covariance_calibration_by_modality
+            ),
+        )
     )
 
 

@@ -295,6 +295,10 @@ def validate_module_input(module_input: ModuleInput) -> None:
 
 def _expected_measurement_dimension(modality: str, metadata: dict[str, Any]) -> int | None:
     measurement_type = str(metadata.get("measurement_type", "")).upper()
+    if modality == Modality.INFRARED.value and measurement_type == (
+        "AZIMUTH_ELEVATION_LOG_ANGULAR_EXTENT"
+    ):
+        return 3
     if modality in {Modality.RADAR.value, Modality.INFRARED.value}:
         return 2
     if modality == Modality.ABSOLUTE_POSITION.value:

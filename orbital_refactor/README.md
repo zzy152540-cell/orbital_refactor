@@ -50,7 +50,8 @@ Run the paired P07 development pre-scan with:
 
 ```bash
 python -m experiments.run_external_single_accuracy_acceptance \
-  --seeds 0 1 2 3 4 --duration 120 --dt 2
+  --seeds 0 1 2 3 4 --duration 120 --dt 2 \
+  --calibrated-raw --calibration-samples 300
 ```
 
 This compares the existing centralized EKF and three-modal Federated-CI on the
@@ -62,7 +63,8 @@ Run the paired P08 full-duration single-modality-loss pre-scan with:
 
 ```bash
 python -m experiments.run_external_single_robustness_acceptance \
-  --seeds 0 1 2 3 4 --duration 120 --dt 2
+  --seeds 0 1 2 3 4 --duration 120 --dt 2 \
+  --calibrated-raw --calibration-samples 300
 ```
 
 Audit the physical observability behind P08, without changing the estimator:
@@ -91,7 +93,13 @@ python -m experiments.run_infrared_precision_robustness_shadow \
 The first adds a theoretical log angular-extent component and explicitly
 reports whether that extent is resolvable at the current 300-pixel focal
 length. The second performs paired RMSE scans over infrared angular precision.
-Both are shadow studies; neither enables a new production measurement mode.
+The extent audit remains a shadow study by default.  The P08 runner can opt in
+to the same model-based three-channel infrared measurement with
+`--infrared-extent --target-diameter 10 --extent-fractional-sigma 0.1`.
+This switch is experimental and defaults off: the current point-source image
+renderer does not resolve a physical target silhouette, so the extent channel
+is generated from an effective-diameter model rather than extracted from the
+raw focal-plane image.
 
 Calibrate the angular-precision target against the current raw point-source
 front end with:
@@ -125,7 +133,8 @@ Run the paired Walker-20 P09 cooperative-accuracy pre-scan with:
 
 ```bash
 python -m experiments.run_external_cooperative_accuracy_acceptance \
-  --seeds 0 1 2 3 4 --duration 120 --dt 2
+  --seeds 0 1 2 3 4 --duration 120 --dt 2 \
+  --calibrated-raw --calibration-samples 300
 ```
 
 For every seed, the independent and cooperative arms share truth, initial
@@ -139,7 +148,8 @@ Run the paired Walker-20 R10 complete node-disconnection pre-scan with:
 ```bash
 python -m experiments.run_external_node_disconnection_acceptance \
   --seeds 0 1 2 3 4 --duration 120 --dt 2 \
-  --selection-pattern dispersed
+  --selection-pattern dispersed \
+  --calibrated-raw --calibration-samples 300
 ```
 
 Use `--selection-pattern adjacent` for the connected four-node group, or

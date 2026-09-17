@@ -47,6 +47,12 @@ results/cann/test_*.csv
 results/test_visualization_*/
 results/visualization_recordings/
 
+# One-off diagnostic scans summarized in the acceptance baseline document.
+# They have no stable public runner and are not part of the reproducible
+# acceptance evidence bundle.
+results/external_acceptance/p08_short_radar_outage_calibrated_raw_3seed_120s/
+results/external_acceptance/p08_radar_outage_placement_calibrated_raw_3seed_120s/
+
 # Editor and operating-system artifacts
 *.swp
 *.swo
