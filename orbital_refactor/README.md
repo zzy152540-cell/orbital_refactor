@@ -1071,6 +1071,19 @@ The sweep exports one raw CSV row per seed and algorithm, plus an aggregated
 
 ## Tests
 
+Install the core/test dependencies and run the portable public-interface smoke
+check before a full platform validation:
+
+```bash
+python -m pip install -r requirements.txt
+python -m examples.run_cross_platform_smoke
+```
+
+Visualization and GNN/PPO research dependencies are intentionally separated
+into `requirements-visualization.txt` and `requirements-gnn.txt`. See
+`docs/cross_platform_validation.md` for the Windows reference environment,
+the known native linear-algebra abort, and the staged Ubuntu validation order.
+
 Run the complete test suite with:
 
 ```bash
