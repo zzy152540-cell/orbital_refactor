@@ -8,11 +8,13 @@
 ## 2. 依赖入口
 
 - 核心与测试：`python -m pip install -r requirements.txt`
+- 核心回归与旧版数值对照：`python -m pip install -r requirements-test.txt`
 - 可视化：`python -m pip install -r requirements-visualization.txt`
 - GNN/PPO研究环境：`python -m pip install -r requirements-gnn.txt`
 - 也可按 `pyproject.toml` 安装：`python -m pip install -e .[visualization]`
 
-PyTorch不属于正式状态估计主链的必要依赖。Ubuntu首次验证先安装核心依赖；通过后再分别增加
+`requirements.txt`保持正式运行最小依赖；pytest与旧版数值对照所需的Matplotlib由
+`requirements-test.txt`补充。PyTorch不属于正式状态估计主链的必要依赖。Ubuntu首次验证先安装核心依赖；通过后再分别增加
 可视化和GNN依赖，避免将CUDA、Qt或显示服务器问题误判为滤波问题。
 
 ## 3. Windows参考快照（2026-09-18）

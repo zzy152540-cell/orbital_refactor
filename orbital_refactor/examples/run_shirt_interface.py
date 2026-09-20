@@ -1,11 +1,9 @@
-"""Template for running the standard interface with actual SHIRT files.
-
-Fill in the three paths below. The filter consumes predictions.npz directly;
-large ResNet checkpoints are not required unless predictions must be regenerated.
-"""
+"""Run the standard interface with externally supplied SHIRT files."""
 from __future__ import annotations
 
+import argparse
 import numpy as np
+from pathlib import Path
 from time import perf_counter
 
 from adapters import (
@@ -19,15 +17,20 @@ from adapters import (
 from interfaces.state_awareness_module import StateAwarenessModule
 
 
-METADATA_PATH = r"E:\Satellite Datasets\shirt\roe2\metadata.json"
-ROE_PATH = r"E:\Satellite Datasets\shirt\roe2\roe2.json"
-PREDICTIONS_PATH = r"E:\Python Files\Thesis_Code\infer_outputs\checkpoints_pose_geo_auto_mlp\roe2\predictions.npz"
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--metadata", required=True, type=Path)
+    parser.add_argument("--orbit", required=True, type=Path)
+    parser.add_argument("--predictions", required=True, type=Path)
+    parser.add_argument("--scenario-key", default="roe2")
+    return parser.parse_args(argv)
 
 
-def main() -> None:
-    dataset = load_shirt_orbit_dataset(METADATA_PATH, ROE_PATH, "roe2")
+def main(argv: list[str] | None = None) -> None:
+    args = _parse_args(argv)
+    dataset = load_shirt_orbit_dataset(args.metadata, args.orbit, args.scenario_key)
     nn_position, nn_valid = load_aligned_nn_positions(
-        PREDICTIONS_PATH, dataset.filenames
+        args.predictions, dataset.filenames
     )
 
     observations = create_nn_observations(

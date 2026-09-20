@@ -15,6 +15,7 @@ dependencies = [
 [project.optional-dependencies]
 gnn = ["torch"]
 visualization = ["matplotlib", "PySide6>=6.8,<6.9", "pyqtgraph"]
+test = ["pytest>=7.0", "matplotlib>=3.8"]
 
 [tool.setuptools.packages.find]
 where = ["."]

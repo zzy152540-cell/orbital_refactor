@@ -1083,6 +1083,10 @@ Visualization and GNN/PPO research dependencies are intentionally separated
 into `requirements-visualization.txt` and `requirements-gnn.txt`. See
 `docs/cross_platform_validation.md` for the Windows reference environment,
 the known native linear-algebra abort, and the staged Ubuntu validation order.
+Legacy numerical-reference regression tests additionally use Matplotlib; use
+`requirements-test.txt` for that test-only dependency without installing Qt.
+External projects should follow `docs/integration_quickstart.md` and depend on
+the explicit public modules rather than internal package aggregations.
 
 Run the complete test suite with:
 
