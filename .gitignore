@@ -1,0 +1,7 @@
+# Workspace-wide generated test directories
+**/.pytest_*_tmp/
+**/pytest_tmp*/
+**/pytest_cli/
+
+# Microsoft Office lock files
+**/~$*.docx
