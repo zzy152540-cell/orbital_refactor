@@ -22,7 +22,10 @@ from interfaces.data_objects import (
     ObservationMessage,
     StateMessage,
 )
-from orbital_core.measurement_integrity import MeasurementIntegrityPolicy
+from orbital_core.measurement_integrity import (
+    MeasurementIntegrityDiagnostics,
+    MeasurementIntegrityPolicy,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +34,9 @@ class NetworkSchmidtStepResult:
     state: MultiNeighborSchmidtState
     message_results: tuple[CoordinatorMessageResult, ...]
     nis_by_information_id: dict[str, float]
+    integrity_by_information_id: dict[
+        str, MeasurementIntegrityDiagnostics
+    ]
     relative_update_results: tuple[
         tuple[tuple[ObservationMessage, ...], MultiNeighborSchmidtUpdateResult],
         ...
@@ -214,10 +220,18 @@ class NetworkSchmidtSession:
                 ):
                     relative_update_results.append(((observation,), update))
         self._synchronize_resource_requirements()
+        integrity_by_information_id = {
+            information_id: self.coordinator.integrity_by_information_id[
+                information_id
+            ]
+            for information_id in nis_by_information_id
+            if information_id in self.coordinator.integrity_by_information_id
+        }
         return NetworkSchmidtStepResult(
             timestamp=timestamp, state=self.state,
             message_results=tuple(message_results),
             nis_by_information_id=nis_by_information_id,
+            integrity_by_information_id=integrity_by_information_id,
             relative_update_results=tuple(relative_update_results),
         )
 

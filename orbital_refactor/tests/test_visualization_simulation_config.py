@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime
 from pathlib import Path
 
 import experiments.run_v15_visualization_simulation as simulation_runner
@@ -14,12 +15,14 @@ def test_visualization_simulation_config_loads_and_converts_units():
         "plane_count": 5, "duration_s": 20.0, "dt_s": 2.0,
         "altitude_km": 800.0, "inclination_deg": 60.0,
         "maximum_range_km": 5000.0, "communication_profile": "mild",
+        "topology_audit_max_duration_s": 90.0,
         "output": "results/example", "open_after_run": False,
     })
     arguments = config.generator_arguments
     assert arguments["total_satellites"] == 10
     assert arguments["altitude"] == 800e3
     assert arguments["maximum_range"] == 5000e3
+    assert arguments["topology_audit_max_duration"] == 90.0
     assert not config.open_after_run
 
 
@@ -71,9 +74,14 @@ def test_repository_example_configuration_is_valid():
     assert config.total_satellites == 20
 
 
-def test_next_available_recording_path_uses_stable_numeric_suffix(monkeypatch):
-    occupied = {"run", "run_001"}
+def test_next_available_recording_path_uses_timestamp_and_strips_legacy_suffixes(
+    monkeypatch,
+):
+    occupied = {"run_001_002", "run_20260921_153045"}
     monkeypatch.setattr(Path, "exists", lambda self: self.name in occupied)
-    assert next_available_recording_path("results/run").as_posix() == (
-        "results/run_002"
+    fixed = datetime(2026, 9, 21, 15, 30, 45)
+    assert next_available_recording_path(
+        "results/run_001_002", timestamp=fixed,
+    ).as_posix() == (
+        "results/run_20260921_153045_001"
     )

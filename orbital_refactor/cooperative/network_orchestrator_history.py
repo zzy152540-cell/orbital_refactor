@@ -109,7 +109,11 @@ def network_history_from_orchestrator(
             for node in nodes
         },
         integrity_history_by_node={
-            node: list(empty_per_epoch[node]) for node in nodes
+            node: [
+                dict(step.result_by_node[node].integrity_by_information_id)
+                for step in steps
+            ]
+            for node in nodes
         },
         modality_history_by_node={
             node: list(empty_per_epoch[node]) for node in nodes

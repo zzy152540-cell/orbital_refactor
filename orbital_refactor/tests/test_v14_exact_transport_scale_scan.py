@@ -9,6 +9,7 @@ from scenarios.measurement_visibility import (
     VisibilityTemporalFilterConfig,
 )
 from orbital_core.measurement_semantics import PHYSICAL_SENSOR_MODALITIES
+from cooperative.topology import NetworkTopology
 
 
 def test_production_api_smoke_scan_reports_all_modes_and_safe_history_failure():
@@ -198,6 +199,30 @@ def test_physical_modalities_can_use_independent_measurement_periods():
     }
 
     assert counts == {"RADAR": 20, "INFRARED": 12, "OPTICAL": 8}
+
+
+def test_case_exports_local_updates_for_isolated_nodes():
+    topology = NetworkTopology({
+        "sat_01": ("sat_02",), "sat_02": ("sat_01",), "sat_03": (),
+    })
+    case = _build_case(
+        seed=0, duration=4.0, dt=2.0,
+        range_sigma=2.0, range_rate_sigma=0.05, absolute_sigma=3.0,
+        process_noise_acceleration=1e-8, packet_loss=0.0, delay=0.0,
+        acknowledge_messages=True, node_count=3, topology_type="custom",
+        topology_override=topology,
+        relative_modalities=("RADAR", "INFRARED", "OPTICAL"),
+    )
+
+    expected = {
+        (node, float(timestamp))
+        for node in topology.node_ids for timestamp in case["timestamps"]
+    }
+    assert set(case["source_updates"]) == expected
+    assert not any(
+        message.source_node_id == "sat_03"
+        for message in case["transmitted_messages"]
+    )
 
 
 def test_public_scan_applies_visibility_temporal_confirmation():

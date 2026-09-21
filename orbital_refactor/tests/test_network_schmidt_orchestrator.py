@@ -168,6 +168,10 @@ def test_online_orchestrator_converts_to_shared_network_history():
     assert record["observer_id"] == "a"
     assert record["target_id"] == "b"
     assert record["modalities"] == ("RANGE",)
+    integrity = history.integrity_history_by_node["a"][0][
+        observation.information_id
+    ]
+    assert integrity.status == "ACCEPTED"
     assert history.refresh_diagnostics["accepted"] == 2
     assert len(history.refresh_diagnostic_records) == 2
 

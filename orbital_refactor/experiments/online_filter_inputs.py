@@ -27,7 +27,12 @@ def source_updates_from_messages(messages, node_ids):
             ))
     missing_sources = set(node_ids) - {source for source, _ in updates}
     if missing_sources:
-        raise RuntimeError("Source updates are unavailable for some nodes.")
+        missing = sorted(missing_sources)
+        raise RuntimeError(
+            "Source updates are unavailable for nodes: "
+            f"{', '.join(missing)}. Supply explicit per-node local updates "
+            "when the topology contains isolated nodes."
+        )
     return updates
 
 

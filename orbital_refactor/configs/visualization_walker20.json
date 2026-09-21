@@ -31,7 +31,10 @@
   },
   "integrity": {"policy": "validated_baseline"},
   "communication": {"communication_profile": "mild"},
-  "topology": {"enable_link_suspension": true},
+  "topology": {
+    "topology_audit_max_duration_s": 300.0,
+    "enable_link_suspension": true
+  },
   "cann": {
     "cann_enabled": true,
     "cann_node_limit": 3

@@ -69,6 +69,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.duration_s = self._decimal(2.0, 86400.0, 1)
         self.dt_s = self._decimal(0.1, 3600.0, 2)
         self.maximum_range_km = self._decimal(1.0, 100000.0, 1)
+        self.topology_audit_max_duration_s = self._decimal(1.0, 86400.0, 1)
         self.seed = self._integer(0, 2_000_000_000)
         self.absolute_dropout = QtWidgets.QCheckBox(
             "Interrupt absolute navigation on two nodes"
@@ -96,7 +97,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.cann_node_limit.setSpecialValueText("All nodes")
         self.open_after_run = QtWidgets.QCheckBox("Open replay after simulation")
         self.auto_increment_output = QtWidgets.QCheckBox(
-            "Automatically create a new directory when output exists"
+            "Automatically create a timestamped directory when output exists"
         )
         self.output = QtWidgets.QLineEdit()
         output_row = QtWidgets.QHBoxLayout()
@@ -138,6 +139,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self._add_tab(tabs, "Communication & topology", (
             ("Degradation profile", self.communication_profile),
             ("Topology", QtWidgets.QLabel("Walker persistent topology")),
+            ("Topology audit maximum duration (s)", self.topology_audit_max_duration_s),
             ("Fault injection", self.link_suspension),
         ))
         self._add_tab(tabs, "CANN & output", (
@@ -219,6 +221,9 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             replay_history_window_s=self.replay_window.value(),
             max_pinned_age_s=self.max_pinned_age.value(),
             communication_profile=self.communication_profile.currentText(),
+            topology_audit_max_duration_s=(
+                self.topology_audit_max_duration_s.value()
+            ),
             enable_link_suspension=self.link_suspension.isChecked(),
             cann_enabled=self.cann_enabled.isChecked(),
             cann_node_limit=self.cann_node_limit.value(),
@@ -250,6 +255,9 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.replay_window.setValue(config.replay_history_window_s)
         self.max_pinned_age.setValue(config.max_pinned_age_s)
         self.communication_profile.setCurrentText(config.communication_profile)
+        self.topology_audit_max_duration_s.setValue(
+            config.topology_audit_max_duration_s
+        )
         self.link_suspension.setChecked(config.enable_link_suspension)
         self.cann_enabled.setChecked(config.cann_enabled)
         self.cann_node_limit.setValue(config.cann_node_limit)
@@ -308,12 +316,11 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             if not config.auto_increment_output:
                 self._show_error(FileExistsError(
                     "Output already exists. Select a new recording directory or "
-                    "enable automatic directory numbering."
+                    "enable automatic timestamped directories."
                 ))
                 return
             selected_output = next_available_recording_path(requested_output)
             config = replace(config, output=str(selected_output))
-            self.output.setText(str(selected_output))
         self._set_running(True)
         self.status.setPlainText(
             "Simulation running in the background. This may take about one minute."

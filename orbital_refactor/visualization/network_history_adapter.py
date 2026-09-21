@@ -157,7 +157,7 @@ def _visual_observation(message, *, history, epoch_index, raw_payload=None):
     integrity = history.integrity_history_by_node.get(
         message.observer_id, [{}]
     )[epoch_index].get(information_id)
-    status = getattr(integrity, "status", "NOT_PROCESSED")
+    status = getattr(integrity, "status", "STATUS_UNAVAILABLE")
     covariance = np.asarray(message.covariance)
     raw_data, raw_kind = _unpack_raw_payload(raw_payload)
     return VisualObservation(

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from datetime import datetime
 import json
 from pathlib import Path
+import re
 
 import numpy as np
 
@@ -30,7 +32,7 @@ CONFIG_SECTIONS = {
     "visibility": ("maximum_range_km",),
     "filter": ("replay_history_window_s", "max_pinned_age_s"),
     "communication": ("communication_profile",),
-    "topology": ("enable_link_suspension",),
+    "topology": ("topology_audit_max_duration_s", "enable_link_suspension"),
     "cann": ("cann_enabled", "cann_node_limit"),
     "output": ("output", "open_after_run", "auto_increment_output"),
 }
@@ -60,6 +62,7 @@ class VisualizationSimulationConfig:
     replay_history_window_s: float = 10.0
     max_pinned_age_s: float = 10.0
     communication_profile: str = "mild"
+    topology_audit_max_duration_s: float = 300.0
     enable_link_suspension: bool = True
     cann_enabled: bool = True
     cann_node_limit: int = 3
@@ -80,6 +83,7 @@ class VisualizationSimulationConfig:
             self.radar_range_rate_sigma_mps, self.infrared_angle_sigma_deg,
             self.optical_image_sigma, self.absolute_navigation_sigma_m,
             self.replay_history_window_s, self.max_pinned_age_s,
+            self.topology_audit_max_duration_s,
         )
         if any(not np.isfinite(value) or value <= 0.0 for value in positive):
             raise ValueError("Physical scales and time settings must be positive.")
@@ -121,6 +125,9 @@ class VisualizationSimulationConfig:
             "process_noise_acceleration": float(self.process_noise_acceleration),
             "replay_history_window": float(self.replay_history_window_s),
             "max_pinned_age": float(self.max_pinned_age_s),
+            "topology_audit_max_duration": float(
+                self.topology_audit_max_duration_s
+            ),
             "enable_link_suspension": bool(self.enable_link_suspension),
             "enable_absolute_navigation_dropout": bool(
                 self.enable_absolute_navigation_dropout
@@ -186,12 +193,21 @@ def save_visualization_simulation_config(config, path: str | Path) -> Path:
     return target
 
 
-def next_available_recording_path(requested: str | Path) -> Path:
+def next_available_recording_path(
+    requested: str | Path, *, timestamp: datetime | None = None,
+) -> Path:
     path = Path(requested)
     if not path.exists():
         return path
-    for index in range(1, 10000):
-        candidate = path.with_name(f"{path.name}_{index:03d}")
+    base_name = re.sub(
+        r"(?:(?:_\d{3})+|_\d{8}_\d{6}(?:_\d{3})?)$", "", path.name,
+    )
+    stamp = (timestamp or datetime.now()).strftime("%Y%m%d_%H%M%S")
+    candidate = path.with_name(f"{base_name}_{stamp}")
+    if not candidate.exists():
+        return candidate
+    for index in range(1, 1000):
+        candidate = path.with_name(f"{base_name}_{stamp}_{index:03d}")
         if not candidate.exists():
             return candidate
     raise RuntimeError("Could not allocate a unique recording directory name.")

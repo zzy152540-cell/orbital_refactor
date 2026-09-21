@@ -6,6 +6,7 @@ import numpy as np
 
 from cooperative.exact_transport_accumulator import ExactTransportAccumulator
 from cooperative.message_transport import MessageChannel
+from cooperative.network_schmidt_orchestrator import TransportSourceUpdate
 from experiments.scenario_controls import link_is_in_outage, topology_edge_is_inactive
 from interfaces.data_objects import AbsolutePositionObservation, StateMessage
 from orbital_core.dynamics import (
@@ -78,6 +79,7 @@ class ExactTransportStateSimulator:
         }
         self.state_messages = {node: [] for node in topology.node_ids}
         self.transmitted_messages: list[StateMessage] = []
+        self.source_updates = {}
         self.pending_acks = []
         self.consecutive_losses = {edge: 0 for edge in self.edges}
         self.link_sequence = {edge: 0 for edge in self.edges}
@@ -224,15 +226,23 @@ class ExactTransportStateSimulator:
         update_noise,
         information_ids,
     ):
+        combined_transition = update_transition @ prediction_transition
+        combined_noise = (
+            update_transition @ prediction_noise @ update_transition.T
+            + update_noise
+        )
+        self.source_updates[(str(node), float(timestamp))] = TransportSourceUpdate(
+            state=self.sender_state[node].copy(),
+            error_transition=combined_transition.copy(),
+            independent_process_noise=combined_noise.copy(),
+            information_ids=tuple(information_ids),
+            event_error_transition=update_transition.copy(),
+            event_process_noise=update_noise.copy(),
+        )
         for receiver, source in self.edges:
             if source != node:
                 continue
             edge = (receiver, source)
-            combined_transition = update_transition @ prediction_transition
-            combined_noise = (
-                update_transition @ prediction_noise @ update_transition.T
-                + update_noise
-            )
             accumulator = self.accumulators[edge]
             accumulator.append(
                 timestamp=timestamp,

@@ -512,6 +512,7 @@ def build_exact_transport_case(
         "state_messages": state_simulator.state_messages,
         "absolute_observations": absolute_observations,
         "transmitted_messages": state_simulator.transmitted_messages,
+        "source_updates": dict(state_simulator.source_updates),
         "lineages": state_simulator.lineages,
         "visibility_summary": visibility_summary,
         "topology_version_by_timestamp": topology_versions,

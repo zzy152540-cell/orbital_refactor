@@ -13,14 +13,13 @@ from cooperative.message_transport import CommunicationWindow
 from cooperative.network_orchestrator_history import network_history_from_orchestrator
 from cooperative.network_schmidt_orchestrator import NetworkSchmidtOrchestrator
 from experiments.v14_walker_geometry_audit import run_v14_walker_geometry_audit
-from experiments.v14_online_topology_resynchronization import (
-    _items_by_timestamp, _source_updates_from_messages,
-)
+from experiments.v14_online_topology_resynchronization import _items_by_timestamp
 from experiments.walker_filter_setup import build_walker_filter_case
 from experiments.v15_dynamic_visualization import (
     COMMUNICATION_DEGRADATION_PROFILES, online_visualization_overlays,
 )
 from visualization.cann_history_adapter import build_cann_visualization_history
+from visualization.data_contract import VisualDiagnosticEvent
 from visualization.network_history_adapter import network_history_visualization_frames
 from visualization.recording import VisualizationRecordingWriter
 
@@ -39,6 +38,7 @@ def generate_dynamic_walker_recording(output: str | Path, *, duration=120.0,
                                       process_noise_acceleration=1e-8,
                                       replay_history_window=10.0,
                                       max_pinned_age=10.0,
+                                      topology_audit_max_duration=300.0,
                                       enable_link_suspension=True,
                                       enable_absolute_navigation_dropout=True,
                                       cann_node_limit=0,
@@ -55,10 +55,15 @@ def generate_dynamic_walker_recording(output: str | Path, *, duration=120.0,
     progress("constellation_and_topology", 0.02)
     if communication_profile not in COMMUNICATION_DEGRADATION_PROFILES:
         raise ValueError(f"Unknown communication profile: {communication_profile}")
+    if not np.isfinite(topology_audit_max_duration) or topology_audit_max_duration <= 0.0:
+        raise ValueError("topology_audit_max_duration must be finite and positive.")
+    topology_audit_duration = min(
+        float(duration), float(topology_audit_max_duration),
+    )
     audit = run_v14_walker_geometry_audit(
         total_satellites=total_satellites, plane_count=plane_count,
         phasing=phasing, altitude=altitude, inclination=inclination,
-        duration=max(1800.0, duration), dt=max(30.0, dt),
+        duration=topology_audit_duration, dt=max(30.0, dt),
         maximum_range=maximum_range,
     )
     progress("constellation_and_topology_complete", 0.18)
@@ -69,11 +74,7 @@ def generate_dynamic_walker_recording(output: str | Path, *, duration=120.0,
         tuple(sorted((node, neighbor)))
         for node in node_ids for neighbor in topology.neighbors(node)
     })
-    if not persistent_edges:
-        raise ValueError(
-            "The configured Walker geometry has no persistent communication edge."
-        )
-    inactive_edge = persistent_edges[0]
+    inactive_edge = persistent_edges[0] if persistent_edges else None
     case = build_walker_filter_case(
         seed=seed, duration=duration, dt=dt, maximum_range=maximum_range,
         topology=topology,
@@ -85,7 +86,7 @@ def generate_dynamic_walker_recording(output: str | Path, *, duration=120.0,
         ),
         topology_inactive_windows_by_undirected_edge=(
             {inactive_edge: ((76.0, 88.0),)}
-            if enable_link_suspension else None
+            if enable_link_suspension and inactive_edge is not None else None
         ),
         relative_modalities=relative_modalities,
         range_sigma=range_sigma, range_rate_sigma=range_rate_sigma,
@@ -113,9 +114,7 @@ def generate_dynamic_walker_recording(output: str | Path, *, duration=120.0,
         communication_schedule_by_link=communication_schedule,
         random_seed=20260910 + seed, resynchronize_on_resume=True,
     )
-    source_updates = _source_updates_from_messages(
-        case["transmitted_messages"], node_ids,
-    )
+    source_updates = case["source_updates"]
     observations = _items_by_timestamp(case["observations"])
     absolute = _items_by_timestamp(case["absolute_observations"])
     for timestamp in case["timestamps"]:
@@ -158,6 +157,35 @@ def generate_dynamic_walker_recording(output: str | Path, *, duration=120.0,
         dropout_nodes=(dropout_nodes if enable_absolute_navigation_dropout else ()),
         dropout_window=(30.0, 58.0),
     )
+    isolated_node_count = sum(
+        not topology.neighbors(node) for node in node_ids
+    )
+    component_count = len(audit.persistent_component_sizes)
+    if component_count > 1:
+        events = list(events)
+        events[0] = tuple(events[0]) + (VisualDiagnosticEvent(
+            timestamp=float(case["timestamps"][0]),
+            event_type="PERSISTENT_TOPOLOGY_DISCONNECTED",
+            severity="WARNING",
+            description=(
+                "Persistent communication topology is disconnected: "
+                f"{component_count} connected component(s), "
+                f"{isolated_node_count} isolated node(s), component sizes "
+                f"{tuple(audit.persistent_component_sizes)}. Isolated nodes "
+                "continue local propagation without cooperative updates."
+            ),
+        ),)
+        events = tuple(events)
+    metadata = tuple({
+        **item,
+        "persistent_component_sizes": list(audit.persistent_component_sizes),
+        "persistent_component_count": int(component_count),
+        "persistent_connected": bool(component_count == 1),
+        "persistent_edge_count": int(audit.persistent_undirected_edge_count),
+        "persistent_isolated_node_count": int(isolated_node_count),
+        "persistent_minimum_node_degree": int(audit.minimum_persistent_node_degree),
+        "topology_audit_duration_s": float(topology_audit_duration),
+    } for item in metadata)
     frames = network_history_visualization_frames(
         history=history, truth_history_by_node=case["truth"],
         topology=case["topology"], observation_messages=case["observations"],
@@ -201,6 +229,7 @@ def main():
     parser.add_argument("--dt", type=float, default=2.0)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-cann", action="store_true")
+    parser.add_argument("--topology-audit-max-duration", type=float, default=300.0)
     parser.add_argument(
         "--communication-profile", choices=tuple(COMMUNICATION_DEGRADATION_PROFILES),
         default="mild",
@@ -210,6 +239,7 @@ def main():
         args.output, duration=args.duration, dt=args.dt, seed=args.seed,
         include_cann=not args.no_cann,
         communication_profile=args.communication_profile,
+        topology_audit_max_duration=args.topology_audit_max_duration,
     ))
 
 
