@@ -5,7 +5,9 @@ circular dependency while pipelines are importing the data-object module.
 """
 
 from .data_objects import *
+from .controlled_trajectory import *
 from .interface_contracts import *
 from .module_serialization import *
 from .raw_sensor_serialization import *
+from .scene_control import *
 from .trajectory_udp import *
