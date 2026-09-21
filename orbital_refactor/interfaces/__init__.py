@@ -8,3 +8,4 @@ from .data_objects import *
 from .interface_contracts import *
 from .module_serialization import *
 from .raw_sensor_serialization import *
+from .trajectory_udp import *

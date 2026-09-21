@@ -17,6 +17,13 @@ from .synthetic_measurement_adapter import (
     create_radar_observations,
     create_single_satellite_visibility_flags,
 )
+from .external_scene_input import (
+    ExternalSatelliteDefinition,
+    ExternalSceneInitialConditions,
+    TleConsistencyDiagnostic,
+    adapt_external_scene_input,
+    load_external_scene_input,
+)
 
 __all__ = [
     "FederatedAdapterResult",
@@ -33,4 +40,9 @@ __all__ = [
     "create_single_satellite_visibility_flags",
     "load_aligned_nn_positions",
     "load_shirt_orbit_dataset",
+    "ExternalSatelliteDefinition",
+    "ExternalSceneInitialConditions",
+    "TleConsistencyDiagnostic",
+    "adapt_external_scene_input",
+    "load_external_scene_input",
 ]
