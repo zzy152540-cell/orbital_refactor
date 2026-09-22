@@ -52,6 +52,17 @@ def _command(command_id, **extra):
     }
 
 
+def _post(base_url, path, payload):
+    request = Request(
+        base_url + path,
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json;charset=UTF-8"},
+        method="POST",
+    )
+    with urlopen(request, timeout=2) as response:
+        return json.load(response)
+
+
 def test_streamer_waits_for_start_and_sends_every_due_frame_once():
     monotonic = FakeMonotonic()
     controller = SceneClockController(
@@ -150,6 +161,78 @@ def test_http_start_drives_real_udp_frames_over_loopback():
                 assert json.load(response)["clockState"] == "RUNNING"
             monotonic.value += 2.1
             assert streamer.step().sent_frames == 3
+
+        messages = [
+            decode_trajectory_datagram(receiver.recvfrom(65_535)[0])
+            for _ in range(3)
+        ]
+        assert [message["frameIndex"] for message in messages] == [0, 1, 2]
+        assert [message["timeMs"] for message in messages] == [1_000, 2_000, 3_000]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+        receiver.close()
+
+
+def test_http_pause_resume_speed_and_stop_control_udp_output_end_to_end():
+    monotonic = FakeMonotonic()
+    controller = SceneClockController(
+        SceneClockConfig("scene-a", "run-a", "TB-A", 1_000, 4_000),
+        monotonic=monotonic,
+    )
+    receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    receiver.bind(("127.0.0.1", 0))
+    receiver.settimeout(1.0)
+    server = create_scene_control_server(controller, "127.0.0.1", 0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        host, port = receiver.getsockname()
+        with TrajectoryUdpPublisher(host, port) as publisher:
+            streamer = ControlledTrajectoryStreamer(
+                controller, _trajectory(), publisher,
+            )
+            assert streamer.step().sent_frames == 0
+
+            started = _post(
+                base, "/api/external/scene/run-state",
+                _command("start-e2e", action="START"),
+            )
+            assert started["clockState"] == "RUNNING"
+            assert streamer.step().sent_frames == 1
+
+            monotonic.value += 1.0
+            assert streamer.step().sent_frames == 1
+            paused = _post(
+                base, "/api/external/scene/run-state",
+                _command("pause-e2e", action="PAUSE"),
+            )
+            assert paused["clockState"] == "PAUSED"
+            monotonic.value += 30.0
+            assert streamer.step().sent_frames == 0
+
+            resumed = _post(
+                base, "/api/external/scene/run-state",
+                _command("resume-e2e", action="START"),
+            )
+            assert resumed["clockState"] == "RUNNING"
+            faster = _post(
+                base, "/api/external/scene/speed",
+                _command("speed-e2e", speed=2),
+            )
+            assert faster["speed"] == 2
+            monotonic.value += 0.5
+            assert streamer.step().sent_frames == 1
+
+            stopped = _post(
+                base, "/api/external/scene/stop",
+                _command("stop-e2e", reason="OPERATOR_STOP"),
+            )
+            assert stopped["clockState"] == "STOPPED"
+            monotonic.value += 30.0
+            assert streamer.step().sent_frames == 0
 
         messages = [
             decode_trajectory_datagram(receiver.recvfrom(65_535)[0])
