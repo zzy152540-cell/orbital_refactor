@@ -47,3 +47,18 @@ def test_external_scene_rejects_count_mismatch():
     payload["satelliteCount"] = 2
     with pytest.raises(ValueError, match="satelliteCount"):
         adapt_external_scene_input(payload)
+
+
+def test_external_scene_accepts_compact_ids_and_rewinds_future_epoch():
+    payload = _payload()
+    satellite = payload["satellites"][0]
+    satellite.pop("assetId")
+    satellite.pop("assetName")
+    satellite["name"] = "compact-node"
+    satellite["epoch"] = "26262.16666667"
+
+    result = adapt_external_scene_input(payload, propagation_step_seconds=60.0)
+
+    assert result.satellites[0].node_id == "compact-node"
+    assert result.satellites[0].asset_id == "asset-compact-node"
+    assert np.all(np.isfinite(result.initial_state_by_node["compact-node"]))

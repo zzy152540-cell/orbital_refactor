@@ -10,7 +10,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
-from orbital_core.dynamics import rk4_step_absolute
+from orbital_core.dynamics import absolute_dynamics_rhs, rk4_step_absolute
 from orbital_core.orbit_elements import keplerian_to_eci
 
 
@@ -98,10 +98,6 @@ def adapt_external_scene_input(
     for satellite in satellites:
         state_at_epoch = keplerian_to_eci(*satellite.orbital_elements_eci)
         elapsed = (start_time_ms - satellite.epoch_ms) / 1000.0
-        if elapsed < 0.0:
-            raise ValueError(
-                f"Scene start precedes orbital epoch for {satellite.node_id}."
-            )
         initial_states[satellite.node_id] = _propagate_to_scene_start(
             state_at_epoch, elapsed, maximum_step=propagation_step_seconds,
         )
@@ -122,8 +118,8 @@ def adapt_external_scene_input(
 def _parse_satellite(payload: Mapping[str, Any]) -> ExternalSatelliteDefinition:
     if not isinstance(payload, Mapping):
         raise TypeError("Every satellite entry must be a JSON object.")
-    node_id = _required_text(payload, "assetName")
-    asset_id = _required_text(payload, "assetId")
+    node_id = _first_nonempty_text(payload, "assetName", "name")
+    asset_id = _optional_text(payload, "assetId") or f"asset-{node_id}"
     satellite_id = _required_text(payload, "satelliteId")
     norad = int(_required_text(payload, "norad"))
     if norad < 0:
@@ -175,12 +171,30 @@ def _mean_to_true_anomaly(mean_anomaly: float, eccentricity: float) -> float:
 
 def _propagate_to_scene_start(state, elapsed_seconds, *, maximum_step):
     result = np.asarray(state, dtype=float).reshape(6).copy()
-    remaining = float(elapsed_seconds)
+    remaining = abs(float(elapsed_seconds))
+    direction = 1.0 if elapsed_seconds >= 0.0 else -1.0
     while remaining > 0.0:
         step = min(float(maximum_step), remaining)
-        result = rk4_step_absolute(result, step)
+        result = (
+            rk4_step_absolute(result, step)
+            if direction > 0.0 else _rk4_step_absolute_signed(result, -step)
+        )
         remaining -= step
     return result
+
+
+def _rk4_step_absolute_signed(state_eci, dt):
+    """Advance or rewind the autonomous J2 dynamics by one RK4 step."""
+
+    state = np.asarray(state_eci, dtype=float).reshape(6)
+    step = float(dt)
+    if not np.isfinite(step) or step == 0.0:
+        raise ValueError("Signed propagation step must be finite and nonzero.")
+    k1 = absolute_dynamics_rhs(state)
+    k2 = absolute_dynamics_rhs(state + 0.5 * step * k1)
+    k3 = absolute_dynamics_rhs(state + 0.5 * step * k2)
+    k4 = absolute_dynamics_rhs(state + step * k3)
+    return state + step * (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
 
 
 def _tle_diagnostic(satellite: ExternalSatelliteDefinition) -> TleConsistencyDiagnostic:
@@ -256,6 +270,21 @@ def _required_text(payload, name):
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"External scene field {name} must be a nonempty string.")
     return value.strip()
+
+
+def _optional_text(payload, name):
+    value = payload.get(name)
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def _first_nonempty_text(payload, *names):
+    for name in names:
+        value = _optional_text(payload, name)
+        if value is not None:
+            return value
+    raise ValueError(
+        f"External scene requires one nonempty field from {', '.join(names)}."
+    )
 
 
 def _finite_float(payload, name):
