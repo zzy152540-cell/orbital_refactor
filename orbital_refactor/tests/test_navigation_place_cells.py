@@ -1,6 +1,9 @@
 import numpy as np
 
-from brain_inspired.navigation_place_cells import NavigationPlaceCellEncoder
+from brain_inspired.navigation_place_cells import (
+    NavigationPlaceCellConfig,
+    NavigationPlaceCellEncoder,
+)
 from brain_inspired.navigation_place_cells import (
     build_navigation_place_cell_histories,
 )
@@ -46,3 +49,13 @@ def test_place_cell_activity_changes_with_rt_position():
 def test_empty_place_cell_history_input_is_rejected():
     with pytest.raises(ValueError, match="nonempty"):
         build_navigation_place_cell_histories(navigation_by_node={})
+
+
+def test_display_place_cell_grid_covers_two_kilometers_without_saturation():
+    config = NavigationPlaceCellConfig.display_3x3()
+    output = NavigationPlaceCellEncoder(config).encode(
+        phase=1.0, radial_position=1_575.0, along_track_position=-1_895.0,
+    )
+    assert config.radial_centers_m == (-2_000.0, 0.0, 2_000.0)
+    assert config.along_track_centers_m == (-2_000.0, 0.0, 2_000.0)
+    assert output.boundary_saturated is False

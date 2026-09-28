@@ -63,7 +63,7 @@ def _post(base_url, path, payload):
         return json.load(response)
 
 
-def test_streamer_waits_for_start_and_sends_every_due_frame_once():
+def test_streamer_waits_for_start_and_drops_overdue_display_frames():
     monotonic = FakeMonotonic()
     controller = SceneClockController(
         SceneClockConfig("scene-a", "run-a", "TB-A", 1_000, 4_000),
@@ -77,9 +77,9 @@ def test_streamer_waits_for_start_and_sends_every_due_frame_once():
     assert streamer.step().sent_frames == 1
     monotonic.value += 2.1
     result = streamer.step()
-    assert result.sent_frames == 2
-    assert (result.first_frame_index, result.last_frame_index) == (1, 2)
-    assert publisher.indices == [0, 1, 2]
+    assert result.sent_frames == 1
+    assert (result.first_frame_index, result.last_frame_index) == (2, 2)
+    assert publisher.indices == [0, 2]
     assert streamer.step().sent_frames == 0
 
 
@@ -102,7 +102,43 @@ def test_pause_freezes_output_and_resume_finishes_without_duplicates():
     result = streamer.step()
     assert result.clock_state == "FINISHED"
     assert result.complete
-    assert publisher.indices == [0, 1, 2, 3]
+    assert publisher.indices == [0, 3]
+
+
+def test_ten_x_speed_decimates_frames_instead_of_accelerating_publication():
+    monotonic = FakeMonotonic()
+    trajectory = _trajectory()
+    trajectory["endTimeMs"] = 21_000
+    trajectory["frameCount"] = 21
+    trajectory["frames"] = [
+        {"frameIndex": i, "timeMs": 1_000 + i * 1_000,
+         "time": f"frame-{i}", "satelliteList": []}
+        for i in range(21)
+    ]
+    controller = SceneClockController(
+        SceneClockConfig(
+            "scene-a", "run-a", "TB-A", 1_000, 21_000,
+            speed=10,
+        ),
+        monotonic=monotonic,
+    )
+    publisher = RecordingPublisher()
+    streamer = ControlledTrajectoryStreamer(controller, trajectory, publisher)
+
+    controller.set_run_state(_command("start-10x", action="START"))
+    assert streamer.step().sent_frames == 1
+    for _ in range(9):
+        monotonic.value += 0.1
+        assert streamer.step().sent_frames == 0
+    monotonic.value = 1.0
+    assert streamer.step().sent_frames == 1
+    assert publisher.indices == [0, 10]
+
+    monotonic.value += 1.0
+    terminal = streamer.step()
+    assert terminal.clock_state == "FINISHED"
+    assert terminal.complete
+    assert publisher.indices == [0, 10, 20]
 
 
 def test_stop_cancels_unsent_frames():
@@ -159,15 +195,16 @@ def test_http_start_drives_real_udp_frames_over_loopback():
             )
             with urlopen(request, timeout=2) as response:
                 assert json.load(response)["clockState"] == "RUNNING"
+            assert streamer.step().sent_frames == 1
             monotonic.value += 2.1
-            assert streamer.step().sent_frames == 3
+            assert streamer.step().sent_frames == 1
 
         messages = [
             decode_trajectory_datagram(receiver.recvfrom(65_535)[0])
-            for _ in range(3)
+            for _ in range(2)
         ]
-        assert [message["frameIndex"] for message in messages] == [0, 1, 2]
-        assert [message["timeMs"] for message in messages] == [1_000, 2_000, 3_000]
+        assert [message["frameIndex"] for message in messages] == [0, 2]
+        assert [message["timeMs"] for message in messages] == [1_000, 3_000]
     finally:
         server.shutdown()
         server.server_close()
@@ -177,8 +214,15 @@ def test_http_start_drives_real_udp_frames_over_loopback():
 
 def test_http_pause_resume_speed_and_stop_control_udp_output_end_to_end():
     monotonic = FakeMonotonic()
+    trajectory = _trajectory()
+    trajectory["endTimeMs"] = 5_000
+    trajectory["frameCount"] = 5
+    trajectory["frames"].append(
+        {"frameIndex": 4, "timeMs": 5_000,
+         "time": "frame-4", "satelliteList": []},
+    )
     controller = SceneClockController(
-        SceneClockConfig("scene-a", "run-a", "TB-A", 1_000, 4_000),
+        SceneClockConfig("scene-a", "run-a", "TB-A", 1_000, 5_000),
         monotonic=monotonic,
     )
     receiver = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -192,7 +236,7 @@ def test_http_pause_resume_speed_and_stop_control_udp_output_end_to_end():
         host, port = receiver.getsockname()
         with TrajectoryUdpPublisher(host, port) as publisher:
             streamer = ControlledTrajectoryStreamer(
-                controller, _trajectory(), publisher,
+                controller, trajectory, publisher,
             )
             assert streamer.step().sent_frames == 0
 
@@ -224,6 +268,8 @@ def test_http_pause_resume_speed_and_stop_control_udp_output_end_to_end():
             )
             assert faster["speed"] == 2
             monotonic.value += 0.5
+            assert streamer.step().sent_frames == 0
+            monotonic.value += 0.5
             assert streamer.step().sent_frames == 1
 
             stopped = _post(
@@ -238,8 +284,8 @@ def test_http_pause_resume_speed_and_stop_control_udp_output_end_to_end():
             decode_trajectory_datagram(receiver.recvfrom(65_535)[0])
             for _ in range(3)
         ]
-        assert [message["frameIndex"] for message in messages] == [0, 1, 2]
-        assert [message["timeMs"] for message in messages] == [1_000, 2_000, 3_000]
+        assert [message["frameIndex"] for message in messages] == [0, 1, 3]
+        assert [message["timeMs"] for message in messages] == [1_000, 2_000, 4_000]
     finally:
         server.shutdown()
         server.server_close()

@@ -37,9 +37,14 @@ def test_estimate_frames_export_as_trajectory_2(tmp_path):
 
     payload = json.loads(target.read_text(encoding="utf-8"))
     assert payload["schemaVersion"] == "TRAJECTORY-2.0"
+    assert payload["type"] == "TRAJECTORY"
     assert payload["sampleIntervalMs"] == 1000
     assert payload["frameCount"] == 2
     assert payload["durationMs"] == 1000
+    assert payload["startTime"] == "2026-09-18 04:00:00.000"
+    assert payload["endTime"] == "2026-09-18 04:00:01.000"
+    assert payload["frames"][0]["time"] == "2026-09-18 04:00:00.000"
+    assert payload["frames"][1]["time"] == "2026-09-18 04:00:01.000"
     assert payload["frames"][1]["frameIndex"] == 1
     assert payload["frames"][1]["timeMs"] == 1789704001000
     satellite = payload["frames"][0]["satelliteList"][0]

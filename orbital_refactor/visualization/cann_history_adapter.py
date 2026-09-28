@@ -48,7 +48,9 @@ def build_cann_visualization_history(
         node: history.active_state_history_by_node[node] for node in selected_nodes
     }
     frames = {
-        node: OrbitalPlaneFrame.from_state_eci(initial_state_by_node[node])
+        node: OrbitalPlaneFrame.from_ascending_node_of_state_eci(
+            initial_state_by_node[node]
+        )
         for node in selected_nodes
     }
     masks = _absolute_navigation_masks(
@@ -86,7 +88,7 @@ def build_cann_visualization_history(
     combined = build_navigation_brain_states(
         direction_by_node=direction, rt_by_node=rt,
     )
-    place_config = NavigationPlaceCellConfig()
+    place_config = NavigationPlaceCellConfig.display_3x3()
     place = build_navigation_place_cell_histories(
         navigation_by_node=combined, config=place_config,
     )

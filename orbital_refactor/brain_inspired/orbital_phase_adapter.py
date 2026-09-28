@@ -37,6 +37,39 @@ class OrbitalPlaneFrame:
         return cls(ascending, quadrature, normal)
 
     @classmethod
+    def from_ascending_node_of_state_eci(
+        cls, state_eci: Array,
+    ) -> "OrbitalPlaneFrame":
+        """Build an absolute phase basis whose zero is the ascending node.
+
+        Unlike :meth:`from_state_eci`, this basis does not rotate its zero to
+        the satellite's initial position.  It therefore preserves the initial
+        argument-of-latitude difference between satellites for visualization.
+        Equatorial orbits use the inertial +X direction because their ascending
+        node is undefined.
+        """
+
+        state = np.asarray(state_eci, dtype=float).reshape(-1)
+        if state.shape != (6,) or np.any(~np.isfinite(state)):
+            raise ValueError("state_eci must be a finite [position, velocity] 6-vector.")
+        position, velocity = state[:3], state[3:]
+        angular_momentum = np.cross(position, velocity)
+        momentum_norm = float(np.linalg.norm(angular_momentum))
+        if momentum_norm <= np.finfo(float).tiny:
+            raise ValueError("state_eci must define a nonsingular orbital plane.")
+        normal = angular_momentum / momentum_norm
+        inertial_z = np.array([0.0, 0.0, 1.0])
+        ascending = np.cross(inertial_z, normal)
+        ascending_norm = float(np.linalg.norm(ascending))
+        if ascending_norm <= 1.0e-12:
+            inertial_x = np.array([1.0, 0.0, 0.0])
+            ascending = inertial_x - float(inertial_x @ normal) * normal
+            ascending_norm = float(np.linalg.norm(ascending))
+        ascending /= ascending_norm
+        quadrature = np.cross(normal, ascending)
+        return cls(ascending, quadrature, normal)
+
+    @classmethod
     def from_raan_inclination(
         cls, *, raan: float, inclination: float,
     ) -> "OrbitalPlaneFrame":

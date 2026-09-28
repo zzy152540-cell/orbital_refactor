@@ -88,7 +88,7 @@ class CANNObservationPanel(QtWidgets.QWidget):
         current = QtWidgets.QWidget()
         current_layout = QtWidgets.QGridLayout(current)
         self.direction_plot = self._activity_plot(
-            "Direction cells", "preferred orbital phase", "degree",
+            "Direction cells", "absolute argument of latitude", "degree",
         )
         self.direction_curve = self.direction_plot.plot(
             pen=pg.mkPen("#4aa3df", width=2),
@@ -103,8 +103,12 @@ class CANNObservationPanel(QtWidgets.QWidget):
         self.place_plot.setAspectLocked(True)
         self.place_image = pg.ImageItem()
         self.place_plot.addItem(self.place_image)
-        self.place_plot.setLabel("bottom", "along-track cell")
-        self.place_plot.setLabel("left", "radial cell")
+        self.place_plot.setLabel(
+            "bottom", "along-track cell (-2000, 0, +2000 m)"
+        )
+        self.place_plot.setLabel(
+            "left", "radial cell (-2000, 0, +2000 m)"
+        )
         current_layout.addWidget(self.place_plot, 0, 1)
 
         self.radial_plot = self._activity_plot(
@@ -213,7 +217,7 @@ class CANNObservationPanel(QtWidgets.QWidget):
         phase_deg = float(np.rad2deg(direction.decoded_value[0]))
         self.details.setPlainText(
             f"Node: {node_id}\n"
-            f"Direction phase: {phase_deg:.4f} deg | "
+            f"Absolute argument of latitude: {phase_deg:.4f} deg | "
             f"concentration: {direction.concentration:.6f} | "
             f"width: {direction.bump_width:.6f}\n"
             f"RT decoded: R={rt.decoded_value[0]:.3f} m, "

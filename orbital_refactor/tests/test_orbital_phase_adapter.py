@@ -96,3 +96,21 @@ def test_walker_truth_can_drive_passive_cann_without_phase_feedback():
 def test_orbital_plane_frame_rejects_nonorthogonal_axes():
     with pytest.raises(ValueError, match="orthonormal"):
         OrbitalPlaneFrame(np.ones(3), np.ones(3), np.ones(3))
+
+
+def test_state_derived_ascending_node_frame_preserves_absolute_phase():
+    raan = np.deg2rad(42.0)
+    inclination = np.deg2rad(53.0)
+    argument_of_perigee = np.deg2rad(17.0)
+    true_anomaly = np.deg2rad(123.0)
+    state = keplerian_to_eci(
+        7_000_000.0, 0.01, inclination, raan,
+        argument_of_perigee, true_anomaly,
+    )
+    frame = OrbitalPlaneFrame.from_ascending_node_of_state_eci(state)
+    phase = extract_orbital_phase_state(
+        timestamp=0.0, state_eci=state, frame=frame,
+    )
+    assert abs(_circular_error(
+        phase.argument_of_latitude, argument_of_perigee + true_anomaly,
+    )) < 1.0e-12

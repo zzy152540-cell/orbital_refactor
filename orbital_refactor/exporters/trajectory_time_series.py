@@ -14,6 +14,7 @@ from visualization.recording import VisualizationRecordingReader
 
 
 TRAJECTORY_SCHEMA_VERSION = "TRAJECTORY-2.0"
+TRAJECTORY_CONTENT_TYPE = "TRAJECTORY"
 
 
 def export_absolute_state_histories(
@@ -245,6 +246,7 @@ def _write_trajectory_payload(
     end_time_ms = int(start_time_ms) + (len(frames) - 1) * 1000
     payload = {
         "schemaVersion": TRAJECTORY_SCHEMA_VERSION,
+        "type": TRAJECTORY_CONTENT_TYPE,
         "sceneId": str(scene_id),
         "timeBaseId": str(time_base_id),
         "datasetId": str(dataset_id),
@@ -274,4 +276,4 @@ def _write_trajectory_payload(
 
 def _rfc3339_milliseconds(epoch_ms: int) -> str:
     instant = datetime.fromtimestamp(epoch_ms / 1000.0, tz=timezone.utc)
-    return instant.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return instant.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]

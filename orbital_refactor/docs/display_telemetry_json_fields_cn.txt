@@ -1,0 +1,307 @@
+DISPLAY_TELEMETRY 完整JSON字段及绘图说明
+=========================================
+
+一、文件用途
+------------
+
+文件名：data/display_telemetry.json
+
+该文件保存1261个仿真时刻的显示遥测数据，包括：
+1. 星群总体位置和速度RMSE；
+2. 31颗卫星各自的位置和速度误差；
+3. 31颗卫星各自的方向细胞环活动；
+4. 31颗卫星各自的3×3径向—沿轨位置细胞热力图。
+
+该文件用于显示和演示，不替代轨迹文件。轨迹坐标和速度仍从
+data/estimated_trajectory.json读取。两个文件使用sceneId、timeBaseId、frameIndex和
+timeMs对齐。
+
+纯数值数组在文件中采用单行紧凑格式，例如：
+"directionRing": [255,252,244,230,...]
+
+对象数组仍保留分行和缩进，便于查看每颗卫星的数据。
+
+
+二、文件最外层字段
+------------------
+
+schemaVersion
+  类型：字符串
+  当前值：DISPLAY-TELEMETRY-1.0
+  含义：显示遥测JSON的数据结构版本。
+
+messageType
+  类型：字符串
+  当前值：DISPLAY_TELEMETRY
+  含义：UDP报文的原有消息类别。
+
+type
+  类型：字符串
+  当前值：VISUALIZATION
+  含义：新增的简化数据分类。接收端可据此区分轨迹数据TRAJECTORY和显示数据
+  VISUALIZATION。
+
+sceneId
+  类型：字符串
+  含义：场景编号，必须和轨迹文件一致。
+
+timeBaseId
+  类型：字符串
+  含义：时间基准编号，必须和轨迹文件一致。
+
+sourceDatasetId
+  类型：字符串
+  含义：产生该显示遥测的估计轨迹数据集编号，对应轨迹文件的datasetId。
+
+frameCount
+  类型：整数
+  当前数据：1261
+  含义：总时刻数。
+
+sampleIntervalMs
+  类型：整数
+  当前数据：1000
+  含义：相邻原始仿真帧间隔，单位毫秒，即1秒。
+
+frames
+  类型：对象数组
+  含义：逐时刻显示数据。frames[i]对应第i个仿真时刻。
+
+
+三、frames[]逐帧字段
+-------------------
+
+frameIndex
+  类型：整数
+  含义：从0开始的连续帧号。与轨迹UDP报文和轨迹文件中的frameIndex一致。
+
+time
+  类型：字符串
+  格式：YYYY-MM-DD HH:mm:ss.SSS
+  含义：UTC场景时间。
+
+timeMs
+  类型：整数
+  含义：UTC Unix时间戳，单位毫秒。显示端推荐使用frameIndex或timeMs进行跨报文对齐。
+
+estimation
+  类型：对象
+  含义：总体和逐星估计误差。
+
+cannBySatellite
+  类型：对象数组
+  当前每帧数量：31
+  含义：31颗卫星各自的CANN显示数据。
+
+
+四、estimation字段
+-----------------
+
+fleetPositionRmseM
+  类型：浮点数
+  单位：m
+  含义：当前时刻31颗卫星位置误差模长的均方根。
+
+fleetVelocityRmseMps
+  类型：浮点数
+  单位：m/s
+  含义：当前时刻31颗卫星速度误差模长的均方根。
+
+satelliteErrors
+  类型：对象数组
+  当前每帧数量：31
+  含义：每颗卫星的当前时刻估计误差。已经包含全部卫星，因此不再保留重复的
+  selectedSatellite字段。
+
+metricPurpose
+  类型：字符串
+  当前值：DEMO_VALIDATION
+  含义：说明这些误差指标用于仿真演示和验证。
+
+accuracyClaimAllowed
+  类型：布尔值
+  当前值：false
+  含义：当前误差来自仿真真值对比，不应直接作为实测精度声明。
+
+
+五、estimation.satelliteErrors[]字段
+------------------------------------
+
+satObj
+  类型：字符串
+  示例：B01-O
+  含义：卫星名称或对象标识。
+
+satId
+  类型：整数
+  示例：90001
+  含义：卫星数字编号，直接继承轨迹文件。显示端建议优先使用satId关联数据。
+
+positionErrorM
+  类型：浮点数
+  单位：m
+  含义：估计位置与仿真真值三维差向量的模长。
+
+velocityErrorMps
+  类型：浮点数
+  单位：m/s
+  含义：估计速度与仿真真值三维差向量的模长。
+
+
+六、cannBySatellite[]字段
+------------------------
+
+satObj
+  类型：字符串
+  含义：卫星名称，与轨迹文件一致。
+
+satId
+  类型：整数
+  含义：卫星数字编号，与轨迹文件和satelliteErrors一致。
+
+activityEncoding
+  类型：字符串
+  当前值：UINT8_NORMALIZED
+  含义：活动值已按当前活动图归一化并量化到0～255。
+
+directionRingNeuronCount
+  类型：整数
+  当前值：90
+  含义：方向细胞环的神经元数量。
+
+directionRing
+  类型：整数数组，长度90
+  数值范围：0～255
+  含义：90个方向细胞的归一化活动强度。数组下标从0到89，对应以升交点为零点的
+  绝对纬度幅角0°、4°、8°……356°。
+
+directionPhaseType
+  类型：字符串
+  当前值：ABSOLUTE_ARGUMENT_OF_LATITUDE
+  含义：方向角采用轨道平面内的绝对纬度幅角，不再以每颗卫星的初始位置分别置零。
+
+directionZeroReference
+  类型：字符串
+  当前值：ASCENDING_NODE
+  含义：方向环0°对应轨道升交点方向；赤道轨道因升交点不唯一，使用J2000惯性+X方向。
+
+directionDegrees
+  类型：浮点数
+  单位：度
+  范围：[0,360)
+  含义：方向细胞环解码得到的当前轨道相位，可在方向曲线上画垂直指示线。
+
+directionConcentration
+  类型：浮点数
+  含义：方向活动峰的集中程度，数值越大通常表示活动方向越集中。
+
+directionBumpWidth
+  类型：浮点数
+  含义：方向活动包宽度，可用于质量状态或辅助文本显示。
+
+positionHeatmapShape
+  类型：整数数组
+  当前值：[3,3]
+  含义：positionHeatmap应重排为3行3列。
+
+positionHeatmapRadialCentersM
+  类型：浮点数数组，长度3
+  当前值：[-2000,0,2000]
+  单位：m
+  含义：热力图三行对应的径向位置中心。
+
+positionHeatmapAlongTrackCentersM
+  类型：浮点数数组，长度3
+  当前值：[-2000,0,2000]
+  单位：m
+  含义：热力图三列对应的沿轨位置中心。
+
+positionHeatmap
+  类型：整数数组，长度9
+  数值范围：0～255
+  含义：径向—沿轨位置细胞活动。按行优先重排为3×3：行表示径向单元，列表示
+  沿轨单元。径向和沿轨中心从对应的CentersM字段读取，当前均为
+  -2000 m、0 m、+2000 m。
+
+decodedRadialAlongTrackM
+  类型：浮点数数组，长度2
+  单位：m
+  顺序：[radial, alongTrack]
+  含义：CANN解码的径向偏移和沿轨偏移。
+
+valid
+  类型：布尔值
+  含义：方向环、RT状态及位置细胞编码在该时刻是否有效。
+
+status
+  类型：字符串
+  常见值：OK、BOUNDARY_SATURATED
+  含义：位置是否到达当前位置细胞网格边界。BOUNDARY_SATURATED时仍可显示，
+  但应提示位置活动已处于边界，不宜把热力图峰值解释为更远位置的精确数值。
+
+
+七、画图字段选择
+----------------
+
+1. 星群位置RMSE曲线
+   横轴：frames[].time、timeMs或frameIndex
+   纵轴：frames[].estimation.fleetPositionRmseM
+   单位：m
+
+2. 星群速度RMSE曲线
+   横轴：frames[].time、timeMs或frameIndex
+   纵轴：frames[].estimation.fleetVelocityRmseMps
+   单位：m/s
+
+3. 某颗卫星位置误差曲线
+   每帧在estimation.satelliteErrors中按satId筛选同一颗卫星；
+   横轴：time或frameIndex
+   纵轴：positionErrorM
+
+4. 某颗卫星速度误差曲线
+   每帧在estimation.satelliteErrors中按satId筛选同一颗卫星；
+   横轴：time或frameIndex
+   纵轴：velocityErrorMps
+
+5. 31颗卫星当前误差柱状图
+   横轴：satObj或satId
+   纵轴：同一帧satelliteErrors中的positionErrorM或velocityErrorMps
+
+6. 方向细胞曲线
+   选择某一帧，在cannBySatellite中按satId查找卫星；
+   横轴：数组下标i换算为i×360/90度；
+   纵轴：directionRing[i]，可直接显示0～255，或除以255显示0～1；
+   指示线：directionDegrees。
+
+7. 3×3位置细胞热力图
+   选择某一帧，在cannBySatellite中按satId查找卫星；
+   将positionHeatmap按行优先重排为positionHeatmapShape，即3×3；
+   横轴：positionHeatmapAlongTrackCentersM；
+   纵轴：positionHeatmapRadialCentersM；
+   色标：固定0～255，避免同一动画中颜色范围跳变；
+   数值标记：可额外显示decodedRadialAlongTrackM。
+
+
+八、与轨迹数据合并显示
+----------------------
+
+每个仿真时刻先发送：
+  type=TRAJECTORY，messageType=TRAJECTORY_FRAME
+
+随后发送：
+  type=VISUALIZATION，messageType=DISPLAY_TELEMETRY
+
+显示端使用sceneId、timeBaseId、frameIndex和timeMs确认两条报文属于同一时刻，使用
+satId关联同一颗卫星。轨迹报文负责三维位置与速度；显示遥测报文负责误差曲线和CANN图。
+
+
+九、注意事项
+------------
+
+1. directionRing和positionHeatmap是各自归一化后的活动图，适合展示形状和峰值位置；
+   不应直接用不同卫星之间的最大值比较绝对神经活动强度。
+2. 绘图时优先用satId关联，satObj用于界面文字显示。
+3. positionHeatmap的数据顺序是行优先，不要转置后再解释径向和沿轨方向。
+4. 当valid=false时建议将图形置灰；当status=BOUNDARY_SATURATED时建议显示边界提示。
+5. 倍速播放会按场景时间抽帧，因此显示端应以收到的frameIndex为准，不应假设每个连续
+   frameIndex都会到达。

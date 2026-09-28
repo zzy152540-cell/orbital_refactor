@@ -18,6 +18,21 @@ class NavigationPlaceCellConfig:
     radial_sigma_m: float = 50.0
     along_track_sigma_m: float = 50.0
 
+    @classmethod
+    def display_3x3(cls, *, extent_m: float = 2_000.0):
+        """Return the wide three-cell RT grid used only for visualization."""
+
+        extent = float(extent_m)
+        if not np.isfinite(extent) or extent <= 0.0:
+            raise ValueError("Display extent must be finite and positive.")
+        centers = (-extent, 0.0, extent)
+        return cls(
+            radial_centers_m=centers,
+            along_track_centers_m=centers,
+            radial_sigma_m=0.5 * extent,
+            along_track_sigma_m=0.5 * extent,
+        )
+
     def validate(self):
         if self.phase_cell_count < 3:
             raise ValueError("phase_cell_count must be at least three.")

@@ -26,7 +26,13 @@ class StreamStepResult:
 
 
 class ControlledTrajectoryStreamer:
-    """Send each trajectory frame once when the scene clock reaches its time."""
+    """Publish display frames at a stable cadence while scene time accelerates.
+
+    At speeds above 1x, intermediate trajectory samples are deliberately
+    skipped instead of being emitted in a burst.  With one-second trajectory
+    samples, 10x playback therefore publishes roughly one frame per wall-clock
+    second while advancing ten seconds of scene time.
+    """
 
     def __init__(
         self,
@@ -52,6 +58,7 @@ class ControlledTrajectoryStreamer:
         self.trajectory = trajectory
         self.publisher = publisher
         self.next_frame_index = 0
+        self.last_sent_frame_index: int | None = None
 
     @property
     def complete(self) -> bool:
@@ -66,20 +73,38 @@ class ControlledTrajectoryStreamer:
         sent_bytes = 0
 
         # READY has not received START, and STOPPED explicitly cancels output.
-        if state not in {"READY", "STOPPED"}:
+        if state in {"RUNNING", "FINISHED"}:
             frames = self.trajectory["frames"]
-            while self.next_frame_index < len(frames):
-                frame = frames[self.next_frame_index]
-                if int(frame["timeMs"]) > int(snapshot["timeMs"]):
+            latest_due = self.next_frame_index - 1
+            while latest_due + 1 < len(frames):
+                candidate = frames[latest_due + 1]
+                if int(candidate["timeMs"]) > int(snapshot["timeMs"]):
                     break
-                if first is None:
-                    first = self.next_frame_index
-                sent_bytes += self.publisher.send_frame(
-                    self.trajectory, self.next_frame_index,
-                )
-                last = self.next_frame_index
-                sent_frames += 1
-                self.next_frame_index += 1
+                latest_due += 1
+
+            target: int | None = None
+            if latest_due >= self.next_frame_index:
+                if self.last_sent_frame_index is None:
+                    # Preserve the initial state even if the first poll is late.
+                    target = 0
+                else:
+                    stride = max(1, int(snapshot["speed"]))
+                    next_display_frame = self.last_sent_frame_index + stride
+                    if latest_due >= next_display_frame:
+                        # If polling itself was delayed, use the freshest due
+                        # frame instead of replaying a backlog to the display.
+                        target = latest_due
+                    elif state == "FINISHED":
+                        # Always expose the exact terminal state.
+                        target = latest_due
+
+            if target is not None:
+                first = target
+                last = target
+                sent_bytes = self.publisher.send_frame(self.trajectory, target)
+                sent_frames = 1
+                self.last_sent_frame_index = target
+                self.next_frame_index = target + 1
 
         return StreamStepResult(
             clock_state=state,

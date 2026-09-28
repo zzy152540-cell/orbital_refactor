@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 import socket
 from typing import Any, Mapping
 
 
 TRAJECTORY_UDP_MESSAGE_TYPE = "TRAJECTORY_FRAME"
+TRAJECTORY_UDP_CONTENT_TYPE = "TRAJECTORY"
 MAX_UDP_PAYLOAD_BYTES = 65_506
 
 
@@ -42,6 +45,90 @@ def validate_trajectory_time_series(payload: Mapping[str, Any]) -> None:
             raise ValueError("Trajectory frame times do not match the time base.")
 
 
+def validate_scene_activation_for_trajectory(
+    payload: Mapping[str, Any], trajectory: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Validate external initial conditions for prepared trajectory replay."""
+
+    if not isinstance(payload, Mapping):
+        raise TypeError("activation body must be a JSON object")
+    scene_id = _required_activation_text(payload, "sceneId")
+    if scene_id != str(trajectory["sceneId"]):
+        raise ValueError("activation sceneId does not match prepared trajectory")
+    start_ms = _parse_activation_time(_required_activation_text(payload, "startTime"))
+    end_ms = _parse_activation_time(_required_activation_text(payload, "endTime"))
+    if start_ms != int(trajectory["startTimeMs"]):
+        raise ValueError("activation startTime does not match prepared trajectory")
+    if end_ms != int(trajectory["endTimeMs"]):
+        raise ValueError("activation endTime does not match prepared trajectory")
+
+    satellites = payload.get("satellites")
+    if not isinstance(satellites, list) or not satellites:
+        raise ValueError("activation satellites must be a nonempty array")
+    if payload.get("satelliteCount") != len(satellites):
+        raise ValueError("activation satelliteCount does not match satellites length")
+    expected = {
+        str(item["satObj"]) for item in trajectory["frames"][0]["satelliteList"]
+    }
+    received: list[str] = []
+    numeric_fields = (
+        "semiMajorAxis", "eccentricity", "inclination", "raan",
+        "argPerigee", "meanAnomaly",
+    )
+    for index, satellite in enumerate(satellites):
+        if not isinstance(satellite, Mapping):
+            raise ValueError(f"satellites[{index}] must be a JSON object")
+        node_id = str(satellite.get("assetName") or satellite.get("name") or "").strip()
+        if not node_id:
+            raise ValueError(f"satellites[{index}] is missing assetName/name")
+        received.append(node_id)
+        for field in numeric_fields:
+            try:
+                value = float(satellite[field])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"satellite {node_id} has invalid {field}") from exc
+            if not math.isfinite(value):
+                raise ValueError(f"satellite {node_id} has non-finite {field}")
+        eccentricity = float(satellite["eccentricity"])
+        if float(satellite["semiMajorAxis"]) <= 0.0:
+            raise ValueError(f"satellite {node_id} semiMajorAxis must be positive")
+        if not 0.0 <= eccentricity < 1.0:
+            raise ValueError(f"satellite {node_id} eccentricity must be in [0, 1)")
+        _required_activation_text(satellite, "epoch")
+    if len(set(received)) != len(received):
+        raise ValueError("activation satellite names must be unique")
+    received_set = set(received)
+    if received_set != expected:
+        missing = sorted(expected - received_set)
+        unexpected = sorted(received_set - expected)
+        raise ValueError(
+            f"activation satellite set mismatch; missing={missing}, "
+            f"unexpected={unexpected}"
+        )
+    return {
+        "activationMode": "PRECOMPUTED_FILTER_REPLAY",
+        "acceptedSatelliteCount": len(received),
+        "initialConditionsAccepted": True,
+    }
+
+
+def _required_activation_text(payload: Mapping[str, Any], name: str) -> str:
+    value = payload.get(name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"activation is missing {name}")
+    return value.strip()
+
+
+def _parse_activation_time(value: str) -> int:
+    normalized = value.strip().replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    else:
+        parsed = parsed.astimezone(timezone.utc)
+    return int(round(parsed.timestamp() * 1000.0))
+
+
 def trajectory_frame_datagram(
     trajectory: Mapping[str, Any], frame_index: int,
 ) -> dict[str, Any]:
@@ -55,6 +142,7 @@ def trajectory_frame_datagram(
     return {
         "schemaVersion": trajectory["schemaVersion"],
         "messageType": TRAJECTORY_UDP_MESSAGE_TYPE,
+        "type": TRAJECTORY_UDP_CONTENT_TYPE,
         "sceneId": trajectory["sceneId"],
         "timeBaseId": trajectory["timeBaseId"],
         "datasetId": trajectory["datasetId"],
@@ -76,6 +164,8 @@ def encode_trajectory_datagram(
         raise ValueError("Unexpected trajectory schemaVersion.")
     if message.get("messageType") != TRAJECTORY_UDP_MESSAGE_TYPE:
         raise ValueError("Unexpected trajectory UDP messageType.")
+    if message.get("type") != TRAJECTORY_UDP_CONTENT_TYPE:
+        raise ValueError("Unexpected trajectory UDP type.")
     encoded = json.dumps(
         message, ensure_ascii=False, separators=(",", ":"), allow_nan=False,
     ).encode("utf-8")
@@ -98,6 +188,8 @@ def decode_trajectory_datagram(data: bytes) -> dict[str, Any]:
         raise ValueError("Unexpected trajectory schemaVersion.")
     if message.get("messageType") != TRAJECTORY_UDP_MESSAGE_TYPE:
         raise ValueError("Unexpected trajectory UDP messageType.")
+    if message.get("type") != TRAJECTORY_UDP_CONTENT_TYPE:
+        raise ValueError("Unexpected trajectory UDP type.")
     for name in (
         "sceneId", "timeBaseId", "datasetId", "frameIndex", "timeMs",
         "satelliteList",
@@ -126,6 +218,22 @@ class TrajectoryUdpPublisher:
     def send_frame(self, trajectory: Mapping[str, Any], frame_index: int) -> int:
         message = trajectory_frame_datagram(trajectory, frame_index)
         encoded = encode_trajectory_datagram(
+            message, maximum_bytes=self.maximum_bytes,
+        )
+        return self._socket.sendto(encoded, self.destination)
+
+    def send_display_telemetry_frame(
+        self, telemetry: Mapping[str, Any], frame_index: int,
+    ) -> int:
+        """Send one optional display message on the same UDP port."""
+
+        from exporters.display_telemetry import (
+            display_telemetry_datagram,
+            encode_display_telemetry_datagram,
+        )
+
+        message = display_telemetry_datagram(telemetry, frame_index)
+        encoded = encode_display_telemetry_datagram(
             message, maximum_bytes=self.maximum_bytes,
         )
         return self._socket.sendto(encoded, self.destination)

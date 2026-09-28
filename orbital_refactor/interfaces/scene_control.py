@@ -64,17 +64,100 @@ class SceneClockController:
         config: SceneClockConfig,
         *,
         monotonic: Callable[[], float] = time.monotonic,
+        require_activation: bool = False,
+        activation_validator: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
     ) -> None:
         self.config = config
         self._monotonic = monotonic
         self._lock = threading.RLock()
-        self._state = "READY"
+        self._state = "WAITING_ACTIVATION" if require_activation else "READY"
         self._speed = config.speed
         self._time_ms = config.start_time_ms
         self._anchor_monotonic = monotonic()
         self._revision = 1
         self._applied_command_id: str | None = None
         self._commands: dict[str, tuple[str, int, dict[str, Any]]] = {}
+        self._activation_validator = activation_validator
+        self._activation_fingerprint: str | None = None
+        self._activation_payload: dict[str, Any] | None = None
+        self._activation_details: dict[str, Any] = {}
+        self._last_run_status = "NEVER_RUN"
+        self._last_error_code: str | None = None
+        self._last_error_message: str | None = None
+        self._last_error_time_ms: int | None = None
+        self._consecutive_udp_failures = 0
+
+    @property
+    def activation_payload(self) -> dict[str, Any] | None:
+        with self._lock:
+            if self._activation_payload is None:
+                return None
+            return json.loads(json.dumps(self._activation_payload))
+
+    def rearm_for_activation(self) -> dict[str, Any]:
+        """Reset a completed/stopped run without stopping the HTTP service."""
+
+        with self._lock:
+            self._settle()
+            if self._state not in TERMINAL_STATES:
+                raise SceneControlError(
+                    409, "only a stopped or finished run can be rearmed",
+                )
+            self._state = "WAITING_ACTIVATION"
+            self._speed = self.config.speed
+            self._time_ms = self.config.start_time_ms
+            self._anchor_monotonic = self._monotonic()
+            self._applied_command_id = None
+            self._commands.clear()
+            self._activation_fingerprint = None
+            self._activation_payload = None
+            self._activation_details = {}
+            self._revision += 1
+            return self.snapshot(applied=True)
+
+    def note_udp_send_success(self) -> None:
+        with self._lock:
+            self._consecutive_udp_failures = 0
+
+    def note_udp_send_failure(self, message: str) -> int:
+        with self._lock:
+            self._consecutive_udp_failures += 1
+            self._last_error_code = "UDP_SEND_FAILURE"
+            self._last_error_message = str(message)
+            self._last_error_time_ms = int(time.time() * 1000.0)
+            return self._consecutive_udp_failures
+
+    def fail_current_run(self, code: str, message: str) -> None:
+        """Mark one run failed while keeping the control service reusable."""
+
+        with self._lock:
+            self._settle()
+            self._state = "STOPPED"
+            self._last_run_status = "FAILED"
+            self._last_error_code = str(code)
+            self._last_error_message = str(message)
+            self._last_error_time_ms = int(time.time() * 1000.0)
+            self._revision += 1
+
+    def runtime_diagnostics(self) -> tuple[int, dict[str, Any]]:
+        """Return optional service diagnostics outside the SCENE-CTRL status body."""
+
+        with self._lock:
+            return 200, {
+                "protocolVersion": PROTOCOL_VERSION,
+                "sceneId": self.config.scene_id,
+                "runId": self.config.run_id,
+                "serviceState": "LISTENING",
+                "lastRunStatus": self._last_run_status,
+                "lastErrorCode": self._last_error_code,
+                "lastErrorMessage": self._last_error_message,
+                "lastErrorTimeMs": self._last_error_time_ms,
+                "lastErrorTime": (
+                    None if self._last_error_time_ms is None
+                    else _utc_text(self._last_error_time_ms)
+                ),
+                "consecutiveUdpFailures": self._consecutive_udp_failures,
+            }
 
     def _settle(self) -> None:
         if self._state != "RUNNING":
@@ -89,6 +172,7 @@ class SceneClockController:
         if self._time_ms >= self.config.end_time_ms:
             self._time_ms = self.config.end_time_ms
             self._state = "FINISHED"
+            self._last_run_status = "FINISHED"
             self._revision += 1
 
     def snapshot(
@@ -101,7 +185,7 @@ class SceneClockController:
     ) -> dict[str, Any]:
         with self._lock:
             self._settle()
-            return {
+            response = {
                 "protocolVersion": PROTOCOL_VERSION,
                 "code": code,
                 "message": message,
@@ -122,6 +206,39 @@ class SceneClockController:
                 "sampleIntervalMs": self.config.sample_interval_ms,
                 "frameCount": self.config.frame_count,
             }
+            response.update(self._activation_details)
+            return response
+
+    def activate(self, request: Mapping[str, Any]) -> tuple[int, dict[str, Any]]:
+        """Accept main-display scene initial conditions before playback."""
+
+        if not isinstance(request, Mapping):
+            raise SceneControlError(400, "activation body must be a JSON object")
+        fingerprint = json.dumps(request, sort_keys=True, separators=(",", ":"))
+        with self._lock:
+            if self._activation_fingerprint is not None:
+                if fingerprint != self._activation_fingerprint:
+                    raise SceneControlError(
+                        409, "scene was already activated with different input",
+                    )
+                return 200, self.snapshot(applied=False)
+            if self._state != "WAITING_ACTIVATION":
+                raise SceneControlError(409, "runtime does not require scene activation")
+            try:
+                details = (
+                    dict(self._activation_validator(request))
+                    if self._activation_validator is not None else {}
+                )
+            except SceneControlError:
+                raise
+            except (TypeError, ValueError) as exc:
+                raise SceneControlError(422, str(exc)) from exc
+            self._activation_fingerprint = fingerprint
+            self._activation_payload = json.loads(fingerprint)
+            self._activation_details = details
+            self._state = "READY"
+            self._revision += 1
+            return 200, self.snapshot(applied=True)
 
     def _validate_identity(self, request: Mapping[str, Any]) -> None:
         required = ("protocolVersion", "source", "sceneId", "runId")
@@ -153,6 +270,10 @@ class SceneClockController:
                     raise SceneControlError(409, "commandId was used for another command")
                 return status, dict(response)
             self._settle()
+            if self._state == "WAITING_ACTIVATION" and command_type != "stop":
+                raise SceneControlError(
+                    409, "scene initial conditions have not been activated",
+                )
             if self._state in TERMINAL_STATES:
                 raise SceneControlError(409, "runId is stale or state is terminal")
             changed = apply()
@@ -175,6 +296,9 @@ class SceneClockController:
             if target == self._state:
                 return False
             self._state = target
+            if target == "RUNNING":
+                self._last_run_status = "RUNNING"
+                self._consecutive_udp_failures = 0
             self._anchor_monotonic = self._monotonic()
             return True
 
@@ -202,6 +326,7 @@ class SceneClockController:
 
         def apply() -> bool:
             self._state = "STOPPED"
+            self._last_run_status = "STOPPED"
             return True
 
         return self._command(request, "stop", apply)
@@ -261,9 +386,14 @@ def create_scene_control_server(
             try:
                 if method == "GET" and parsed.path == "/api/external/scene/status":
                     status, response = controller.status(parse_qs(parsed.query))
+                elif method == "GET" and parsed.path == (
+                    "/api/external/scene/runtime-diagnostics"
+                ):
+                    status, response = controller.runtime_diagnostics()
                 elif method == "POST":
                     body = self._body()
                     routes = {
+                        "/api/external/scene/activate": controller.activate,
                         "/api/external/scene/run-state": controller.set_run_state,
                         "/api/external/scene/speed": controller.set_speed,
                         "/api/external/scene/stop": controller.stop,
