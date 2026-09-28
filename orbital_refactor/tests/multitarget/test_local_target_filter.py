@@ -5,9 +5,13 @@ from interfaces.data_objects import InitialState, ModuleInput, Observation
 from interfaces.state_awareness_module import StateAwarenessModule
 from orbital_core.dynamics import make_process_noise
 from tracking import (
+    TargetInitialState,
+    TrackLifecycle,
     run_cooperative_target_fusion,
     run_known_target_batch,
+    run_known_target_sequence,
     run_local_target_filter,
+    run_local_target_history,
 )
 
 
@@ -82,7 +86,9 @@ def test_local_filter_converts_relative_posterior_to_absolute_j2000():
     assert report.target_id == "target_01"
     assert report.track_id == "target_01"
     assert set(report.modality_weights) == {"nn", "rad"}
-    assert len(report.used_measurement_ids) == 6
+    assert report.used_measurement_ids == (
+        "observer_a:opt:2", "observer_a:rad:2",
+    )
 
 
 def test_local_filter_rejects_mixed_observers_and_node_mismatch():
@@ -162,3 +168,50 @@ def test_known_target_batch_rejects_duplicate_local_task():
             scene_id="scene",
             module_inputs=[task, task],
         )
+
+
+def test_local_history_marks_prediction_only_epoch_invalid_for_node_fusion():
+    module_input = _module_input()
+    for observation in module_input.sensor_measurements:
+        if observation.timestamp == 1.0:
+            observation.valid_flag = False
+
+    reports = run_local_target_history(module_input)
+
+    assert [report.valid_flag for report in reports] == [True, False, True]
+    assert reports[1].modality_weights == {}
+
+
+def test_known_target_sequence_runs_filter_ci_and_lifecycle_per_epoch():
+    task_a = _module_input("observer_a")
+    task_b = _module_input("observer_b", offset=20.0)
+    for task in (task_a, task_b):
+        for observation in task.sensor_measurements:
+            if observation.timestamp == 1.0:
+                observation.valid_flag = False
+    initial = TargetInitialState(
+        target_id="target_01", track_id="track-001", timestamp=0.0,
+        state_eci=(
+            task_a.config["runtime"]["chief_state_history_eci"][0]
+            + task_a.initial_state.state_estimate
+        ),
+        covariance_eci=task_a.initial_state.covariance,
+    )
+
+    history = run_known_target_sequence(
+        scene_id="scene-sequence",
+        module_inputs=[task_a, task_b],
+        initial_target_states={"target_01": initial},
+        max_coast_epochs=2,
+    )
+
+    assert history.timestamps.tolist() == [0.0, 1.0, 2.0]
+    assert [
+        track.lifecycle for track in history.track_history_by_target["target_01"]
+    ] == [
+        TrackLifecycle.TRACKING,
+        TrackLifecycle.COASTING,
+        TrackLifecycle.TRACKING,
+    ]
+    assert set(history.output_by_epoch[0].estimates_by_target) == {"target_01"}
+    assert history.output_by_epoch[1].estimates_by_target == {}
