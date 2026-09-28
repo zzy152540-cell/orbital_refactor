@@ -173,6 +173,10 @@ class TargetTrack:
     def __post_init__(self) -> None:
         if self.target_id is not None:
             object.__setattr__(self, "target_id", _identifier(self.target_id, "target_id"))
+            if self.estimate.target_id != self.target_id:
+                raise ValueError("TargetTrack target_id must match its estimate target_id.")
+        if self.estimate.track_id != self.key.track_id:
+            raise ValueError("TargetTrack key.track_id must match its estimate track_id.")
         object.__setattr__(self, "metadata", dict(self.metadata))
 
 
@@ -212,4 +216,6 @@ class MultiTargetOutput:
         estimates = dict(self.estimates_by_target)
         if any(key != value.target_id for key, value in estimates.items()):
             raise ValueError("estimates_by_target keys must match GlobalTargetEstimate.target_id.")
+        if any(not np.isclose(value.timestamp, self.timestamp) for value in estimates.values()):
+            raise ValueError("Every global estimate must align with MultiTargetOutput.timestamp.")
         object.__setattr__(self, "estimates_by_target", estimates)
