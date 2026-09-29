@@ -215,3 +215,6 @@ def test_known_target_sequence_runs_filter_ci_and_lifecycle_per_epoch():
     ]
     assert set(history.output_by_epoch[0].estimates_by_target) == {"target_01"}
     assert history.output_by_epoch[1].estimates_by_target == {}
+    assert set(history.local_report_history_by_link) == {
+        ("observer_a", "target_01"), ("observer_b", "target_01"),
+    }

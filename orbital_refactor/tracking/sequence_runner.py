@@ -8,7 +8,9 @@ import numpy as np
 from interfaces.data_objects import ModuleInput
 
 from .cooperative_pipeline import run_cooperative_target_fusion
-from .data_contracts import MultiTargetOutput, TargetInitialState, TargetTrack
+from .data_contracts import (
+    MultiTargetOutput, TargetInitialState, TargetNodeReport, TargetTrack,
+)
 from .local_target_filter import run_local_target_history
 from .track_manager import TrackManager
 
@@ -18,6 +20,9 @@ class KnownTargetSequenceHistory:
     timestamps: np.ndarray
     output_by_epoch: tuple[MultiTargetOutput, ...]
     track_history_by_target: Mapping[str, tuple[TargetTrack, ...]]
+    local_report_history_by_link: Mapping[
+        tuple[str, str], tuple[TargetNodeReport, ...]
+    ]
 
 
 def run_known_target_sequence(
@@ -36,7 +41,7 @@ def run_known_target_sequence(
     if not inputs:
         raise ValueError("module_inputs must contain at least one local target task.")
     target_ids = tuple(initial_target_states)
-    local_histories = []
+    local_histories = {}
     task_keys = set()
     common_timestamps = None
     for module_input in inputs:
@@ -54,10 +59,10 @@ def run_known_target_sequence(
             common_timestamps = timestamps
         elif not np.array_equal(timestamps, common_timestamps):
             raise ValueError("All local sequence tasks must use identical timestamps.")
-        local_histories.append(run_local_target_history(
+        local_histories[key] = run_local_target_history(
             module_input,
             track_id=initial_target_states[target_id].track_id,
-        ))
+        )
 
     assert common_timestamps is not None
     manager = TrackManager(
@@ -72,7 +77,7 @@ def run_known_target_sequence(
         output = run_cooperative_target_fusion(
             scene_id=scene_id,
             timestamp=float(timestamp),
-            reports=[history[index] for history in local_histories],
+            reports=[history[index] for history in local_histories.values()],
             expected_target_ids=target_ids,
             objective=objective,
             grid_points=grid_points,
@@ -90,4 +95,5 @@ def run_known_target_sequence(
             target_id: tuple(values)
             for target_id, values in track_history.items()
         },
+        local_report_history_by_link=dict(local_histories),
     )

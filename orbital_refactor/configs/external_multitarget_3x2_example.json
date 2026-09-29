@@ -1,0 +1,55 @@
+{
+  "source": "main-display",
+  "sceneId": "external-multitarget-3x2",
+  "name": "3 observers and 2 known targets",
+  "startTime": "2026-09-18 04:00:00.000",
+  "endTime": "2026-09-18 04:00:10.000",
+  "satelliteCount": 5,
+  "satellites": [
+    {
+      "assetName": "observer-1", "satelliteId": "sat-observer-1", "norad": "90001",
+      "semiMajorAxis": "7077.137", "eccentricity": "0.001", "inclination": "54.8",
+      "raan": "15.0", "argPerigee": "0.0", "meanAnomaly": "0.0",
+      "epoch": "26261.16666667", "tleLine1": "", "tleLine2": ""
+    },
+    {
+      "assetName": "observer-2", "satelliteId": "sat-observer-2", "norad": "90002",
+      "semiMajorAxis": "7079.137", "eccentricity": "0.001", "inclination": "54.9",
+      "raan": "15.0", "argPerigee": "0.0", "meanAnomaly": "0.2",
+      "epoch": "26261.16666667", "tleLine1": "", "tleLine2": ""
+    },
+    {
+      "assetName": "observer-3", "satelliteId": "sat-observer-3", "norad": "90003",
+      "semiMajorAxis": "7076.137", "eccentricity": "0.001", "inclination": "54.7",
+      "raan": "15.0", "argPerigee": "0.0", "meanAnomaly": "-0.2",
+      "epoch": "26261.16666667", "tleLine1": "", "tleLine2": ""
+    },
+    {
+      "assetName": "target-1", "satelliteId": "sat-target-1", "norad": "91001",
+      "semiMajorAxis": "7081.137", "eccentricity": "0.001", "inclination": "55.2",
+      "raan": "15.0", "argPerigee": "0.0", "meanAnomaly": "0.6",
+      "epoch": "26261.16666667", "tleLine1": "", "tleLine2": ""
+    },
+    {
+      "assetName": "target-2", "satelliteId": "sat-target-2", "norad": "91002",
+      "semiMajorAxis": "7082.137", "eccentricity": "0.001", "inclination": "55.3",
+      "raan": "15.0", "argPerigee": "0.0", "meanAnomaly": "-0.7",
+      "epoch": "26261.16666667", "tleLine1": "", "tleLine2": ""
+    }
+  ],
+  "estimationConfig": {
+    "observerIds": ["observer-1", "observer-2", "observer-3"],
+    "observerCovarianceDiagonal": [1.0, 1.0, 1.0, 0.0001, 0.0001, 0.0001],
+    "defaultTargetCovarianceDiagonal": [10000.0, 10000.0, 10000.0, 0.04, 0.04, 0.04],
+    "targets": [
+      {
+        "nodeId": "target-1", "trackId": "enemy-track-001",
+        "sensorAvailability": {"radar": true, "infrared": true, "optical": true}
+      },
+      {
+        "nodeId": "target-2", "trackId": "enemy-track-002",
+        "sensorAvailability": {"radar": true, "infrared": true, "optical": true}
+      }
+    ]
+  }
+}
