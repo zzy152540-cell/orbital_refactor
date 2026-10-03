@@ -10,6 +10,7 @@ from .track_lifecycle import TrackLifecycle
 
 Array = np.ndarray
 ECI_FRAME = "J2000_ECI"
+MAX_INFORMATION_IDS = 256
 
 
 def _identifier(value: str, field_name: str) -> str:
@@ -58,6 +59,14 @@ def _quality(value: float) -> float:
     if not np.isfinite(result) or not 0.0 <= result <= 1.0:
         raise ValueError("quality_score must lie in [0, 1].")
     return result
+
+
+def _information_ids(values) -> tuple[str, ...]:
+    identifiers = tuple(
+        _identifier(value, "information_ids") for value in values
+    )
+    unique = tuple(dict.fromkeys(identifiers))
+    return unique[-MAX_INFORMATION_IDS:]
 
 
 @dataclass(frozen=True)
@@ -128,12 +137,59 @@ class LocalTargetEstimate:
         object.__setattr__(self, "quality_score", _quality(self.quality_score))
         object.__setattr__(self, "frame", _frame(self.frame))
         object.__setattr__(self, "modality_weights", dict(self.modality_weights))
-        object.__setattr__(self, "used_measurement_ids", tuple(map(str, self.used_measurement_ids)))
+        object.__setattr__(
+            self, "used_measurement_ids", _information_ids(self.used_measurement_ids)
+        )
 
 
 @dataclass(frozen=True)
 class TargetNodeReport(LocalTargetEstimate):
     """One observer's absolute J2000 posterior for one physical target."""
+
+
+@dataclass(frozen=True)
+class TargetEstimateMessage:
+    """Communicable posterior for one observer, target, track, and epoch."""
+
+    message_id: str
+    scene_id: str
+    source_node_id: str
+    target_id: str
+    track_id: str
+    timestamp: float
+    state_eci: Array
+    covariance_eci: Array
+    quality_score: float
+    valid_flag: bool = True
+    frame: str = ECI_FRAME
+    source_timestamp: float | None = None
+    arrival_timestamp: float | None = None
+    information_ids: tuple[str, ...] = ()
+    lineage_id: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "message_id", _identifier(self.message_id, "message_id"))
+        object.__setattr__(self, "scene_id", _identifier(self.scene_id, "scene_id"))
+        object.__setattr__(
+            self, "source_node_id", _identifier(self.source_node_id, "source_node_id")
+        )
+        object.__setattr__(self, "target_id", _identifier(self.target_id, "target_id"))
+        object.__setattr__(self, "track_id", _identifier(self.track_id, "track_id"))
+        object.__setattr__(self, "timestamp", _timestamp(self.timestamp))
+        object.__setattr__(self, "state_eci", _state(self.state_eci))
+        object.__setattr__(self, "covariance_eci", _covariance(self.covariance_eci))
+        object.__setattr__(self, "quality_score", _quality(self.quality_score))
+        object.__setattr__(self, "frame", _frame(self.frame))
+        if self.source_timestamp is not None:
+            object.__setattr__(self, "source_timestamp", _timestamp(self.source_timestamp))
+        if self.arrival_timestamp is not None:
+            object.__setattr__(self, "arrival_timestamp", _timestamp(self.arrival_timestamp))
+        information_ids = _information_ids(self.information_ids)
+        object.__setattr__(self, "information_ids", information_ids)
+        if self.lineage_id is not None:
+            object.__setattr__(
+                self, "lineage_id", _identifier(self.lineage_id, "lineage_id")
+            )
 
 
 @dataclass(frozen=True)
@@ -147,6 +203,7 @@ class GlobalTargetEstimate:
     node_weights: Mapping[str, float]
     valid_flag: bool = True
     frame: str = ECI_FRAME
+    information_ids: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "target_id", _identifier(self.target_id, "target_id"))
@@ -160,6 +217,9 @@ class GlobalTargetEstimate:
         object.__setattr__(self, "contributing_observer_ids", observers)
         object.__setattr__(self, "node_weights", dict(self.node_weights))
         object.__setattr__(self, "frame", _frame(self.frame))
+        object.__setattr__(
+            self, "information_ids", _information_ids(self.information_ids)
+        )
 
 
 @dataclass(frozen=True)

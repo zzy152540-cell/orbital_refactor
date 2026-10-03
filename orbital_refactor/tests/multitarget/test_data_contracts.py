@@ -3,9 +3,11 @@ import pytest
 
 from tracking import (
     ECI_FRAME,
+    MAX_INFORMATION_IDS,
     MultiTargetInput,
     ObserverState,
     TargetInitialState,
+    TargetNodeReport,
     TargetTrackKey,
 )
 
@@ -43,3 +45,23 @@ def test_public_target_state_rejects_ambiguous_reference_frame():
 
 def test_track_key_keeps_scene_and_track_identity_separate():
     assert TargetTrackKey("scene-a", "track-1") != TargetTrackKey("scene-b", "track-1")
+
+
+def test_information_lineage_is_deduplicated_and_bounded():
+    identifiers = tuple(
+        f"information-{index}" for index in range(MAX_INFORMATION_IDS + 5)
+    )
+    report = TargetNodeReport(
+        observer_id="observer",
+        target_id="target",
+        track_id="track",
+        timestamp=0.0,
+        state_eci=_state(),
+        covariance_eci=np.eye(6),
+        quality_score=0.9,
+        used_measurement_ids=(identifiers[0], *identifiers, identifiers[-1]),
+    )
+
+    assert len(report.used_measurement_ids) == MAX_INFORMATION_IDS
+    assert report.used_measurement_ids[0] == "information-5"
+    assert report.used_measurement_ids[-1] == identifiers[-1]

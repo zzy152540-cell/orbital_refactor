@@ -111,9 +111,17 @@ def run_unlabeled_tracking_sequence(
 
 def _tracking_observation(item, target_id, q_eci2pri):
     source_modality = str(item.metadata.get("sourceModality", item.modality)).upper()
+    measurement_id = item.metadata.get("sourceMessageId")
+    if measurement_id is None:
+        detection_group_id = getattr(item, "detection_group_id", None)
+        measurement_id = (
+            f"{item.observer_id}:{float(item.timestamp):.9f}:"
+            f"{detection_group_id or target_id}:{item.modality}"
+        )
     metadata = {
         **item.metadata,
-        "observation_id": item.metadata.get("sourceMessageId"),
+        "observation_id": measurement_id,
+        "measurement_id": measurement_id,
         "association_target_id": target_id,
     }
     if item.modality == "RADAR":

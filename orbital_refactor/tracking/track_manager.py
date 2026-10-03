@@ -218,4 +218,5 @@ def _propagate_estimate(
         contributing_observer_ids=(),
         node_weights={},
         valid_flag=True,
+        information_ids=getattr(estimate, "information_ids", ()),
     )

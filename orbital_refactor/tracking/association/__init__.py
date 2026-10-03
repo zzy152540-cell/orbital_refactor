@@ -12,7 +12,11 @@ from .autonomous_sequence import (
     AutonomousTrackingSequenceResult,
     run_unlabeled_tracking_sequence,
 )
-from .online_tracker import OnlineMultiTargetTracker, OnlineTrackingUpdate
+from .online_tracker import (
+    ConsensusFeedbackApplication,
+    OnlineMultiTargetTracker,
+    OnlineTrackingUpdate,
+)
 
 __all__ = [
     "AssociationMatch",
@@ -21,6 +25,7 @@ __all__ = [
     "AutonomousIODManager",
     "AutonomousTrackingSequenceResult",
     "MultiTargetAssociationPipeline",
+    "ConsensusFeedbackApplication",
     "OnlineMultiTargetTracker",
     "OnlineTrackingUpdate",
     "UnlabeledIODObservation",

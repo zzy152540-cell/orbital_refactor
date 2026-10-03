@@ -54,6 +54,25 @@ def test_target_ci_produces_target_indexed_global_estimate():
     }
 
 
+def test_target_ci_supports_more_than_three_neighbor_reports():
+    reports = [
+        _report(f"observer_{index}", "target_01", offset=float(index))
+        for index in range(5)
+    ]
+    result = fuse_target_reports(reports)
+    reversed_result = fuse_target_reports(reversed(reports))
+
+    assert result.contributing_observer_ids == tuple(
+        f"observer_{index}" for index in range(5)
+    )
+    assert set(result.node_weights) == set(result.contributing_observer_ids)
+    assert np.isclose(sum(result.node_weights.values()), 1.0)
+    assert np.all(np.linalg.eigvalsh(result.covariance_eci) >= -1e-10)
+    assert np.allclose(result.state_eci, reversed_result.state_eci)
+    assert np.allclose(result.covariance_eci, reversed_result.covariance_eci)
+    assert result.node_weights == reversed_result.node_weights
+
+
 def test_target_ci_rejects_cross_target_reports():
     with pytest.raises(ValueError, match="same physical target_id"):
         fuse_target_reports([

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -12,6 +12,7 @@ from tracking.cooperative_pipeline import run_cooperative_target_fusion
 from tracking.data_contracts import (
     MultiTargetOutput,
     TargetInitialState,
+    TargetNodeReport,
     TargetTrack,
 )
 from tracking.local_target_filter import run_local_target_filter
@@ -34,6 +35,14 @@ class OnlineTrackingUpdate:
     maneuver_by_target: Mapping[str, ManeuverAssessment]
     retired_target_ids: tuple[str, ...]
     merged_target_aliases: Mapping[str, str]
+    local_reports: tuple[TargetNodeReport, ...]
+
+
+@dataclass(frozen=True)
+class ConsensusFeedbackApplication:
+    timestamp: float
+    applied_observer_target_keys: tuple[tuple[str, str], ...]
+    skipped_observer_target_reasons: Mapping[tuple[str, str], str]
 
 
 class OnlineMultiTargetTracker:
@@ -49,6 +58,7 @@ class OnlineMultiTargetTracker:
         max_lost_epochs: int = 10,
         maneuver_detector: ManeuverDetector | None = None,
         duplicate_track_resolver: DuplicateTrackResolver | None = None,
+        initial_states: Mapping[str, TargetInitialState] | None = None,
     ):
         self.scene_id = str(scene_id)
         self.association_pipeline = association_pipeline or MultiTargetAssociationPipeline()
@@ -59,8 +69,21 @@ class OnlineMultiTargetTracker:
         self.duplicate_track_resolver = (
             duplicate_track_resolver or DuplicateTrackResolver()
         )
-        self._manager: TrackManager | None = None
+        configured_initial_states = dict(initial_states or {})
+        self._manager: TrackManager | None = (
+            TrackManager(
+                scene_id=self.scene_id,
+                initial_states=configured_initial_states,
+                process_noise_acceleration=self.process_noise_acceleration,
+                max_coast_epochs=self.max_coast_epochs,
+                max_lost_epochs=self.max_lost_epochs,
+            )
+            if configured_initial_states else None
+        )
         self._local_priors: dict[tuple[str, str], TargetInitialState] = {}
+        self._local_prior_information_ids: dict[
+            tuple[str, str], tuple[str, ...]
+        ] = {}
         self._observer_states: dict[tuple[str, float], np.ndarray] = {}
         self._observer_quaternions: dict[tuple[str, float], np.ndarray] = {}
         self._last_timestamp: float | None = None
@@ -68,6 +91,53 @@ class OnlineMultiTargetTracker:
     @property
     def tracks(self):
         return {} if self._manager is None else self._manager.tracks
+
+    def apply_consensus_feedback(self, consensus_step) -> ConsensusFeedbackApplication:
+        """Use per-node Consensus-CI posteriors as the next local-filter priors.
+
+        The feedback is accepted only for the most recently processed epoch,
+        for observers present in that epoch, and for the currently active
+        target/track identity.  This keeps delayed or stale network output from
+        silently reviving a retired track.
+        """
+
+        if self._last_timestamp is None:
+            raise ValueError("Tracking must process an epoch before feedback is applied.")
+        timestamp = float(consensus_step.timestamp)
+        if not np.isclose(timestamp, self._last_timestamp):
+            raise ValueError("Consensus feedback must match the latest tracking epoch.")
+
+        applied = []
+        skipped = {}
+        for observer_id, estimates in consensus_step.estimates_by_node.items():
+            for target_id, estimate in estimates.items():
+                key = (str(observer_id), str(target_id))
+                reason = None
+                if (key[0], timestamp) not in self._observer_states:
+                    reason = "observer_state_unavailable"
+                elif target_id not in self.tracks:
+                    reason = "target_not_active"
+                elif self.tracks[target_id].estimate.track_id != estimate.track_id:
+                    reason = "track_identity_mismatch"
+                elif not estimate.valid_flag:
+                    reason = "invalid_estimate"
+                if reason is not None:
+                    skipped[key] = reason
+                    continue
+                self._local_priors[key] = TargetInitialState(
+                    target_id=estimate.target_id,
+                    track_id=estimate.track_id,
+                    timestamp=timestamp,
+                    state_eci=estimate.state_eci,
+                    covariance_eci=estimate.covariance_eci,
+                )
+                self._local_prior_information_ids[key] = estimate.information_ids
+                applied.append(key)
+        return ConsensusFeedbackApplication(
+            timestamp=timestamp,
+            applied_observer_target_keys=tuple(sorted(applied)),
+            skipped_observer_target_reasons=dict(sorted(skipped.items())),
+        )
 
     def step(
         self,
@@ -151,6 +221,11 @@ class OnlineMultiTargetTracker:
                     key: value for key, value in self._local_priors.items()
                     if key[1] != target_id
                 }
+                self._local_prior_information_ids = {
+                    key: value
+                    for key, value in self._local_prior_information_ids.items()
+                    if key[1] != target_id
+                }
             self._manager.remove_terminated()
         else:
             reported_tracks = dict(self.tracks)
@@ -164,6 +239,7 @@ class OnlineMultiTargetTracker:
             maneuver_by_target=dict(maneuver_assessments),
             retired_target_ids=retired_target_ids,
             merged_target_aliases=dict(resolution.aliases),
+            local_reports=tuple(reports),
         )
 
     def _register_births(self, births):
@@ -249,6 +325,16 @@ class OnlineMultiTargetTracker:
                 module_input,
                 track_id=prior.track_id,
             )
+            prior_information_ids = self._local_prior_information_ids.get(
+                (observer_id, target_id), ()
+            )
+            report = replace(
+                report,
+                used_measurement_ids=tuple(dict.fromkeys((
+                    *prior_information_ids,
+                    *report.used_measurement_ids,
+                ))),
+            )
             reports.append(report)
             self._local_priors[(observer_id, target_id)] = TargetInitialState(
                 target_id=target_id,
@@ -256,6 +342,9 @@ class OnlineMultiTargetTracker:
                 timestamp=epoch,
                 state_eci=report.state_eci,
                 covariance_eci=report.covariance_eci,
+            )
+            self._local_prior_information_ids[(observer_id, target_id)] = (
+                report.used_measurement_ids
             )
         return reports
 

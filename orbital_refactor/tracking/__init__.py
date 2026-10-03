@@ -2,6 +2,7 @@
 
 from .data_contracts import (
     ECI_FRAME,
+    MAX_INFORMATION_IDS,
     GlobalTargetEstimate,
     LocalTargetEstimate,
     MultiTargetInput,
@@ -9,11 +10,29 @@ from .data_contracts import (
     ObserverState,
     TargetInitialState,
     TargetNodeReport,
+    TargetEstimateMessage,
     TargetTrack,
     TargetTrackKey,
 )
 from .target_fusion import fuse_target_reports, group_reports_by_target
 from .cooperative_pipeline import run_cooperative_target_fusion
+from .distributed_target_consensus import (
+    DistributedTargetConsensus,
+    DistributedTargetConsensusStep,
+)
+from .distributed_online_tracker import (
+    DistributedOnlineMultiTargetTracker,
+    DistributedOnlineTrackingUpdate,
+)
+from .distributed_node_network import (
+    DistributedNodeNetworkUpdate,
+    DistributedTargetNodeNetwork,
+)
+from .distributed_identity import (
+    CooperativeTrackIdentityResolver,
+    TargetIdentityAssignment,
+    TargetIdentityResolution,
+)
 from .local_target_filter import run_local_target_filter, run_local_target_history
 from .known_target_pipeline import run_known_target_batch
 from .track_manager import TrackManager
@@ -39,6 +58,7 @@ from .association import (
     AssociationResult,
     AutonomousIODManager,
     AutonomousTrackingSequenceResult,
+    ConsensusFeedbackApplication,
     MultiTargetAssociationPipeline,
     OnlineMultiTargetTracker,
     OnlineTrackingUpdate,
@@ -82,6 +102,7 @@ from .initial_orbit import (
 
 __all__ = [
     "ECI_FRAME",
+    "MAX_INFORMATION_IDS",
     "GlobalTargetEstimate",
     "LocalTargetEstimate",
     "MultiTargetInput",
@@ -89,12 +110,22 @@ __all__ = [
     "ObserverState",
     "TargetInitialState",
     "TargetNodeReport",
+    "TargetEstimateMessage",
     "TargetTrack",
     "TargetTrackKey",
     "TrackLifecycle",
     "fuse_target_reports",
     "group_reports_by_target",
     "run_cooperative_target_fusion",
+    "DistributedTargetConsensus",
+    "DistributedTargetConsensusStep",
+    "DistributedOnlineMultiTargetTracker",
+    "DistributedOnlineTrackingUpdate",
+    "DistributedNodeNetworkUpdate",
+    "DistributedTargetNodeNetwork",
+    "CooperativeTrackIdentityResolver",
+    "TargetIdentityAssignment",
+    "TargetIdentityResolution",
     "run_local_target_filter",
     "run_local_target_history",
     "run_known_target_batch",
@@ -114,6 +145,7 @@ __all__ = [
     "AssociationResult",
     "AutonomousIODManager",
     "AutonomousTrackingSequenceResult",
+    "ConsensusFeedbackApplication",
     "MultiTargetAssociationPipeline",
     "OnlineMultiTargetTracker",
     "OnlineTrackingUpdate",

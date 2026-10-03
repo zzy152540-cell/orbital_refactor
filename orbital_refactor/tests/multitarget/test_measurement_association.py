@@ -1,4 +1,7 @@
+from dataclasses import replace
+
 import numpy as np
+import pytest
 
 from orbital_core.constants import R_EARTH
 from orbital_core.dynamics import propagate_absolute_orbit, rk4_step_absolute
@@ -6,6 +9,10 @@ from orbital_core.measurements import measure_relative_range, measure_relative_r
 from orbital_core.orbit_elements import keplerian_to_eci
 from orbital_core.coordinates import build_rtn_quaternion, dcm_to_quat_wxyz
 from tracking import (
+    DistributedTargetConsensus,
+    DistributedOnlineMultiTargetTracker,
+    DistributedTargetNodeNetwork,
+    CooperativeTrackIdentityResolver,
     AutonomousIODManager,
     MultiTargetAssociationPipeline,
     OnlineMultiTargetTracker,
@@ -17,6 +24,7 @@ from tracking import (
     unlabeled_iod_observations_from_messages,
     run_unlabeled_tracking_sequence,
 )
+from cooperative.topology import chain_topology
 from tracking.track_lifecycle import TrackLifecycle
 
 
@@ -409,7 +417,17 @@ def test_online_tracker_persists_state_one_epoch_at_a_time():
     tracker = OnlineMultiTargetTracker(
         scene_id="online-autonomous-two-targets", max_coast_epochs=2,
     )
+    consensus = DistributedTargetConsensus(
+        scene_id="online-autonomous-two-targets",
+        topology=chain_topology(("observer-1", "observer-2")),
+    )
+    distributed_tracker = DistributedOnlineMultiTargetTracker(
+        tracker=tracker,
+        consensus=consensus,
+    )
     updates = []
+    feedback_results = []
+    last_consensus_step = None
     for epoch_index, timestamp in enumerate(times):
         observer_states = {
             observer_id: history[epoch_index]
@@ -439,12 +457,16 @@ def test_online_tracker_persists_state_one_epoch_at_a_time():
                         metadata={"sourceModality": "INFRARED"},
                     ),
                 ))
-        updates.append(tracker.step(
+        distributed_update = distributed_tracker.step(
             timestamp=timestamp,
             observations=observations,
             observer_states_eci=observer_states,
             q_eci2pri_by_observer=quaternions,
-        ))
+        )
+        update = distributed_update.tracking
+        updates.append(update)
+        last_consensus_step = distributed_update.consensus
+        feedback_results.append(distributed_update.feedback)
 
     assert set(updates[2].initialized_states_by_target) == {
         "target-auto-0001", "target-auto-0002",
@@ -459,6 +481,143 @@ def test_online_tracker_persists_state_one_epoch_at_a_time():
         track.lifecycle is TrackLifecycle.TRACKING
         for track in updates[5].tracks_by_target.values()
     )
+    assert feedback_results
+    applied_feedback = [
+        result for result in feedback_results
+        if result.applied_observer_target_keys
+    ]
+    assert applied_feedback
+    assert all(
+        not result.skipped_observer_target_reasons
+        for result in applied_feedback
+    )
+    assert last_consensus_step is not None
+    with pytest.raises(ValueError, match="latest tracking epoch"):
+        tracker.apply_consensus_feedback(
+            replace(last_consensus_step, timestamp=40.0)
+        )
+
+    observer_id = next(iter(last_consensus_step.estimates_by_node))
+    target_id, estimate = next(iter(
+        last_consensus_step.estimates_by_node[observer_id].items()
+    ))
+    mismatched = replace(
+        last_consensus_step,
+        estimates_by_node={
+            observer_id: {
+                target_id: replace(estimate, track_id="stale-track"),
+            },
+        },
+    )
+    rejected = tracker.apply_consensus_feedback(mismatched)
+    assert rejected.skipped_observer_target_reasons == {
+        (observer_id, target_id): "track_identity_mismatch",
+    }
+
+
+def test_independent_node_trackers_exchange_only_target_reports():
+    times = np.array([0.0, 10.0, 20.0])
+    target_histories = {
+        "target_01": propagate_absolute_orbit(_state(0.5), times),
+        "target_02": propagate_absolute_orbit(_state(3.5), times),
+    }
+    observer_histories = {
+        "observer-1": propagate_absolute_orbit(
+            _state(-1.0, 54.7, 698e3), times,
+        ),
+        "observer-2": propagate_absolute_orbit(
+            _state(-0.5, 54.9, 702e3), times,
+        ),
+    }
+    local_names_by_node = {
+        "observer-1": ("alpha", "beta"),
+        "observer-2": ("red", "blue"),
+    }
+    trackers = {
+        node_id: OnlineMultiTargetTracker(
+            scene_id="isolated-node-network",
+            initial_states={
+                local_name: TargetInitialState(
+                    target_id=local_name,
+                    track_id=f"track-{local_name}",
+                    timestamp=0.0,
+                    state_eci=target_history[0],
+                    covariance_eci=np.diag([
+                        100.0, 100.0, 100.0, 1.0, 1.0, 1.0,
+                    ]),
+                )
+                for local_name, target_history in zip(
+                    local_names_by_node[node_id],
+                    target_histories.values(),
+                    strict=True,
+                )
+            },
+        )
+        for node_id in observer_histories
+    }
+    consensus = DistributedTargetConsensus(
+        scene_id="isolated-node-network",
+        topology=chain_topology(tuple(observer_histories)),
+    )
+    network = DistributedTargetNodeNetwork(
+        trackers_by_node=trackers,
+        consensus=consensus,
+        identity_resolver=CooperativeTrackIdentityResolver(
+            position_gate_m=100_000.0,
+            velocity_gate_mps=500.0,
+        ),
+    )
+
+    update = None
+    for epoch_index, timestamp in enumerate(times):
+        states = {
+            node_id: history[epoch_index]
+            for node_id, history in observer_histories.items()
+        }
+        observations_by_node = {}
+        for node_id, observer_state in states.items():
+            observations = []
+            for target_index, target_history in enumerate(target_histories.values()):
+                los, radar = _unlabeled(
+                    node_id,
+                    timestamp,
+                    observer_state,
+                    target_history[epoch_index],
+                    group=f"{node_id}-{epoch_index}-{target_index}",
+                )
+                observations.extend((
+                    radar,
+                    replace(los, metadata={"sourceModality": "INFRARED"}),
+                ))
+            observations_by_node[node_id] = tuple(observations)
+        update = network.step(
+            timestamp=timestamp,
+            observations_by_node=observations_by_node,
+            observer_states_eci=states,
+            q_eci2pri_by_observer={
+                node_id: build_rtn_quaternion(state)
+                for node_id, state in states.items()
+            },
+        )
+
+    assert update is not None
+    assert set(update.tracking_by_node) == {"observer-1", "observer-2"}
+    for node_id, estimates in update.consensus.estimates_by_node.items():
+        assert set(estimates) == {"target-coop-0001", "target-coop-0002"}
+        for estimate in estimates.values():
+            assert estimate.contributing_observer_ids == (
+                "observer-1", "observer-2",
+            )
+        assert update.feedback_by_node[node_id].applied_observer_target_keys == (
+            tuple(
+                (node_id, local_name)
+                for local_name in sorted(local_names_by_node[node_id])
+            )
+        )
+        assert all(
+            estimate.information_ids for estimate in estimates.values()
+        )
+    assert trackers["observer-1"] is not trackers["observer-2"]
 
 
 def test_retired_autonomous_target_can_reappear_with_a_new_identity():

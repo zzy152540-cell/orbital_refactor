@@ -137,7 +137,7 @@ class TypedMessageBuffer(Generic[MessageT]):
 
 
 def message_source_id(message: Message) -> str:
-    if isinstance(message, StateMessage):
+    if hasattr(message, "source_node_id"):
         return str(message.source_node_id)
     return str(message.observer_id)
 
@@ -145,6 +145,8 @@ def message_source_id(message: Message) -> str:
 def message_identity(message: Message) -> tuple[object, ...]:
     if isinstance(message, ObservationMessage):
         return ("observation", str(message.message_id))
+    if hasattr(message, "message_id"):
+        return ("message", str(message.message_id))
     return (
         "state",
         str(message.source_node_id),
