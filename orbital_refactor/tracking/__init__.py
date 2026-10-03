@@ -17,6 +17,11 @@ from .cooperative_pipeline import run_cooperative_target_fusion
 from .local_target_filter import run_local_target_filter, run_local_target_history
 from .known_target_pipeline import run_known_target_batch
 from .track_manager import TrackManager
+from .maneuver_detection import (
+    ManeuverAssessment,
+    ManeuverDetectionConfig,
+    ManeuverDetector,
+)
 from .online_json import (
     PROTOCOL_VERSION as ONLINE_PROTOCOL_VERSION,
     parse_online_json_frame,
@@ -89,6 +94,9 @@ __all__ = [
     "run_local_target_history",
     "run_known_target_batch",
     "TrackManager",
+    "ManeuverAssessment",
+    "ManeuverDetectionConfig",
+    "ManeuverDetector",
     "ONLINE_PROTOCOL_VERSION",
     "parse_online_json_frame",
     "run_online_json_replay",

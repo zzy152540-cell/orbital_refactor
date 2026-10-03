@@ -125,5 +125,6 @@ class AssociationMatch:
 class AssociationResult:
     matches: tuple[AssociationMatch, ...]
     unassigned_observation_indices: tuple[int, ...]
+    ambiguous_observation_indices: tuple[int, ...]
     unobserved_target_ids: tuple[str, ...]
 

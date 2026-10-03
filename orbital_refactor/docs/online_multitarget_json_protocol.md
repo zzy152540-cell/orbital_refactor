@@ -58,6 +58,17 @@ Each output has type `MULTITARGET_ESTIMATION_FRAME`. Its `targets` array contain
 the internally assigned `targetId`, stable `trackId`, lifecycle, J2000
 `x/y/z/vx/vy/vz`, covariance diagonal, and contributing observer IDs. Association
 counts and newly initialized target IDs are included for runtime diagnostics.
+The optional `maneuver` object reports the six-state normalized innovation,
+whether the threshold was exceeded, the confirmed maneuver flag, and the active
+process-noise scale. A confirmed maneuver changes the lifecycle to
+`MANEUVER_SUSPECTED`; it returns to `TRACKING` after the configured number of
+consistent epochs.
+
+Radar and LOS detections sharing one `detectionGroupId` are assigned jointly.
+If the best and second-best target costs are too close, the group is reported as
+ambiguous and is not forced onto either track. The existing tracks coast through
+that epoch, and ambiguous groups are excluded from autonomous track initiation to
+avoid duplicate identities near a target crossing.
 
 ## Local replay
 

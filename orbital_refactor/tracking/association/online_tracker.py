@@ -15,6 +15,7 @@ from tracking.data_contracts import (
     TargetTrack,
 )
 from tracking.local_target_filter import run_local_target_filter
+from tracking.maneuver_detection import ManeuverAssessment, ManeuverDetector
 from tracking.track_manager import TrackManager
 
 from .autonomous_sequence import _tracking_observation
@@ -29,6 +30,7 @@ class OnlineTrackingUpdate:
     initialized_states_by_target: Mapping[str, TargetInitialState]
     output: MultiTargetOutput | None
     tracks_by_target: Mapping[str, TargetTrack]
+    maneuver_by_target: Mapping[str, ManeuverAssessment]
 
 
 class OnlineMultiTargetTracker:
@@ -41,11 +43,13 @@ class OnlineMultiTargetTracker:
         association_pipeline: MultiTargetAssociationPipeline | None = None,
         process_noise_acceleration: float = 1e-4,
         max_coast_epochs: int = 3,
+        maneuver_detector: ManeuverDetector | None = None,
     ):
         self.scene_id = str(scene_id)
         self.association_pipeline = association_pipeline or MultiTargetAssociationPipeline()
         self.process_noise_acceleration = float(process_noise_acceleration)
         self.max_coast_epochs = int(max_coast_epochs)
+        self.maneuver_detector = maneuver_detector or ManeuverDetector()
         self._manager: TrackManager | None = None
         self._local_priors: dict[tuple[str, str], TargetInitialState] = {}
         self._observer_states: dict[tuple[str, float], np.ndarray] = {}
@@ -92,14 +96,32 @@ class OnlineMultiTargetTracker:
         self._register_births(births)
         reports = self._run_local_updates(epoch, routed)
         output = None
+        maneuver_assessments = {}
         if self._manager is not None and epoch > self._manager.timestamp:
+            prior_estimates = {
+                target_id: track.estimate
+                for target_id, track in self._manager.tracks.items()
+            }
             output = run_cooperative_target_fusion(
                 scene_id=self.scene_id,
                 timestamp=epoch,
                 reports=reports,
                 expected_target_ids=self._manager.tracks,
             )
-            self._manager.step(output)
+            maneuver_assessments = {
+                target_id: self.maneuver_detector.assess(
+                    prior_estimates[target_id], estimate,
+                )
+                for target_id, estimate in output.estimates_by_target.items()
+            }
+            self._manager.step(
+                output,
+                maneuver_suspected_target_ids=(
+                    target_id
+                    for target_id, assessment in maneuver_assessments.items()
+                    if assessment.suspected
+                ),
+            )
         self._last_timestamp = epoch
         return OnlineTrackingUpdate(
             timestamp=epoch,
@@ -107,6 +129,7 @@ class OnlineMultiTargetTracker:
             initialized_states_by_target=births,
             output=output,
             tracks_by_target=dict(self.tracks),
+            maneuver_by_target=dict(maneuver_assessments),
         )
 
     def _register_births(self, births):
@@ -153,6 +176,7 @@ class OnlineMultiTargetTracker:
                 for item in items
             ]
             dt = epoch - prior.timestamp
+            process_noise_scale = self.maneuver_detector.process_noise_scale(target_id)
             module_input = ModuleInput(
                 initial_state=InitialState(
                     target_id=target_id,
@@ -177,7 +201,7 @@ class OnlineMultiTargetTracker:
                     "filter": {
                         "architecture": "federated_ci",
                         "process_noise": make_process_noise(
-                            dt, self.process_noise_acceleration,
+                            dt, self.process_noise_acceleration * process_noise_scale,
                         ),
                         "reset_feedback": True,
                         "ci_objective": "trace",

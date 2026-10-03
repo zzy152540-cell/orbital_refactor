@@ -26,11 +26,15 @@ class MultiTargetAssociationPipeline:
         self,
         *,
         gate_squared_mahalanobis: float = 13.815510557964274,
+        minimum_cost_margin: float = 2.0,
         autonomous_iod_manager: AutonomousIODManager | None = None,
     ):
         if gate_squared_mahalanobis <= 0.0:
             raise ValueError("gate_squared_mahalanobis must be positive.")
         self.gate_squared_mahalanobis = float(gate_squared_mahalanobis)
+        if minimum_cost_margin < 0.0:
+            raise ValueError("minimum_cost_margin must be non-negative.")
+        self.minimum_cost_margin = float(minimum_cost_margin)
         self.autonomous_iod_manager = autonomous_iod_manager or AutonomousIODManager()
 
     def step(
@@ -45,13 +49,16 @@ class MultiTargetAssociationPipeline:
             values,
             tracks,
             gate_squared_mahalanobis=self.gate_squared_mahalanobis,
+            minimum_cost_margin=self.minimum_cost_margin,
         )
         labeled = label_matches(values, association)
         grouped: dict[str, list[IODObservation]] = {}
         for item in labeled:
             grouped.setdefault(item.target_id, []).append(item)
+        ambiguous = set(association.ambiguous_observation_indices)
         unassigned = tuple(
             values[index] for index in association.unassigned_observation_indices
+            if index not in ambiguous
         )
         autonomous = self.autonomous_iod_manager.ingest(unassigned)
         return AssociationPipelineUpdate(

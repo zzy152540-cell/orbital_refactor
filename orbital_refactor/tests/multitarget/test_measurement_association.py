@@ -1,7 +1,7 @@
 import numpy as np
 
 from orbital_core.constants import R_EARTH
-from orbital_core.dynamics import propagate_absolute_orbit
+from orbital_core.dynamics import propagate_absolute_orbit, rk4_step_absolute
 from orbital_core.measurements import measure_relative_range, measure_relative_range_rate
 from orbital_core.orbit_elements import keplerian_to_eci
 from orbital_core.coordinates import build_rtn_quaternion, dcm_to_quat_wxyz
@@ -84,6 +84,7 @@ def test_gnn_labels_unordered_measurements_without_using_target_ids():
 
     assert [item.target_id for item in labeled] == ["target-b", "target-a"]
     assert result.unassigned_observation_indices == ()
+    assert result.ambiguous_observation_indices == ()
     assert result.unobserved_target_ids == ()
     assert all(
         item.metadata["associationSquaredMahalanobis"] < 1e-8
@@ -109,6 +110,7 @@ def test_gnn_leaves_out_of_gate_false_alarm_unassigned():
 
     assert result.matches == ()
     assert result.unassigned_observation_indices == (0,)
+    assert result.ambiguous_observation_indices == ()
     assert result.unobserved_target_ids == ("target-a",)
 
 
@@ -234,6 +236,98 @@ def test_missing_target_measurements_are_reported_without_identity_switch():
 
     assert result.matches[0].target_id == "b"
     assert result.unobserved_target_ids == ("a",)
+
+
+def test_joint_radar_los_groups_keep_one_identity_for_close_targets():
+    observer = _state(-2.0)
+    first = _state(0.50)
+    second = _state(0.56)
+    tracks = {
+        target_id: TargetInitialState(
+            target_id, f"track-{target_id}", 0.0, state,
+            np.diag([100.0] * 3 + [1.0] * 3),
+        )
+        for target_id, state in (("a", first), ("b", second))
+    }
+    first_los, first_radar = _unlabeled(
+        "observer-1", 0.0, observer, first, group="blob-first",
+    )
+    second_los, second_radar = _unlabeled(
+        "observer-1", 0.0, observer, second, group="blob-second",
+    )
+    observations = (second_radar, first_los, first_radar, second_los)
+
+    result = associate_to_tracks(observations, tracks)
+
+    assigned = {
+        observations[match.observation_index].detection_group_id: match.target_id
+        for match in result.matches
+    }
+    assert assigned == {"blob-first": "a", "blob-second": "b"}
+    assert len(result.matches) == 4
+    assert result.ambiguous_observation_indices == ()
+
+
+def test_ambiguous_joint_detection_coasts_instead_of_starting_duplicate_track():
+    observer = _state(-2.0)
+    middle = _state(0.50)
+    first = middle.copy()
+    second = middle.copy()
+    first[1] -= 1.0
+    second[1] += 1.0
+    covariance = np.diag([1.0e8] * 3 + [1.0e4] * 3)
+    tracks = {
+        "a": TargetInitialState("a", "track-a", 0.0, first, covariance),
+        "b": TargetInitialState("b", "track-b", 0.0, second, covariance),
+    }
+    observations = _unlabeled(
+        "observer-1", 0.0, observer, middle, group="ambiguous-blob",
+    )
+    pipeline = MultiTargetAssociationPipeline(minimum_cost_margin=2.0)
+
+    update = pipeline.step(observations, tracks)
+
+    assert update.association.matches == ()
+    assert update.association.ambiguous_observation_indices == (0, 1)
+    assert update.autonomous_iod.waiting_target_ids == ()
+    assert pipeline.autonomous_iod_manager.candidate_ids == ()
+
+
+def test_prediction_preserves_track_identity_after_two_targets_cross():
+    observer = _state(-2.0)
+    first = np.array([7.0e6, -1000.0, 0.0, 0.0, 7900.0, 0.0])
+    second = np.array([7.0e6, 1000.0, 0.0, 0.0, 7500.0, 0.0])
+    first_after = rk4_step_absolute(first, 10.0)
+    second_after = rk4_step_absolute(second, 10.0)
+    assert first_after[1] > second_after[1]
+    tracks = {
+        "a": TargetInitialState(
+            "a", "track-a", 0.0, first,
+            np.diag([10.0] * 3 + [0.1] * 3),
+        ),
+        "b": TargetInitialState(
+            "b", "track-b", 0.0, second,
+            np.diag([10.0] * 3 + [0.1] * 3),
+        ),
+    }
+    first_values = _unlabeled(
+        "observer-1", 10.0, observer, first_after, group="post-cross-a",
+    )
+    second_values = _unlabeled(
+        "observer-1", 10.0, observer, second_after, group="post-cross-b",
+    )
+
+    result = associate_to_tracks(
+        (second_values[0], first_values[1], first_values[0], second_values[1]),
+        tracks,
+    )
+
+    values = (second_values[0], first_values[1], first_values[0], second_values[1])
+    assigned = {
+        values[match.observation_index].detection_group_id: match.target_id
+        for match in result.matches
+    }
+    assert assigned == {"post-cross-a": "a", "post-cross-b": "b"}
 
 
 def test_target_free_sequence_runs_iod_filter_fusion_coast_and_reacquisition():

@@ -71,7 +71,12 @@ class TrackManager:
     def tracks(self) -> Mapping[str, TargetTrack]:
         return MappingProxyType(dict(self._tracks))
 
-    def step(self, output: MultiTargetOutput) -> Mapping[str, TargetTrack]:
+    def step(
+        self,
+        output: MultiTargetOutput,
+        *,
+        maneuver_suspected_target_ids=(),
+    ) -> Mapping[str, TargetTrack]:
         if output.scene_id != self.scene_id:
             raise ValueError("MultiTargetOutput scene_id does not match TrackManager.")
         timestamp = float(output.timestamp)
@@ -80,6 +85,12 @@ class TrackManager:
         unknown = set(output.estimates_by_target) - set(self._tracks)
         if unknown:
             raise ValueError(f"Output contains unregistered targets: {sorted(unknown)}")
+        maneuver_suspected = {str(value) for value in maneuver_suspected_target_ids}
+        unknown_maneuvers = maneuver_suspected - set(self._tracks)
+        if unknown_maneuvers:
+            raise ValueError(
+                f"Maneuver flags contain unregistered targets: {sorted(unknown_maneuvers)}"
+            )
 
         for target_id, track in tuple(self._tracks.items()):
             if track.lifecycle == TrackLifecycle.TERMINATED:
@@ -94,7 +105,11 @@ class TrackManager:
                 self._missed_epochs[target_id] = 0
                 self._tracks[target_id] = replace(
                     track,
-                    lifecycle=TrackLifecycle.TRACKING,
+                    lifecycle=(
+                        TrackLifecycle.MANEUVER_SUSPECTED
+                        if target_id in maneuver_suspected
+                        else TrackLifecycle.TRACKING
+                    ),
                     estimate=estimate,
                 )
                 continue

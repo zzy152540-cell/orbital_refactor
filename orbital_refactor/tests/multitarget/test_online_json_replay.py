@@ -86,6 +86,7 @@ def test_json_replay_runs_target_free_frames_to_stable_output_contract():
         assert target["lifecycle"] == "TRACKING"
         assert target["frame"] == "J2000_ECI"
         assert all(key in target for key in ("x", "y", "z", "vx", "vy", "vz"))
+        assert "maneuver" in target
 
 
 def test_json_replay_file_writes_parseable_result(tmp_path):

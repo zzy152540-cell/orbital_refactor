@@ -97,6 +97,7 @@ def online_update_to_json(update, *, frame_index):
     for target_id, track in sorted(update.tracks_by_target.items()):
         estimate = track.estimate
         covariance = np.asarray(estimate.covariance_eci, dtype=float)
+        maneuver = update.maneuver_by_target.get(target_id)
         targets.append({
             "targetId": target_id,
             "trackId": estimate.track_id,
@@ -112,6 +113,18 @@ def online_update_to_json(update, *, frame_index):
             "contributingObserverIds": list(
                 getattr(estimate, "contributing_observer_ids", ()),
             ),
+            "maneuver": (
+                None
+                if maneuver is None
+                else {
+                    "suspected": maneuver.suspected,
+                    "normalizedInnovationSquared": (
+                        maneuver.normalized_innovation_squared
+                    ),
+                    "thresholdExceeded": maneuver.threshold_exceeded,
+                    "processNoiseScale": maneuver.process_noise_scale,
+                }
+            ),
         })
     return {
         "type": "MULTITARGET_ESTIMATION_FRAME",
@@ -121,6 +134,9 @@ def online_update_to_json(update, *, frame_index):
             "matchCount": len(update.association.matches),
             "unassignedDetectionCount": len(
                 update.association.unassigned_observation_indices
+            ),
+            "ambiguousDetectionCount": len(
+                update.association.ambiguous_observation_indices
             ),
             "unobservedTargetIds": list(update.association.unobserved_target_ids),
         },

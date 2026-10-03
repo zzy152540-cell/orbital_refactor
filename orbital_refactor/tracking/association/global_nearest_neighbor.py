@@ -18,49 +18,109 @@ def associate_to_tracks(
     tracks: Mapping[str, GlobalTargetEstimate | TargetInitialState],
     *,
     gate_squared_mahalanobis: float = 13.815510557964274,
+    minimum_cost_margin: float = 2.0,
 ) -> AssociationResult:
-    """Global-nearest-neighbour association, independently per sensor channel."""
+    """Joint multimodal GNN association with conservative ambiguity rejection."""
 
     values = tuple(observations)
     if gate_squared_mahalanobis <= 0.0:
         raise ValueError("gate_squared_mahalanobis must be positive.")
+    if minimum_cost_margin < 0.0:
+        raise ValueError("minimum_cost_margin must be non-negative.")
     if any(not isinstance(item, UnlabeledIODObservation) for item in values):
         raise TypeError("associate_to_tracks requires UnlabeledIODObservation values.")
-    groups = defaultdict(list)
+    channels = defaultdict(list)
     for index, item in enumerate(values):
         if item.valid_flag:
-            groups[(item.timestamp, item.observer_id, item.modality)].append(index)
+            channels[(item.timestamp, item.observer_id)].append(index)
 
     matches = []
     observed_targets = set()
     assigned_indices = set()
+    ambiguous_indices = set()
     target_items = tuple(sorted(tracks.items()))
-    for indices in groups.values():
+    for indices in channels.values():
         if not target_items:
             continue
-        costs = np.full((len(indices), len(target_items)), np.inf)
-        for row, index in enumerate(indices):
-            observation = values[index]
-            for column, (_, estimate) in enumerate(target_items):
-                costs[row, column] = _innovation_distance(observation, estimate)
-        safe = np.where(np.isfinite(costs), costs, gate_squared_mahalanobis + 1e9)
-        rows, columns = linear_sum_assignment(safe)
-        for row, column in zip(rows, columns):
-            distance = float(costs[row, column])
-            if not np.isfinite(distance) or distance > gate_squared_mahalanobis:
-                continue
-            index = indices[row]
-            target_id = target_items[column][0]
-            matches.append(AssociationMatch(index, target_id, distance))
-            assigned_indices.add(index)
-            observed_targets.add(target_id)
+        grouped = defaultdict(list)
+        ungrouped = defaultdict(list)
+        for index in indices:
+            item = values[index]
+            if item.detection_group_id is None:
+                ungrouped[item.modality].append([index])
+            else:
+                grouped[item.detection_group_id].append(index)
+        unit_sets = []
+        if grouped:
+            unit_sets.append(list(grouped.values()))
+        unit_sets.extend(ungrouped.values())
+        for units in unit_sets:
+            unit_matches, unit_ambiguous = _assign_units(
+                units,
+                target_items,
+                values,
+                gate_squared_mahalanobis=gate_squared_mahalanobis,
+                minimum_cost_margin=minimum_cost_margin,
+            )
+            for index, target_id, distance in unit_matches:
+                matches.append(AssociationMatch(index, target_id, distance))
+                assigned_indices.add(index)
+                observed_targets.add(target_id)
+            ambiguous_indices.update(unit_ambiguous)
     return AssociationResult(
         matches=tuple(sorted(matches, key=lambda item: item.observation_index)),
         unassigned_observation_indices=tuple(
             index for index in range(len(values)) if index not in assigned_indices
         ),
+        ambiguous_observation_indices=tuple(sorted(ambiguous_indices)),
         unobserved_target_ids=tuple(sorted(set(tracks) - observed_targets)),
     )
+
+
+def _assign_units(
+    units,
+    target_items,
+    values,
+    *,
+    gate_squared_mahalanobis,
+    minimum_cost_margin,
+):
+    costs = np.full((len(units), len(target_items)), np.inf)
+    individual_costs = {}
+    for row, indices in enumerate(units):
+        for column, (_, estimate) in enumerate(target_items):
+            distances = tuple(
+                _innovation_distance(values[index], estimate) for index in indices
+            )
+            individual_costs[(row, column)] = distances
+            if all(np.isfinite(value) for value in distances):
+                costs[row, column] = float(np.mean(distances))
+    safe = np.where(
+        np.isfinite(costs), costs, gate_squared_mahalanobis + 1e9,
+    )
+    rows, columns = linear_sum_assignment(safe)
+    matches = []
+    ambiguous = set()
+    for row, column in zip(rows, columns):
+        distance = float(costs[row, column])
+        if not np.isfinite(distance) or distance > gate_squared_mahalanobis:
+            continue
+        alternatives = np.delete(costs[row], column)
+        finite_alternatives = alternatives[np.isfinite(alternatives)]
+        margin = (
+            float("inf")
+            if finite_alternatives.size == 0
+            else float(np.min(finite_alternatives) - distance)
+        )
+        if margin < minimum_cost_margin:
+            ambiguous.update(units[row])
+            continue
+        target_id = target_items[column][0]
+        for index, individual_distance in zip(
+            units[row], individual_costs[(row, column)],
+        ):
+            matches.append((index, target_id, float(individual_distance)))
+    return matches, ambiguous
 
 
 def label_matches(observations, result: AssociationResult) -> tuple[IODObservation, ...]:
