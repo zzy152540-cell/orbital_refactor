@@ -17,6 +17,12 @@ from .cooperative_pipeline import run_cooperative_target_fusion
 from .local_target_filter import run_local_target_filter, run_local_target_history
 from .known_target_pipeline import run_known_target_batch
 from .track_manager import TrackManager
+from .online_json import (
+    PROTOCOL_VERSION as ONLINE_PROTOCOL_VERSION,
+    parse_online_json_frame,
+    run_online_json_replay,
+    run_online_json_replay_file,
+)
 from .association import (
     AssociationMatch,
     AssociationPipelineUpdate,
@@ -83,6 +89,10 @@ __all__ = [
     "run_local_target_history",
     "run_known_target_batch",
     "TrackManager",
+    "ONLINE_PROTOCOL_VERSION",
+    "parse_online_json_frame",
+    "run_online_json_replay",
+    "run_online_json_replay_file",
     "AssociationMatch",
     "AssociationPipelineUpdate",
     "AssociationResult",

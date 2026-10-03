@@ -44,6 +44,19 @@ def unlabeled_iod_observations_from_messages(
                 metadata=metadata,
             ))
             continue
+        if message.modality == "LOS":
+            result.append(UnlabeledIODObservation(
+                timestamp=message.timestamp,
+                observer_id=message.observer_id,
+                modality="LOS",
+                observer_state_eci=observer_state,
+                measurement=message.measurement,
+                covariance=message.covariance,
+                valid_flag=message.valid_flag,
+                detection_group_id=message.detection_group_id,
+                metadata={**metadata, "lineOfSightFrame": "J2000_ECI"},
+            ))
+            continue
         quaternion = message.metadata.get("quaternion_i2b_wxyz")
         if quaternion is None:
             raise ValueError(f"{message.modality} message requires attitude metadata.")

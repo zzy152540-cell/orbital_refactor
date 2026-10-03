@@ -28,18 +28,24 @@ class UnlabeledObservationMessage:
         modality = str(self.modality).upper()
         if not message_id or not observer_id or not group_id:
             raise ValueError("Raw detection identifiers must be non-empty.")
-        if modality not in {"RADAR", "OPTICAL", "INFRARED"}:
+        if modality not in {"RADAR", "OPTICAL", "INFRARED", "LOS"}:
             raise ValueError("Raw detection modality is unsupported.")
         measurement = np.array(self.measurement, dtype=float, copy=True).reshape(-1)
         covariance = np.array(self.covariance, dtype=float, copy=True)
-        if measurement.shape != (2,) or covariance.shape != (2, 2):
-            raise ValueError("Raw detection measurement and covariance must be 2-D.")
+        expected = 3 if modality == "LOS" else 2
+        if measurement.shape != (expected,) or covariance.shape != (2, 2):
+            raise ValueError("Raw detection measurement or covariance shape is invalid.")
         if np.any(~np.isfinite(measurement)) or np.any(~np.isfinite(covariance)):
             raise ValueError("Raw detection values must be finite.")
         if not np.allclose(covariance, covariance.T, atol=1e-12, rtol=1e-10):
             raise ValueError("Raw detection covariance must be symmetric.")
         if np.linalg.eigvalsh(covariance).min() <= 0.0:
             raise ValueError("Raw detection covariance must be positive definite.")
+        if modality == "LOS":
+            norm = float(np.linalg.norm(measurement))
+            if norm <= 0.0:
+                raise ValueError("LOS measurement must be nonzero.")
+            measurement /= norm
         confidence = float(self.confidence)
         if not 0.0 <= confidence <= 1.0:
             raise ValueError("Raw detection confidence must lie in [0, 1].")
