@@ -129,6 +129,33 @@ class TrackManager:
         self._tracks[key] = track
         return track
 
+    def register(self, initial_state: TargetInitialState) -> TargetTrack:
+        """Register a newly initialized target while the manager is running."""
+
+        target_id = str(initial_state.target_id)
+        if target_id in self._tracks:
+            raise ValueError(f"Target {target_id!r} is already registered.")
+        if initial_state.timestamp > self._timestamp:
+            raise ValueError("A new target cannot begin after the manager timestamp.")
+        estimate = (
+            initial_state
+            if np.isclose(initial_state.timestamp, self._timestamp)
+            else _propagate_estimate(
+                initial_state,
+                self._timestamp,
+                process_noise_acceleration=self.process_noise_acceleration,
+            )
+        )
+        track = TargetTrack(
+            key=TargetTrackKey(self.scene_id, initial_state.track_id),
+            target_id=target_id,
+            lifecycle=TrackLifecycle.INITIALIZING,
+            estimate=estimate,
+        )
+        self._tracks[target_id] = track
+        self._missed_epochs[target_id] = 0
+        return track
+
 
 def _propagate_estimate(
     estimate: GlobalTargetEstimate | TargetInitialState,

@@ -17,6 +17,22 @@ from .cooperative_pipeline import run_cooperative_target_fusion
 from .local_target_filter import run_local_target_filter, run_local_target_history
 from .known_target_pipeline import run_known_target_batch
 from .track_manager import TrackManager
+from .association import (
+    AssociationMatch,
+    AssociationPipelineUpdate,
+    AssociationResult,
+    AutonomousIODManager,
+    AutonomousTrackingSequenceResult,
+    MultiTargetAssociationPipeline,
+    OnlineMultiTargetTracker,
+    OnlineTrackingUpdate,
+    UnlabeledIODObservation,
+    UnlabeledObservationMessage,
+    associate_to_tracks,
+    label_matches,
+    unlabeled_iod_observations_from_messages,
+    run_unlabeled_tracking_sequence,
+)
 from .sequence_runner import KnownTargetSequenceHistory, run_known_target_sequence
 from .track_lifecycle import TrackLifecycle
 from .standard_validation import (
@@ -67,6 +83,20 @@ __all__ = [
     "run_local_target_history",
     "run_known_target_batch",
     "TrackManager",
+    "AssociationMatch",
+    "AssociationPipelineUpdate",
+    "AssociationResult",
+    "AutonomousIODManager",
+    "AutonomousTrackingSequenceResult",
+    "MultiTargetAssociationPipeline",
+    "OnlineMultiTargetTracker",
+    "OnlineTrackingUpdate",
+    "UnlabeledIODObservation",
+    "UnlabeledObservationMessage",
+    "associate_to_tracks",
+    "label_matches",
+    "unlabeled_iod_observations_from_messages",
+    "run_unlabeled_tracking_sequence",
     "KnownTargetSequenceHistory",
     "run_known_target_sequence",
     "StandardMultiTargetScenario",
