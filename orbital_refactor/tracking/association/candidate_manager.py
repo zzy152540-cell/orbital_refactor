@@ -23,10 +23,19 @@ class _Candidate:
 class AutonomousIODManager:
     """Build internal target identities from locally correlated LOS/radar detections."""
 
-    def __init__(self, *, spatial_gate_m: float = 100_000.0, iod_manager=None):
+    def __init__(
+        self,
+        *,
+        spatial_gate_m: float = 100_000.0,
+        candidate_timeout_seconds: float = 120.0,
+        iod_manager=None,
+    ):
         if spatial_gate_m <= 0.0:
             raise ValueError("spatial_gate_m must be positive.")
+        if candidate_timeout_seconds <= 0.0:
+            raise ValueError("candidate_timeout_seconds must be positive.")
         self.spatial_gate_m = float(spatial_gate_m)
+        self.candidate_timeout_seconds = float(candidate_timeout_seconds)
         self.iod_manager = iod_manager or MultiTargetIODManager()
         self._candidates: dict[str, _Candidate] = {}
         self._next_identifier = 1
@@ -44,8 +53,22 @@ class AutonomousIODManager:
         for item in values:
             by_epoch[item.timestamp].append(item)
         for timestamp in sorted(by_epoch):
+            self._expire_candidates(timestamp)
             labeled.extend(self._label_epoch(tuple(by_epoch[timestamp])))
         return self.iod_manager.ingest(labeled)
+
+    def retire_target(self, target_id: str) -> None:
+        key = str(target_id)
+        self._candidates.pop(key, None)
+        self.iod_manager.retire(key)
+
+    def _expire_candidates(self, timestamp):
+        expired = [
+            target_id for target_id, candidate in self._candidates.items()
+            if timestamp - candidate.timestamp > self.candidate_timeout_seconds
+        ]
+        for target_id in expired:
+            self.retire_target(target_id)
 
     def _label_epoch(self, observations):
         bundles = _make_bundles(observations, self.spatial_gate_m)

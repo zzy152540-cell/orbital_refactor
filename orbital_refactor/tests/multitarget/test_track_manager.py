@@ -172,3 +172,24 @@ def test_prediction_covariance_is_target_local_during_partial_outage():
     assert np.trace(tracks["target_02"].estimate.covariance_eci) > np.trace(
         second.covariance_eci
     )
+
+
+def test_lost_track_terminates_and_can_be_removed_from_active_set():
+    initial = _initial("target_01")
+    manager = TrackManager(
+        scene_id="scene",
+        initial_states={initial.target_id: initial},
+        max_coast_epochs=1,
+        max_lost_epochs=2,
+    )
+    manager.step(_output(0.0, [_estimate(initial, 0.0)]))
+
+    assert manager.step(_output(1.0, []))["target_01"].lifecycle is TrackLifecycle.COASTING
+    assert manager.step(_output(2.0, []))["target_01"].lifecycle is TrackLifecycle.LOST
+    assert manager.step(_output(3.0, []))["target_01"].lifecycle is TrackLifecycle.LOST
+    assert manager.step(_output(4.0, []))["target_01"].lifecycle is TrackLifecycle.TERMINATED
+
+    removed = manager.remove_terminated()
+
+    assert tuple(removed) == ("target_01",)
+    assert manager.tracks == {}

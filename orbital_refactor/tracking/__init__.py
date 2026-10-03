@@ -22,6 +22,11 @@ from .maneuver_detection import (
     ManeuverDetectionConfig,
     ManeuverDetector,
 )
+from .duplicate_tracks import (
+    DuplicateResolution,
+    DuplicateTrackConfig,
+    DuplicateTrackResolver,
+)
 from .online_json import (
     PROTOCOL_VERSION as ONLINE_PROTOCOL_VERSION,
     parse_online_json_frame,
@@ -97,6 +102,9 @@ __all__ = [
     "ManeuverAssessment",
     "ManeuverDetectionConfig",
     "ManeuverDetector",
+    "DuplicateResolution",
+    "DuplicateTrackConfig",
+    "DuplicateTrackResolver",
     "ONLINE_PROTOCOL_VERSION",
     "parse_online_json_frame",
     "run_online_json_replay",

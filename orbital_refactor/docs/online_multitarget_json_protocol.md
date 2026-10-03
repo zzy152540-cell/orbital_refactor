@@ -70,6 +70,14 @@ ambiguous and is not forced onto either track. The existing tracks coast through
 that epoch, and ambiguous groups are excluded from autonomous track initiation to
 avoid duplicate identities near a target crossing.
 
+Tracks progress from `COASTING` to `LOST` and finally `TERMINATED` after their
+configured missed-epoch limits. A terminated target appears once in
+`retiredTargetIds` and is then removed from the active set. If detections later
+form a new short arc, autonomous IOD creates a new target and track identity.
+When a new IOD solution is sufficiently close to an active track in position,
+velocity, and six-state Mahalanobis distance, it is suppressed as a duplicate;
+`mergedTargetAliases` maps the discarded candidate ID to the retained target ID.
+
 ## Local replay
 
 ```powershell

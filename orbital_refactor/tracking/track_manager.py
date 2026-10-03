@@ -32,6 +32,7 @@ class TrackManager:
         initial_states: Mapping[str, TargetInitialState],
         process_noise_acceleration: float = 1e-4,
         max_coast_epochs: int = 3,
+        max_lost_epochs: int = 10,
     ) -> None:
         self.scene_id = str(scene_id).strip()
         if not self.scene_id:
@@ -42,6 +43,8 @@ class TrackManager:
             raise ValueError("process_noise_acceleration must be non-negative.")
         if int(max_coast_epochs) < 0:
             raise ValueError("max_coast_epochs must be non-negative.")
+        if int(max_lost_epochs) < 1:
+            raise ValueError("max_lost_epochs must be positive.")
         values = dict(initial_states)
         if any(key != value.target_id for key, value in values.items()):
             raise ValueError("initial_states keys must match TargetInitialState.target_id.")
@@ -50,6 +53,7 @@ class TrackManager:
             raise ValueError("All initial target states must share one timestamp.")
         self.process_noise_acceleration = float(process_noise_acceleration)
         self.max_coast_epochs = int(max_coast_epochs)
+        self.max_lost_epochs = int(max_lost_epochs)
         self._timestamp = next(iter(timestamps))
         self._has_stepped = False
         self._missed_epochs = {target_id: 0 for target_id in values}
@@ -121,11 +125,12 @@ class TrackManager:
             )
             missed = self._missed_epochs[target_id] + 1
             self._missed_epochs[target_id] = missed
-            lifecycle = (
-                TrackLifecycle.LOST
-                if missed > self.max_coast_epochs
-                else TrackLifecycle.COASTING
-            )
+            if missed <= self.max_coast_epochs:
+                lifecycle = TrackLifecycle.COASTING
+            elif missed <= self.max_coast_epochs + self.max_lost_epochs:
+                lifecycle = TrackLifecycle.LOST
+            else:
+                lifecycle = TrackLifecycle.TERMINATED
             self._tracks[target_id] = replace(
                 track,
                 lifecycle=lifecycle,
@@ -170,6 +175,17 @@ class TrackManager:
         self._tracks[target_id] = track
         self._missed_epochs[target_id] = 0
         return track
+
+    def remove_terminated(self) -> Mapping[str, TargetTrack]:
+        removed = {
+            target_id: track
+            for target_id, track in self._tracks.items()
+            if track.lifecycle is TrackLifecycle.TERMINATED
+        }
+        for target_id in removed:
+            del self._tracks[target_id]
+            del self._missed_epochs[target_id]
+        return MappingProxyType(removed)
 
 
 def _propagate_estimate(

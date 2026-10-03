@@ -141,6 +141,8 @@ def online_update_to_json(update, *, frame_index):
             "unobservedTargetIds": list(update.association.unobserved_target_ids),
         },
         "initializedTargetIds": sorted(update.initialized_states_by_target),
+        "retiredTargetIds": list(update.retired_target_ids),
+        "mergedTargetAliases": dict(update.merged_target_aliases),
         "targets": targets,
     }
 

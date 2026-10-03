@@ -80,6 +80,8 @@ def test_json_replay_runs_target_free_frames_to_stable_output_contract():
     assert result["protocolVersion"] == PROTOCOL_VERSION
     assert result["frameCount"] == 5
     assert result["frames"][0]["targets"] == []
+    assert result["frames"][0]["retiredTargetIds"] == []
+    assert result["frames"][0]["mergedTargetAliases"] == {}
     assert len(result["frames"][2]["initializedTargetIds"]) == 2
     assert len(result["frames"][-1]["targets"]) == 2
     for target in result["frames"][-1]["targets"]:

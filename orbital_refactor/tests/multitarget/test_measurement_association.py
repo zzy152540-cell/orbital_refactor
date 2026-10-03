@@ -460,3 +460,46 @@ def test_online_tracker_persists_state_one_epoch_at_a_time():
         for track in updates[5].tracks_by_target.values()
     )
 
+
+def test_retired_autonomous_target_can_reappear_with_a_new_identity():
+    times = np.array([0.0, 10.0, 20.0, 200.0, 210.0, 220.0])
+    target_history = propagate_absolute_orbit(_state(0.5), times)
+    observer_initials = {
+        "observer-1": _state(-1.0, 54.7, 698e3),
+        "observer-2": _state(-0.5, 54.9, 702e3),
+    }
+    observer_histories = {
+        key: propagate_absolute_orbit(value, times)
+        for key, value in observer_initials.items()
+    }
+    manager = AutonomousIODManager(
+        spatial_gate_m=100_000.0, candidate_timeout_seconds=60.0,
+    )
+    first_update = None
+    for epoch_index in range(3):
+        observations = []
+        for observer_id, history in observer_histories.items():
+            observations.extend(_unlabeled(
+                observer_id, times[epoch_index], history[epoch_index],
+                target_history[epoch_index],
+                group=f"first-{observer_id}-{epoch_index}",
+            ))
+        first_update = manager.ingest(observations)
+    assert first_update is not None
+    assert tuple(first_update.initialized_states_by_target) == ("target-auto-0001",)
+
+    manager.retire_target("target-auto-0001")
+    second_update = None
+    for epoch_index in range(3, 6):
+        observations = []
+        for observer_id, history in observer_histories.items():
+            observations.extend(_unlabeled(
+                observer_id, times[epoch_index], history[epoch_index],
+                target_history[epoch_index],
+                group=f"second-{observer_id}-{epoch_index}",
+            ))
+        second_update = manager.ingest(observations)
+
+    assert second_update is not None
+    assert tuple(second_update.initialized_states_by_target) == ("target-auto-0002",)
+

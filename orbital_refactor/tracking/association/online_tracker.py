@@ -16,6 +16,7 @@ from tracking.data_contracts import (
 )
 from tracking.local_target_filter import run_local_target_filter
 from tracking.maneuver_detection import ManeuverAssessment, ManeuverDetector
+from tracking.duplicate_tracks import DuplicateTrackResolver
 from tracking.track_manager import TrackManager
 
 from .autonomous_sequence import _tracking_observation
@@ -31,6 +32,8 @@ class OnlineTrackingUpdate:
     output: MultiTargetOutput | None
     tracks_by_target: Mapping[str, TargetTrack]
     maneuver_by_target: Mapping[str, ManeuverAssessment]
+    retired_target_ids: tuple[str, ...]
+    merged_target_aliases: Mapping[str, str]
 
 
 class OnlineMultiTargetTracker:
@@ -43,13 +46,19 @@ class OnlineMultiTargetTracker:
         association_pipeline: MultiTargetAssociationPipeline | None = None,
         process_noise_acceleration: float = 1e-4,
         max_coast_epochs: int = 3,
+        max_lost_epochs: int = 10,
         maneuver_detector: ManeuverDetector | None = None,
+        duplicate_track_resolver: DuplicateTrackResolver | None = None,
     ):
         self.scene_id = str(scene_id)
         self.association_pipeline = association_pipeline or MultiTargetAssociationPipeline()
         self.process_noise_acceleration = float(process_noise_acceleration)
         self.max_coast_epochs = int(max_coast_epochs)
+        self.max_lost_epochs = int(max_lost_epochs)
         self.maneuver_detector = maneuver_detector or ManeuverDetector()
+        self.duplicate_track_resolver = (
+            duplicate_track_resolver or DuplicateTrackResolver()
+        )
         self._manager: TrackManager | None = None
         self._local_priors: dict[tuple[str, str], TargetInitialState] = {}
         self._observer_states: dict[tuple[str, float], np.ndarray] = {}
@@ -92,11 +101,18 @@ class OnlineMultiTargetTracker:
             for target_id, track in self.tracks.items()
         }
         routed = self.association_pipeline.step(values, estimates)
-        births = dict(routed.autonomous_iod.initialized_states_by_target)
+        raw_births = dict(routed.autonomous_iod.initialized_states_by_target)
+        resolution = self.duplicate_track_resolver.resolve(raw_births, self.tracks)
+        births = dict(resolution.accepted_births)
+        for duplicate_id in resolution.aliases:
+            self.association_pipeline.autonomous_iod_manager.retire_target(
+                duplicate_id,
+            )
         self._register_births(births)
         reports = self._run_local_updates(epoch, routed)
         output = None
         maneuver_assessments = {}
+        retired_target_ids = ()
         if self._manager is not None and epoch > self._manager.timestamp:
             prior_estimates = {
                 target_id: track.estimate
@@ -122,14 +138,32 @@ class OnlineMultiTargetTracker:
                     if assessment.suspected
                 ),
             )
+            reported_tracks = dict(self._manager.tracks)
+            retired_target_ids = tuple(sorted(
+                target_id for target_id, track in reported_tracks.items()
+                if track.lifecycle.value == "TERMINATED"
+            ))
+            for target_id in retired_target_ids:
+                self.association_pipeline.autonomous_iod_manager.retire_target(
+                    target_id,
+                )
+                self._local_priors = {
+                    key: value for key, value in self._local_priors.items()
+                    if key[1] != target_id
+                }
+            self._manager.remove_terminated()
+        else:
+            reported_tracks = dict(self.tracks)
         self._last_timestamp = epoch
         return OnlineTrackingUpdate(
             timestamp=epoch,
             association=routed.association,
             initialized_states_by_target=births,
             output=output,
-            tracks_by_target=dict(self.tracks),
+            tracks_by_target=reported_tracks,
             maneuver_by_target=dict(maneuver_assessments),
+            retired_target_ids=retired_target_ids,
+            merged_target_aliases=dict(resolution.aliases),
         )
 
     def _register_births(self, births):
@@ -141,6 +175,7 @@ class OnlineMultiTargetTracker:
                 initial_states=births,
                 process_noise_acceleration=self.process_noise_acceleration,
                 max_coast_epochs=self.max_coast_epochs,
+                max_lost_epochs=self.max_lost_epochs,
             )
             return
         for state in births.values():

@@ -77,3 +77,9 @@ class MultiTargetIODManager:
             initialized_states_by_target=initialized,
             waiting_target_ids=waiting,
         )
+
+    def retire(self, target_id: str) -> None:
+        key = str(target_id)
+        self._buffers.pop(key, None)
+        self._initialized.pop(key, None)
+        self._last_estimate.pop(key, None)
