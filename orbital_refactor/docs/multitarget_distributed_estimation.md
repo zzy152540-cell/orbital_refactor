@@ -35,21 +35,55 @@
 - 四、六、十节点的链式和全连接目标级协同预扫描。
 - 三观测节点、两目标的原始雷达/红外/光学量测、动态物理可见性、
   本地关联滤波、目标级 CI 和反馈端到端链路。
+- 五观测节点、两目标、600 秒三模态动态可见性正式场景；
+- 十观测节点、两目标、600 秒三模态动态可见性正式场景。
+- 五观测节点场景中的 10 秒通信延迟、20% 随机丢包、节点连续退出恢复，
+  以及全连接到链式拓扑的联合切换。
+- 五个随机种子、五观测节点、两目标、600 秒长弧通信扰动正式验收。
+
+本机正式运行的规模结果如下。耗时用于同一环境内的相对比较，不作为跨设备
+实时性承诺。
+
+| 观测节点 | 目标 | 时长/步长 | 最大位置误差 | 最大速度误差 | 平均每历元耗时 | PSD 失败 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 5 | 2 | 600 s / 10 s | 143.92 m | 2.586 m/s | 0.374 s | 0 |
+| 10 | 2 | 600 s / 10 s | 133.42 m | 2.537 m/s | 0.843 s | 0 |
+
+五随机种子通信扰动验收中，本地目标保持率均为 100%，最终协同状态可用率最低为
+90%，最大连续缺失为 3 个历元，节点恢复后最长 10 秒重新收到协同结果。最大位置
+误差为 242.43 m，最大速度误差为 2.581 m/s；拒收消息数和协方差 PSD 失败数均为 0。
 
 该端到端场景可通过以下命令重复执行：
 
 ```powershell
 python -m experiments.run_multitarget_multimodal_dynamic_visibility `
-  --duration 600 --dt 10 `
+  --duration 600 --dt 10 --observers 5 `
   --output results/multitarget_multimodal_dynamic_visibility/summary.json
+```
+
+通信扰动与拓扑切换可通过以下参数复现：
+
+```powershell
+python -m experiments.run_multitarget_multimodal_dynamic_visibility `
+  --duration 120 --dt 10 --observers 5 --seed 19 `
+  --communication-delay 10 --packet-loss 0.2 `
+  --outage-node observer-5 --outage-start 30 --outage-end 50 `
+  --topology fully_connected --topology-switch-time 60 `
+  --topology-after-switch chain
+```
+
+多随机种子长弧通信验收可通过以下命令重复执行：
+
+```powershell
+python -m experiments.run_multitarget_communication_robustness_acceptance `
+  --seeds 0 1 2 3 4 --duration 600 --dt 10 --observers 5
 ```
 
 ## 尚未覆盖
 
 - 自主新生航迹在强交叉、长时间遮挡条件下的跨节点全局身份管理；
-- 动态拓扑切换时的协同身份迁移；
+- 节点集合发生变化时的协同身份所有权迁移；
 - 超过三份报告时顺序 CI 与通用多元 CI 优化器的精度对比；
-- 完整光学、红外、雷达可见性场景下的五、十节点端到端验收；
 - UDP、跨进程部署和真实时钟性能测试。
 
 规模预扫描只验证当前目标级消息与 CI 路径，不代表完整多模态系统已经通过规模验收。

@@ -16,6 +16,21 @@ def main() -> None:
     parser.add_argument("--duration", type=float, default=600.0)
     parser.add_argument("--dt", type=float, default=10.0)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--observers", type=int, default=3)
+    parser.add_argument("--communication-delay", type=float, default=0.0)
+    parser.add_argument("--packet-loss", type=float, default=0.0)
+    parser.add_argument("--outage-node")
+    parser.add_argument("--outage-start", type=float)
+    parser.add_argument("--outage-end", type=float)
+    parser.add_argument(
+        "--topology", choices=("fully_connected", "chain", "ring"),
+        default="fully_connected",
+    )
+    parser.add_argument("--topology-switch-time", type=float)
+    parser.add_argument(
+        "--topology-after-switch",
+        choices=("fully_connected", "chain", "ring"),
+    )
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
 
@@ -23,6 +38,15 @@ def main() -> None:
         duration=args.duration,
         dt=args.dt,
         random_seed=args.seed,
+        observer_count=args.observers,
+        communication_delay_seconds=args.communication_delay,
+        packet_loss_rate=args.packet_loss,
+        outage_node_id=args.outage_node,
+        outage_start=args.outage_start,
+        outage_end=args.outage_end,
+        topology=args.topology,
+        topology_switch_time=args.topology_switch_time,
+        topology_after_switch=args.topology_after_switch,
     )
     payload = {
         "durationSeconds": result.timestamps[-1] - result.timestamps[0],
@@ -41,6 +65,25 @@ def main() -> None:
         "maximumFinalPositionErrorM": result.maximum_final_position_error_m,
         "maximumFinalVelocityErrorMps": result.maximum_final_velocity_error_mps,
         "covariancePsdFailureCount": result.covariance_psd_failure_count,
+        "receivedMessageCount": result.received_message_count,
+        "rejectedMessageCount": result.rejected_message_count,
+        "recoveredSourceEventCount": result.recovered_source_event_count,
+        "missingTargetEstimateCount": result.missing_target_estimate_count,
+        "outageEpochCount": result.outage_epoch_count,
+        "pendingMessageCountFinal": result.pending_message_count_final,
+        "maximumPositionErrorM": result.maximum_position_error_m,
+        "maximumVelocityErrorMps": result.maximum_velocity_error_mps,
+        "topologySwitchCount": result.topology_switch_count,
+        "finalTargetRetentionFraction": result.final_target_retention_fraction,
+        "finalConsensusAvailabilityFraction": (
+            result.final_consensus_availability_fraction
+        ),
+        "maximumConsecutiveMissingEpochs": (
+            result.maximum_consecutive_missing_epochs
+        ),
+        "outageRecoveryDelaySeconds": result.outage_recovery_delay_seconds,
+        "elapsedSeconds": result.elapsed_seconds,
+        "meanSecondsPerEpoch": result.elapsed_seconds / len(result.timestamps),
         "finalErrorsByNodeTarget": [
             {
                 "observerId": observer_id,

@@ -68,6 +68,33 @@ class DistributedTargetConsensus:
         self._last_timestamp: float | None = None
         self._links_awaiting_recovery: set[tuple[str, str]] = set()
 
+    def update_topology(self, topology: NetworkTopology) -> None:
+        """Switch communication edges while preserving per-node buffers.
+
+        The node set is fixed because tracker ownership does not migrate in
+        this component. Messages already in flight remain eligible for arrival;
+        newly added directed links are reported as recovered when their first
+        post-switch message arrives.
+        """
+
+        if set(topology.node_ids) != set(self.topology.node_ids):
+            raise ValueError("Dynamic topology updates must preserve the node set.")
+        new_links = {
+            (receiver_id, source_id)
+            for source_id in topology.node_ids
+            for receiver_id in topology.neighbors(source_id)
+        }
+        old_links = {
+            (receiver_id, source_id)
+            for source_id in self.topology.node_ids
+            for receiver_id in self.topology.neighbors(source_id)
+        }
+        self._links_awaiting_recovery = {
+            link for link in self._links_awaiting_recovery if link in new_links
+        }
+        self._links_awaiting_recovery.update(new_links - old_links)
+        self.topology = topology
+
     def step(
         self,
         *,
