@@ -27,6 +27,7 @@ class AutonomousIODManager:
         self,
         *,
         spatial_gate_m: float = 100_000.0,
+        bundle_clustering_gate_m: float | None = None,
         candidate_timeout_seconds: float = 120.0,
         iod_manager=None,
     ):
@@ -34,7 +35,17 @@ class AutonomousIODManager:
             raise ValueError("spatial_gate_m must be positive.")
         if candidate_timeout_seconds <= 0.0:
             raise ValueError("candidate_timeout_seconds must be positive.")
+        if (
+            bundle_clustering_gate_m is not None
+            and bundle_clustering_gate_m <= 0.0
+        ):
+            raise ValueError("bundle_clustering_gate_m must be positive.")
         self.spatial_gate_m = float(spatial_gate_m)
+        self.bundle_clustering_gate_m = float(
+            spatial_gate_m
+            if bundle_clustering_gate_m is None
+            else bundle_clustering_gate_m
+        )
         self.candidate_timeout_seconds = float(candidate_timeout_seconds)
         self.iod_manager = iod_manager or MultiTargetIODManager()
         self._candidates: dict[str, _Candidate] = {}
@@ -71,7 +82,9 @@ class AutonomousIODManager:
             self.retire_target(target_id)
 
     def _label_epoch(self, observations):
-        bundles = _make_bundles(observations, self.spatial_gate_m)
+        bundles = _make_bundles(
+            observations, self.bundle_clustering_gate_m,
+        )
         if not bundles:
             return ()
         target_ids = tuple(sorted(self._candidates))

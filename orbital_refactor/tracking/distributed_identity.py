@@ -7,6 +7,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 
 from cooperative.temporal_alignment import propagate_state_covariance
 
@@ -28,6 +29,7 @@ class TargetIdentityResolution:
     reports: tuple[TargetNodeReport, ...]
     assignments: tuple[TargetIdentityAssignment, ...]
     created_cooperative_target_ids: tuple[str, ...]
+    reacquired_cooperative_target_ids: tuple[str, ...] = ()
 
 
 @dataclass
@@ -48,6 +50,8 @@ class CooperativeTrackIdentityResolver:
         position_gate_m: float = 100_000.0,
         velocity_gate_mps: float = 500.0,
         process_noise_acceleration: float = 1e-4,
+        minimum_match_margin: float = 0.05,
+        max_reacquisition_gap_seconds: float = np.inf,
         target_prefix: str = "target-coop-",
         track_prefix: str = "track-coop-",
     ) -> None:
@@ -55,9 +59,17 @@ class CooperativeTrackIdentityResolver:
             raise ValueError("Identity gates must be positive.")
         if process_noise_acceleration < 0.0:
             raise ValueError("process_noise_acceleration cannot be negative.")
+        if minimum_match_margin < 0.0:
+            raise ValueError("minimum_match_margin cannot be negative.")
+        if max_reacquisition_gap_seconds <= 0.0:
+            raise ValueError("max_reacquisition_gap_seconds must be positive.")
         self.position_gate_m = float(position_gate_m)
         self.velocity_gate_mps = float(velocity_gate_mps)
         self.process_noise_acceleration = float(process_noise_acceleration)
+        self.minimum_match_margin = float(minimum_match_margin)
+        self.max_reacquisition_gap_seconds = float(
+            max_reacquisition_gap_seconds
+        )
         self.target_prefix = str(target_prefix)
         self.track_prefix = str(track_prefix)
         self._binding_by_local_key: dict[
@@ -66,6 +78,12 @@ class CooperativeTrackIdentityResolver:
         self._canonical_by_target: dict[str, _CanonicalTrack] = {}
         self._last_seen_by_local_key: dict[tuple[str, str, str], float] = {}
         self._next_index = 1
+
+    @property
+    def cooperative_target_ids(self) -> tuple[str, ...]:
+        """Return every persistent cooperative identity, including dormant ones."""
+
+        return tuple(sorted(self._canonical_by_target))
 
     def resolve(
         self,
@@ -85,16 +103,39 @@ class CooperativeTrackIdentityResolver:
         canonical_reports = []
         assignments = []
         created = []
+        reacquired = []
+        canonical_before_epoch = set(self._canonical_by_target)
 
+        reports_by_node: dict[str, list[TargetNodeReport]] = defaultdict(list)
         for report in values:
-            local_key = (report.observer_id, report.target_id, report.track_id)
-            identity = self._binding_by_local_key.get(local_key)
-            if identity is None:
-                identity = self._match_or_create(
-                    report,
-                    timestamp=timestamp,
-                    excluded_target_ids=occupied_by_node[report.observer_id],
-                )
+            reports_by_node[report.observer_id].append(report)
+        for observer_id, node_reports in reports_by_node.items():
+            identities: dict[int, tuple[str, str]] = {}
+            unresolved = []
+            for index, report in enumerate(node_reports):
+                local_key = (observer_id, report.target_id, report.track_id)
+                identity = self._binding_by_local_key.get(local_key)
+                if identity is None:
+                    unresolved.append((index, report))
+                    continue
+                if identity[0] in occupied_by_node[observer_id]:
+                    raise ValueError(
+                        "One node cannot bind two simultaneous local tracks to one "
+                        "cooperative target."
+                    )
+                identities[index] = identity
+                occupied_by_node[observer_id].add(identity[0])
+
+            matches = self._match_jointly(
+                [report for _, report in unresolved],
+                timestamp=timestamp,
+                excluded_target_ids=occupied_by_node[observer_id],
+            )
+            for (index, report), identity in zip(unresolved, matches):
+                if identity is None:
+                    identity = self._create_identity()
+                identities[index] = identity
+                local_key = (observer_id, report.target_id, report.track_id)
                 self._binding_by_local_key[local_key] = identity
                 if identity[0] not in self._canonical_by_target:
                     self._canonical_by_target[identity[0]] = _CanonicalTrack(
@@ -105,31 +146,33 @@ class CooperativeTrackIdentityResolver:
                         covariance_eci=report.covariance_eci.copy(),
                     )
                     created.append(identity[0])
-            if identity[0] in occupied_by_node[report.observer_id]:
-                raise ValueError(
-                    "One node cannot bind two simultaneous local tracks to one "
-                    "cooperative target."
-                )
-            occupied_by_node[report.observer_id].add(identity[0])
-            self._last_seen_by_local_key[local_key] = timestamp
-            canonical_reports.append(replace(
-                report,
-                target_id=identity[0],
-                track_id=identity[1],
-            ))
-            assignments.append(TargetIdentityAssignment(
-                observer_id=report.observer_id,
-                local_target_id=report.target_id,
-                local_track_id=report.track_id,
-                cooperative_target_id=identity[0],
-                cooperative_track_id=identity[1],
-            ))
+                elif identity[0] in canonical_before_epoch:
+                    reacquired.append(identity[0])
+                occupied_by_node[observer_id].add(identity[0])
+
+            for index, report in enumerate(node_reports):
+                identity = identities[index]
+                local_key = (observer_id, report.target_id, report.track_id)
+                self._last_seen_by_local_key[local_key] = timestamp
+                canonical_reports.append(replace(
+                    report,
+                    target_id=identity[0],
+                    track_id=identity[1],
+                ))
+                assignments.append(TargetIdentityAssignment(
+                    observer_id=observer_id,
+                    local_target_id=report.target_id,
+                    local_track_id=report.track_id,
+                    cooperative_target_id=identity[0],
+                    cooperative_track_id=identity[1],
+                ))
 
         self._refresh_canonical_tracks(canonical_reports)
         return TargetIdentityResolution(
             reports=tuple(canonical_reports),
             assignments=tuple(assignments),
             created_cooperative_target_ids=tuple(created),
+            reacquired_cooperative_target_ids=tuple(dict.fromkeys(reacquired)),
         )
 
     def retire_local_track(
@@ -180,17 +223,24 @@ class CooperativeTrackIdentityResolver:
             )
         return localized
 
-    def _match_or_create(
+    def _match_jointly(
         self,
-        report: TargetNodeReport,
+        reports: list[TargetNodeReport],
         *,
         timestamp: float,
         excluded_target_ids: set[str],
-    ) -> tuple[str, str]:
-        candidates = []
-        for target_id, track in self._canonical_by_target.items():
-            if target_id in excluded_target_ids:
-                continue
+    ) -> list[tuple[str, str] | None]:
+        if not reports:
+            return []
+        candidates = [
+            track for target_id, track in sorted(self._canonical_by_target.items())
+            if target_id not in excluded_target_ids
+            and timestamp - track.timestamp <= self.max_reacquisition_gap_seconds
+        ]
+        if not candidates:
+            return [None] * len(reports)
+        predicted = []
+        for track in candidates:
             state = track.state_eci
             if timestamp > track.timestamp:
                 state, _ = propagate_state_covariance(
@@ -199,20 +249,45 @@ class CooperativeTrackIdentityResolver:
                     timestamp - track.timestamp,
                     process_noise_acceleration=self.process_noise_acceleration,
                 )
-            position_error = float(np.linalg.norm(report.state_eci[:3] - state[:3]))
-            velocity_error = float(np.linalg.norm(report.state_eci[3:] - state[3:]))
-            if (
-                position_error <= self.position_gate_m
-                and velocity_error <= self.velocity_gate_mps
-            ):
-                score = (
-                    position_error / self.position_gate_m
-                    + velocity_error / self.velocity_gate_mps
-                )
-                candidates.append((score, target_id, track.track_id))
-        if candidates:
-            _, target_id, track_id = min(candidates)
-            return target_id, track_id
+            predicted.append(state)
+        costs = np.full((len(reports), len(candidates)), np.inf)
+        for row, report in enumerate(reports):
+            for column, state in enumerate(predicted):
+                position_error = float(np.linalg.norm(
+                    report.state_eci[:3] - state[:3]
+                ))
+                velocity_error = float(np.linalg.norm(
+                    report.state_eci[3:] - state[3:]
+                ))
+                if (
+                    position_error <= self.position_gate_m
+                    and velocity_error <= self.velocity_gate_mps
+                ):
+                    costs[row, column] = (
+                        position_error / self.position_gate_m
+                        + velocity_error / self.velocity_gate_mps
+                    )
+        safe = np.where(np.isfinite(costs), costs, 1e12)
+        rows, columns = linear_sum_assignment(safe)
+        matches: list[tuple[str, str] | None] = [None] * len(reports)
+        for row, column in zip(rows, columns):
+            score = float(costs[row, column])
+            if not np.isfinite(score):
+                continue
+            alternatives = np.delete(costs[row], column)
+            finite_alternatives = alternatives[np.isfinite(alternatives)]
+            margin = (
+                np.inf
+                if finite_alternatives.size == 0
+                else float(np.min(finite_alternatives) - score)
+            )
+            if margin < self.minimum_match_margin:
+                continue
+            track = candidates[column]
+            matches[row] = (track.target_id, track.track_id)
+        return matches
+
+    def _create_identity(self) -> tuple[str, str]:
         index = self._next_index
         self._next_index += 1
         return (

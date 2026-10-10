@@ -163,6 +163,35 @@ def test_unassigned_multimodal_detections_create_two_independent_iod_tracks():
     )
 
 
+def test_close_bundles_use_a_tighter_gate_than_cross_epoch_candidates():
+    observer = _state(-2.0)
+    first = np.array([7.0e6, -1_000.0, 0.0, 0.0, 7_500.0, 0.0])
+    second = np.array([7.0e6, 1_000.0, 0.0, 0.0, 7_500.0, 0.0])
+    manager = AutonomousIODManager(
+        spatial_gate_m=100_000.0,
+        bundle_clustering_gate_m=500.0,
+    )
+
+    manager.ingest((*_unlabeled(
+        "observer-1", 0.0, observer, first, group="first-0",
+    ), *_unlabeled(
+        "observer-1", 0.0, observer, second, group="second-0",
+    )))
+    moved_first = first.copy()
+    moved_second = second.copy()
+    moved_first[1] += 75_000.0
+    moved_second[1] += 75_000.0
+    manager.ingest((*_unlabeled(
+        "observer-1", 10.0, observer, moved_first, group="first-1",
+    ), *_unlabeled(
+        "observer-1", 10.0, observer, moved_second, group="second-1",
+    )))
+
+    assert manager.candidate_ids == (
+        "target-auto-0001", "target-auto-0002",
+    )
+
+
 def test_pipeline_routes_known_tracks_and_keeps_false_alarm_for_initiation():
     observer = _state(-2.0)
     known = _state(0.5)
