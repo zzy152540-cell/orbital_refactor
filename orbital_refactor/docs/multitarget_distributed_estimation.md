@@ -47,6 +47,9 @@
 - 原始无标签雷达、红外和光学图像链路的完整端到端验收：各节点独立完成
   自主 IOD、局部跟踪、航迹终止与重新 IOD，再执行全局身份恢复和目标级 CI。
   三个随机种子均无身份交换或错误全局新生，最大最终位置误差为 61.93 m。
+- 运行中动态成员变更：原身份创建节点退出、新节点加入并继承已有身份，随后
+  其余原节点全部退出。两个全局目标身份均保持不变，且退出节点的在途消息
+  不再参与后续 CI。
 
 本机正式运行的规模结果如下。耗时用于同一环境内的相对比较，不作为跨设备
 实时性承诺。
@@ -98,9 +101,14 @@ python -m experiments.run_multitarget_identity_reacquisition_acceptance
 python -m experiments.run_multitarget_autonomous_identity_acceptance --seed 0
 ```
 
+动态节点加入、退出和身份继承可通过以下命令执行：
+
+```powershell
+python -m experiments.run_multitarget_dynamic_membership_acceptance
+```
+
 ## 尚未覆盖
 
-- 节点集合发生变化时的协同身份所有权迁移；
 - 超过三份报告时顺序 CI 与通用多元 CI 优化器的精度对比；
 - UDP、跨进程部署和真实时钟性能测试。
 

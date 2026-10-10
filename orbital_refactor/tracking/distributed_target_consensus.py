@@ -13,7 +13,11 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 
-from cooperative.message_transport import MessageChannel, TypedMessageBuffer
+from cooperative.message_transport import (
+    MessageChannel,
+    TypedMessageBuffer,
+    message_source_id,
+)
 from cooperative.temporal_alignment import propagate_state_covariance
 from cooperative.topology import NetworkTopology
 
@@ -69,16 +73,15 @@ class DistributedTargetConsensus:
         self._links_awaiting_recovery: set[tuple[str, str]] = set()
 
     def update_topology(self, topology: NetworkTopology) -> None:
-        """Switch communication edges while preserving per-node buffers.
+        """Switch edges or membership while preserving valid in-flight data.
 
-        The node set is fixed because tracker ownership does not migrate in
-        this component. Messages already in flight remain eligible for arrival;
-        newly added directed links are reported as recovered when their first
-        post-switch message arrives.
+        Buffers belonging to retained nodes survive. Buffers for joining nodes
+        start empty, and messages originating from departed nodes are removed
+        so that stale membership cannot contribute to later CI updates.
         """
 
-        if set(topology.node_ids) != set(self.topology.node_ids):
-            raise ValueError("Dynamic topology updates must preserve the node set.")
+        old_node_ids = set(self.topology.node_ids)
+        new_node_ids = set(topology.node_ids)
         new_links = {
             (receiver_id, source_id)
             for source_id in topology.node_ids
@@ -93,6 +96,20 @@ class DistributedTargetConsensus:
             link for link in self._links_awaiting_recovery if link in new_links
         }
         self._links_awaiting_recovery.update(new_links - old_links)
+        retained_buffers = {
+            node_id: self._buffers[node_id]
+            for node_id in sorted(old_node_ids & new_node_ids)
+        }
+        for buffer in retained_buffers.values():
+            buffer.discard_where(
+                lambda message: message_source_id(message) not in new_node_ids
+            )
+        self._buffers = {
+            node_id: retained_buffers.get(
+                node_id, TypedMessageBuffer[TargetEstimateMessage](),
+            )
+            for node_id in topology.node_ids
+        }
         self.topology = topology
 
     def step(

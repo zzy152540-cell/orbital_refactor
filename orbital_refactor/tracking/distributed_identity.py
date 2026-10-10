@@ -187,6 +187,32 @@ class CooperativeTrackIdentityResolver:
         self._last_seen_by_local_key.pop(key, None)
         return removed
 
+    def remove_observer(self, observer_id: str) -> tuple[str, ...]:
+        """Release one departed observer without deleting global identities."""
+
+        node_id = str(observer_id)
+        keys = [
+            key for key in self._binding_by_local_key
+            if key[0] == node_id
+        ]
+        released = []
+        for key in keys:
+            cooperative_target_id, _ = self._binding_by_local_key.pop(key)
+            self._last_seen_by_local_key.pop(key, None)
+            released.append(cooperative_target_id)
+        return tuple(sorted(set(released)))
+
+    def observer_ids_for_target(self, cooperative_target_id: str) -> tuple[str, ...]:
+        """Return nodes currently bound to one persistent global identity."""
+
+        target_id = str(cooperative_target_id)
+        return tuple(sorted({
+            observer_id
+            for (observer_id, _local_target_id, _local_track_id), identity
+            in self._binding_by_local_key.items()
+            if identity[0] == target_id
+        }))
+
     def localize_estimates(
         self,
         *,

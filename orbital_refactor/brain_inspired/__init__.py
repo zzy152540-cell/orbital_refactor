@@ -104,6 +104,11 @@ from .navigation_graph_features import (
     build_navigation_graph_feature_histories,
     navigation_graph_metrics_at_timestamp,
 )
+from .multitarget_sidecar import (
+    MultiTargetBrainSidecar,
+    MultiTargetBrainSnapshot,
+    build_multitarget_brain_sidecar,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -146,4 +151,6 @@ __all__ = [
     "NAVIGATION_GRAPH_NODE_METRIC_NAMES", "NavigationGraphFeatureHistory",
     "build_navigation_graph_feature_histories",
     "navigation_graph_metrics_at_timestamp",
+    "MultiTargetBrainSidecar", "MultiTargetBrainSnapshot",
+    "build_multitarget_brain_sidecar",
 ]

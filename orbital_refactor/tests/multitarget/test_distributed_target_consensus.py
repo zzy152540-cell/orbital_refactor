@@ -276,3 +276,42 @@ def test_information_lineage_propagates_across_multiple_chain_hops():
     )
     assert "epoch-0:observer_d" in left_information
     assert "epoch-2:observer_a" in left_information
+
+
+def test_membership_change_discards_departed_inflight_messages():
+    consensus = DistributedTargetConsensus(
+        scene_id="scene",
+        topology=chain_topology(("observer_a", "observer_b")),
+        message_channel=MessageChannel(
+            delay_by_source={
+                "observer_a": 5.0,
+                "observer_b": 5.0,
+                "observer_c": 5.0,
+            },
+        ),
+    )
+    first = consensus.step(
+        timestamp=0.0,
+        local_reports=[
+            _report("observer_a", "target_01", 0.0),
+            _report("observer_b", "target_01", 0.0, offset=2.0),
+        ],
+    )
+    assert first.pending_message_count == 2
+
+    consensus.update_topology(
+        chain_topology(("observer_b", "observer_c")),
+    )
+    changed = consensus.step(
+        timestamp=1.0,
+        local_reports=[
+            _report("observer_b", "target_01", 1.0, offset=7502.0),
+            _report("observer_c", "target_01", 1.0, offset=7504.0),
+        ],
+    )
+
+    assert set(changed.estimates_by_node) == {"observer_b", "observer_c"}
+    assert changed.received_message_ids_by_node == {
+        "observer_b": (), "observer_c": (),
+    }
+    assert changed.pending_message_count == 2

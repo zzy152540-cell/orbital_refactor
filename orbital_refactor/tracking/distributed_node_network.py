@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
 import numpy as np
+from cooperative.topology import NetworkTopology
 
 from .association.online_tracker import (
     ConsensusFeedbackApplication,
@@ -31,6 +32,14 @@ class DistributedNodeNetworkUpdate:
     identity_resolution: TargetIdentityResolution | None = None
 
 
+@dataclass(frozen=True)
+class DistributedNodeMembershipUpdate:
+    added_node_ids: tuple[str, ...]
+    removed_node_ids: tuple[str, ...]
+    retained_node_ids: tuple[str, ...]
+    released_cooperative_target_ids: tuple[str, ...]
+
+
 class DistributedTargetNodeNetwork:
     """Run one isolated tracker per observer and exchange only target reports."""
 
@@ -49,6 +58,45 @@ class DistributedTargetNodeNetwork:
         self.trackers_by_node = trackers
         self.consensus = consensus
         self.identity_resolver = identity_resolver
+
+    def update_membership(
+        self,
+        *,
+        trackers_by_node: Mapping[str, OnlineMultiTargetTracker],
+        topology: NetworkTopology,
+    ) -> DistributedNodeMembershipUpdate:
+        """Atomically add or remove node runtimes and communication membership."""
+
+        trackers = dict(trackers_by_node)
+        if set(trackers) != set(topology.node_ids):
+            raise ValueError("Tracker node IDs must match the new topology.")
+        if any(tracker.scene_id != self.consensus.scene_id for tracker in trackers.values()):
+            raise ValueError("Every node tracker must use the consensus scene ID.")
+        old_node_ids = set(self.trackers_by_node)
+        new_node_ids = set(trackers)
+        retained = old_node_ids & new_node_ids
+        replaced = [
+            node_id for node_id in retained
+            if trackers[node_id] is not self.trackers_by_node[node_id]
+        ]
+        if replaced:
+            raise ValueError(
+                "Retained nodes must preserve their tracker runtimes: "
+                f"{sorted(replaced)}"
+            )
+        removed = tuple(sorted(old_node_ids - new_node_ids))
+        released = []
+        if self.identity_resolver is not None:
+            for node_id in removed:
+                released.extend(self.identity_resolver.remove_observer(node_id))
+        self.consensus.update_topology(topology)
+        self.trackers_by_node = trackers
+        return DistributedNodeMembershipUpdate(
+            added_node_ids=tuple(sorted(new_node_ids - old_node_ids)),
+            removed_node_ids=removed,
+            retained_node_ids=tuple(sorted(retained)),
+            released_cooperative_target_ids=tuple(sorted(set(released))),
+        )
 
     def step(
         self,

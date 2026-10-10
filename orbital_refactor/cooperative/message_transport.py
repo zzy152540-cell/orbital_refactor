@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Generic, Mapping, TypeVar
+from typing import Callable, Generic, Mapping, TypeVar
 
 import numpy as np
 
@@ -131,6 +131,15 @@ class TypedMessageBuffer(Generic[MessageT]):
                 message_identity(message),
             ),
         )
+
+    def discard_where(self, predicate: Callable[[MessageT], bool]) -> int:
+        """Discard buffered messages matching a membership or validity rule."""
+
+        retained = [message for message in self.messages if not predicate(message)]
+        removed = len(self.messages) - len(retained)
+        self.messages = retained
+        self._keys = {message_identity(message) for message in retained}
+        return removed
 
     def __len__(self) -> int:
         return len(self.messages)

@@ -25,6 +25,7 @@ from .distributed_online_tracker import (
     DistributedOnlineTrackingUpdate,
 )
 from .distributed_node_network import (
+    DistributedNodeMembershipUpdate,
     DistributedNodeNetworkUpdate,
     DistributedTargetNodeNetwork,
 )
@@ -122,6 +123,7 @@ __all__ = [
     "DistributedOnlineMultiTargetTracker",
     "DistributedOnlineTrackingUpdate",
     "DistributedNodeNetworkUpdate",
+    "DistributedNodeMembershipUpdate",
     "DistributedTargetNodeNetwork",
     "CooperativeTrackIdentityResolver",
     "TargetIdentityAssignment",
