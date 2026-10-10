@@ -256,6 +256,92 @@ def display_telemetry_datagram(
     return message
 
 
+def build_multitarget_brain_display_frames(
+    trajectory: Mapping[str, Any], sidecar: Any,
+) -> list[list[dict[str, Any]]]:
+    """Adapt a cooperative-target brain sidecar to display telemetry.
+
+    The trajectory schema is not modified.  Returned items are supplied to
+    ``build_display_telemetry(..., cann_by_frame=...)`` and subsequently sent
+    as independent ``DISPLAY_TELEMETRY`` UDP datagrams.
+    """
+
+    frames = trajectory.get("frames")
+    if not isinstance(frames, list) or not frames:
+        raise ValueError("Trajectory must contain frames for CANN generation.")
+    sidecar_times = np.asarray(getattr(sidecar, "timestamps", ()), dtype=float)
+    if sidecar_times.shape != (len(frames),):
+        raise ValueError("Brain sidecar and trajectory frame counts must match.")
+    trajectory_times = np.asarray([
+        (int(frame["timeMs"]) - int(frames[0]["timeMs"])) / 1000.0
+        for frame in frames
+    ])
+    if not np.allclose(
+        sidecar_times - sidecar_times[0], trajectory_times,
+        rtol=0.0, atol=1.0e-9,
+    ):
+        raise ValueError("Brain sidecar timestamps do not align with trajectory.")
+
+    first_items = frames[0].get("satelliteList")
+    if not isinstance(first_items, list) or not first_items:
+        raise ValueError("Trajectory must contain target states.")
+    satellite_ids = {
+        str(item["satObj"]): int(item["satId"]) for item in first_items
+    }
+    target_ids = set(getattr(sidecar, "navigation_by_target", {}))
+    if target_ids != set(satellite_ids):
+        missing = sorted(set(satellite_ids) - target_ids)
+        unexpected = sorted(target_ids - set(satellite_ids))
+        raise ValueError(
+            "Brain sidecar target set does not match trajectory; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
+    centers = [-2_000.0, 0.0, 2_000.0]
+    output = []
+    for index in range(len(frames)):
+        items = []
+        for target_id in sorted(target_ids):
+            snapshot = sidecar.snapshot(target_id, index)
+            direction = sidecar.direction_by_target[target_id]
+            saturated = bool(
+                sidecar.navigation_by_target[target_id].boundary_saturated[index]
+                or sidecar.place_cells_by_target[
+                    target_id
+                ].boundary_saturated[index]
+            )
+            items.append({
+                "satObj": target_id,
+                "satId": satellite_ids[target_id],
+                "activityEncoding": "UINT8_NORMALIZED",
+                "brainStateSource": "COOPERATIVE_TARGET_POSTERIOR",
+                "directionRingNeuronCount": int(snapshot.direction_ring.size),
+                "directionPhaseType": "ABSOLUTE_ARGUMENT_OF_LATITUDE",
+                "directionZeroReference": "ASCENDING_NODE",
+                "directionRing": _quantize_activity(snapshot.direction_ring),
+                "directionDegrees": float(
+                    np.degrees(snapshot.decoded_phase_rad) % 360.0
+                ),
+                "directionConcentration": float(
+                    direction.bump_concentration[index]
+                ),
+                "directionBumpWidth": float(direction.bump_width[index]),
+                "positionHeatmapShape": [3, 3],
+                "positionHeatmapRadialCentersM": centers.copy(),
+                "positionHeatmapAlongTrackCentersM": centers.copy(),
+                "positionHeatmap": _quantize_activity(
+                    snapshot.place_heatmap_3x3
+                ),
+                "decodedRadialAlongTrackM": [
+                    float(value) for value in snapshot.decoded_rt_m
+                ],
+                "valid": bool(snapshot.valid),
+                "status": "BOUNDARY_SATURATED" if saturated else "OK",
+            })
+        output.append(items)
+    return output
+
+
 def build_cann_display_frames(
     trajectory: Mapping[str, Any],
 ) -> list[list[dict[str, Any]]]:

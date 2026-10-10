@@ -4,11 +4,13 @@ import pytest
 from exporters.display_telemetry import (
     build_cann_display_frames,
     build_display_telemetry,
+    build_multitarget_brain_display_frames,
     display_telemetry_datagram,
     dumps_display_telemetry,
     encode_display_telemetry_datagram,
     validate_display_telemetry,
 )
+from brain_inspired import build_multitarget_brain_sidecar
 
 
 def _trajectory():
@@ -164,3 +166,64 @@ def test_display_datagram_includes_optional_cann_without_touching_trajectory():
     assert message["cannBySatellite"][0]["directionRing"] == [0, 255]
     assert message["cannBySatellite"][0]["satId"] == 1
     assert "cannBySatellite" not in trajectory["frames"][0]
+
+
+def test_multitarget_brain_sidecar_uses_existing_display_udp_contract():
+    trajectory = _trajectory()
+    second = {
+        "frameIndex": 1, "time": "2026-09-18 04:00:01.000", "timeMs": 2000,
+        "satelliteList": [],
+    }
+    histories = {"a": [], "b": []}
+    for frame_index, angle in enumerate((0.0, 0.001)):
+        frame = trajectory["frames"][0] if frame_index == 0 else second
+        items = []
+        for item_index, target_id in enumerate(("a", "b")):
+            radius = 7.0e6 + item_index * 1.0e5
+            target_angle = angle + item_index * 0.1
+            state = np.array([
+                radius * np.cos(target_angle),
+                radius * np.sin(target_angle), 0.0,
+                -7500.0 * np.sin(target_angle),
+                7500.0 * np.cos(target_angle), 0.0,
+            ])
+            histories[target_id].append(state)
+            items.append({
+                "satObj": target_id, "satId": item_index + 1,
+                "position": dict(zip(
+                    ("x", "y", "z", "vx", "vy", "vz"), state,
+                )),
+            })
+        frame["satelliteList"] = items
+    trajectory["frames"].append(second)
+    sidecar = build_multitarget_brain_sidecar(
+        timestamps=np.array([0.0, 1.0]),
+        state_history_by_target={
+            target_id: np.asarray(states)
+            for target_id, states in histories.items()
+        },
+    )
+
+    cann = build_multitarget_brain_display_frames(trajectory, sidecar)
+    telemetry = build_display_telemetry(
+        trajectory,
+        [{target: state[index] for target, state in {
+            key: np.asarray(value) for key, value in histories.items()
+        }.items()} for index in range(2)],
+        cann_by_frame=cann,
+    )
+    message = display_telemetry_datagram(telemetry, 1)
+
+    assert len(message["cannBySatellite"]) == 2
+    assert message["cannBySatellite"][0]["brainStateSource"] == (
+        "COOPERATIVE_TARGET_POSTERIOR"
+    )
+    assert message["cannBySatellite"][0]["directionRingNeuronCount"] == 180
+    assert len(message["cannBySatellite"][0]["directionRing"]) == 180
+    assert len(message["cannBySatellite"][0]["positionHeatmap"]) == 9
+    assert list(trajectory["frames"][0]["satelliteList"][0]["position"]) == [
+        "x", "y", "z", "vx", "vy", "vz",
+    ]
+    assert b'"messageType":"DISPLAY_TELEMETRY"' in (
+        encode_display_telemetry_datagram(message)
+    )

@@ -33,3 +33,20 @@ observer A leaves, observer C joins, and observer B later leaves.  It also
 checks that all target-keyed brain states remain valid, that the direction
 ring has 180 neurons, and that each 3 x 3 heatmap is normalized.  UDP
 serialization and real-time transport are deliberately outside this stage.
+
+## UDP display adaptation
+
+`build_multitarget_brain_display_frames` converts the sidecar into the existing
+`cannBySatellite` display structure.  It does not add fields to, remove fields
+from, or rename fields in `TRAJECTORY-2.0`; in particular the trajectory state
+remains `x, y, z, vx, vy, vz`.
+
+At each clock epoch the established publisher can send two independent JSON
+datagrams on the same UDP destination:
+
+1. `messageType=TRAJECTORY_FRAME`, `type=TRAJECTORY`;
+2. `messageType=DISPLAY_TELEMETRY`, `type=VISUALIZATION`.
+
+The second datagram contains estimation metrics and the target-keyed
+`cannBySatellite` array.  Receivers distinguish the two payloads using
+`messageType`; no UDP fragmentation scheme has been introduced.
