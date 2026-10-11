@@ -239,6 +239,51 @@ def test_http_receiver_rejects_bad_token():
         thread.join(timeout=2)
 
 
+def test_http_receiver_supports_non_conflicting_extension_post_route():
+    controller, _clock = _controller()
+    received = []
+
+    def accept_frame(payload):
+        received.append(payload)
+        return 202, {"code": 202, "acceptedFrameIndex": payload["frameIndex"]}
+
+    server = create_scene_control_server(
+        controller,
+        "127.0.0.1",
+        0,
+        post_routes={"/api/external/scene/measurement-frame": accept_frame},
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        request = Request(
+            f"http://127.0.0.1:{server.server_address[1]}"
+            "/api/external/scene/measurement-frame",
+            data=json.dumps({"frameIndex": 7}).encode(),
+            headers={"Content-Type": "application/json;charset=UTF-8"},
+            method="POST",
+        )
+        with urlopen(request, timeout=2) as response:
+            result = json.load(response)
+        assert result == {"code": 202, "acceptedFrameIndex": 7}
+        assert received == [{"frameIndex": 7}]
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_http_receiver_does_not_allow_replacing_control_routes():
+    controller, _clock = _controller()
+    with pytest.raises(ValueError, match="cannot replace"):
+        create_scene_control_server(
+            controller,
+            post_routes={
+                "/api/external/scene/run-state": lambda payload: (200, payload),
+            },
+        )
+
+
 def test_runtime_diagnostics_are_separate_from_standard_status():
     controller, _clock = _controller()
     original_status_keys = set(controller.snapshot())

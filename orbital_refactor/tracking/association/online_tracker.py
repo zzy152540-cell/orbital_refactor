@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 
 import numpy as np
 
+from brain_inspired.measurement_preprocessor import (
+    MeasurementPreprocessor,
+    validate_preprocessed_stream,
+)
 from interfaces.data_objects import InitialState, ModuleInput
 from orbital_core.dynamics import make_process_noise
 from tracking.cooperative_pipeline import run_cooperative_target_fusion
@@ -36,6 +40,7 @@ class OnlineTrackingUpdate:
     retired_target_ids: tuple[str, ...]
     merged_target_aliases: Mapping[str, str]
     local_reports: tuple[TargetNodeReport, ...]
+    cann_preprocessed_observation_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -59,6 +64,9 @@ class OnlineMultiTargetTracker:
         maneuver_detector: ManeuverDetector | None = None,
         duplicate_track_resolver: DuplicateTrackResolver | None = None,
         initial_states: Mapping[str, TargetInitialState] | None = None,
+        measurement_preprocessor_factory: Callable[
+            [str, str], MeasurementPreprocessor
+        ] | None = None,
     ):
         self.scene_id = str(scene_id)
         self.association_pipeline = association_pipeline or MultiTargetAssociationPipeline()
@@ -69,6 +77,11 @@ class OnlineMultiTargetTracker:
         self.duplicate_track_resolver = (
             duplicate_track_resolver or DuplicateTrackResolver()
         )
+        self.measurement_preprocessor_factory = measurement_preprocessor_factory
+        self._measurement_preprocessor_by_stream: dict[
+            tuple[str, str], MeasurementPreprocessor
+        ] = {}
+        self._last_preprocessed_observation_count = 0
         configured_initial_states = dict(initial_states or {})
         self._manager: TrackManager | None = (
             TrackManager(
@@ -226,6 +239,11 @@ class OnlineMultiTargetTracker:
                     for key, value in self._local_prior_information_ids.items()
                     if key[1] != target_id
                 }
+                self._measurement_preprocessor_by_stream = {
+                    key: value
+                    for key, value in self._measurement_preprocessor_by_stream.items()
+                    if key[1] != target_id
+                }
             self._manager.remove_terminated()
         else:
             reported_tracks = dict(self.tracks)
@@ -240,6 +258,9 @@ class OnlineMultiTargetTracker:
             retired_target_ids=retired_target_ids,
             merged_target_aliases=dict(resolution.aliases),
             local_reports=tuple(reports),
+            cann_preprocessed_observation_count=(
+                self._last_preprocessed_observation_count
+            ),
         )
 
     def _register_births(self, births):
@@ -258,6 +279,7 @@ class OnlineMultiTargetTracker:
             self._manager.register(state)
 
     def _run_local_updates(self, epoch, routed: AssociationPipelineUpdate):
+        self._last_preprocessed_observation_count = 0
         grouped = defaultdict(list)
         for target_id, items in routed.observations_by_target.items():
             for item in items:
@@ -286,6 +308,12 @@ class OnlineMultiTargetTracker:
                 )
                 for item in items
             ]
+            observations = self._preprocess_measurements(
+                observer_id=observer_id,
+                target_id=target_id,
+                observations=observations,
+                timestamp=epoch,
+            )
             dt = epoch - prior.timestamp
             process_noise_scale = self.maneuver_detector.process_noise_scale(target_id)
             module_input = ModuleInput(
@@ -347,4 +375,27 @@ class OnlineMultiTargetTracker:
                 report.used_measurement_ids
             )
         return reports
+
+    def _preprocess_measurements(
+        self, *, observer_id, target_id, observations, timestamp,
+    ):
+        if self.measurement_preprocessor_factory is None:
+            return observations
+        key = (str(observer_id), str(target_id))
+        processor = self._measurement_preprocessor_by_stream.get(key)
+        if processor is None:
+            processor = self.measurement_preprocessor_factory(*key)
+            if processor is None or not callable(getattr(processor, "process", None)):
+                raise TypeError(
+                    "measurement_preprocessor_factory must return a processor."
+                )
+            self._measurement_preprocessor_by_stream[key] = processor
+        processed = processor.process(
+            list(observations), np.asarray([timestamp], dtype=float),
+        )
+        result = validate_preprocessed_stream(
+            observations, processed, observer_id=observer_id,
+        )
+        self._last_preprocessed_observation_count += len(result)
+        return result
 

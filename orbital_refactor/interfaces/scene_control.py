@@ -350,8 +350,23 @@ def create_scene_control_server(
     port: int = 8080,
     *,
     auth_token: str | None = None,
+    post_routes: Mapping[
+        str, Callable[[Mapping[str, Any]], tuple[int, Mapping[str, Any]]]
+    ] | None = None,
 ) -> ThreadingHTTPServer:
     """Create, but do not start, the SCENE-CTRL HTTP server."""
+
+    extension_routes = dict(post_routes or {})
+    reserved_routes = {
+        "/api/external/scene/activate",
+        "/api/external/scene/run-state",
+        "/api/external/scene/speed",
+        "/api/external/scene/stop",
+    }
+    if reserved_routes.intersection(extension_routes):
+        raise ValueError("Custom POST routes cannot replace scene-control routes.")
+    if any(not path.startswith("/") for path in extension_routes):
+        raise ValueError("Custom POST route paths must start with '/'.")
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "SceneControl/2.0"
@@ -397,6 +412,7 @@ def create_scene_control_server(
                         "/api/external/scene/run-state": controller.set_run_state,
                         "/api/external/scene/speed": controller.set_speed,
                         "/api/external/scene/stop": controller.stop,
+                        **extension_routes,
                     }
                     if parsed.path not in routes:
                         raise SceneControlError(404, "endpoint does not exist")

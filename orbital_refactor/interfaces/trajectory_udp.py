@@ -222,6 +222,14 @@ class TrajectoryUdpPublisher:
         )
         return self._socket.sendto(encoded, self.destination)
 
+    def send_trajectory_message(self, message: Mapping[str, Any]) -> int:
+        """Send one already-built online trajectory datagram."""
+
+        encoded = encode_trajectory_datagram(
+            message, maximum_bytes=self.maximum_bytes,
+        )
+        return self._socket.sendto(encoded, self.destination)
+
     def send_display_telemetry_frame(
         self, telemetry: Mapping[str, Any], frame_index: int,
     ) -> int:
@@ -233,6 +241,18 @@ class TrajectoryUdpPublisher:
         )
 
         message = display_telemetry_datagram(telemetry, frame_index)
+        encoded = encode_display_telemetry_datagram(
+            message, maximum_bytes=self.maximum_bytes,
+        )
+        return self._socket.sendto(encoded, self.destination)
+
+    def send_display_telemetry_message(
+        self, message: Mapping[str, Any],
+    ) -> int:
+        """Send one already-built online display datagram."""
+
+        from exporters.display_telemetry import encode_display_telemetry_datagram
+
         encoded = encode_display_telemetry_datagram(
             message, maximum_bytes=self.maximum_bytes,
         )

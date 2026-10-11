@@ -109,6 +109,7 @@ from .multitarget_sidecar import (
     MultiTargetBrainSnapshot,
     build_multitarget_brain_sidecar,
 )
+from .online_multitarget_sidecar import OnlineMultiTargetBrainSidecar
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -153,4 +154,5 @@ __all__ = [
     "navigation_graph_metrics_at_timestamp",
     "MultiTargetBrainSidecar", "MultiTargetBrainSnapshot",
     "build_multitarget_brain_sidecar",
+    "OnlineMultiTargetBrainSidecar",
 ]
