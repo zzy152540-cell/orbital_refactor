@@ -43,6 +43,20 @@ observer, target, modality, and timestamp are checked before filtering. This
 adapts the original CANN measurement front end without granting it ownership of
 the target state, covariance, or CI result.
 
+The deployable service can enable the persistent incremental implementation:
+
+```text
+--enable-measurement-cann --cann-profile realtime
+```
+
+The `realtime` profile uses a 90-neuron infrared ring with a 2 ms internal
+integration step. The `research` profile retains 180 neurons and 1 ms. Radar
+Line CANN and optical Plane CANN do not use the small-step recurrent integrator.
+Every observer/target stream owns independent modality states, advances only
+the current epoch, and never reconstructs or replays its prior history.
+`cannMeasurementPreprocessingMs` reports the measured per-frame preprocessing
+cost. The feature remains opt-in until full-scale acceptance is complete.
+
 `OnlineMultiTargetRuntime.publish` sends both messages to the same configured
 UDP destination.  Receivers distinguish them using `messageType`.
 

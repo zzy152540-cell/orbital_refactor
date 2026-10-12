@@ -6,6 +6,10 @@ from urllib.request import Request, urlopen
 import numpy as np
 
 from brain_inspired.cann_measurement_adapter import preprocess_observation
+from brain_inspired.incremental_measurement_preprocessor import (
+    IncrementalMultimodalCANNConfig,
+    IncrementalMultimodalCANNPreprocessor,
+)
 from exporters.display_telemetry import encode_display_telemetry_datagram
 import pytest
 
@@ -159,10 +163,44 @@ def test_online_runtime_uses_persistent_per_stream_cann_preprocessors():
     assert outputs[-1].display_message["estimation"][
         "cannPreprocessedObservationCount"
     ] > 0
+    assert outputs[-1].display_message["estimation"][
+        "cannMeasurementPreprocessingMs"
+    ] >= 0.0
     assert all(
         observation.metadata.get("cann_diagnostics", {}).get("testPreprocessor")
         for processor in processors.values()
         for observation in processor.processed
+    )
+
+
+def test_online_runtime_runs_real_incremental_cann_per_frame():
+    payload = _payload()
+    tracker = OnlineMultiTargetTracker(
+        scene_id="json-replay-two-targets",
+        measurement_preprocessor_factory=lambda _observer, _target: (
+            IncrementalMultimodalCANNPreprocessor(
+                IncrementalMultimodalCANNConfig(profile="realtime"),
+            )
+        ),
+    )
+    runtime = OnlineMultiTargetRuntime(
+        scene_id="json-replay-two-targets",
+        time_base_id="TB-ONLINE",
+        dataset_id="ONLINE-IOD",
+        start_time_ms=1_789_704_000_000,
+        sample_interval_seconds=10.0,
+        tracker=tracker,
+    )
+
+    outputs = [runtime.process_frame(frame) for frame in payload["frames"]]
+    diagnostics = outputs[-1].display_message["estimation"]
+
+    assert diagnostics["cannPreprocessedObservationCount"] > 0
+    assert diagnostics["cannMeasurementPreprocessingMs"] > 0.0
+    assert tracker._measurement_preprocessor_by_stream
+    assert all(
+        processor.performance.call_count > 0
+        for processor in tracker._measurement_preprocessor_by_stream.values()
     )
 
 

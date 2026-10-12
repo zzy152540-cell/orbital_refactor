@@ -7,6 +7,10 @@ from datetime import datetime, timezone
 import threading
 
 from adapters.external_scene_input import adapt_external_scene_input
+from brain_inspired.incremental_measurement_preprocessor import (
+    IncrementalMultimodalCANNConfig,
+    IncrementalMultimodalCANNPreprocessor,
+)
 from interfaces.online_multitarget_runtime import (
     ONLINE_MEASUREMENT_FRAME_PATH,
     OnlineMultiTargetRuntime,
@@ -19,6 +23,7 @@ from interfaces.scene_control import (
     create_scene_control_server,
 )
 from interfaces.trajectory_udp import TrajectoryUdpPublisher
+from tracking.association import OnlineMultiTargetTracker
 
 
 def _time_ms(value: str) -> int:
@@ -46,6 +51,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--sample-interval-ms", type=int, choices=(1000,), default=1000)
     parser.add_argument("--speed", type=int, choices=sorted(ALLOWED_SPEEDS), default=1)
     parser.add_argument("--auth-token", default=None)
+    parser.add_argument(
+        "--enable-measurement-cann", action="store_true",
+        help="Enable persistent incremental radar/infrared/optical CANN preprocessing.",
+    )
+    parser.add_argument(
+        "--cann-profile", choices=("realtime", "research"), default="realtime",
+        help="Realtime uses 90 ring neurons/2 ms; research uses 180/1 ms.",
+    )
     return parser
 
 
@@ -87,12 +100,24 @@ def main() -> None:
         activation_validator=_activation_validator(config),
     )
     def fresh_runtime():
+        tracker = None
+        if args.enable_measurement_cann:
+            cann_config = IncrementalMultimodalCANNConfig(
+                profile=args.cann_profile,
+            )
+            tracker = OnlineMultiTargetTracker(
+                scene_id=args.scene_id,
+                measurement_preprocessor_factory=lambda _observer, _target: (
+                    IncrementalMultimodalCANNPreprocessor(cann_config)
+                ),
+            )
         return OnlineMultiTargetRuntime(
             scene_id=args.scene_id,
             time_base_id=args.time_base_id,
             dataset_id=args.dataset_id,
             start_time_ms=args.start_time,
             sample_interval_seconds=args.sample_interval_ms / 1000.0,
+            tracker=tracker,
         )
 
     with TrajectoryUdpPublisher(args.udp_host, args.udp_port) as publisher:
@@ -111,6 +136,11 @@ def main() -> None:
             f"{server.server_address[1]}; measurement frames: "
             f"POST {ONLINE_MEASUREMENT_FRAME_PATH}; UDP -> "
             f"{args.udp_host}:{args.udp_port}",
+            flush=True,
+        )
+        print(
+            f"measurement CANN: "
+            f"{'enabled (' + args.cann_profile + ')' if args.enable_measurement_cann else 'disabled'}",
             flush=True,
         )
         stop_monitor = threading.Event()

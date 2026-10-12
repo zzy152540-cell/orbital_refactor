@@ -110,6 +110,11 @@ from .multitarget_sidecar import (
     build_multitarget_brain_sidecar,
 )
 from .online_multitarget_sidecar import OnlineMultiTargetBrainSidecar
+from .incremental_measurement_preprocessor import (
+    IncrementalCANNPerformance,
+    IncrementalMultimodalCANNConfig,
+    IncrementalMultimodalCANNPreprocessor,
+)
 
 __all__ = [
     "OrbitalPhaseSidecarHistory", "run_orbital_phase_sidecar",
@@ -155,4 +160,6 @@ __all__ = [
     "MultiTargetBrainSidecar", "MultiTargetBrainSnapshot",
     "build_multitarget_brain_sidecar",
     "OnlineMultiTargetBrainSidecar",
+    "IncrementalCANNPerformance", "IncrementalMultimodalCANNConfig",
+    "IncrementalMultimodalCANNPreprocessor",
 ]

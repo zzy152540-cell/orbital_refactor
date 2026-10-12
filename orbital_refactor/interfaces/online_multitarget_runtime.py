@@ -214,6 +214,9 @@ class OnlineMultiTargetRuntime:
                 "cannPreprocessedObservationCount": (
                     update.cann_preprocessed_observation_count
                 ),
+                "cannMeasurementPreprocessingMs": float(
+                    update.cann_preprocessing_seconds * 1_000.0
+                ),
             },
             "cannBySatellite": [
                 _brain_item(

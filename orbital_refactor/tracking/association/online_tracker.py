@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
+import time
 
 import numpy as np
 
@@ -41,6 +42,7 @@ class OnlineTrackingUpdate:
     merged_target_aliases: Mapping[str, str]
     local_reports: tuple[TargetNodeReport, ...]
     cann_preprocessed_observation_count: int = 0
+    cann_preprocessing_seconds: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -82,6 +84,7 @@ class OnlineMultiTargetTracker:
             tuple[str, str], MeasurementPreprocessor
         ] = {}
         self._last_preprocessed_observation_count = 0
+        self._last_preprocessing_seconds = 0.0
         configured_initial_states = dict(initial_states or {})
         self._manager: TrackManager | None = (
             TrackManager(
@@ -261,6 +264,7 @@ class OnlineMultiTargetTracker:
             cann_preprocessed_observation_count=(
                 self._last_preprocessed_observation_count
             ),
+            cann_preprocessing_seconds=self._last_preprocessing_seconds,
         )
 
     def _register_births(self, births):
@@ -280,6 +284,7 @@ class OnlineMultiTargetTracker:
 
     def _run_local_updates(self, epoch, routed: AssociationPipelineUpdate):
         self._last_preprocessed_observation_count = 0
+        self._last_preprocessing_seconds = 0.0
         grouped = defaultdict(list)
         for target_id, items in routed.observations_by_target.items():
             for item in items:
@@ -390,9 +395,11 @@ class OnlineMultiTargetTracker:
                     "measurement_preprocessor_factory must return a processor."
                 )
             self._measurement_preprocessor_by_stream[key] = processor
+        started = time.perf_counter()
         processed = processor.process(
             list(observations), np.asarray([timestamp], dtype=float),
         )
+        self._last_preprocessing_seconds += time.perf_counter() - started
         result = validate_preprocessed_stream(
             observations, processed, observer_id=observer_id,
         )
