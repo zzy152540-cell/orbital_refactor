@@ -44,7 +44,10 @@ class _RecordingPreprocessor:
             preprocess_observation(
                 item,
                 measurement=item.measurement,
-                diagnostics={"testPreprocessor": True},
+                diagnostics={
+                    "testPreprocessor": True,
+                    "test_substituted": True,
+                },
             )
             for item in observations
         ]
@@ -166,6 +169,7 @@ def test_online_runtime_uses_persistent_per_stream_cann_preprocessors():
     assert outputs[-1].display_message["estimation"][
         "cannMeasurementPreprocessingMs"
     ] >= 0.0
+    assert sum(tracker._last_cann_action_counts.values()) > 0
     assert all(
         observation.metadata.get("cann_diagnostics", {}).get("testPreprocessor")
         for processor in processors.values()

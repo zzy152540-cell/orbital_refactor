@@ -32,6 +32,14 @@ from scenarios.walker_scenario import (
     WalkerSatelliteElements,
     generate_walker_delta_scenario,
 )
+from scenarios.bilateral_multitarget import (
+    TEMPORARY_FRIENDLY_STATE_ASSUMPTION,
+    BilateralMultiTargetScenario,
+    BilateralWalkerTruth,
+    HostileTargetRegistry,
+    build_bilateral_acceptance_scenario,
+    generate_bilateral_walker_truth,
+)
 
 __all__ = [
     "AttitudeTruthTrajectory",
@@ -47,6 +55,12 @@ __all__ = [
     "WalkerDeltaConfig",
     "WalkerDeltaScenario",
     "WalkerSatelliteElements",
+    "TEMPORARY_FRIENDLY_STATE_ASSUMPTION",
+    "BilateralMultiTargetScenario",
+    "BilateralWalkerTruth",
+    "HostileTargetRegistry",
+    "build_bilateral_acceptance_scenario",
+    "generate_bilateral_walker_truth",
     "centered_along_track_offsets",
     "evaluate_inter_satellite_visibility",
     "generate_inter_satellite_observation_opportunities",

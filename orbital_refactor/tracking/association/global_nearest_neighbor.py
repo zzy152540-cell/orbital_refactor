@@ -19,6 +19,8 @@ def associate_to_tracks(
     *,
     gate_squared_mahalanobis: float = 13.815510557964274,
     minimum_cost_margin: float = 2.0,
+    prediction_position_sigma_floor_m: float = 50.0,
+    prediction_velocity_sigma_floor_mps: float = 0.25,
 ) -> AssociationResult:
     """Joint multimodal GNN association with conservative ambiguity rejection."""
 
@@ -27,6 +29,10 @@ def associate_to_tracks(
         raise ValueError("gate_squared_mahalanobis must be positive.")
     if minimum_cost_margin < 0.0:
         raise ValueError("minimum_cost_margin must be non-negative.")
+    if prediction_position_sigma_floor_m < 0.0:
+        raise ValueError("prediction_position_sigma_floor_m must be non-negative.")
+    if prediction_velocity_sigma_floor_mps < 0.0:
+        raise ValueError("prediction_velocity_sigma_floor_mps must be non-negative.")
     if any(not isinstance(item, UnlabeledIODObservation) for item in values):
         raise TypeError("associate_to_tracks requires UnlabeledIODObservation values.")
     channels = defaultdict(list)
@@ -39,9 +45,27 @@ def associate_to_tracks(
     assigned_indices = set()
     ambiguous_indices = set()
     target_items = tuple(sorted(tracks.items()))
+    prediction_cache = {}
     for indices in channels.values():
         if not target_items:
             continue
+        timestamp = values[indices[0]].timestamp
+        predicted_target_items = []
+        for target_id, estimate in target_items:
+            key = (timestamp, target_id)
+            if key not in prediction_cache:
+                prediction_cache[key] = _predict_estimate(
+                    estimate,
+                    timestamp=timestamp,
+                    prediction_position_sigma_floor_m=(
+                        prediction_position_sigma_floor_m
+                    ),
+                    prediction_velocity_sigma_floor_mps=(
+                        prediction_velocity_sigma_floor_mps
+                    ),
+                )
+            predicted_target_items.append((target_id, prediction_cache[key]))
+        predicted_target_items = tuple(predicted_target_items)
         grouped = defaultdict(list)
         ungrouped = defaultdict(list)
         for index in indices:
@@ -57,7 +81,7 @@ def associate_to_tracks(
         for units in unit_sets:
             unit_matches, unit_ambiguous = _assign_units(
                 units,
-                target_items,
+                predicted_target_items,
                 values,
                 gate_squared_mahalanobis=gate_squared_mahalanobis,
                 minimum_cost_margin=minimum_cost_margin,
@@ -88,9 +112,12 @@ def _assign_units(
     costs = np.full((len(units), len(target_items)), np.inf)
     individual_costs = {}
     for row, indices in enumerate(units):
-        for column, (_, estimate) in enumerate(target_items):
+        for column, (_, prediction) in enumerate(target_items):
             distances = tuple(
-                _innovation_distance(values[index], estimate) for index in indices
+                _innovation_distance_from_prediction(
+                    values[index], *prediction,
+                )
+                for index in indices
             )
             individual_costs[(row, column)] = distances
             if all(np.isfinite(value) for value in distances):
@@ -146,10 +173,32 @@ def label_matches(observations, result: AssociationResult) -> tuple[IODObservati
     return tuple(labeled)
 
 
-def _innovation_distance(observation, estimate):
-    dt = float(observation.timestamp - estimate.timestamp)
+def _innovation_distance(
+    observation,
+    estimate,
+    *,
+    prediction_position_sigma_floor_m=0.0,
+    prediction_velocity_sigma_floor_mps=0.0,
+):
+    prediction = _predict_estimate(
+        estimate,
+        timestamp=observation.timestamp,
+        prediction_position_sigma_floor_m=prediction_position_sigma_floor_m,
+        prediction_velocity_sigma_floor_mps=prediction_velocity_sigma_floor_mps,
+    )
+    return _innovation_distance_from_prediction(observation, *prediction)
+
+
+def _predict_estimate(
+    estimate,
+    *,
+    timestamp,
+    prediction_position_sigma_floor_m,
+    prediction_velocity_sigma_floor_mps,
+):
+    dt = float(timestamp - estimate.timestamp)
     if dt < 0.0:
-        return np.inf
+        return None, None
     state = np.asarray(estimate.state_eci, dtype=float)
     covariance = np.asarray(estimate.covariance_eci, dtype=float)
     if dt > 0.0:
@@ -157,6 +206,16 @@ def _innovation_distance(observation, estimate):
         transition = numerical_jacobian_discrete(propagate, state)
         state = propagate(state)
         covariance = transition @ covariance @ transition.T
+    covariance = covariance + np.diag(
+        [float(prediction_position_sigma_floor_m) ** 2] * 3
+        + [float(prediction_velocity_sigma_floor_mps) ** 2] * 3
+    )
+    return state, covariance
+
+
+def _innovation_distance_from_prediction(observation, state, covariance):
+    if state is None or covariance is None:
+        return np.inf
     measurement_function = _measurement_function(observation, state)
     predicted = measurement_function(state)
     measured = _association_measurement(observation, state)

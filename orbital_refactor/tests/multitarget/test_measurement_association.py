@@ -122,6 +122,26 @@ def test_gnn_leaves_out_of_gate_false_alarm_unassigned():
     assert result.unobserved_target_ids == ("target-a",)
 
 
+def test_gnn_prediction_floor_preserves_a_correct_precise_track_match():
+    observer = _state(-2.0)
+    target = _state(0.5)
+    biased_prediction = target.copy()
+    biased_prediction[0] += 8.0
+    track = TargetInitialState(
+        "target-a", "track-a", 0.0, biased_prediction,
+        np.diag([0.01] * 3 + [0.0001] * 3),
+    )
+    observations = _unlabeled(
+        "observer-1", 0.0, observer, target, group="precise-target",
+    )
+
+    result = associate_to_tracks(observations, {"target-a": track})
+
+    assert len(result.matches) == 2
+    assert result.unassigned_observation_indices == ()
+    assert result.unobserved_target_ids == ()
+
+
 def test_unassigned_multimodal_detections_create_two_independent_iod_tracks():
     times = np.array([0.0, 10.0, 20.0])
     target_initials = (_state(0.5), _state(3.5))

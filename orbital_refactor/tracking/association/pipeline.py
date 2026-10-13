@@ -27,6 +27,8 @@ class MultiTargetAssociationPipeline:
         *,
         gate_squared_mahalanobis: float = 13.815510557964274,
         minimum_cost_margin: float = 2.0,
+        prediction_position_sigma_floor_m: float = 50.0,
+        prediction_velocity_sigma_floor_mps: float = 0.25,
         autonomous_iod_manager: AutonomousIODManager | None = None,
     ):
         if gate_squared_mahalanobis <= 0.0:
@@ -35,6 +37,20 @@ class MultiTargetAssociationPipeline:
         if minimum_cost_margin < 0.0:
             raise ValueError("minimum_cost_margin must be non-negative.")
         self.minimum_cost_margin = float(minimum_cost_margin)
+        if prediction_position_sigma_floor_m < 0.0:
+            raise ValueError(
+                "prediction_position_sigma_floor_m must be non-negative."
+            )
+        if prediction_velocity_sigma_floor_mps < 0.0:
+            raise ValueError(
+                "prediction_velocity_sigma_floor_mps must be non-negative."
+            )
+        self.prediction_position_sigma_floor_m = float(
+            prediction_position_sigma_floor_m
+        )
+        self.prediction_velocity_sigma_floor_mps = float(
+            prediction_velocity_sigma_floor_mps
+        )
         self.autonomous_iod_manager = autonomous_iod_manager or AutonomousIODManager()
 
     def step(
@@ -50,6 +66,12 @@ class MultiTargetAssociationPipeline:
             tracks,
             gate_squared_mahalanobis=self.gate_squared_mahalanobis,
             minimum_cost_margin=self.minimum_cost_margin,
+            prediction_position_sigma_floor_m=(
+                self.prediction_position_sigma_floor_m
+            ),
+            prediction_velocity_sigma_floor_mps=(
+                self.prediction_velocity_sigma_floor_mps
+            ),
         )
         labeled = label_matches(values, association)
         grouped: dict[str, list[IODObservation]] = {}

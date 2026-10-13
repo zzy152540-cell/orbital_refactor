@@ -12,14 +12,16 @@ from experiments.single_satellite_cann_comparison import (
 from interfaces.data_objects import Observation
 
 
-def _observations(modality, measurements, timestamps, *, valid=None):
+def _observations(
+    modality, measurements, timestamps, *, valid=None, confidence=1.0,
+):
     flags = np.ones(len(timestamps), dtype=bool) if valid is None else valid
     return [
         Observation(
             timestamp=float(timestamp), observer_id="observer-1",
             target_id="target-1", modality=modality,
             source_type="TEST", measurement=np.asarray(value, dtype=float),
-            covariance=np.eye(2), confidence=1.0, frame="SPRI",
+            covariance=np.eye(2), confidence=float(confidence), frame="SPRI",
             valid_flag=bool(flag), metadata={"observation_id": f"{modality}-{index}"},
         )
         for index, (timestamp, value, flag) in enumerate(
@@ -48,7 +50,11 @@ def test_incremental_radar_matches_existing_causal_batch_path():
     expected = _preprocess_valid_radar_with_line_cann(source, timestamps)
     actual = _run_incrementally(
         IncrementalMultimodalCANNPreprocessor(
-            IncrementalMultimodalCANNConfig(infrared=False, optical=False),
+            IncrementalMultimodalCANNConfig(
+                infrared=False,
+                optical=False,
+                prefer_trusted_measurements=False,
+            ),
         ),
         source,
     )
@@ -80,7 +86,11 @@ def test_incremental_optical_matches_existing_causal_batch_path():
     expected = _preprocess_valid_optical_with_plane_cann(source, timestamps)
     actual = _run_incrementally(
         IncrementalMultimodalCANNPreprocessor(
-            IncrementalMultimodalCANNConfig(infrared=False, radar=False),
+            IncrementalMultimodalCANNConfig(
+                infrared=False,
+                radar=False,
+                prefer_trusted_measurements=False,
+            ),
         ),
         source,
     )
@@ -106,7 +116,9 @@ def test_incremental_infrared_matches_existing_hybrid_batch_path():
         [15.0, 8.0], [10.4, 2.4],
     ]))
     source = _observations("INFRARED", measurements, timestamps)
-    config = IncrementalMultimodalCANNConfig(radar=False, optical=False)
+    config = IncrementalMultimodalCANNConfig(
+        radar=False, optical=False, prefer_trusted_measurements=False,
+    )
     expected = _preprocess_valid_infrared_azimuth_with_cann(
         source, timestamps, method="hybrid_ring_line_cann",
         coupled_config=config.resolved_infrared_config(),
@@ -152,3 +164,48 @@ def test_realtime_profile_reduces_ring_integration_resolution_explicitly():
 
     assert (real_ring.num_neurons, real_ring.internal_dt) == (90, 0.002)
     assert (research_ring.num_neurons, research_ring.internal_dt) == (180, 0.001)
+
+
+def test_high_confidence_radar_reanchors_immediately_after_short_dropout():
+    processor = IncrementalMultimodalCANNPreprocessor(
+        IncrementalMultimodalCANNConfig(infrared=False, optical=False),
+    )
+    source = _observations(
+        "RADAR",
+        [[1_000_000.0, 100.0], [1_000_100.0, 100.0], [1_000_500.0, 100.0]],
+        [0.0, 1.0, 5.0],
+    )
+
+    actual = _run_incrementally(processor, source)
+    recovered = actual[-1]
+    diagnostics = recovered.metadata["cann_diagnostics"]
+
+    assert recovered.valid_flag
+    np.testing.assert_allclose(recovered.measurement, source[-1].measurement)
+    assert diagnostics["radar_reanchored"]
+    assert not diagnostics["recovery_pending"]
+    assert not diagnostics["range_substituted"]
+
+
+def test_low_confidence_radar_outlier_can_still_be_substituted_by_cann():
+    processor = IncrementalMultimodalCANNPreprocessor(
+        IncrementalMultimodalCANNConfig(infrared=False, optical=False),
+    )
+    source = _observations(
+        "RADAR",
+        [
+            [1_000_000.0, 100.0],
+            [1_000_100.0, 100.0],
+            [1_000_200.0, 100.0],
+            [1_010_300.0, 105.0],
+        ],
+        [0.0, 1.0, 2.0, 3.0],
+        confidence=0.5,
+    )
+
+    actual = _run_incrementally(processor, source)
+    diagnostics = actual[-1].metadata["cann_diagnostics"]
+
+    assert diagnostics["range_substituted"]
+    assert diagnostics["range_rate_substituted"]
+    assert not np.array_equal(actual[-1].measurement, source[-1].measurement)

@@ -1,0 +1,483 @@
+{
+  "schemaVersion": "bilateral-node-failure-prescan.v1",
+  "scope": "OBSERVATION_AND_FIXED_TOPOLOGY_COMMUNICATION_NODE_FAILURE",
+  "scenario": {
+    "friendlyObserverCount": 15,
+    "hostileTargetCount": 15,
+    "durationSeconds": 20.0,
+    "sampleIntervalSeconds": 1.0,
+    "failureStartSeconds": 6.0,
+    "failureEndSeconds": 13.0,
+    "failedObserverIndices": [
+      0,
+      5,
+      10
+    ],
+    "failedObserverIds": [
+      "friendly_p01_s01",
+      "friendly_p02_s01",
+      "friendly_p03_s01"
+    ],
+    "seed": 11
+  },
+  "noFailureControl": {
+    "withoutCann": {
+      "frame_count": 21,
+      "initialized_track_count": 15,
+      "final_active_track_count": 15,
+      "retired_track_count": 0,
+      "final_position_rmse_m": 18.55867240183452,
+      "final_maximum_position_error_m": 62.17764032004901,
+      "final_velocity_rmse_mps": 1.519089757690877,
+      "final_acceleration_rmse_mps2": 3.8600766825847126,
+      "processing_mean_ms": 741.3469238118047,
+      "processing_p95_ms": 776.9531999947503,
+      "cann_preprocessed_observation_count": 0,
+      "cann_action_counts": {},
+      "all_states_finite": true,
+      "consensus_received_message_count": 1728,
+      "consensus_recovered_link_count": 0,
+      "active_communication_node_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 15,
+        "7.0": 15,
+        "8.0": 15,
+        "9.0": 15,
+        "10.0": 15,
+        "11.0": 15,
+        "12.0": 15,
+        "13.0": 15,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "active_communication_edge_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 15,
+        "7.0": 15,
+        "8.0": 15,
+        "9.0": 15,
+        "10.0": 15,
+        "11.0": 15,
+        "12.0": 15,
+        "13.0": 15,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "phase_metrics": {
+        "PRE_DROPOUT": {
+          "epoch_count": 4,
+          "position_sample_count": 60,
+          "acceleration_sample_count": 45,
+          "position_rmse_m": 24.28810528874645,
+          "velocity_rmse_mps": 2.689925239105,
+          "acceleration_rmse_mps2": 3.0779739118043694
+        },
+        "DROPOUT": {
+          "epoch_count": 8,
+          "position_sample_count": 120,
+          "acceleration_sample_count": 120,
+          "position_rmse_m": 33.51652058747952,
+          "velocity_rmse_mps": 4.517237908933303,
+          "acceleration_rmse_mps2": 6.228799283351846
+        },
+        "RECOVERY": {
+          "epoch_count": 7,
+          "position_sample_count": 105,
+          "acceleration_sample_count": 105,
+          "position_rmse_m": 24.56456134149105,
+          "velocity_rmse_mps": 3.5576206169619193,
+          "acceleration_rmse_mps2": 5.213195747835839
+        }
+      }
+    },
+    "incrementalCann": {
+      "frame_count": 21,
+      "initialized_track_count": 15,
+      "final_active_track_count": 15,
+      "retired_track_count": 0,
+      "final_position_rmse_m": 18.55867240183452,
+      "final_maximum_position_error_m": 62.17764032004901,
+      "final_velocity_rmse_mps": 1.519089757690877,
+      "final_acceleration_rmse_mps2": 3.8600766825847126,
+      "processing_mean_ms": 1585.0782809519885,
+      "processing_p95_ms": 1830.7443000085186,
+      "cann_preprocessed_observation_count": 2592,
+      "cann_action_counts": {
+        "INFRARED.azimuth_reanchored": 6,
+        "INFRARED.elevation_reanchored": 6,
+        "OPTICAL.optical_reanchored": 243,
+        "RADAR.radar_reanchored": 37
+      },
+      "all_states_finite": true,
+      "consensus_received_message_count": 1728,
+      "consensus_recovered_link_count": 0,
+      "active_communication_node_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 15,
+        "7.0": 15,
+        "8.0": 15,
+        "9.0": 15,
+        "10.0": 15,
+        "11.0": 15,
+        "12.0": 15,
+        "13.0": 15,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "active_communication_edge_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 15,
+        "7.0": 15,
+        "8.0": 15,
+        "9.0": 15,
+        "10.0": 15,
+        "11.0": 15,
+        "12.0": 15,
+        "13.0": 15,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "phase_metrics": {
+        "PRE_DROPOUT": {
+          "epoch_count": 4,
+          "position_sample_count": 60,
+          "acceleration_sample_count": 45,
+          "position_rmse_m": 24.28810528874645,
+          "velocity_rmse_mps": 2.689925239105,
+          "acceleration_rmse_mps2": 3.0779739118043694
+        },
+        "DROPOUT": {
+          "epoch_count": 8,
+          "position_sample_count": 120,
+          "acceleration_sample_count": 120,
+          "position_rmse_m": 33.51652058747952,
+          "velocity_rmse_mps": 4.517237908933303,
+          "acceleration_rmse_mps2": 6.228799283351846
+        },
+        "RECOVERY": {
+          "epoch_count": 7,
+          "position_sample_count": 105,
+          "acceleration_sample_count": 105,
+          "position_rmse_m": 24.56456134149105,
+          "velocity_rmse_mps": 3.5576206169619193,
+          "acceleration_rmse_mps2": 5.213195747835839
+        }
+      }
+    }
+  },
+  "threeObserverFailure": {
+    "withoutCann": {
+      "frame_count": 21,
+      "initialized_track_count": 15,
+      "final_active_track_count": 15,
+      "retired_track_count": 0,
+      "final_position_rmse_m": 18.684593070374742,
+      "final_maximum_position_error_m": 62.17764032004901,
+      "final_velocity_rmse_mps": 1.544334258744114,
+      "final_acceleration_rmse_mps2": 3.86534170450795,
+      "processing_mean_ms": 682.9428190456903,
+      "processing_p95_ms": 784.0923000039766,
+      "cann_preprocessed_observation_count": 0,
+      "cann_action_counts": {},
+      "all_states_finite": true,
+      "consensus_received_message_count": 1423,
+      "consensus_recovered_link_count": 12,
+      "active_communication_node_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 12,
+        "7.0": 12,
+        "8.0": 12,
+        "9.0": 12,
+        "10.0": 12,
+        "11.0": 12,
+        "12.0": 12,
+        "13.0": 12,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "active_communication_edge_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 9,
+        "7.0": 9,
+        "8.0": 9,
+        "9.0": 9,
+        "10.0": 9,
+        "11.0": 9,
+        "12.0": 9,
+        "13.0": 9,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "phase_metrics": {
+        "PRE_DROPOUT": {
+          "epoch_count": 4,
+          "position_sample_count": 60,
+          "acceleration_sample_count": 45,
+          "position_rmse_m": 24.28810528874645,
+          "velocity_rmse_mps": 2.689925239105,
+          "acceleration_rmse_mps2": 3.0779739118043694
+        },
+        "DROPOUT": {
+          "epoch_count": 8,
+          "position_sample_count": 120,
+          "acceleration_sample_count": 120,
+          "position_rmse_m": 33.547905007386134,
+          "velocity_rmse_mps": 4.517799130915521,
+          "acceleration_rmse_mps2": 6.23018727945776
+        },
+        "RECOVERY": {
+          "epoch_count": 7,
+          "position_sample_count": 105,
+          "acceleration_sample_count": 105,
+          "position_rmse_m": 24.615002516115222,
+          "velocity_rmse_mps": 3.567698258315026,
+          "acceleration_rmse_mps2": 5.2168618789066015
+        }
+      }
+    },
+    "incrementalCann": {
+      "frame_count": 21,
+      "initialized_track_count": 15,
+      "final_active_track_count": 15,
+      "retired_track_count": 0,
+      "final_position_rmse_m": 18.684593070374742,
+      "final_maximum_position_error_m": 62.17764032004901,
+      "final_velocity_rmse_mps": 1.544334258744114,
+      "final_acceleration_rmse_mps2": 3.86534170450795,
+      "processing_mean_ms": 1427.2888428545448,
+      "processing_p95_ms": 1814.6648999972967,
+      "cann_preprocessed_observation_count": 2349,
+      "cann_action_counts": {
+        "INFRARED.azimuth_reanchored": 16,
+        "INFRARED.elevation_reanchored": 16,
+        "OPTICAL.optical_reanchored": 245,
+        "RADAR.radar_reanchored": 38
+      },
+      "all_states_finite": true,
+      "consensus_received_message_count": 1423,
+      "consensus_recovered_link_count": 12,
+      "active_communication_node_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 12,
+        "7.0": 12,
+        "8.0": 12,
+        "9.0": 12,
+        "10.0": 12,
+        "11.0": 12,
+        "12.0": 12,
+        "13.0": 12,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "active_communication_edge_count_by_timestamp": {
+        "0.0": 15,
+        "1.0": 15,
+        "2.0": 15,
+        "3.0": 15,
+        "4.0": 15,
+        "5.0": 15,
+        "6.0": 9,
+        "7.0": 9,
+        "8.0": 9,
+        "9.0": 9,
+        "10.0": 9,
+        "11.0": 9,
+        "12.0": 9,
+        "13.0": 9,
+        "14.0": 15,
+        "15.0": 15,
+        "16.0": 15,
+        "17.0": 15,
+        "18.0": 15,
+        "19.0": 15,
+        "20.0": 15
+      },
+      "phase_metrics": {
+        "PRE_DROPOUT": {
+          "epoch_count": 4,
+          "position_sample_count": 60,
+          "acceleration_sample_count": 45,
+          "position_rmse_m": 24.28810528874645,
+          "velocity_rmse_mps": 2.689925239105,
+          "acceleration_rmse_mps2": 3.0779739118043694
+        },
+        "DROPOUT": {
+          "epoch_count": 8,
+          "position_sample_count": 120,
+          "acceleration_sample_count": 120,
+          "position_rmse_m": 33.547905007386134,
+          "velocity_rmse_mps": 4.517799130915521,
+          "acceleration_rmse_mps2": 6.23018727945776
+        },
+        "RECOVERY": {
+          "epoch_count": 7,
+          "position_sample_count": 105,
+          "acceleration_sample_count": 105,
+          "position_rmse_m": 24.615002516115222,
+          "velocity_rmse_mps": 3.567698258315026,
+          "acceleration_rmse_mps2": 5.2168618789066015
+        }
+      }
+    }
+  },
+  "failureVsControlPercent": {
+    "withoutCann": {
+      "position_rmse_m": 0.09363865746356836,
+      "velocity_rmse_mps": 0.012424007624400879,
+      "acceleration_rmse_mps2": 0.02228352596982397
+    },
+    "incrementalCann": {
+      "position_rmse_m": 0.09363865746356836,
+      "velocity_rmse_mps": 0.012424007624400879,
+      "acceleration_rmse_mps2": 0.02228352596982397
+    }
+  },
+  "visibilityLossByTarget": {
+    "hostile_p01_s01": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 16,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p01_s02": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 16,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p01_s03": {
+      "controlVisibleObserverEpochs": 32,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p01_s04": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 0
+    },
+    "hostile_p01_s05": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 16,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p02_s01": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 16,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p02_s02": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 16,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p02_s03": {
+      "controlVisibleObserverEpochs": 32,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p02_s04": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 0
+    },
+    "hostile_p02_s05": {
+      "controlVisibleObserverEpochs": 32,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p03_s01": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 16,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p03_s02": {
+      "controlVisibleObserverEpochs": 32,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 8
+    },
+    "hostile_p03_s03": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 0
+    },
+    "hostile_p03_s04": {
+      "controlVisibleObserverEpochs": 24,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 0
+    },
+    "hostile_p03_s05": {
+      "controlVisibleObserverEpochs": 32,
+      "failureVisibleObserverEpochs": 24,
+      "lostVisibleObserverEpochs": 8
+    }
+  },
+  "timingNote": "processing metrics cover local full-frame estimation and are not the P09 estimate-message synchronization latency"
+}

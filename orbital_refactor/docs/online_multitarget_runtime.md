@@ -98,3 +98,34 @@ frame remains authoritative for observer J2000 state and SPRI attitude; this is
 explicitly reported as `observerStateSource=ONLINE_MEASUREMENT_FRAMES` in the
 activation response. Target states are never accepted from activation and must
 still be established by IOD.
+
+## Single-host pre-deployment acceptance
+
+Before cross-device testing, run the paired raw-front-end acceptance:
+
+```text
+python -m experiments.run_online_multitarget_local_acceptance \
+  --observers 5 --targets 2 --duration 20 --dt 1 \
+  --cann-profile realtime \
+  --output results/online_multitarget_local_acceptance/summary.json
+```
+
+The same generated radar range-Doppler, infrared and optical image detections
+are replayed through a no-CANN arm and an incremental-CANN arm. The report
+separates input simulation, algorithm processing, JSON serialization, CANN
+preprocessing, output message sizes, target births, identity switches,
+retirements, final error and the configured one-second deadline. Input image
+generation is reported separately because it is a test-data source rather than
+part of the deployed estimator.
+
+Single-host dropout injection uses `--dropout-start`, `--dropout-end`,
+`--dropout-modality` and the optional zero-based `--dropout-target-index`.
+`--dropout-modality ALL` removes every modality for the selected target during
+the interval and exercises coasting and same-identity recovery.
+
+Online GNN association uses a 50 m position and 0.25 m/s velocity prediction
+uncertainty floor. This floor is used only in the association innovation
+covariance; it does not modify the estimator state or posterior covariance. It
+prevents precise raw front-end covariances from making short-term model error
+look like a missing target while the existing ambiguity margin continues to
+reject unresolved close-target assignments.

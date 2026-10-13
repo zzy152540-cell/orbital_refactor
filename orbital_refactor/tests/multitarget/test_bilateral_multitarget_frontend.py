@@ -1,0 +1,311 @@
+from collections import Counter
+
+import numpy as np
+import pytest
+
+from experiments.bilateral_multitarget_frontend import (
+    BilateralFrontendConfig,
+    _topology_with_inactive_nodes,
+    build_bilateral_raw_frontend,
+    run_bilateral_distributed_online_comparison,
+    run_bilateral_online_comparison,
+    run_bilateral_online_smoke,
+)
+from tracking.association.frontend_adapter import (
+    unlabeled_iod_observations_from_messages,
+)
+
+
+def test_default_frontend_covers_every_target_from_multiple_friendly_observers():
+    result = build_bilateral_raw_frontend()
+
+    assert len(result.truth.manifest.friendly_observer_ids) == 15
+    assert len(result.truth.manifest.hostile_target_ids) == 15
+    assert result.minimum_visible_observers_per_target_epoch >= 3
+    assert result.maximum_visible_observers_per_target_epoch <= 4
+    assert set(result.truth_target_by_detection_group.values()) == set(
+        result.truth.manifest.hostile_target_ids
+    )
+
+
+def test_algorithm_messages_are_target_free_and_keep_three_modalities_per_detection():
+    result = build_bilateral_raw_frontend(
+        BilateralFrontendConfig(duration_seconds=1.0)
+    )
+    counts = Counter(message.detection_group_id for message in result.messages)
+
+    assert counts
+    assert set(counts.values()) == {3}
+    assert all(message.valid_flag for message in result.messages)
+    assert all(
+        message.observer_id in result.truth.manifest.friendly_observer_ids
+        for message in result.messages
+    )
+    assert all(
+        not any("target" in str(key).lower() for key in message.metadata)
+        for message in result.messages
+    )
+    assert all(
+        target_id not in message.message_id
+        for message in result.messages
+        for target_id in result.truth.manifest.hostile_target_ids
+    )
+
+
+def test_target_free_raw_messages_convert_to_j2000_iod_inputs():
+    result = build_bilateral_raw_frontend(
+        BilateralFrontendConfig(duration_seconds=1.0)
+    )
+    converted = unlabeled_iod_observations_from_messages(
+        result.messages,
+        observer_state_by_epoch=result.observer_state_by_epoch,
+    )
+
+    assert len(converted) == len(result.messages)
+    assert {item.modality for item in converted} == {"RADAR", "LOS"}
+    assert all(np.all(np.isfinite(item.measurement)) for item in converted)
+    assert all(
+        item.observer_id in result.truth.manifest.friendly_observer_ids
+        for item in converted
+    )
+
+
+def test_frontend_is_deterministic_and_does_not_retain_images_by_default():
+    config = BilateralFrontendConfig(duration_seconds=1.0, random_seed=7)
+    first = build_bilateral_raw_frontend(config)
+    second = build_bilateral_raw_frontend(config)
+
+    assert not first.raw_frames_by_detection_group
+    assert len(first.messages) == len(second.messages)
+    assert all(
+        left.message_id == right.message_id
+        and np.array_equal(left.measurement, right.measurement)
+        for left, right in zip(first.messages, second.messages)
+    )
+
+
+def test_all_fifteen_hostile_targets_reach_online_tracking_from_raw_data():
+    result = run_bilateral_online_smoke(
+        BilateralFrontendConfig(duration_seconds=3.0, random_seed=3)
+    )
+
+    assert result.frame_count == 4
+    assert result.initialized_track_count == 15
+    assert result.final_active_track_count == 15
+    assert result.retired_track_count == 0
+    assert result.all_states_finite
+    assert result.final_position_rmse_m < 100.0
+    assert result.final_maximum_position_error_m < 250.0
+
+
+def test_finite_modality_dropout_removes_only_the_selected_window_and_targets():
+    config = BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=4,
+        dropout_modality="OPTICAL",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+        dropout_target_indices=(0, 1, 2, 3, 4),
+    )
+    result = build_bilateral_raw_frontend(config)
+    normal_count = len(result.messages_by_timestamp[2.0])
+    dropout_messages = result.messages_by_timestamp[3.0]
+    affected_targets = set(result.truth.manifest.hostile_target_ids[:5])
+
+    assert len(dropout_messages) < normal_count
+    assert len(result.messages_by_timestamp[4.0]) == normal_count
+    assert all(
+        not (
+            message.modality == "OPTICAL"
+            and result.truth_target_by_detection_group[
+                message.detection_group_id
+            ] in affected_targets
+        )
+        for message in dropout_messages
+    )
+    assert any(
+        message.modality == "OPTICAL"
+        and result.truth_target_by_detection_group[
+            message.detection_group_id
+        ] not in affected_targets
+        for message in dropout_messages
+    )
+
+
+def test_empty_dropout_target_set_defines_control_phases_without_removing_data():
+    result = build_bilateral_raw_frontend(BilateralFrontendConfig(
+        duration_seconds=4.0,
+        dropout_modality="OPTICAL",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+        dropout_target_indices=(),
+    ))
+
+    assert len(result.messages_by_timestamp[3.0]) == (
+        len(result.messages_by_timestamp[2.0])
+    )
+
+
+def test_three_friendly_observers_fail_only_inside_the_configured_window():
+    config = BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=6,
+        observer_failure_start_seconds=2.0,
+        observer_failure_end_seconds=3.0,
+        failed_observer_indices=(0, 5, 10),
+    )
+    result = build_bilateral_raw_frontend(config)
+    failed_ids = {
+        result.truth.manifest.friendly_observer_ids[index]
+        for index in config.failed_observer_indices
+    }
+
+    assert len(result.messages_by_timestamp[2.0]) < (
+        len(result.messages_by_timestamp[1.0])
+    )
+    assert len(result.messages_by_timestamp[3.0]) < (
+        len(result.messages_by_timestamp[4.0])
+    )
+    assert all(
+        message.observer_id not in failed_ids
+        for timestamp in (2.0, 3.0)
+        for message in result.messages_by_timestamp[timestamp]
+    )
+    assert all(
+        any(
+            message.observer_id == observer_id
+            for message in result.messages_by_timestamp[4.0]
+        )
+        for observer_id in failed_ids
+    )
+    assert set(result.observer_state_by_epoch) == {
+        (observer_id, float(timestamp))
+        for observer_id in result.truth.manifest.friendly_observer_ids
+        for timestamp in result.truth.timestamps
+    }
+
+
+def test_observer_failure_control_window_keeps_all_observations():
+    result = build_bilateral_raw_frontend(BilateralFrontendConfig(
+        duration_seconds=3.0,
+        observer_failure_start_seconds=1.0,
+        observer_failure_end_seconds=2.0,
+        failed_observer_indices=(),
+    ))
+
+    assert len(result.messages_by_timestamp[2.0]) == (
+        len(result.messages_by_timestamp[0.0])
+    )
+
+
+def test_failed_observers_have_no_inbound_or_outbound_fixed_topology_edges():
+    frontend = build_bilateral_raw_frontend(BilateralFrontendConfig(
+        duration_seconds=1.0,
+    ))
+    base = frontend.truth.manifest.friendly_topology
+    failed = {
+        frontend.truth.manifest.friendly_observer_ids[index]
+        for index in (0, 5, 10)
+    }
+    active = _topology_with_inactive_nodes(
+        base, inactive_node_ids=failed,
+    )
+
+    assert all(active.neighbors(node_id) == () for node_id in failed)
+    assert all(
+        not (set(active.neighbors(node_id)) & failed)
+        for node_id in active.node_ids
+    )
+    assert sum(len(active.neighbors(node)) for node in active.node_ids) < (
+        sum(len(base.neighbors(node)) for node in base.node_ids)
+    )
+
+
+def test_distributed_node_failure_disables_edges_and_recovers_consensus_links():
+    result = run_bilateral_distributed_online_comparison(
+        BilateralFrontendConfig(
+            duration_seconds=5.0,
+            random_seed=8,
+            observer_failure_start_seconds=2.0,
+            observer_failure_end_seconds=3.0,
+            failed_observer_indices=(0, 5, 10),
+        )
+    )
+    arm = result.incremental_cann
+
+    assert arm.final_active_track_count == 15
+    assert arm.retired_track_count == 0
+    assert arm.consensus_received_message_count > 0
+    assert arm.consensus_recovered_link_count > 0
+    assert arm.active_communication_node_count_by_timestamp[2.0] == 12
+    assert arm.active_communication_node_count_by_timestamp[4.0] == 15
+    assert arm.active_communication_edge_count_by_timestamp[2.0] < (
+        arm.active_communication_edge_count_by_timestamp[4.0]
+    )
+
+
+def test_paired_cann_comparison_uses_the_same_dropout_frames_and_keeps_tracks():
+    result = run_bilateral_online_comparison(BilateralFrontendConfig(
+        duration_seconds=3.0,
+        random_seed=5,
+        dropout_modality="OPTICAL",
+        dropout_start_seconds=1.0,
+        dropout_end_seconds=2.0,
+        dropout_target_indices=(0, 1, 2),
+    ))
+
+    assert result.message_count_by_timestamp[2.0] < (
+        result.message_count_by_timestamp[3.0]
+    )
+    assert result.without_cann.final_active_track_count == 15
+    assert result.incremental_cann.final_active_track_count == 15
+    assert result.without_cann.retired_track_count == 0
+    assert result.incremental_cann.retired_track_count == 0
+    assert result.without_cann.cann_preprocessed_observation_count == 0
+    assert result.incremental_cann.cann_preprocessed_observation_count > 0
+    assert result.without_cann.cann_action_counts == {}
+    assert all(
+        action.startswith(("RADAR.", "OPTICAL.", "INFRARED."))
+        for action in result.incremental_cann.cann_action_counts
+    )
+    assert np.isfinite(result.without_cann.final_acceleration_rmse_mps2)
+    assert np.isfinite(result.incremental_cann.final_acceleration_rmse_mps2)
+
+
+@pytest.mark.parametrize(
+    "overrides,match",
+    [
+        ({"dropout_modality": "OPTICAL"}, "requires a dropout interval"),
+        (
+            {
+                "dropout_start_seconds": 1.0,
+                "dropout_end_seconds": 2.0,
+            },
+            "requires dropout_modality",
+        ),
+        (
+            {
+                "dropout_modality": "OPTICAL",
+                "dropout_start_seconds": 2.0,
+                "dropout_end_seconds": 1.0,
+            },
+            "must lie inside",
+        ),
+        (
+            {"failed_observer_indices": (0, 5, 10)},
+            "requires an observer failure interval",
+        ),
+        (
+            {
+                "observer_failure_start_seconds": 1.0,
+                "observer_failure_end_seconds": 2.0,
+            },
+            "requires failed_observer_indices",
+        ),
+    ],
+)
+def test_dropout_configuration_rejects_incomplete_or_invalid_windows(
+    overrides, match,
+):
+    with pytest.raises(ValueError, match=match):
+        BilateralFrontendConfig(duration_seconds=3.0, **overrides)

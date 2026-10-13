@@ -50,6 +50,20 @@ class IncrementalMultimodalCANNConfig:
     optical: bool = True
     profile: str = "realtime"
     infrared_coupled_config: CoupledRingLineCANNConfig | None = None
+    recovery_gap_seconds: float = 2.0
+    trusted_measurement_confidence: float = 0.8
+    prefer_trusted_measurements: bool = True
+
+    def __post_init__(self) -> None:
+        if (
+            not np.isfinite(self.recovery_gap_seconds)
+            or self.recovery_gap_seconds <= 0.0
+        ):
+            raise ValueError("recovery_gap_seconds must be positive and finite.")
+        if not 0.0 <= self.trusted_measurement_confidence <= 1.0:
+            raise ValueError(
+                "trusted_measurement_confidence must lie in [0, 1]."
+            )
 
     def resolved_infrared_config(self) -> CoupledRingLineCANNConfig:
         if self.profile not in {"realtime", "research"}:
@@ -80,9 +94,9 @@ class IncrementalMultimodalCANNPreprocessor:
         self.config = config or IncrementalMultimodalCANNConfig()
         infrared_config = self.config.resolved_infrared_config()
         self._states = {
-            "RADAR": _IncrementalRadar(),
-            "OPTICAL": _IncrementalOptical(),
-            "INFRARED": _IncrementalInfrared(infrared_config),
+            "RADAR": _IncrementalRadar(self.config),
+            "OPTICAL": _IncrementalOptical(self.config),
+            "INFRARED": _IncrementalInfrared(infrared_config, self.config),
         }
         self.performance = IncrementalCANNPerformance()
 
@@ -143,7 +157,8 @@ def _processed(source, measurement, diagnostics, *, valid=None):
 
 
 class _IncrementalRadar:
-    def __init__(self):
+    def __init__(self, policy: IncrementalMultimodalCANNConfig):
+        self.policy = policy
         self.range_cann = LineCANN(LineCANNConfig(
             num_neurons=501, minimum_value=0.0, maximum_value=50_000_000.0,
             tuning_width=400_000.0, cue_gain=0.8,
@@ -191,7 +206,11 @@ class _IncrementalRadar:
         gap = timestamp - self.last_valid_timestamp
         range_innovation = measurement[0] - range_output.decoded_value
         rate_innovation = measurement[1] - rate_output.decoded_value
-        long_gap = gap > 20.0
+        long_gap = gap > self.policy.recovery_gap_seconds
+        trusted_measurement = bool(
+            self.policy.prefer_trusted_measurements
+            and item.confidence >= self.policy.trusted_measurement_confidence
+        )
         candidate_consistent = False
         if self.pending_measurement is not None:
             candidate_dt = max(timestamp - self.pending_timestamp, 1.0e-12)
@@ -214,7 +233,13 @@ class _IncrementalRadar:
         range_substituted = False
         rate_substituted = False
         filtered = measurement.copy()
-        if long_gap and not candidate_consistent:
+        if long_gap and trusted_measurement:
+            range_output = self.range_cann.reset(measurement[0], timestamp=timestamp)
+            rate_output = self.rate_cann.reset(measurement[1], timestamp=timestamp)
+            self.pending_measurement = None
+            self.pending_timestamp = None
+            reanchored = True
+        elif long_gap and not candidate_consistent:
             self.pending_measurement = measurement.copy()
             self.pending_timestamp = timestamp
             recovery_pending = True
@@ -231,6 +256,16 @@ class _IncrementalRadar:
             rate_substituted = bool(
                 not warming_up and abs(rate_innovation) > 0.5
             )
+            if trusted_measurement and (range_substituted or rate_substituted):
+                range_output = self.range_cann.reset(
+                    measurement[0], timestamp=timestamp,
+                )
+                rate_output = self.rate_cann.reset(
+                    measurement[1], timestamp=timestamp,
+                )
+                range_substituted = False
+                rate_substituted = False
+                reanchored = True
             filtered = np.array([
                 range_output.decoded_value if range_substituted else measurement[0],
                 rate_output.decoded_value if rate_substituted else measurement[1],
@@ -266,7 +301,8 @@ class _IncrementalRadar:
 
 
 class _IncrementalOptical:
-    def __init__(self):
+    def __init__(self, policy: IncrementalMultimodalCANNConfig):
+        self.policy = policy
         axis = LineCANNConfig(
             num_neurons=401, minimum_value=-2_000.0, maximum_value=2_000.0,
             tuning_width=40.0, cue_gain=1.0,
@@ -309,7 +345,11 @@ class _IncrementalOptical:
             np.all(np.abs(measurement) <= 10.0)
             and np.all(np.abs(output.decoded_position) <= 10.0)
         )
-        long_gap = gap > 20.0
+        long_gap = gap > self.policy.recovery_gap_seconds
+        trusted_measurement = bool(
+            self.policy.prefer_trusted_measurements
+            and item.confidence >= self.policy.trusted_measurement_confidence
+        )
         candidate_consistent = bool(
             self.pending_measurement is not None
             and np.all(np.abs(measurement - self.pending_measurement) <= 0.1)
@@ -324,7 +364,15 @@ class _IncrementalOptical:
         recovery_pending = False
         substituted = np.zeros(2, dtype=bool)
         filtered = measurement.copy()
-        if long_gap and not candidate_consistent:
+        if long_gap and trusted_measurement:
+            output = self.cann.reset(measurement, timestamp=timestamp)
+            self.velocity = np.zeros(2)
+            self.pending_measurement = None
+            self.pending_timestamp = None
+            self.last_trusted_measurement = measurement.copy()
+            self.last_trusted_timestamp = timestamp
+            reanchored = True
+        elif long_gap and not candidate_consistent:
             self.pending_measurement = measurement.copy()
             self.pending_timestamp = timestamp
             recovery_pending = True
@@ -343,6 +391,13 @@ class _IncrementalOptical:
         else:
             joint_anomaly = bool(np.all(np.abs(innovation) > 0.05))
             substituted[:] = joint_anomaly
+            if trusted_measurement and joint_anomaly:
+                output = self.cann.reset(measurement, timestamp=timestamp)
+                substituted[:] = False
+                self.velocity = np.zeros(2)
+                self.last_trusted_measurement = measurement.copy()
+                self.last_trusted_timestamp = timestamp
+                reanchored = True
             filtered = np.where(substituted, output.decoded_position, measurement)
             output = self.cann.apply_position_cue(filtered, cue_gain=1.0)
         if not np.any(substituted) and not recovery_pending and not reanchored:
@@ -366,7 +421,12 @@ class _IncrementalOptical:
 
 
 class _IncrementalInfrared:
-    def __init__(self, config: CoupledRingLineCANNConfig):
+    def __init__(
+        self,
+        config: CoupledRingLineCANNConfig,
+        policy: IncrementalMultimodalCANNConfig,
+    ):
+        self.policy = policy
         self.azimuth = CoupledRingLineCANN(config)
         self.elevation = LineCANN(LineCANNConfig(
             num_neurons=361,
@@ -408,10 +468,11 @@ class _IncrementalInfrared:
             })
         dt = _strict_dt(timestamp, self.last_timestamp)
         azimuth_output, azimuth_diagnostics = self._update_azimuth(
-            timestamp, float(measurement[0]), bool(item.valid_flag),
+            timestamp, float(measurement[0]), bool(item.valid_flag), item.confidence,
         )
         elevation_output, elevation_diagnostics = self._update_elevation(
             timestamp, dt, float(measurement[1]), bool(item.valid_flag),
+            item.confidence,
         )
         self.last_timestamp = timestamp
         if not item.valid_flag:
@@ -435,11 +496,24 @@ class _IncrementalInfrared:
             valid=False if diagnostics["recovery_pending"] else None,
         )
 
-    def _update_azimuth(self, timestamp, hint, available):
+    def _update_azimuth(self, timestamp, hint, available, confidence):
         gap = timestamp - self.azimuth_last_trusted_timestamp
         reanchored = False
         recovery_pending = False
-        if available and gap > 20.0:
+        long_gap = gap > self.policy.recovery_gap_seconds
+        trusted_measurement = bool(
+            self.policy.prefer_trusted_measurements
+            and confidence >= self.policy.trusted_measurement_confidence
+        )
+        if available and long_gap and trusted_measurement:
+            output = self.azimuth.initialize(phase=hint, timestamp=timestamp)
+            self.azimuth_held_rate = 0.0
+            self.azimuth_last_trusted_timestamp = timestamp
+            self.azimuth_last_trusted = hint
+            self.azimuth_pending = None
+            self.azimuth_pending_timestamp = None
+            reanchored = True
+        elif available and long_gap:
             consistent = bool(
                 self.azimuth_pending is not None
                 and abs(_wrapped_difference(hint, self.azimuth_pending))
@@ -489,9 +563,19 @@ class _IncrementalInfrared:
             "azimuth_reanchored": reanchored,
             "azimuth_recovery_pending": recovery_pending,
         }
+        if (
+            diagnostics["azimuth_substituted"]
+            and trusted_measurement
+        ):
+            output = self.azimuth.initialize(phase=hint, timestamp=timestamp)
+            self.azimuth_held_rate = 0.0
+            self.azimuth_last_trusted_timestamp = timestamp
+            self.azimuth_last_trusted = hint
+            diagnostics["azimuth_substituted"] = False
+            diagnostics["azimuth_reanchored"] = True
         return output, diagnostics
 
-    def _update_elevation(self, timestamp, dt, hint, available):
+    def _update_elevation(self, timestamp, dt, hint, available, confidence):
         output = self.elevation.step(self.elevation_held_rate, dt)
         substituted = False
         reanchored = False
@@ -499,7 +583,11 @@ class _IncrementalInfrared:
         if available:
             gap = timestamp - self.elevation_last_valid_timestamp
             innovation = hint - output.decoded_value
-            long_gap = gap > 20.0
+            long_gap = gap > self.policy.recovery_gap_seconds
+            trusted_measurement = bool(
+                self.policy.prefer_trusted_measurements
+                and confidence >= self.policy.trusted_measurement_confidence
+            )
             consistent = bool(
                 self.elevation_pending is not None
                 and abs(hint - self.elevation_pending) <= np.deg2rad(1.0)
@@ -508,7 +596,14 @@ class _IncrementalInfrared:
                 (long_gap and consistent)
                 or (not long_gap and output.saturated_at_boundary)
             )
-            if long_gap and not consistent:
+            if long_gap and trusted_measurement:
+                output = self.elevation.reset(hint, timestamp=timestamp)
+                self.elevation_held_rate = 0.0
+                self.elevation_last_trusted = hint
+                self.elevation_pending = None
+                self.elevation_pending_timestamp = None
+                reanchored = True
+            elif long_gap and not consistent:
                 self.elevation_pending = hint
                 self.elevation_pending_timestamp = timestamp
                 recovery_pending = True
@@ -523,7 +618,13 @@ class _IncrementalInfrared:
                 self.elevation_pending = None
                 self.elevation_pending_timestamp = None
             elif abs(innovation) > np.deg2rad(3.0):
-                substituted = True
+                if trusted_measurement:
+                    output = self.elevation.reset(hint, timestamp=timestamp)
+                    self.elevation_held_rate = 0.0
+                    self.elevation_last_trusted = hint
+                    reanchored = True
+                else:
+                    substituted = True
             else:
                 output = self.elevation.apply_value_cue(hint)
                 self.elevation_held_rate = (

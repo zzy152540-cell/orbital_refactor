@@ -1,0 +1,533 @@
+{
+  "schemaVersion": "bilateral-dropout-prescan.v1",
+  "scenario": {
+    "friendlyObserverCount": 15,
+    "hostileTargetCount": 15,
+    "durationSeconds": 20.0,
+    "sampleIntervalSeconds": 1.0,
+    "dropoutStartSeconds": 6.0,
+    "dropoutEndSeconds": 13.0,
+    "dropoutTargets": "ALL_15_HOSTILE_TARGETS",
+    "seed": 11
+  },
+  "noDropoutControl": {
+    "withoutCann": {
+      "frame_count": 21,
+      "initialized_track_count": 15,
+      "final_active_track_count": 15,
+      "retired_track_count": 0,
+      "final_position_rmse_m": 28.907294406184523,
+      "final_maximum_position_error_m": 108.81363084565605,
+      "final_velocity_rmse_mps": 4.386478796607885,
+      "final_acceleration_rmse_mps2": 9.992093978591177,
+      "processing_mean_ms": 722.3132095255312,
+      "processing_p95_ms": 750.8583000017097,
+      "cann_preprocessed_observation_count": 0,
+      "cann_action_counts": {},
+      "all_states_finite": true,
+      "phase_metrics": {
+        "PRE_DROPOUT": {
+          "epoch_count": 4,
+          "position_sample_count": 60,
+          "acceleration_sample_count": 45,
+          "position_rmse_m": 23.12365077757457,
+          "velocity_rmse_mps": 3.0047973350873467,
+          "acceleration_rmse_mps2": 3.4121340451773916
+        },
+        "DROPOUT": {
+          "epoch_count": 8,
+          "position_sample_count": 120,
+          "acceleration_sample_count": 120,
+          "position_rmse_m": 18.987677341190082,
+          "velocity_rmse_mps": 5.9152125712417885,
+          "acceleration_rmse_mps2": 9.218773641262754
+        },
+        "RECOVERY": {
+          "epoch_count": 7,
+          "position_sample_count": 105,
+          "acceleration_sample_count": 105,
+          "position_rmse_m": 28.41435998875469,
+          "velocity_rmse_mps": 6.1105486542468155,
+          "acceleration_rmse_mps2": 10.232358631830804
+        }
+      },
+      "dropoutIncreasePercent": {
+        "position_rmse_m": -17.886334109471925,
+        "velocity_rmse_mps": 96.85895292069135,
+        "acceleration_rmse_mps2": 170.1761864922128
+      }
+    },
+    "incrementalCann": {
+      "frame_count": 21,
+      "initialized_track_count": 15,
+      "final_active_track_count": 15,
+      "retired_track_count": 0,
+      "final_position_rmse_m": 28.907294406184523,
+      "final_maximum_position_error_m": 108.81363084565605,
+      "final_velocity_rmse_mps": 4.386478796607885,
+      "final_acceleration_rmse_mps2": 9.992093978591177,
+      "processing_mean_ms": 1563.1884428557464,
+      "processing_p95_ms": 1836.5330999949947,
+      "cann_preprocessed_observation_count": 2571,
+      "cann_action_counts": {
+        "INFRARED.azimuth_reanchored": 4,
+        "INFRARED.elevation_reanchored": 4,
+        "OPTICAL.optical_reanchored": 240,
+        "RADAR.radar_reanchored": 26
+      },
+      "all_states_finite": true,
+      "phase_metrics": {
+        "PRE_DROPOUT": {
+          "epoch_count": 4,
+          "position_sample_count": 60,
+          "acceleration_sample_count": 45,
+          "position_rmse_m": 23.12365077757457,
+          "velocity_rmse_mps": 3.0047973350873467,
+          "acceleration_rmse_mps2": 3.4121340451773916
+        },
+        "DROPOUT": {
+          "epoch_count": 8,
+          "position_sample_count": 120,
+          "acceleration_sample_count": 120,
+          "position_rmse_m": 18.987677341190082,
+          "velocity_rmse_mps": 5.9152125712417885,
+          "acceleration_rmse_mps2": 9.218773641262754
+        },
+        "RECOVERY": {
+          "epoch_count": 7,
+          "position_sample_count": 105,
+          "acceleration_sample_count": 105,
+          "position_rmse_m": 28.41435998875469,
+          "velocity_rmse_mps": 6.1105486542468155,
+          "acceleration_rmse_mps2": 10.232358631830804
+        }
+      },
+      "dropoutIncreasePercent": {
+        "position_rmse_m": -17.886334109471925,
+        "velocity_rmse_mps": 96.85895292069135,
+        "acceleration_rmse_mps2": 170.1761864922128
+      }
+    }
+  },
+  "resultsByMissingModality": {
+    "OPTICAL": {
+      "withoutCann": {
+        "frame_count": 21,
+        "initialized_track_count": 15,
+        "final_active_track_count": 15,
+        "retired_track_count": 0,
+        "final_position_rmse_m": 17.30489359617126,
+        "final_maximum_position_error_m": 61.38382840791531,
+        "final_velocity_rmse_mps": 3.4710119762239593,
+        "final_acceleration_rmse_mps2": 6.719452105222231,
+        "processing_mean_ms": 645.2962714288982,
+        "processing_p95_ms": 754.8406000132672,
+        "cann_preprocessed_observation_count": 0,
+        "cann_action_counts": {},
+        "all_states_finite": true,
+        "phase_metrics": {
+          "PRE_DROPOUT": {
+            "epoch_count": 4,
+            "position_sample_count": 60,
+            "acceleration_sample_count": 45,
+            "position_rmse_m": 23.12365077757457,
+            "velocity_rmse_mps": 3.0047973350873467,
+            "acceleration_rmse_mps2": 3.4121340451773916
+          },
+          "DROPOUT": {
+            "epoch_count": 8,
+            "position_sample_count": 120,
+            "acceleration_sample_count": 120,
+            "position_rmse_m": 21.75276045469185,
+            "velocity_rmse_mps": 1.8172486975952726,
+            "acceleration_rmse_mps2": 0.866915309977239
+          },
+          "RECOVERY": {
+            "epoch_count": 7,
+            "position_sample_count": 105,
+            "acceleration_sample_count": 105,
+            "position_rmse_m": 18.265799811730478,
+            "velocity_rmse_mps": 6.3005767349609405,
+            "acceleration_rmse_mps2": 8.923189521937767
+          }
+        },
+        "dropoutIncreasePercent": {
+          "position_rmse_m": -5.928520267276383,
+          "velocity_rmse_mps": -39.521754882598536,
+          "acceleration_rmse_mps2": -74.59316373568292
+        }
+      },
+      "incrementalCann": {
+        "frame_count": 21,
+        "initialized_track_count": 15,
+        "final_active_track_count": 15,
+        "retired_track_count": 0,
+        "final_position_rmse_m": 17.30489359617126,
+        "final_maximum_position_error_m": 61.38382840791531,
+        "final_velocity_rmse_mps": 3.4710119762239593,
+        "final_acceleration_rmse_mps2": 6.719452105222231,
+        "processing_mean_ms": 1510.9541238101276,
+        "processing_p95_ms": 1840.2941999956965,
+        "cann_preprocessed_observation_count": 2229,
+        "cann_action_counts": {
+          "INFRARED.azimuth_reanchored": 2,
+          "INFRARED.elevation_reanchored": 2,
+          "OPTICAL.optical_reanchored": 137,
+          "RADAR.radar_reanchored": 31
+        },
+        "all_states_finite": true,
+        "phase_metrics": {
+          "PRE_DROPOUT": {
+            "epoch_count": 4,
+            "position_sample_count": 60,
+            "acceleration_sample_count": 45,
+            "position_rmse_m": 23.12365077757457,
+            "velocity_rmse_mps": 3.0047973350873467,
+            "acceleration_rmse_mps2": 3.4121340451773916
+          },
+          "DROPOUT": {
+            "epoch_count": 8,
+            "position_sample_count": 120,
+            "acceleration_sample_count": 120,
+            "position_rmse_m": 21.75276045469185,
+            "velocity_rmse_mps": 1.8172486975952726,
+            "acceleration_rmse_mps2": 0.866915309977239
+          },
+          "RECOVERY": {
+            "epoch_count": 7,
+            "position_sample_count": 105,
+            "acceleration_sample_count": 105,
+            "position_rmse_m": 18.265799811730478,
+            "velocity_rmse_mps": 6.3005767349609405,
+            "acceleration_rmse_mps2": 8.923189521937767
+          }
+        },
+        "dropoutIncreasePercent": {
+          "position_rmse_m": -5.928520267276383,
+          "velocity_rmse_mps": -39.521754882598536,
+          "acceleration_rmse_mps2": -74.59316373568292
+        }
+      },
+      "messageCountByTimestamp": {
+        "0.0": 150,
+        "1.0": 150,
+        "2.0": 150,
+        "3.0": 150,
+        "4.0": 150,
+        "5.0": 150,
+        "6.0": 100,
+        "7.0": 100,
+        "8.0": 100,
+        "9.0": 100,
+        "10.0": 100,
+        "11.0": 100,
+        "12.0": 100,
+        "13.0": 100,
+        "14.0": 150,
+        "15.0": 150,
+        "16.0": 150,
+        "17.0": 150,
+        "18.0": 150,
+        "19.0": 150,
+        "20.0": 150
+      },
+      "pairedCannDeltaPercent": {
+        "position_rmse_m": 0.0,
+        "velocity_rmse_mps": 0.0,
+        "acceleration_rmse_mps2": 0.0
+      },
+      "dropoutVsControlPercent": {
+        "withoutCann": {
+          "position_rmse_m": 14.562513696730338,
+          "velocity_rmse_mps": -69.27838728179847,
+          "acceleration_rmse_mps2": -90.59619702454813
+        },
+        "incrementalCann": {
+          "position_rmse_m": 14.562513696730338,
+          "velocity_rmse_mps": -69.27838728179847,
+          "acceleration_rmse_mps2": -90.59619702454813
+        }
+      }
+    },
+    "INFRARED": {
+      "withoutCann": {
+        "frame_count": 21,
+        "initialized_track_count": 15,
+        "final_active_track_count": 15,
+        "retired_track_count": 0,
+        "final_position_rmse_m": 28.966338976689794,
+        "final_maximum_position_error_m": 108.82720814737169,
+        "final_velocity_rmse_mps": 4.3947909906550064,
+        "final_acceleration_rmse_mps2": 9.993280334140092,
+        "processing_mean_ms": 635.2216761920967,
+        "processing_p95_ms": 739.6703999984311,
+        "cann_preprocessed_observation_count": 0,
+        "cann_action_counts": {},
+        "all_states_finite": true,
+        "phase_metrics": {
+          "PRE_DROPOUT": {
+            "epoch_count": 4,
+            "position_sample_count": 60,
+            "acceleration_sample_count": 45,
+            "position_rmse_m": 23.12365077757457,
+            "velocity_rmse_mps": 3.0047973350873467,
+            "acceleration_rmse_mps2": 3.4121340451773916
+          },
+          "DROPOUT": {
+            "epoch_count": 8,
+            "position_sample_count": 120,
+            "acceleration_sample_count": 120,
+            "position_rmse_m": 18.86614649702565,
+            "velocity_rmse_mps": 5.921953807983338,
+            "acceleration_rmse_mps2": 9.226865768953736
+          },
+          "RECOVERY": {
+            "epoch_count": 7,
+            "position_sample_count": 105,
+            "acceleration_sample_count": 105,
+            "position_rmse_m": 28.204940230254575,
+            "velocity_rmse_mps": 6.108171603573178,
+            "acceleration_rmse_mps2": 10.232504571406462
+          }
+        },
+        "dropoutIncreasePercent": {
+          "position_rmse_m": -18.411903559267863,
+          "velocity_rmse_mps": 97.08330205275533,
+          "acceleration_rmse_mps2": 170.41334387184213
+        }
+      },
+      "incrementalCann": {
+        "frame_count": 21,
+        "initialized_track_count": 15,
+        "final_active_track_count": 15,
+        "retired_track_count": 0,
+        "final_position_rmse_m": 28.966338976689794,
+        "final_maximum_position_error_m": 108.82720814737169,
+        "final_velocity_rmse_mps": 4.3947909906550064,
+        "final_acceleration_rmse_mps2": 9.993280334140092,
+        "processing_mean_ms": 1080.0449380947698,
+        "processing_p95_ms": 1839.464599994244,
+        "cann_preprocessed_observation_count": 2183,
+        "cann_action_counts": {
+          "INFRARED.azimuth_reanchored": 50,
+          "INFRARED.elevation_reanchored": 50,
+          "OPTICAL.optical_reanchored": 240,
+          "RADAR.radar_reanchored": 26
+        },
+        "all_states_finite": true,
+        "phase_metrics": {
+          "PRE_DROPOUT": {
+            "epoch_count": 4,
+            "position_sample_count": 60,
+            "acceleration_sample_count": 45,
+            "position_rmse_m": 23.12365077757457,
+            "velocity_rmse_mps": 3.0047973350873467,
+            "acceleration_rmse_mps2": 3.4121340451773916
+          },
+          "DROPOUT": {
+            "epoch_count": 8,
+            "position_sample_count": 120,
+            "acceleration_sample_count": 120,
+            "position_rmse_m": 18.86614649702565,
+            "velocity_rmse_mps": 5.921953807983338,
+            "acceleration_rmse_mps2": 9.226865768953736
+          },
+          "RECOVERY": {
+            "epoch_count": 7,
+            "position_sample_count": 105,
+            "acceleration_sample_count": 105,
+            "position_rmse_m": 28.204940230254575,
+            "velocity_rmse_mps": 6.108171603573178,
+            "acceleration_rmse_mps2": 10.232504571406462
+          }
+        },
+        "dropoutIncreasePercent": {
+          "position_rmse_m": -18.411903559267863,
+          "velocity_rmse_mps": 97.08330205275533,
+          "acceleration_rmse_mps2": 170.41334387184213
+        }
+      },
+      "messageCountByTimestamp": {
+        "0.0": 150,
+        "1.0": 150,
+        "2.0": 150,
+        "3.0": 150,
+        "4.0": 150,
+        "5.0": 150,
+        "6.0": 100,
+        "7.0": 100,
+        "8.0": 100,
+        "9.0": 100,
+        "10.0": 100,
+        "11.0": 100,
+        "12.0": 100,
+        "13.0": 100,
+        "14.0": 150,
+        "15.0": 150,
+        "16.0": 150,
+        "17.0": 150,
+        "18.0": 150,
+        "19.0": 150,
+        "20.0": 150
+      },
+      "pairedCannDeltaPercent": {
+        "position_rmse_m": 0.0,
+        "velocity_rmse_mps": 0.0,
+        "acceleration_rmse_mps2": 0.0
+      },
+      "dropoutVsControlPercent": {
+        "withoutCann": {
+          "position_rmse_m": -0.6400511341152604,
+          "velocity_rmse_mps": 0.11396440382080986,
+          "acceleration_rmse_mps2": 0.08777878713457365
+        },
+        "incrementalCann": {
+          "position_rmse_m": -0.6400511341152604,
+          "velocity_rmse_mps": 0.11396440382080986,
+          "acceleration_rmse_mps2": 0.08777878713457365
+        }
+      }
+    },
+    "RADAR": {
+      "withoutCann": {
+        "frame_count": 21,
+        "initialized_track_count": 15,
+        "final_active_track_count": 15,
+        "retired_track_count": 0,
+        "final_position_rmse_m": 29.240645184590864,
+        "final_maximum_position_error_m": 109.58722770991656,
+        "final_velocity_rmse_mps": 3.846504493242183,
+        "final_acceleration_rmse_mps2": 7.3186367058611665,
+        "processing_mean_ms": 658.1207714286089,
+        "processing_p95_ms": 748.8182999950368,
+        "cann_preprocessed_observation_count": 0,
+        "cann_action_counts": {},
+        "all_states_finite": true,
+        "phase_metrics": {
+          "PRE_DROPOUT": {
+            "epoch_count": 4,
+            "position_sample_count": 60,
+            "acceleration_sample_count": 45,
+            "position_rmse_m": 23.12365077757457,
+            "velocity_rmse_mps": 3.0047973350873467,
+            "acceleration_rmse_mps2": 3.4121340451773916
+          },
+          "DROPOUT": {
+            "epoch_count": 8,
+            "position_sample_count": 120,
+            "acceleration_sample_count": 120,
+            "position_rmse_m": 15.464988357906057,
+            "velocity_rmse_mps": 8.010967951412278,
+            "acceleration_rmse_mps2": 12.401661214703175
+          },
+          "RECOVERY": {
+            "epoch_count": 7,
+            "position_sample_count": 105,
+            "acceleration_sample_count": 105,
+            "position_rmse_m": 21.875015358850746,
+            "velocity_rmse_mps": 4.90618555354004,
+            "acceleration_rmse_mps2": 8.213529705395276
+          }
+        },
+        "dropoutIncreasePercent": {
+          "position_rmse_m": -33.120472598971794,
+          "velocity_rmse_mps": 166.60593238243825,
+          "acceleration_rmse_mps2": 263.4576206708911
+        }
+      },
+      "incrementalCann": {
+        "frame_count": 21,
+        "initialized_track_count": 15,
+        "final_active_track_count": 15,
+        "retired_track_count": 0,
+        "final_position_rmse_m": 29.240645184590864,
+        "final_maximum_position_error_m": 109.58722770991656,
+        "final_velocity_rmse_mps": 3.846504493242183,
+        "final_acceleration_rmse_mps2": 7.3186367058611665,
+        "processing_mean_ms": 1516.312609522997,
+        "processing_p95_ms": 1838.5261000075843,
+        "cann_preprocessed_observation_count": 2198,
+        "cann_action_counts": {
+          "INFRARED.azimuth_reanchored": 5,
+          "INFRARED.elevation_reanchored": 5,
+          "OPTICAL.optical_reanchored": 241,
+          "RADAR.radar_reanchored": 57
+        },
+        "all_states_finite": true,
+        "phase_metrics": {
+          "PRE_DROPOUT": {
+            "epoch_count": 4,
+            "position_sample_count": 60,
+            "acceleration_sample_count": 45,
+            "position_rmse_m": 23.12365077757457,
+            "velocity_rmse_mps": 3.0047973350873467,
+            "acceleration_rmse_mps2": 3.4121340451773916
+          },
+          "DROPOUT": {
+            "epoch_count": 8,
+            "position_sample_count": 120,
+            "acceleration_sample_count": 120,
+            "position_rmse_m": 15.464988357906057,
+            "velocity_rmse_mps": 8.010967951412278,
+            "acceleration_rmse_mps2": 12.401661214703175
+          },
+          "RECOVERY": {
+            "epoch_count": 7,
+            "position_sample_count": 105,
+            "acceleration_sample_count": 105,
+            "position_rmse_m": 21.875015358850746,
+            "velocity_rmse_mps": 4.90618555354004,
+            "acceleration_rmse_mps2": 8.213529705395276
+          }
+        },
+        "dropoutIncreasePercent": {
+          "position_rmse_m": -33.120472598971794,
+          "velocity_rmse_mps": 166.60593238243825,
+          "acceleration_rmse_mps2": 263.4576206708911
+        }
+      },
+      "messageCountByTimestamp": {
+        "0.0": 150,
+        "1.0": 150,
+        "2.0": 150,
+        "3.0": 150,
+        "4.0": 150,
+        "5.0": 150,
+        "6.0": 100,
+        "7.0": 100,
+        "8.0": 100,
+        "9.0": 100,
+        "10.0": 100,
+        "11.0": 100,
+        "12.0": 100,
+        "13.0": 100,
+        "14.0": 150,
+        "15.0": 150,
+        "16.0": 150,
+        "17.0": 150,
+        "18.0": 150,
+        "19.0": 150,
+        "20.0": 150
+      },
+      "pairedCannDeltaPercent": {
+        "position_rmse_m": 0.0,
+        "velocity_rmse_mps": 0.0,
+        "acceleration_rmse_mps2": 0.0
+      },
+      "dropoutVsControlPercent": {
+        "withoutCann": {
+          "position_rmse_m": -18.55250076133449,
+          "velocity_rmse_mps": 35.429925043767696,
+          "acceleration_rmse_mps2": 34.52614954329696
+        },
+        "incrementalCann": {
+          "position_rmse_m": -18.55250076133449,
+          "velocity_rmse_mps": 35.429925043767696,
+          "acceleration_rmse_mps2": 34.52614954329696
+        }
+      }
+    }
+  },
+  "timingNote": "processing metrics cover local full-frame estimation and are not the P09 estimate-message synchronization latency",
+  "accelerationNote": "prescan acceleration is derived by finite differencing matched estimated velocities; it is not an augmented filter state"
+}

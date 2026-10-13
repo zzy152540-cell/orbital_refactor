@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 import time
 
 import numpy as np
@@ -43,6 +43,7 @@ class OnlineTrackingUpdate:
     local_reports: tuple[TargetNodeReport, ...]
     cann_preprocessed_observation_count: int = 0
     cann_preprocessing_seconds: float = 0.0
+    cann_action_counts: Mapping[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ class OnlineMultiTargetTracker:
         ] = {}
         self._last_preprocessed_observation_count = 0
         self._last_preprocessing_seconds = 0.0
+        self._last_cann_action_counts: Counter[str] = Counter()
         configured_initial_states = dict(initial_states or {})
         self._manager: TrackManager | None = (
             TrackManager(
@@ -265,6 +267,7 @@ class OnlineMultiTargetTracker:
                 self._last_preprocessed_observation_count
             ),
             cann_preprocessing_seconds=self._last_preprocessing_seconds,
+            cann_action_counts=dict(sorted(self._last_cann_action_counts.items())),
         )
 
     def _register_births(self, births):
@@ -285,6 +288,7 @@ class OnlineMultiTargetTracker:
     def _run_local_updates(self, epoch, routed: AssociationPipelineUpdate):
         self._last_preprocessed_observation_count = 0
         self._last_preprocessing_seconds = 0.0
+        self._last_cann_action_counts.clear()
         grouped = defaultdict(list)
         for target_id, items in routed.observations_by_target.items():
             for item in items:
@@ -404,5 +408,25 @@ class OnlineMultiTargetTracker:
             observations, processed, observer_id=observer_id,
         )
         self._last_preprocessed_observation_count += len(result)
+        for observation in result:
+            modality = str(observation.modality).upper()
+            diagnostics = observation.metadata.get("cann_diagnostics", {})
+            detailed_pending = any(
+                bool(value) and str(name).endswith("_recovery_pending")
+                for name, value in diagnostics.items()
+            )
+            for name, value in diagnostics.items():
+                action = str(name)
+                if not bool(value):
+                    continue
+                if action == "recovery_pending" and detailed_pending:
+                    continue
+                if (
+                    action.endswith("_substituted")
+                    or action.endswith("_reanchored")
+                    or action.endswith("_recovery_pending")
+                    or action == "recovery_pending"
+                ):
+                    self._last_cann_action_counts[f"{modality}.{action}"] += 1
         return result
 

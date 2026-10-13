@@ -1,0 +1,163 @@
+{
+  "schema_version": "external-acceptance.v2-draft",
+  "status": "draft_for_development_prescan",
+  "scenario": {
+    "minimum_total_satellite_count": 25,
+    "acceptance_total_satellite_count": 30,
+    "friendly_observer_count": 15,
+    "hostile_target_count": 15,
+    "friendly_state_assumption": "EXACT_KNOWN_TEMPORARY_PENDING_REVIEW",
+    "hostile_state_source": "ESTIMATION_ONLY",
+    "hostile_targets_are_communication_nodes": false,
+    "friendly_topology_policy": "FIXED_DETERMINISTIC",
+    "allowed_communication_edges": "FRIENDLY_TO_FRIENDLY_ONLY"
+  },
+  "state_contract": {
+    "filter_state": ["x", "y", "z", "vx", "vy", "vz"],
+    "reported_state_metrics": [
+      "position_rmse_m",
+      "velocity_rmse_mps",
+      "acceleration_rmse_mps2"
+    ],
+    "acceleration_source": "DERIVED_FROM_ESTIMATED_STATE_AND_DYNAMICS",
+    "acceleration_state_extension": "DEFERRED_UNTIL_MANEUVER_PHASE",
+    "combined_cross_unit_rmse_allowed": false
+  },
+  "requirements": {
+    "F01_satellite_scale": {
+      "operator": ">=",
+      "threshold": 25,
+      "acceptance_value": 30,
+      "unit": "satellite",
+      "composition": "15_friendly_observers_plus_15_hostile_targets"
+    },
+    "F02_state_outputs": {
+      "required": ["position", "velocity", "acceleration"]
+    },
+    "F03_sensor_modalities": {
+      "required": ["OPTICAL", "INFRARED", "RADAR"]
+    },
+    "F04_estimation_strategies": {
+      "required": [
+        "SINGLE_OBSERVER_MULTIMODAL",
+        "FIXED_TOPOLOGY_MULTI_OBSERVER_COOPERATIVE"
+      ],
+      "cann_must_participate_in_at_least_one_estimation_path": true
+    },
+    "P05_single_strategy_improvement": {
+      "operator": ">=",
+      "threshold": 8.0,
+      "unit": "percent",
+      "candidate_metrics": [
+        "paired_position_rmse_improvement",
+        "paired_velocity_rmse_improvement",
+        "paired_acceleration_rmse_improvement"
+      ],
+      "hard_decision_metric_policy": "PENDING_AFTER_DEVELOPMENT_PRESCAN",
+      "baseline_arms": [
+        "OPTICAL_ONLY_EKF",
+        "INFRARED_ONLY_EKF",
+        "RADAR_ONLY_EKF",
+        "CENTRALIZED_THREE_MODAL_EKF",
+        "MULTIMODAL_WITHOUT_CANN"
+      ]
+    },
+    "R06_windowed_single_modality_dropout": {
+      "operator": "<=",
+      "threshold": 15.0,
+      "unit": "percent",
+      "modalities": ["OPTICAL", "INFRARED", "RADAR"],
+      "dropout_scope": "FINITE_WINDOW_AFTER_INITIALIZATION",
+      "default_window_fraction": [0.4, 0.7],
+      "required_phases": ["FULL_RUN", "DROPOUT", "RECOVERY"]
+    },
+    "P07_cooperative_improvement_over_single": {
+      "operator": ">=",
+      "threshold": 6.0,
+      "unit": "percent",
+      "primary_population": "ALL_15_HOSTILE_TARGETS",
+      "candidate_metrics": [
+        "paired_position_rmse_improvement",
+        "paired_velocity_rmse_improvement",
+        "paired_acceleration_rmse_improvement"
+      ]
+    },
+    "R08_friendly_node_failure_increase": {
+      "operator": "<=",
+      "threshold": 12.0,
+      "unit": "percent",
+      "friendly_node_count": 15,
+      "failed_friendly_node_count": 3,
+      "failed_fraction": 0.2,
+      "primary_population": "ALL_15_HOSTILE_TARGETS",
+      "supplemental_populations": [
+        "TARGETS_MOST_AFFECTED_BY_FAILED_OBSERVERS",
+        "UNAFFECTED_TARGETS",
+        "WORST_HOSTILE_TARGET"
+      ]
+    },
+    "P09_mean_state_synchronization_latency": {
+      "operator": "<=",
+      "threshold": 100.0,
+      "unit": "ms",
+      "measurement_scope": "LOCAL_TARGET_ESTIMATE_MESSAGE_CREATED_TO_RECEIVER_ESTIMATE_APPLIED",
+      "included_stages": [
+        "QUEUE",
+        "SERIALIZATION",
+        "TRANSPORT_ADAPTER",
+        "DESERIALIZATION",
+        "TARGET_IDENTITY_MATCH",
+        "RECEIVER_STATE_APPLICATION"
+      ],
+      "excluded_stages": [
+        "RAW_SENSOR_GENERATION",
+        "LOCAL_ESTIMATION_BEFORE_MESSAGE_CREATION",
+        "GUI",
+        "RECORDING"
+      ],
+      "required_diagnostics": ["MEAN", "P95", "P99", "MAXIMUM"]
+    },
+    "F10_visualization": {
+      "required": [
+        "FRIENDLY_AND_HOSTILE_SWARM_MOTION",
+        "THREE_MODAL_OBSERVATIONS",
+        "HOSTILE_TARGET_ESTIMATES",
+        "NAVIGATION_AND_CANN_INFORMATION"
+      ],
+      "must_distinguish_friendly_and_hostile_roles": true,
+      "must_distinguish_communication_and_observation_edges": true
+    }
+  },
+  "comparison_arms": [
+    "OPTICAL_ONLY_EKF",
+    "INFRARED_ONLY_EKF",
+    "RADAR_ONLY_EKF",
+    "CENTRALIZED_THREE_MODAL_EKF",
+    "MULTIMODAL_WITHOUT_CANN",
+    "MULTIMODAL_WITH_CANN",
+    "SINGLE_FRIENDLY_OBSERVER",
+    "FIXED_TOPOLOGY_COOPERATIVE_WITHOUT_CANN",
+    "FIXED_TOPOLOGY_COOPERATIVE_WITH_CANN"
+  ],
+  "statistical_protocol": {
+    "development_seed_count": 5,
+    "formal_minimum_seed_count": 20,
+    "development_duration_seconds": 120.0,
+    "formal_minimum_duration_seconds": 1200.0,
+    "confidence_level": 0.95,
+    "paired_runs": true,
+    "shared_truth_noise_visibility_and_seed": true
+  },
+  "retained_engineering_diagnostics": [
+    "PER_EPOCH_PROCESSING_TIME",
+    "REALTIME_FACTOR",
+    "MEMORY_GROWTH",
+    "TRACK_BIRTH_SWITCH_RETIREMENT_COUNTS"
+  ],
+  "deferred_items": [
+    "FRIENDLY_STATE_UNCERTAINTY_MODEL",
+    "HOSTILE_MANEUVER_ACCELERATION_STATE",
+    "LEARNED_TOPOLOGY_POLICY",
+    "CROSS_DEVICE_NETWORK_ACCEPTANCE"
+  ]
+}
