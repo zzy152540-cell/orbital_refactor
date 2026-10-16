@@ -22,7 +22,11 @@ from .ring_cann import RingCANNConfig
 
 def _realtime_infrared_config() -> CoupledRingLineCANNConfig:
     return CoupledRingLineCANNConfig(
-        ring=RingCANNConfig(num_neurons=90, internal_dt=0.002),
+        ring=RingCANNConfig(
+            num_neurons=90,
+            internal_dt=0.002,
+            integration_mode="phase_shift",
+        ),
         bias_anchor_mode="hybrid_dual",
         minimum_bias_baseline=120.0,
         anchor_agreement_scale=np.deg2rad(0.004),

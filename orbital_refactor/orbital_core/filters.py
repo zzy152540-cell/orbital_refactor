@@ -66,6 +66,7 @@ class LocalDynamicsEKF:
         nn_use_pseudo_velocity: bool = False,
         integrity_policy: MeasurementIntegrityPolicy | None = None,
         infrared_effective_target_diameter_m: float | None = None,
+        preserve_angular_radial_nullspace: bool = False,
     ) -> None:
         mode = mode_name.lower()
         if mode not in self._SUPPORTED_MODES:
@@ -89,6 +90,9 @@ class LocalDynamicsEKF:
         self.infrared_effective_target_diameter_m = (
             None if infrared_effective_target_diameter_m is None
             else float(infrared_effective_target_diameter_m)
+        )
+        self.preserve_angular_radial_nullspace = bool(
+            preserve_angular_radial_nullspace
         )
         if integrity_policy is None:
             if not self.gate_enable or not np.isfinite(self.gate_threshold):
@@ -217,6 +221,23 @@ class LocalDynamicsEKF:
         kalman_gain = (
             predicted_covariance @ measurement_matrix.T
         ) @ np.linalg.pinv(innovation_covariance)
+        if (
+            self.preserve_angular_radial_nullspace
+            and self.mode_name in {"opt", "ir"}
+        ):
+            relative_position = predicted_state[:3]
+            relative_range = float(np.linalg.norm(relative_position))
+            if relative_range <= 0.0:
+                raise ValueError(
+                    "Angular nullspace preservation requires nonzero relative range."
+                )
+            line_of_sight = relative_position / relative_range
+            tangent_projector = np.eye(3) - np.outer(
+                line_of_sight, line_of_sight,
+            )
+            kalman_gain = kalman_gain.copy()
+            kalman_gain[:3] = tangent_projector @ kalman_gain[:3]
+            kalman_gain[3:] = tangent_projector @ kalman_gain[3:]
         updated_state = predicted_state + kalman_gain @ innovation
 
         identity = np.eye(6)

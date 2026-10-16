@@ -126,6 +126,7 @@ def _tracking_observation(item, target_id, q_eci2pri):
     }
     if item.modality == "RADAR":
         measurement = item.measurement
+        covariance = item.covariance
         modality = "RADAR"
         valid = item.valid_flag
     else:
@@ -140,6 +141,31 @@ def _tracking_observation(item, target_id, q_eci2pri):
                 np.arctan2(line_spri[1], line_spri[0]),
                 np.arctan2(line_spri[2], np.linalg.norm(line_spri[:2])),
             ])
+        line_covariance_eci = item.metadata.get("lineOfSightCovarianceEci")
+        if line_covariance_eci is None or not valid:
+            covariance = item.covariance
+        else:
+            line_covariance_eci = np.asarray(
+                line_covariance_eci, dtype=float,
+            ).reshape(3, 3)
+            basis_eci_in_spri = np.column_stack([
+                rotate_eci_to_pri(np.eye(3)[:, axis], q_eci2pri)
+                for axis in range(3)
+            ])
+            line_covariance_spri = (
+                basis_eci_in_spri
+                @ line_covariance_eci
+                @ basis_eci_in_spri.T
+            )
+            measurement_jacobian = _spri_angular_measurement_jacobian(
+                modality, line_spri,
+            )
+            covariance = (
+                measurement_jacobian
+                @ line_covariance_spri
+                @ measurement_jacobian.T
+            )
+            covariance = 0.5 * (covariance + covariance.T)
     return Observation(
         timestamp=item.timestamp,
         observer_id=item.observer_id,
@@ -147,10 +173,34 @@ def _tracking_observation(item, target_id, q_eci2pri):
         modality=modality,
         source_type="RAW_SENSOR",
         measurement=np.asarray(measurement, dtype=float),
-        covariance=np.asarray(item.covariance, dtype=float),
+        covariance=np.asarray(covariance, dtype=float),
         confidence=float(item.metadata.get("confidence", 1.0)),
         frame="SPRI",
         valid_flag=bool(valid),
         metadata=metadata,
     )
+
+
+def _spri_angular_measurement_jacobian(modality, line_spri):
+    x, y, z = np.asarray(line_spri, dtype=float).reshape(3)
+    if modality == "OPTICAL":
+        if z <= 1e-12:
+            raise ValueError("Optical SPRI line must have positive depth.")
+        return np.array([
+            [1.0 / z, 0.0, -x / z**2],
+            [0.0, 1.0 / z, -y / z**2],
+        ])
+    horizontal_squared = x * x + y * y
+    horizontal = np.sqrt(horizontal_squared)
+    norm_squared = horizontal_squared + z * z
+    if horizontal <= 1e-12 or norm_squared <= 0.0:
+        raise ValueError("Infrared SPRI line is singular for azimuth/elevation.")
+    return np.array([
+        [-y / horizontal_squared, x / horizontal_squared, 0.0],
+        [
+            -x * z / (horizontal * norm_squared),
+            -y * z / (horizontal * norm_squared),
+            horizontal / norm_squared,
+        ],
+    ])
 

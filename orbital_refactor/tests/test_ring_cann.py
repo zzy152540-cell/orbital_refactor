@@ -120,3 +120,32 @@ def test_step_uses_exact_physical_time_coverage():
     output = cann.step(0.0, 0.0025)
     assert output.internal_step_count == 3
     assert output.timestamp == 0.0025
+
+
+def test_phase_shift_mode_advances_one_endpoint_step_and_preserves_bump():
+    cann = RingCANN(RingCANNConfig(
+        num_neurons=90,
+        integration_mode="phase_shift",
+    ))
+    initial = np.deg2rad(350.0)
+    reset = cann.reset(initial, timestamp=2.0)
+    output = cann.step(np.deg2rad(15.0), 2.0)
+
+    assert reset.internal_step_count == 1
+    assert output.internal_step_count == 1
+    assert output.timestamp == 4.0
+    assert abs(
+        _circular_error(output.decoded_phase, np.deg2rad(20.0))
+    ) < np.deg2rad(0.1)
+    assert abs(output.bump_width - reset.bump_width) < 1e-10
+
+
+def test_phase_shift_mode_endpoint_cue_moves_toward_hint():
+    cann = RingCANN(RingCANNConfig(integration_mode="phase_shift"))
+    hint = np.deg2rad(40.0)
+    cann.reset(np.deg2rad(50.0))
+    before = abs(_circular_error(cann.output().decoded_phase, hint))
+    output = cann.apply_phase_cue(hint, cue_gain=0.25)
+
+    assert output.internal_step_count == 1
+    assert abs(_circular_error(output.decoded_phase, hint)) < before

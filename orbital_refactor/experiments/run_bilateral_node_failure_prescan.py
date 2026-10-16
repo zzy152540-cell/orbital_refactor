@@ -101,10 +101,10 @@ def main() -> None:
     )
     print(
         "failedObservers=", failed_ids,
-        "controlWindowPositionRmse=",
-        control.incremental_cann.phase_metrics["DROPOUT"].position_rmse_m,
-        "failureWindowPositionRmse=",
-        failure.incremental_cann.phase_metrics["DROPOUT"].position_rmse_m,
+        "controlWindowPositionMeanError=",
+        control.incremental_cann.phase_metrics["DROPOUT"].position_mean_error_m,
+        "failureWindowPositionMeanError=",
+        failure.incremental_cann.phase_metrics["DROPOUT"].position_mean_error_m,
     )
     print(f"wrote {args.output}")
 
@@ -113,12 +113,39 @@ def _arm(value):
     payload = {
         item.name: getattr(value, item.name)
         for item in fields(value)
+        if item.name not in {
+            "phase_metrics",
+            "consensus_phase_metrics",
+            "representative_node_metrics",
+            "independent_node_metrics",
+        }
+    }
+    payload["phase_metrics"] = {
+        name: asdict(metrics) for name, metrics in value.phase_metrics.items()
+    }
+    payload["consensus_phase_metrics"] = {
+        name: asdict(metrics)
+        for name, metrics in value.consensus_phase_metrics.items()
+    }
+    payload["representative_node_metrics"] = _node_view(
+        value.representative_node_metrics
+    )
+    payload["independent_node_metrics"] = _node_view(
+        value.independent_node_metrics
+    )
+    return _jsonable(payload)
+
+
+def _node_view(value):
+    payload = {
+        item.name: getattr(value, item.name)
+        for item in fields(value)
         if item.name != "phase_metrics"
     }
     payload["phase_metrics"] = {
         name: asdict(metrics) for name, metrics in value.phase_metrics.items()
     }
-    return _jsonable(payload)
+    return payload
 
 
 def _failure_vs_control(failure, control):
@@ -129,6 +156,9 @@ def _failure_vs_control(failure, control):
         result[arm_name] = {
             metric: _percent_change(affected[metric], reference[metric])
             for metric in (
+                "position_mean_error_m",
+                "velocity_mean_error_mps",
+                "acceleration_mean_error_mps2",
                 "position_rmse_m",
                 "velocity_rmse_mps",
                 "acceleration_rmse_mps2",

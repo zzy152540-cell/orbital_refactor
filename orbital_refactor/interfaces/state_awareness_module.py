@@ -51,6 +51,10 @@ class StateAwarenessModule:
                 reset_feedback=adapted.reset_feedback,
                 ci_objective=adapted.ci_objective,
                 ci_grid_points=adapted.ci_grid_points,
+                cross_modality_anchor=adapted.cross_modality_anchor,
+                cross_modality_gate_threshold=(
+                    adapted.cross_modality_gate_threshold
+                ),
                 node_id=adapted.node_id,
                 target_id=adapted.target_id,
             )

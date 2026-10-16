@@ -60,6 +60,41 @@ def test_new_ekf_matches_legacy_predict_and_update():
     assert diag.integrity.status in {"ACCEPTED", "DOWNWEIGHTED"}
 
 
+def test_angular_update_can_preserve_the_instantaneous_radial_nullspace():
+    ekf = LocalDynamicsEKF(
+        np.zeros((6, 6)),
+        np.diag([1e-8, 1e-8]),
+        mode_name="ir",
+        preserve_angular_radial_nullspace=True,
+    )
+    state = np.array([120.0, -40.0, 900.0, 0.1, -0.05, 0.02])
+    factor = np.array([
+        [20.0, 2.0, 1.0, 0.0, 0.0, 0.0],
+        [3.0, 18.0, 2.0, 0.0, 0.0, 0.0],
+        [5.0, 4.0, 25.0, 0.0, 0.0, 0.0],
+        [0.5, 0.2, 0.1, 1.0, 0.0, 0.0],
+        [0.1, 0.6, 0.2, 0.0, 1.0, 0.0],
+        [0.2, 0.1, 0.7, 0.0, 0.0, 1.0],
+    ])
+    covariance = factor @ factor.T
+    quaternion = np.array([1.0, 0.0, 0.0, 0.0])
+    measurement = (
+        ekf.measurement_function(quaternion)(state)
+        + np.array([2e-4, -3e-4])
+    )
+
+    updated, updated_covariance, _ = ekf.update(
+        state, covariance, measurement, quaternion,
+    )
+
+    line_of_sight = state[:3] / np.linalg.norm(state[:3])
+    correction = updated - state
+    assert abs(line_of_sight @ correction[:3]) < 1e-12
+    assert abs(line_of_sight @ correction[3:]) < 1e-12
+    assert np.linalg.norm(correction) > 0.0
+    assert np.linalg.eigvalsh(updated_covariance).min() >= -1e-8
+
+
 def test_ci_pair_returns_normalized_weights_and_psd_covariance():
     x1 = np.zeros(2)
     x2 = np.ones(2)

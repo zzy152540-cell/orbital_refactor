@@ -2,6 +2,7 @@ from collections import Counter
 
 import numpy as np
 import pytest
+import tracking.association.online_tracker as online_tracker_module
 
 from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
@@ -14,6 +15,36 @@ from experiments.bilateral_multitarget_frontend import (
 from tracking.association.frontend_adapter import (
     unlabeled_iod_observations_from_messages,
 )
+
+
+def test_frontend_process_noise_must_be_finite_and_nonnegative():
+    assert BilateralFrontendConfig(
+        process_noise_acceleration=3e-5,
+    ).process_noise_acceleration == 3e-5
+    with pytest.raises(ValueError, match="process_noise_acceleration"):
+        BilateralFrontendConfig(process_noise_acceleration=-1.0)
+    with pytest.raises(ValueError, match="multi_epoch_bearing_window_epochs"):
+        BilateralFrontendConfig(multi_epoch_bearing_window_epochs=0)
+    with pytest.raises(ValueError, match="requires"):
+        BilateralFrontendConfig(use_inverse_depth_los_update=True)
+
+
+def test_radar_dropout_can_use_experimental_multi_epoch_bearing_window():
+    result = run_bilateral_online_smoke(BilateralFrontendConfig(
+        duration_seconds=5.0,
+        random_seed=4,
+        dropout_modality="RADAR",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=4.0,
+        multi_epoch_bearing_window_epochs=3,
+    ))
+
+    assert result.final_active_track_count == 15
+    assert result.joint_bearing_update_count > 0
+    assert result.joint_bearing_measurement_count > (
+        result.joint_bearing_update_count
+    )
+    assert result.all_states_finite
 
 
 def test_default_frontend_covers_every_target_from_multiple_friendly_observers():
@@ -94,8 +125,24 @@ def test_all_fifteen_hostile_targets_reach_online_tracking_from_raw_data():
     assert result.final_active_track_count == 15
     assert result.retired_track_count == 0
     assert result.all_states_finite
-    assert result.final_position_rmse_m < 100.0
-    assert result.final_maximum_position_error_m < 250.0
+    # The calibrated raw frontend now realizes its reported sub-pixel angular
+    # noise.  At multi-megametre separation this produces kilometre-scale
+    # short-arc uncertainty; this smoke bound guards divergence, not accuracy.
+    assert result.final_position_rmse_m < 5_000.0
+    assert result.final_maximum_position_error_m < 10_000.0
+    assert result.identity_switch_count == 0
+    assert result.nearest_truth_disagreement_count == 0
+    assert result.track_replacement_count == 0
+    assert result.missing_truth_sample_count == 0
+    assert len(result.position_rmse_m_by_target) == 15
+    assert all(
+        target_id.startswith("hostile_")
+        for target_id in result.position_rmse_m_by_target
+    )
+    assert result.worst_target_position_rmse_m >= (
+        result.final_position_rmse_m
+    )
+    assert not result.consensus_phase_metrics
 
 
 def test_finite_modality_dropout_removes_only_the_selected_window_and_targets():
@@ -144,6 +191,102 @@ def test_empty_dropout_target_set_defines_control_phases_without_removing_data()
     assert len(result.messages_by_timestamp[3.0]) == (
         len(result.messages_by_timestamp[2.0])
     )
+
+
+def test_radar_dropout_uses_multi_observer_optical_and_infrared_updates():
+    result = run_bilateral_online_smoke(BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=4,
+        dropout_modality="RADAR",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+    ))
+
+    assert result.final_active_track_count == 15
+    assert result.joint_bearing_update_count > 0
+    assert result.joint_bearing_measurement_count > (
+        result.joint_bearing_update_count
+    )
+    assert result.local_modality_weight_sample_count["ir"] > 0
+    assert result.local_modality_weight_sample_count["opt"] > 0
+
+
+def test_radar_dropout_joint_bearing_path_runs_incremental_cann_preprocessing():
+    result = run_bilateral_online_comparison(BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=4,
+        dropout_modality="RADAR",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+    ))
+
+    assert result.without_cann.joint_bearing_update_count > 0
+    assert result.incremental_cann.joint_bearing_update_count > 0
+    assert result.without_cann.cann_preprocessed_observation_count == 0
+    assert result.incremental_cann.cann_preprocessed_observation_count > 0
+    assert result.incremental_cann.joint_bearing_measurement_count > (
+        result.incremental_cann.joint_bearing_update_count
+    )
+
+
+def test_unified_multimodal_path_handles_control_and_radar_dropout_epochs():
+    result = run_bilateral_online_comparison(BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=4,
+        dropout_modality="RADAR",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+        use_unified_multimodal_measurement_update=True,
+    ))
+
+    assert result.incremental_cann.final_active_track_count == 15
+    assert result.incremental_cann.unified_multimodal_update_count > 0
+    assert result.incremental_cann.unified_multimodal_observation_count > (
+        result.incremental_cann.unified_multimodal_update_count
+    )
+    assert result.incremental_cann.joint_bearing_update_count == 0
+    assert result.incremental_cann.cann_preprocessed_observation_count > 0
+
+
+def test_unified_radar_dropout_can_use_inverse_depth_los_update(monkeypatch):
+    calls = []
+    original = online_tracker_module.inverse_depth_multi_observer_bearing_update
+
+    def recording_update(*args, **kwargs):
+        calls.append(float(kwargs["timestamp"]))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        online_tracker_module,
+        "inverse_depth_multi_observer_bearing_update",
+        recording_update,
+    )
+    result = run_bilateral_online_smoke(BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=4,
+        dropout_modality="RADAR",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+        use_unified_multimodal_measurement_update=True,
+        use_inverse_depth_los_update=True,
+    ))
+
+    assert calls
+    assert set(calls) == {3.0}
+    assert result.final_active_track_count == 15
+    assert result.all_states_finite
+
+
+def test_seed_two_control_rejects_inconsistent_angular_ci_posterior():
+    result = run_bilateral_online_smoke(BilateralFrontendConfig(
+        duration_seconds=10.0,
+        random_seed=2,
+    ))
+
+    assert result.final_active_track_count == 15
+    assert result.identity_switch_count == 0
+    assert result.missing_truth_sample_count == 0
+    assert result.worst_target_position_rmse_m < 20.0
 
 
 def test_three_friendly_observers_fail_only_inside_the_configured_window():
@@ -237,6 +380,18 @@ def test_distributed_node_failure_disables_edges_and_recovers_consensus_links():
     assert arm.retired_track_count == 0
     assert arm.consensus_received_message_count > 0
     assert arm.consensus_recovered_link_count > 0
+    assert arm.consensus_identity_switch_count == 0
+    assert arm.consensus_nearest_truth_disagreement_count == 0
+    assert arm.consensus_track_replacement_count == 0
+    assert arm.consensus_missing_truth_sample_count > 0
+    assert len(arm.consensus_position_rmse_m_by_target) == 15
+    assert all(
+        target_id.startswith("hostile_")
+        for target_id in arm.consensus_position_rmse_m_by_target
+    )
+    assert set(arm.consensus_phase_metrics) == {
+        "PRE_DROPOUT", "DROPOUT", "RECOVERY",
+    }
     assert arm.active_communication_node_count_by_timestamp[2.0] == 12
     assert arm.active_communication_node_count_by_timestamp[4.0] == 15
     assert arm.active_communication_edge_count_by_timestamp[2.0] < (
@@ -263,6 +418,13 @@ def test_paired_cann_comparison_uses_the_same_dropout_frames_and_keeps_tracks():
     assert result.incremental_cann.retired_track_count == 0
     assert result.without_cann.cann_preprocessed_observation_count == 0
     assert result.incremental_cann.cann_preprocessed_observation_count > 0
+    assert set(result.without_cann.mean_local_modality_weight) == {
+        "ir", "opt", "rad",
+    }
+    assert all(
+        count > 0
+        for count in result.without_cann.local_modality_weight_sample_count.values()
+    )
     assert result.without_cann.cann_action_counts == {}
     assert all(
         action.startswith(("RADAR.", "OPTICAL.", "INFRARED."))

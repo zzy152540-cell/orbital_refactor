@@ -111,14 +111,32 @@ def _assign_units(
 ):
     costs = np.full((len(units), len(target_items)), np.inf)
     individual_costs = {}
+    geometry_cache = {}
     for row, indices in enumerate(units):
         for column, (_, prediction) in enumerate(target_items):
-            distances = tuple(
-                _innovation_distance_from_prediction(
-                    values[index], *prediction,
+            distances = []
+            for index in indices:
+                observation = values[index]
+                geometry_key = (
+                    column,
+                    observation.observer_id,
+                    "RADAR" if observation.modality == "RADAR" else "LOS",
                 )
-                for index in indices
-            )
+                if prediction[0] is None:
+                    geometry = None
+                elif geometry_key not in geometry_cache:
+                    geometry_cache[geometry_key] = _measurement_geometry(
+                        observation, prediction[0],
+                    )
+                    geometry = geometry_cache[geometry_key]
+                else:
+                    geometry = geometry_cache[geometry_key]
+                distances.append(_innovation_distance_from_prediction(
+                    observation,
+                    *prediction,
+                    geometry=geometry,
+                ))
+            distances = tuple(distances)
             individual_costs[(row, column)] = distances
             if all(np.isfinite(value) for value in distances):
                 costs[row, column] = float(np.mean(distances))
@@ -213,13 +231,20 @@ def _predict_estimate(
     return state, covariance
 
 
-def _innovation_distance_from_prediction(observation, state, covariance):
+def _innovation_distance_from_prediction(
+    observation, state, covariance, *, geometry=None,
+):
     if state is None or covariance is None:
         return np.inf
-    measurement_function = _measurement_function(observation, state)
-    predicted = measurement_function(state)
-    measured = _association_measurement(observation, state)
-    jacobian = _numerical_jacobian(measurement_function, state)
+    predicted, measured, jacobian = _linearized_measurement(
+        observation, state, geometry=geometry,
+    )
+    if not (
+        np.all(np.isfinite(predicted))
+        and np.all(np.isfinite(measured))
+        and np.all(np.isfinite(jacobian))
+    ):
+        return np.inf
     innovation_covariance = jacobian @ covariance @ jacobian.T + observation.covariance
     innovation_covariance = 0.5 * (innovation_covariance + innovation_covariance.T)
     residual = measured - predicted
@@ -227,6 +252,54 @@ def _innovation_distance_from_prediction(observation, state, covariance):
         return float(residual @ np.linalg.solve(innovation_covariance, residual))
     except np.linalg.LinAlgError:
         return np.inf
+
+
+def _linearized_measurement(observation, state, *, geometry=None):
+    """Return association-space measurement terms with analytic Jacobians.
+
+    Association evaluates every observation against every candidate track, so
+    finite-difference Jacobians dominate runtime at swarm scale.  Both current
+    measurement models have compact closed forms and do not need repeated
+    perturb-and-evaluate calls.
+    """
+
+    if geometry is None:
+        geometry = _measurement_geometry(observation, state)
+    predicted, jacobian, projection = geometry
+    if observation.modality == "RADAR":
+        measured = np.asarray(observation.measurement, dtype=float)
+    else:
+        measured = projection @ np.asarray(observation.measurement, dtype=float)
+    return predicted, measured, jacobian
+
+
+def _measurement_geometry(observation, state):
+    observer = np.asarray(observation.observer_state_eci, dtype=float)
+    reference = np.asarray(state, dtype=float)
+    relative_position = reference[:3] - observer[:3]
+    distance = float(np.linalg.norm(relative_position))
+    if not np.isfinite(distance) or distance <= np.finfo(float).eps:
+        invalid = np.full(2, np.nan)
+        return invalid, np.full((2, 6), np.nan), np.full((2, 3), np.nan)
+    line = relative_position / distance
+
+    if observation.modality == "RADAR":
+        relative_velocity = reference[3:] - observer[3:]
+        range_rate = float(line @ relative_velocity)
+        jacobian = np.zeros((2, 6), dtype=float)
+        jacobian[0, :3] = line
+        jacobian[1, :3] = (
+            relative_velocity - line * range_rate
+        ) / distance
+        jacobian[1, 3:] = line
+        return np.array([distance, range_rate]), jacobian, None
+
+    tangent_one, tangent_two = _tangent_basis(line)
+    jacobian = np.zeros((2, 6), dtype=float)
+    jacobian[0, :3] = tangent_one / distance
+    jacobian[1, :3] = tangent_two / distance
+    projection = np.vstack((tangent_one, tangent_two))
+    return np.zeros(2, dtype=float), jacobian, projection
 
 
 def _measurement_function(observation, reference_state):
@@ -262,12 +335,19 @@ def _association_measurement(observation, reference_state):
 
 
 def _tangent_basis(line):
-    reference = np.array([0.0, 0.0, 1.0])
-    if abs(float(line @ reference)) > 0.9:
-        reference = np.array([0.0, 1.0, 0.0])
-    first = np.cross(line, reference)
-    first /= np.linalg.norm(first)
-    return first, np.cross(line, first)
+    x, y, z = np.asarray(line, dtype=float)
+    if abs(float(z)) <= 0.9:
+        scale = float(np.hypot(x, y))
+        first = np.array([y / scale, -x / scale, 0.0])
+    else:
+        scale = float(np.hypot(x, z))
+        first = np.array([-z / scale, 0.0, x / scale])
+    second = np.array([
+        y * first[2] - z * first[1],
+        z * first[0] - x * first[2],
+        x * first[1] - y * first[0],
+    ])
+    return first, second
 
 
 def _numerical_jacobian(function, state):

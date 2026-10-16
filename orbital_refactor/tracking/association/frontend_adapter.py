@@ -5,7 +5,9 @@ from collections.abc import Mapping
 import numpy as np
 
 from orbital_core.attitude import quat_to_dcm_i2b
-from tracking.initial_orbit.frontend_adapter import _body_line_of_sight
+from tracking.initial_orbit.frontend_adapter import (
+    _body_line_of_sight_with_jacobian,
+)
 
 from .data_contracts import UnlabeledIODObservation, UnlabeledObservationMessage
 
@@ -60,9 +62,18 @@ def unlabeled_iod_observations_from_messages(
         quaternion = message.metadata.get("quaternion_i2b_wxyz")
         if quaternion is None:
             raise ValueError(f"{message.modality} message requires attitude metadata.")
-        line_body = _body_line_of_sight(message.modality, message.measurement)
-        line_eci = quat_to_dcm_i2b(quaternion).T @ line_body
+        line_body, line_jacobian_body = _body_line_of_sight_with_jacobian(
+            message.modality, message.measurement,
+        )
+        dcm_i2b = quat_to_dcm_i2b(quaternion)
+        line_eci = dcm_i2b.T @ line_body
         line_eci /= np.linalg.norm(line_eci)
+        line_jacobian_eci = dcm_i2b.T @ line_jacobian_body
+        line_covariance_eci = (
+            line_jacobian_eci
+            @ np.asarray(message.covariance, dtype=float)
+            @ line_jacobian_eci.T
+        )
         result.append(UnlabeledIODObservation(
             timestamp=message.timestamp,
             observer_id=message.observer_id,
@@ -72,7 +83,11 @@ def unlabeled_iod_observations_from_messages(
             covariance=message.covariance,
             valid_flag=message.valid_flag,
             detection_group_id=message.detection_group_id,
-            metadata={**metadata, "lineOfSightFrame": "J2000_ECI"},
+            metadata={
+                **metadata,
+                "lineOfSightFrame": "J2000_ECI",
+                "lineOfSightCovarianceEci": line_covariance_eci,
+            },
         ))
     return tuple(result)
 

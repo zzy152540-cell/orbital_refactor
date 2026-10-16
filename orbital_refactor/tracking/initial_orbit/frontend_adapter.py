@@ -49,10 +49,20 @@ def iod_observations_from_messages(
             quaternion = message.metadata.get("quaternion_i2b_wxyz")
             if quaternion is None:
                 raise ValueError(f"{modality} message requires attitude metadata.")
-            line_body = _body_line_of_sight(modality, message.measurement)
+            line_body, line_jacobian_body = (
+                _body_line_of_sight_with_jacobian(
+                    modality, message.measurement,
+                )
+            )
             dcm_i2b = quat_to_dcm_i2b(quaternion)
             line_eci = dcm_i2b.T @ line_body
             line_eci /= np.linalg.norm(line_eci)
+            line_jacobian_eci = dcm_i2b.T @ line_jacobian_body
+            line_covariance_eci = (
+                line_jacobian_eci
+                @ np.asarray(message.covariance, dtype=float)
+                @ line_jacobian_eci.T
+            )
             result.append(IODObservation(
                 timestamp=message.timestamp,
                 observer_id=message.observer_id,
@@ -67,6 +77,7 @@ def iod_observations_from_messages(
                     "sourceModality": modality,
                     "sourceMessageId": message.information_id,
                     "lineOfSightFrame": "J2000_ECI",
+                    "lineOfSightCovarianceEci": line_covariance_eci,
                 },
             ))
         else:
@@ -75,17 +86,41 @@ def iod_observations_from_messages(
 
 
 def _body_line_of_sight(modality, measurement):
+    line, _ = _body_line_of_sight_with_jacobian(modality, measurement)
+    return line
+
+
+def _body_line_of_sight_with_jacobian(modality, measurement):
     first, second = np.asarray(measurement, dtype=float).reshape(2)
     if modality == "OPTICAL":
-        line = np.array([1.0, first, second])
+        raw_line = np.array([1.0, first, second])
+        raw_jacobian = np.array([
+            [0.0, 0.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ])
     else:
         tangent_azimuth = np.tan(first)
-        line = np.array([
+        tangent_elevation = np.tan(second)
+        secant_azimuth_squared = 1.0 + tangent_azimuth**2
+        root = np.sqrt(secant_azimuth_squared)
+        raw_line = np.array([
             1.0,
             tangent_azimuth,
-            np.tan(second) * np.sqrt(1.0 + tangent_azimuth**2),
+            tangent_elevation * root,
         ])
-    return line / np.linalg.norm(line)
+        raw_jacobian = np.array([
+            [0.0, 0.0],
+            [secant_azimuth_squared, 0.0],
+            [tangent_elevation * tangent_azimuth * root,
+             (1.0 + tangent_elevation**2) * root],
+        ])
+    norm = float(np.linalg.norm(raw_line))
+    line = raw_line / norm
+    normalization_jacobian = (
+        np.eye(3) - np.outer(line, line)
+    ) / norm
+    return line, normalization_jacobian @ raw_jacobian
 
 
 def tracking_observation_from_message(message, *, q_eci2pri):

@@ -25,6 +25,12 @@ from tracking import (
     run_unlabeled_tracking_sequence,
 )
 from cooperative.topology import chain_topology
+from tracking.association.global_nearest_neighbor import (
+    _association_measurement,
+    _linearized_measurement,
+    _measurement_function,
+    _numerical_jacobian,
+)
 from tracking.track_lifecycle import TrackLifecycle
 
 
@@ -68,6 +74,39 @@ def _camera_quaternion(relative_position):
     lateral /= np.linalg.norm(lateral)
     vertical = np.cross(forward, lateral)
     return dcm_to_quat_wxyz(np.column_stack((forward, lateral, vertical)).T)
+
+
+@pytest.mark.parametrize("modality_index", [0, 1])
+def test_analytic_association_linearization_matches_finite_difference(
+    modality_index,
+):
+    observer = _state(-2.0)
+    measured_target = _state(0.5)
+    reference_state = measured_target.copy()
+    reference_state[:3] += np.array([40.0, -25.0, 15.0])
+    observation = _unlabeled(
+        "observer-1", 0.0, observer, measured_target, group="target",
+    )[modality_index]
+
+    predicted, measured, jacobian = _linearized_measurement(
+        observation, reference_state,
+    )
+    measurement_function = _measurement_function(observation, reference_state)
+
+    np.testing.assert_allclose(
+        predicted, measurement_function(reference_state), atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        measured,
+        _association_measurement(observation, reference_state),
+        atol=1e-12,
+    )
+    np.testing.assert_allclose(
+        jacobian,
+        _numerical_jacobian(measurement_function, reference_state),
+        rtol=2e-6,
+        atol=2e-10,
+    )
 
 
 def test_gnn_labels_unordered_measurements_without_using_target_ids():

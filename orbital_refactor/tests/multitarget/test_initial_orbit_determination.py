@@ -108,6 +108,22 @@ def test_iod_rejects_an_unobservable_single_epoch():
     assert not estimate.converged
 
 
+def test_iod_rejects_a_numerically_full_rank_but_ill_conditioned_solution():
+    _truth, observations = _observations()
+
+    estimate = initialize_target(
+        observations,
+        target_id="target-1",
+        maximum_information_condition_number=1.0,
+    )
+
+    assert estimate.status is IODStatus.POOR_GEOMETRY
+    assert not estimate.converged
+    assert estimate.diagnostics["qualityGateReason"] == (
+        "ILL_CONDITIONED_INFORMATION"
+    )
+
+
 def test_multi_target_manager_waits_for_short_arc_then_initializes_each_target():
     _truth, target_1 = _observations()
     target_2 = tuple(replace(item, target_id="target-2") for item in target_1)

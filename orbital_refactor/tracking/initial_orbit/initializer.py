@@ -14,7 +14,15 @@ def initialize_target(
     *,
     target_id: str,
     track_id: str | None = None,
+    maximum_information_condition_number: float = 1e9,
 ) -> InitialOrbitEstimate:
+    if (
+        not np.isfinite(maximum_information_condition_number)
+        or maximum_information_condition_number <= 0.0
+    ):
+        raise ValueError(
+            "maximum_information_condition_number must be positive and finite."
+        )
     selected = tuple(
         item for item in observations
         if item.valid_flag and item.target_id == target_id
@@ -36,10 +44,25 @@ def initialize_target(
             target_id, track_id, IODStatus.NUMERICAL_FAILURE,
             message=str(exc),
         )
-    diagnostics = {**guess_diagnostics, **diagnostics, "solverMessage": result.message}
-    if diagnostics["jacobianRank"] < 6 or not np.isfinite(
-        diagnostics["informationConditionNumber"]
-    ):
+    diagnostics = {
+        **guess_diagnostics,
+        **diagnostics,
+        "solverMessage": result.message,
+        "maximumInformationConditionNumber": float(
+            maximum_information_condition_number
+        ),
+    }
+    poor_condition = (
+        not np.isfinite(diagnostics["informationConditionNumber"])
+        or diagnostics["informationConditionNumber"]
+        > maximum_information_condition_number
+    )
+    if diagnostics["jacobianRank"] < 6 or poor_condition:
+        diagnostics["qualityGateReason"] = (
+            "RANK_DEFICIENT"
+            if diagnostics["jacobianRank"] < 6
+            else "ILL_CONDITIONED_INFORMATION"
+        )
         return InitialOrbitEstimate(
             target_id=target_id,
             track_id=track_id or f"track-{target_id}",

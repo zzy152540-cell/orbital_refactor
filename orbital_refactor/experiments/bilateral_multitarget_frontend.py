@@ -14,7 +14,6 @@ from types import MappingProxyType
 from typing import Mapping
 
 import numpy as np
-from scipy.optimize import linear_sum_assignment
 
 from adapters.infrared_image_adapter import InfraredCameraConfig
 from adapters.multimodal_sensor_simulator import (
@@ -42,7 +41,12 @@ from tracking.association.frontend_adapter import (
     unlabeled_iod_observations_from_messages,
 )
 from tracking.association.online_tracker import OnlineMultiTargetTracker
+from tracking.association.pipeline import MultiTargetAssociationPipeline
 from tracking.distributed_target_consensus import DistributedTargetConsensus
+
+from experiments.multitarget_identity_evaluation import (
+    IdentityAwareTrackEvaluator,
+)
 
 
 MODALITIES = ("RADAR", "INFRARED", "OPTICAL")
@@ -66,6 +70,20 @@ class BilateralFrontendConfig:
     observer_failure_start_seconds: float | None = None
     observer_failure_end_seconds: float | None = None
     failed_observer_indices: tuple[int, ...] | None = None
+    association_position_sigma_floor_m: float = 50.0
+    association_velocity_sigma_floor_mps: float = 0.25
+    association_gate_squared_mahalanobis: float = 13.815510557964274
+    association_minimum_cost_margin: float = 2.0
+    tracking_max_coast_epochs: int = 3
+    tracking_max_lost_epochs: int = 30
+    maximum_track_count: int | None = 15
+    process_noise_acceleration: float = 1e-4
+    preserve_angular_radial_nullspace: bool = True
+    use_multi_observer_bearing_update: bool = True
+    use_unified_multimodal_measurement_update: bool = False
+    use_inverse_depth_los_update: bool = False
+    unified_multimodal_window_epochs: int = 1
+    multi_epoch_bearing_window_epochs: int = 1
 
     def __post_init__(self) -> None:
         if not np.isfinite(self.duration_seconds) or self.duration_seconds <= 0.0:
@@ -154,6 +172,63 @@ class BilateralFrontendConfig:
                 "Modality dropout and observer failure must be tested separately."
             )
         object.__setattr__(self, "failed_observer_indices", failed_indices)
+        if (
+            not np.isfinite(self.association_position_sigma_floor_m)
+            or self.association_position_sigma_floor_m < 0.0
+        ):
+            raise ValueError(
+                "association_position_sigma_floor_m must be finite and nonnegative."
+            )
+        if (
+            not np.isfinite(self.association_velocity_sigma_floor_mps)
+            or self.association_velocity_sigma_floor_mps < 0.0
+        ):
+            raise ValueError(
+                "association_velocity_sigma_floor_mps must be finite and nonnegative."
+            )
+        if (
+            not np.isfinite(self.association_gate_squared_mahalanobis)
+            or self.association_gate_squared_mahalanobis <= 0.0
+        ):
+            raise ValueError(
+                "association_gate_squared_mahalanobis must be positive and finite."
+            )
+        if (
+            not np.isfinite(self.association_minimum_cost_margin)
+            or self.association_minimum_cost_margin < 0.0
+        ):
+            raise ValueError(
+                "association_minimum_cost_margin must be finite and nonnegative."
+            )
+        if int(self.tracking_max_coast_epochs) < 0:
+            raise ValueError("tracking_max_coast_epochs must be nonnegative.")
+        if int(self.tracking_max_lost_epochs) < 1:
+            raise ValueError("tracking_max_lost_epochs must be positive.")
+        if self.maximum_track_count is not None and int(self.maximum_track_count) < 1:
+            raise ValueError("maximum_track_count must be positive when supplied.")
+        if (
+            not np.isfinite(self.process_noise_acceleration)
+            or self.process_noise_acceleration < 0.0
+        ):
+            raise ValueError(
+                "process_noise_acceleration must be finite and nonnegative."
+            )
+        if int(self.multi_epoch_bearing_window_epochs) < 1:
+            raise ValueError(
+                "multi_epoch_bearing_window_epochs must be positive."
+            )
+        if int(self.unified_multimodal_window_epochs) < 1:
+            raise ValueError(
+                "unified_multimodal_window_epochs must be positive."
+            )
+        if (
+            self.use_inverse_depth_los_update
+            and not self.use_unified_multimodal_measurement_update
+        ):
+            raise ValueError(
+                "use_inverse_depth_los_update requires "
+                "use_unified_multimodal_measurement_update."
+            )
 
 
 @dataclass(frozen=True)
@@ -213,8 +288,35 @@ class BilateralOnlineSmokeResult:
     processing_p95_ms: float
     cann_preprocessed_observation_count: int
     cann_action_counts: Mapping[str, int]
+    mean_local_modality_weight: Mapping[str, float]
+    local_modality_weight_sample_count: Mapping[str, int]
+    association_match_count: int
+    association_unassigned_observation_count: int
+    association_ambiguous_observation_count: int
+    association_unobserved_track_count: int
+    suppressed_birth_count: int
+    joint_bearing_update_count: int
+    joint_bearing_measurement_count: int
+    unified_multimodal_update_count: int
+    unified_multimodal_observation_count: int
+    tracking_modality_restriction_start_seconds: float | None
     all_states_finite: bool
     phase_metrics: Mapping[str, "BilateralPhaseMetrics"]
+    identity_switch_count: int
+    nearest_truth_disagreement_count: int
+    track_replacement_count: int
+    missing_truth_sample_count: int
+    worst_target_position_rmse_m: float
+    position_rmse_m_by_target: Mapping[str, float]
+    consensus_phase_metrics: Mapping[str, "BilateralPhaseMetrics"]
+    consensus_identity_switch_count: int
+    consensus_nearest_truth_disagreement_count: int
+    consensus_track_replacement_count: int
+    consensus_missing_truth_sample_count: int
+    consensus_worst_target_position_rmse_m: float
+    consensus_position_rmse_m_by_target: Mapping[str, float]
+    representative_node_metrics: "BilateralNodeViewMetrics"
+    independent_node_metrics: "BilateralNodeViewMetrics"
     consensus_received_message_count: int
     consensus_recovered_link_count: int
     active_communication_node_count_by_timestamp: Mapping[float, int]
@@ -228,9 +330,28 @@ class BilateralPhaseMetrics:
     epoch_count: int
     position_sample_count: int
     acceleration_sample_count: int
+    position_mean_error_m: float
+    velocity_mean_error_mps: float
+    acceleration_mean_error_mps2: float
     position_rmse_m: float
     velocity_rmse_mps: float
     acceleration_rmse_mps2: float
+
+
+@dataclass(frozen=True)
+class BilateralNodeViewMetrics:
+    """Identity-aware accuracy for one node or unfused independent nodes."""
+
+    node_count: int
+    node_ids: tuple[str, ...]
+    final_estimate_count: int
+    phase_metrics: Mapping[str, BilateralPhaseMetrics]
+    identity_switch_count: int
+    nearest_truth_disagreement_count: int
+    track_replacement_count: int
+    missing_truth_sample_count: int
+    worst_target_position_rmse_m: float
+    position_rmse_m_by_target: Mapping[str, float]
 
 
 @dataclass(frozen=True)
@@ -239,6 +360,17 @@ class BilateralOnlineComparisonResult:
 
     without_cann: BilateralOnlineSmokeResult
     incremental_cann: BilateralOnlineSmokeResult
+    message_count_by_timestamp: Mapping[float, int]
+
+
+@dataclass(frozen=True)
+class BilateralBaselineMatrixResult:
+    """Comparable estimator arms sharing truth and rendered sensor frames."""
+
+    arms: Mapping[str, BilateralOnlineSmokeResult]
+    local_node_baselines: Mapping[str, BilateralNodeViewMetrics]
+    tracking_modalities_by_arm: Mapping[str, tuple[str, ...]]
+    uses_common_multimodal_initialization: bool
     message_count_by_timestamp: Mapping[float, int]
 
 
@@ -414,14 +546,114 @@ def run_bilateral_distributed_online_comparison(
     )
 
 
+def run_bilateral_baseline_matrix(
+    config: BilateralFrontendConfig | None = None,
+) -> BilateralBaselineMatrixResult:
+    """Compare modality, CANN, and fixed-topology arms on identical frames.
+
+    Autonomous cold-start IOD requires radar range plus a line of sight.  Every
+    arm therefore uses the same multimodal initialization frames and applies
+    its configured modality ablation only after all hostile tracks exist.
+    """
+
+    selected = config or BilateralFrontendConfig(duration_seconds=4.0)
+    frontend = build_bilateral_raw_frontend(selected)
+    definitions = {
+        "centralized_radar_only": (("RADAR",), False, False),
+        "centralized_infrared_only": (("INFRARED",), False, False),
+        "centralized_optical_only": (("OPTICAL",), False, False),
+        "centralized_multimodal_no_cann": (MODALITIES, False, False),
+        "centralized_multimodal_cann": (MODALITIES, True, False),
+        "fixed_topology_multimodal_no_cann": (MODALITIES, False, True),
+        "fixed_topology_multimodal_cann": (MODALITIES, True, True),
+    }
+    arms = {
+        name: _run_bilateral_online_arm(
+            frontend,
+            enable_cann=enable_cann,
+            enable_consensus=enable_consensus,
+            tracking_modalities=modalities,
+        )
+        for name, (modalities, enable_cann, enable_consensus) in (
+            definitions.items()
+        )
+    }
+    return BilateralBaselineMatrixResult(
+        arms=MappingProxyType(arms),
+        local_node_baselines=MappingProxyType({
+            "single_node_multimodal_no_cann": arms[
+                "centralized_multimodal_no_cann"
+            ].representative_node_metrics,
+            "single_node_multimodal_cann": arms[
+                "centralized_multimodal_cann"
+            ].representative_node_metrics,
+            "independent_15_node_multimodal_no_cann": arms[
+                "centralized_multimodal_no_cann"
+            ].independent_node_metrics,
+            "independent_15_node_multimodal_cann": arms[
+                "centralized_multimodal_cann"
+            ].independent_node_metrics,
+        }),
+        tracking_modalities_by_arm=MappingProxyType({
+            name: tuple(modalities)
+            for name, (modalities, _cann, _consensus) in definitions.items()
+        }),
+        uses_common_multimodal_initialization=True,
+        message_count_by_timestamp=MappingProxyType({
+            timestamp: len(messages)
+            for timestamp, messages in frontend.messages_by_timestamp.items()
+        }),
+    )
+
+
 def _run_bilateral_online_arm(
     frontend: BilateralFrontendResult,
     *,
     enable_cann: bool,
     enable_consensus: bool = False,
+    tracking_modalities: tuple[str, ...] | None = None,
 ) -> BilateralOnlineSmokeResult:
+    allowed_tracking_modalities = _normalized_modalities(tracking_modalities)
     tracker = OnlineMultiTargetTracker(
         scene_id=frontend.truth.manifest.scene_id,
+        process_noise_acceleration=(
+            frontend.config.process_noise_acceleration
+        ),
+        association_pipeline=MultiTargetAssociationPipeline(
+            gate_squared_mahalanobis=(
+                frontend.config.association_gate_squared_mahalanobis
+            ),
+            minimum_cost_margin=(
+                frontend.config.association_minimum_cost_margin
+            ),
+            prediction_position_sigma_floor_m=(
+                frontend.config.association_position_sigma_floor_m
+            ),
+            prediction_velocity_sigma_floor_mps=(
+                frontend.config.association_velocity_sigma_floor_mps
+            ),
+        ),
+        max_coast_epochs=frontend.config.tracking_max_coast_epochs,
+        max_lost_epochs=frontend.config.tracking_max_lost_epochs,
+        maximum_track_count=frontend.config.maximum_track_count,
+        preserve_angular_radial_nullspace=(
+            frontend.config.preserve_angular_radial_nullspace
+        ),
+        enable_multi_observer_bearing_update=(
+            frontend.config.use_multi_observer_bearing_update
+        ),
+        enable_unified_multimodal_update=(
+            frontend.config.use_unified_multimodal_measurement_update
+        ),
+        enable_inverse_depth_los_update=(
+            frontend.config.use_inverse_depth_los_update
+        ),
+        unified_multimodal_window_epochs=(
+            frontend.config.unified_multimodal_window_epochs
+        ),
+        multi_epoch_bearing_window_epochs=(
+            frontend.config.multi_epoch_bearing_window_epochs
+        ),
         measurement_preprocessor_factory=(
             (
                 lambda _observer, _target: IncrementalMultimodalCANNPreprocessor(
@@ -445,20 +677,62 @@ def _run_bilateral_online_arm(
     processing_seconds: list[float] = []
     cann_observations = 0
     cann_actions: Counter[str] = Counter()
+    local_weight_sums: Counter[str] = Counter()
+    local_weight_counts: Counter[str] = Counter()
+    association_matches = 0
+    association_unassigned = 0
+    association_ambiguous = 0
+    association_unobserved_tracks = 0
+    suppressed_births = 0
+    joint_bearing_updates = 0
+    joint_bearing_measurements = 0
+    unified_multimodal_updates = 0
+    unified_multimodal_observations = 0
     consensus_received = 0
     consensus_recovered = 0
     active_node_counts: dict[float, int] = {}
     active_edge_counts: dict[float, int] = {}
-    matched_history_by_truth: dict[str, list[tuple[float, np.ndarray]]] = {}
+    truth_ids = frontend.truth.manifest.hostile_target_ids
+    central_evaluator = IdentityAwareTrackEvaluator(truth_ids)
+    consensus_evaluators = {
+        node_id: IdentityAwareTrackEvaluator(truth_ids)
+        for node_id in frontend.truth.manifest.friendly_observer_ids
+    }
+    local_evaluators = {
+        node_id: IdentityAwareTrackEvaluator(truth_ids)
+        for node_id in frontend.truth.manifest.friendly_observer_ids
+    }
+    representative_node_id = frontend.truth.manifest.friendly_observer_ids[0]
     state_errors_by_timestamp: dict[float, np.ndarray] = {}
+    consensus_state_errors_by_timestamp: dict[float, np.ndarray] = {}
+    local_state_errors_by_timestamp: dict[float, np.ndarray] = {}
+    representative_state_errors_by_timestamp: dict[float, np.ndarray] = {}
+    final_state_errors = np.empty((0, 2), dtype=float)
+    final_local_estimate_count = 0
+    final_representative_estimate_count = 0
+    restriction_start = None
     for epoch_index, timestamp_value in enumerate(frontend.truth.timestamps):
         timestamp = float(timestamp_value)
         observer_states = {
             observer_id: frontend.observer_state_by_epoch[(observer_id, timestamp)]
             for observer_id in frontend.truth.manifest.friendly_observer_ids
         }
+        epoch_messages = frontend.messages_by_timestamp[timestamp]
+        if (
+            allowed_tracking_modalities is not None
+            and len(initialized_ids) == len(truth_ids)
+        ):
+            if (
+                restriction_start is None
+                and allowed_tracking_modalities != frozenset(MODALITIES)
+            ):
+                restriction_start = timestamp
+            epoch_messages = tuple(
+                message for message in epoch_messages
+                if message.modality in allowed_tracking_modalities
+            )
         observations = unlabeled_iod_observations_from_messages(
-            frontend.messages_by_timestamp[timestamp],
+            epoch_messages,
             observer_state_by_epoch=frontend.observer_state_by_epoch,
         )
         started = time.perf_counter()
@@ -470,6 +744,37 @@ def _run_bilateral_online_arm(
                 observer_id: build_rtn_quaternion(state)
                 for observer_id, state in observer_states.items()
             },
+        )
+        truth_state_by_target = {
+            target_id: history[epoch_index]
+            for target_id, history in (
+                frontend.truth.hostile_truth_state_history_by_target.items()
+            )
+        }
+        reports_by_node = {
+            node_id: {
+                report.track_id: report.state_eci
+                for report in final_update.local_reports
+                if report.observer_id == node_id and report.valid_flag
+            }
+            for node_id in local_evaluators
+        }
+        local_samples = []
+        for node_id, evaluator in local_evaluators.items():
+            node_epoch = evaluator.update(
+                timestamp=timestamp,
+                state_by_track_id=reports_by_node[node_id],
+                truth_state_by_id=truth_state_by_target,
+            )
+            local_samples.extend(node_epoch.samples_by_truth.values())
+            if node_id == representative_node_id:
+                representative_state_errors_by_timestamp[timestamp] = (
+                    _sample_errors(node_epoch.samples_by_truth.values())
+                )
+        local_state_errors_by_timestamp[timestamp] = _sample_errors(local_samples)
+        final_local_estimate_count = sum(map(len, reports_by_node.values()))
+        final_representative_estimate_count = len(
+            reports_by_node[representative_node_id]
         )
         if consensus is not None:
             active_observers = _active_observer_ids(
@@ -501,49 +806,118 @@ def _run_bilateral_online_arm(
             )
             active_node_counts[timestamp] = len(active_observers)
             active_edge_counts[timestamp] = _undirected_edge_count(active_topology)
+            consensus_samples = []
+            for node_id in active_observers:
+                epoch_result = consensus_evaluators[node_id].update(
+                    timestamp=timestamp,
+                    state_by_track_id={
+                        estimate.track_id: estimate.state_eci
+                        for estimate in (
+                            consensus_step.estimates_by_node[node_id].values()
+                        )
+                    },
+                    truth_state_by_id=truth_state_by_target,
+                )
+                consensus_samples.extend(epoch_result.samples_by_truth.values())
+            consensus_state_errors_by_timestamp[timestamp] = _sample_errors(
+                consensus_samples
+            )
         processing_seconds.append(time.perf_counter() - started)
+        association_matches += len(final_update.association.matches)
+        association_unassigned += len(
+            final_update.association.unassigned_observation_indices
+        )
+        association_ambiguous += len(
+            final_update.association.ambiguous_observation_indices
+        )
+        association_unobserved_tracks += len(
+            final_update.association.unobserved_target_ids
+        )
+        suppressed_births += len(final_update.suppressed_birth_ids)
+        joint_bearing_updates += final_update.joint_bearing_update_count
+        joint_bearing_measurements += (
+            final_update.joint_bearing_measurement_count
+        )
+        unified_multimodal_updates += (
+            final_update.unified_multimodal_update_count
+        )
+        unified_multimodal_observations += (
+            final_update.unified_multimodal_observation_count
+        )
+        for report in final_update.local_reports:
+            for modality, weight in report.modality_weights.items():
+                local_weight_sums[str(modality)] += float(weight)
+                local_weight_counts[str(modality)] += 1
         cann_observations += final_update.cann_preprocessed_observation_count
         cann_actions.update(final_update.cann_action_counts)
         initialized_ids.update(final_update.initialized_states_by_target)
         retired_ids.update(final_update.retired_target_ids)
-        state_errors_by_timestamp[timestamp] = _append_matched_history(
-            matched_history_by_truth,
+        central_epoch = central_evaluator.update(
             timestamp=timestamp,
-            tracks=final_update.tracks_by_target,
-            truth_state_by_target={
-                target_id: history[epoch_index]
-                for target_id, history in (
-                    frontend.truth.hostile_truth_state_history_by_target.items()
-                )
+            state_by_track_id={
+                track.estimate.track_id: track.estimate.state_eci
+                for track in final_update.tracks_by_target.values()
+                if track.lifecycle.value != "TERMINATED"
             },
+            truth_state_by_id=truth_state_by_target,
         )
+        final_state_errors = _sample_errors(
+            central_epoch.samples_by_truth.values()
+        )
+        state_errors_by_timestamp[timestamp] = final_state_errors
 
-    estimates = tuple(
-        track.estimate.state_eci for track in final_update.tracks_by_target.values()
+    final_active_tracks = tuple(
+        track for track in final_update.tracks_by_target.values()
+        if track.lifecycle.value != "TERMINATED"
     )
-    truths = tuple(
-        history[-1]
-        for history in frontend.truth.hostile_truth_state_history_by_target.values()
-    )
-    errors = _minimum_assignment_state_errors(estimates, truths)
+    estimates = tuple(track.estimate.state_eci for track in final_active_tracks)
+    if not final_state_errors.size:
+        raise ValueError("Smoke-test scoring requires at least one tracked truth.")
     acceleration_errors = _final_acceleration_errors(
-        matched_history_by_truth,
+        central_evaluator.state_history_by_truth,
         frontend.truth.hostile_truth_state_history_by_target,
         frontend.truth.timestamps,
     )
     acceleration_errors_by_timestamp = _acceleration_errors_by_timestamp(
-        matched_history_by_truth,
+        central_evaluator.state_history_by_truth,
         frontend.truth.hostile_truth_state_history_by_target,
         frontend.truth.timestamps,
+    )
+    position_rmse_by_target = central_evaluator.position_rmse_by_truth()
+    consensus_acceleration_errors_by_timestamp = (
+        _combined_acceleration_errors_by_timestamp(
+            consensus_evaluators,
+            frontend.truth.hostile_truth_state_history_by_target,
+            frontend.truth.timestamps,
+        )
+        if consensus is not None else {}
+    )
+    consensus_position_rmse_by_target = (
+        _combined_position_rmse_by_truth(consensus_evaluators, truth_ids)
+        if consensus is not None else {}
+    )
+    independent_node_metrics = _node_view_metrics(
+        frontend=frontend,
+        evaluators=local_evaluators,
+        state_errors_by_timestamp=local_state_errors_by_timestamp,
+        final_estimate_count=final_local_estimate_count,
+    )
+    representative_node_metrics = _node_view_metrics(
+        frontend=frontend,
+        evaluators={
+            representative_node_id: local_evaluators[representative_node_id]
+        },
+        state_errors_by_timestamp=representative_state_errors_by_timestamp,
+        final_estimate_count=final_representative_estimate_count,
     )
     return BilateralOnlineSmokeResult(
         frame_count=len(frontend.truth.timestamps),
         initialized_track_count=len(initialized_ids),
         final_active_track_count=len(estimates),
         retired_track_count=len(retired_ids),
-        final_position_rmse_m=float(np.sqrt(np.mean(np.square(errors[:, 0])))),
-        final_maximum_position_error_m=float(np.max(errors[:, 0])),
-        final_velocity_rmse_mps=float(np.sqrt(np.mean(np.square(errors[:, 1])))),
+        final_position_rmse_m=_rmse_or_nan(final_state_errors[:, 0]),
+        final_maximum_position_error_m=float(np.max(final_state_errors[:, 0])),
+        final_velocity_rmse_mps=_rmse_or_nan(final_state_errors[:, 1]),
         final_acceleration_rmse_mps2=float(
             np.sqrt(np.mean(np.square(acceleration_errors)))
         ),
@@ -553,6 +927,25 @@ def _run_bilateral_online_arm(
         ),
         cann_preprocessed_observation_count=cann_observations,
         cann_action_counts=MappingProxyType(dict(sorted(cann_actions.items()))),
+        mean_local_modality_weight=MappingProxyType({
+            modality: local_weight_sums[modality] / count
+            for modality, count in sorted(local_weight_counts.items())
+        }),
+        local_modality_weight_sample_count=MappingProxyType(
+            dict(sorted(local_weight_counts.items()))
+        ),
+        association_match_count=association_matches,
+        association_unassigned_observation_count=association_unassigned,
+        association_ambiguous_observation_count=association_ambiguous,
+        association_unobserved_track_count=association_unobserved_tracks,
+        suppressed_birth_count=suppressed_births,
+        joint_bearing_update_count=joint_bearing_updates,
+        joint_bearing_measurement_count=joint_bearing_measurements,
+        unified_multimodal_update_count=unified_multimodal_updates,
+        unified_multimodal_observation_count=(
+            unified_multimodal_observations
+        ),
+        tracking_modality_restriction_start_seconds=restriction_start,
         all_states_finite=bool(
             estimates and all(np.all(np.isfinite(state)) for state in estimates)
         ),
@@ -561,6 +954,47 @@ def _run_bilateral_online_arm(
             state_errors_by_timestamp,
             acceleration_errors_by_timestamp,
         )),
+        identity_switch_count=central_evaluator.identity_switch_count,
+        nearest_truth_disagreement_count=(
+            central_evaluator.nearest_truth_disagreement_count
+        ),
+        track_replacement_count=central_evaluator.track_replacement_count,
+        missing_truth_sample_count=central_evaluator.missing_truth_sample_count,
+        worst_target_position_rmse_m=_worst_finite_value(
+            position_rmse_by_target.values()
+        ),
+        position_rmse_m_by_target=MappingProxyType(position_rmse_by_target),
+        consensus_phase_metrics=MappingProxyType(
+            _phase_metrics(
+                frontend.config,
+                consensus_state_errors_by_timestamp,
+                consensus_acceleration_errors_by_timestamp,
+            ) if consensus is not None else {}
+        ),
+        consensus_identity_switch_count=sum(
+            evaluator.identity_switch_count
+            for evaluator in consensus_evaluators.values()
+        ) if consensus is not None else 0,
+        consensus_nearest_truth_disagreement_count=sum(
+            evaluator.nearest_truth_disagreement_count
+            for evaluator in consensus_evaluators.values()
+        ) if consensus is not None else 0,
+        consensus_track_replacement_count=sum(
+            evaluator.track_replacement_count
+            for evaluator in consensus_evaluators.values()
+        ) if consensus is not None else 0,
+        consensus_missing_truth_sample_count=sum(
+            evaluator.missing_truth_sample_count
+            for evaluator in consensus_evaluators.values()
+        ) if consensus is not None else 0,
+        consensus_worst_target_position_rmse_m=_worst_finite_value(
+            consensus_position_rmse_by_target.values()
+        ),
+        consensus_position_rmse_m_by_target=MappingProxyType(
+            consensus_position_rmse_by_target
+        ),
+        representative_node_metrics=representative_node_metrics,
+        independent_node_metrics=independent_node_metrics,
         consensus_received_message_count=consensus_received,
         consensus_recovered_link_count=consensus_recovered,
         active_communication_node_count_by_timestamp=MappingProxyType(
@@ -572,57 +1006,14 @@ def _run_bilateral_online_arm(
     )
 
 
-def _minimum_assignment_state_errors(estimates, truths) -> np.ndarray:
-    if not estimates or not truths or len(estimates) != len(truths):
-        raise ValueError(
-            "Smoke-test scoring requires equal nonzero estimate and truth counts."
-        )
-    costs = np.asarray([
-        [np.linalg.norm(estimate[:3] - truth[:3]) for truth in truths]
-        for estimate in estimates
-    ])
-    rows, columns = linear_sum_assignment(costs)
-    return np.asarray([
-        (
-            np.linalg.norm(estimates[row][:3] - truths[column][:3]),
-            np.linalg.norm(estimates[row][3:] - truths[column][3:]),
-        )
-        for row, column in zip(rows, columns)
-    ])
-
-
-def _append_matched_history(
-    history_by_truth,
-    *,
-    timestamp,
-    tracks,
-    truth_state_by_target,
-) -> np.ndarray:
-    if not tracks:
+def _sample_errors(samples) -> np.ndarray:
+    values = tuple(samples)
+    if not values:
         return np.empty((0, 2), dtype=float)
-    track_items = tuple(sorted(tracks.items()))
-    truth_items = tuple(sorted(truth_state_by_target.items()))
-    costs = np.asarray([
-        [
-            np.linalg.norm(track.estimate.state_eci[:3] - truth[:3])
-            for _, truth in truth_items
-        ]
-        for _, track in track_items
-    ])
-    rows, columns = linear_sum_assignment(costs)
-    errors = []
-    for row, column in zip(rows, columns):
-        truth_id = truth_items[column][0]
-        estimate = track_items[row][1].estimate.state_eci
-        truth = truth_items[column][1]
-        history_by_truth.setdefault(truth_id, []).append(
-            (timestamp, estimate.copy())
-        )
-        errors.append((
-            np.linalg.norm(estimate[:3] - truth[:3]),
-            np.linalg.norm(estimate[3:] - truth[3:]),
-        ))
-    return np.asarray(errors, dtype=float)
+    return np.asarray([
+        (sample.position_error_m, sample.velocity_error_mps)
+        for sample in values
+    ], dtype=float)
 
 
 def _final_acceleration_errors(
@@ -684,6 +1075,90 @@ def _acceleration_errors_by_timestamp(
     }
 
 
+def _combined_acceleration_errors_by_timestamp(
+    evaluators,
+    truth_history_by_target,
+    timestamps,
+) -> dict[float, np.ndarray]:
+    combined: dict[float, list[np.ndarray]] = {}
+    for evaluator in evaluators.values():
+        node_errors = _acceleration_errors_by_timestamp(
+            evaluator.state_history_by_truth,
+            truth_history_by_target,
+            timestamps,
+        )
+        for timestamp, errors in node_errors.items():
+            combined.setdefault(timestamp, []).append(errors)
+    return {
+        timestamp: np.concatenate(values)
+        for timestamp, values in combined.items()
+        if values
+    }
+
+
+def _combined_position_rmse_by_truth(evaluators, truth_ids):
+    result = {}
+    for truth_id in truth_ids:
+        errors = [
+            sample.position_error_m
+            for evaluator in evaluators.values()
+            for sample in evaluator.error_history_by_truth[truth_id]
+        ]
+        result[truth_id] = _rmse_or_nan(errors)
+    return result
+
+
+def _node_view_metrics(
+    *,
+    frontend,
+    evaluators,
+    state_errors_by_timestamp,
+    final_estimate_count,
+) -> BilateralNodeViewMetrics:
+    acceleration_errors = _combined_acceleration_errors_by_timestamp(
+        evaluators,
+        frontend.truth.hostile_truth_state_history_by_target,
+        frontend.truth.timestamps,
+    )
+    position_rmse = _combined_position_rmse_by_truth(
+        evaluators, frontend.truth.manifest.hostile_target_ids,
+    )
+    return BilateralNodeViewMetrics(
+        node_count=len(evaluators),
+        node_ids=tuple(evaluators),
+        final_estimate_count=int(final_estimate_count),
+        phase_metrics=MappingProxyType(_phase_metrics(
+            frontend.config,
+            state_errors_by_timestamp,
+            acceleration_errors,
+        )),
+        identity_switch_count=sum(
+            evaluator.identity_switch_count for evaluator in evaluators.values()
+        ),
+        nearest_truth_disagreement_count=sum(
+            evaluator.nearest_truth_disagreement_count
+            for evaluator in evaluators.values()
+        ),
+        track_replacement_count=sum(
+            evaluator.track_replacement_count
+            for evaluator in evaluators.values()
+        ),
+        missing_truth_sample_count=sum(
+            evaluator.missing_truth_sample_count
+            for evaluator in evaluators.values()
+        ),
+        worst_target_position_rmse_m=_worst_finite_value(
+            position_rmse.values()
+        ),
+        position_rmse_m_by_target=MappingProxyType(position_rmse),
+    )
+
+
+def _worst_finite_value(values) -> float:
+    finite = [float(value) for value in values if np.isfinite(value)]
+    return max(finite) if finite else float("nan")
+
+
 def _phase_metrics(
     config,
     state_errors_by_timestamp,
@@ -722,6 +1197,9 @@ def _phase_metrics(
             epoch_count=len(timestamps),
             position_sample_count=len(states),
             acceleration_sample_count=len(accelerations),
+            position_mean_error_m=_mean_or_nan(states[:, 0]),
+            velocity_mean_error_mps=_mean_or_nan(states[:, 1]),
+            acceleration_mean_error_mps2=_mean_or_nan(accelerations),
             position_rmse_m=_rmse_or_nan(states[:, 0]),
             velocity_rmse_mps=_rmse_or_nan(states[:, 1]),
             acceleration_rmse_mps2=_rmse_or_nan(accelerations),
@@ -735,6 +1213,11 @@ def _rmse_or_nan(values) -> float:
         float(np.sqrt(np.mean(np.square(array))))
         if array.size else float("nan")
     )
+
+
+def _mean_or_nan(values) -> float:
+    array = np.asarray(values, dtype=float)
+    return float(np.mean(array)) if array.size else float("nan")
 
 
 def _strip_truth_identity(message, detection_group: str):
@@ -771,6 +1254,20 @@ def _drop_message(config, *, timestamp, target_index, modality) -> bool:
     ):
         return False
     return config.dropout_modality in {"ALL", str(modality).upper()}
+
+
+def _normalized_modalities(values):
+    if values is None:
+        return None
+    normalized = tuple(dict.fromkeys(str(value).upper() for value in values))
+    if not normalized:
+        raise ValueError("tracking_modalities cannot be empty.")
+    unsupported = set(normalized) - set(MODALITIES)
+    if unsupported:
+        raise ValueError(
+            f"Unsupported tracking modalities: {sorted(unsupported)}"
+        )
+    return frozenset(normalized)
 
 
 def _observer_failed(config, *, timestamp, observer_index) -> bool:
@@ -855,9 +1352,20 @@ def _sensor_config(image_size: int) -> MultimodalSensorSimulationConfig:
         "read_noise_sigma": 1.0,
     }
     return MultimodalSensorSimulationConfig(
-        optical=OpticalCameraConfig(**common),
-        infrared=InfraredCameraConfig(**common),
-        radar=RadarRangeDopplerConfig(**common),
+        # The renderer must realize the same one-sigma uncertainty that the
+        # frontend reports to the filters.  Read noise alone produces centroid
+        # errors thousands of times smaller than those covariances.
+        optical=OpticalCameraConfig(
+            **common, pointing_jitter_sigma_pixels=0.2,
+        ),
+        infrared=InfraredCameraConfig(
+            **common, pointing_jitter_sigma_pixels=0.25,
+        ),
+        radar=RadarRangeDopplerConfig(
+            **common,
+            range_jitter_sigma_m=2.5,
+            range_rate_jitter_sigma_mps=0.0125,
+        ),
     )
 
 

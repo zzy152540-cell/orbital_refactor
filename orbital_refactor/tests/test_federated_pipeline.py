@@ -7,7 +7,10 @@ import numpy as np
 
 from orbital_core.dynamics import make_process_noise
 from orbital_core.filters import LocalDynamicsEKF
-from pipelines.federated_ci import run_federated_ci_filter
+from pipelines.federated_ci import (
+    _anchor_consistency_gate,
+    run_federated_ci_filter,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -140,3 +143,23 @@ def test_all_modalities_missing_propagates_previous_fused_state():
     np.testing.assert_allclose(result.fused_covariance_history[2], expected_covariance)
     assert result.ci_weight_history[2] is None
     assert any(event.event_type == "ALL_MODALITIES_UNAVAILABLE" for event in result.abnormal_events)
+
+
+def test_anchor_consistency_gate_excludes_overconfident_angular_outlier():
+    radar_state = np.zeros(6)
+    radar_covariance = np.eye(6) * 4.0
+    infrared_state = np.full(6, 0.1)
+    infrared_covariance = np.eye(6) * 5.0
+    optical_state = np.array([40_000.0, 0.0, 0.0, 10.0, 0.0, 0.0])
+    optical_covariance = np.eye(6) * 0.1
+
+    accepted, rejected = _anchor_consistency_gate([
+        ("opt", optical_state, optical_covariance),
+        ("ir", infrared_state, infrared_covariance),
+        ("rad", radar_state, radar_covariance),
+    ], anchor="rad", threshold=25.0)
+
+    assert [name for name, _state, _covariance in accepted] == ["ir", "rad"]
+    assert len(rejected) == 1
+    assert rejected[0][0] == "opt"
+    assert rejected[0][1] > 25.0

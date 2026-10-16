@@ -40,6 +40,8 @@ class FederatedAdapterResult:
     reset_feedback: bool
     ci_objective: str
     ci_grid_points: int
+    cross_modality_anchor: str | None
+    cross_modality_gate_threshold: float
 
 
 def adapt_module_input(module_input: ModuleInput) -> FederatedAdapterResult:
@@ -108,6 +110,14 @@ def adapt_module_input(module_input: ModuleInput) -> FederatedAdapterResult:
             infrared_effective_target_diameter_m=modality_config.get(
                 "effective_target_diameter_m"
             ),
+            preserve_angular_radial_nullspace=bool(
+                modality_config.get(
+                    "preserve_angular_radial_nullspace",
+                    filter_config.get(
+                        "preserve_angular_radial_nullspace", False
+                    ),
+                )
+            ),
         )
 
     node_id = str(runtime.get("node_id", config.get("node_id", "node_0")))
@@ -126,6 +136,14 @@ def adapt_module_input(module_input: ModuleInput) -> FederatedAdapterResult:
         reset_feedback=bool(filter_config.get("reset_feedback", config.get("reset_feedback", False))),
         ci_objective=str(filter_config.get("ci_objective", config.get("ci_objective", "trace"))),
         ci_grid_points=int(filter_config.get("ci_grid_points", config.get("ci_grid_points", 101))),
+        cross_modality_anchor=(
+            None
+            if filter_config.get("cross_modality_anchor") is None
+            else str(filter_config["cross_modality_anchor"]).lower()
+        ),
+        cross_modality_gate_threshold=float(
+            filter_config.get("cross_modality_gate_threshold", np.inf)
+        ),
     )
 
 

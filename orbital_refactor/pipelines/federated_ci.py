@@ -148,6 +148,8 @@ def run_federated_ci_filter(
     reset_feedback: bool = False,
     ci_objective: str = "trace",
     ci_grid_points: int = 101,
+    cross_modality_anchor: str | None = None,
+    cross_modality_gate_threshold: float = np.inf,
     node_id: str = "node_0",
     target_id: str = "target_0",
 ) -> FederatedCIHistory:
@@ -325,6 +327,28 @@ def run_federated_ci_filter(
             previous_states[modality] = state
             previous_covariances[modality] = covariance
 
+        if posterior_list and cross_modality_anchor is not None:
+            posterior_list, rejected_modalities = _anchor_consistency_gate(
+                posterior_list,
+                anchor=str(cross_modality_anchor).lower(),
+                threshold=float(cross_modality_gate_threshold),
+            )
+            for modality, distance_squared in rejected_modalities:
+                local_output_valid[modality][index] = False
+                abnormal_events.append(AbnormalEvent(
+                    timestamp=float(timestamps[index]),
+                    event_type="MODALITY_POSTERIOR_INCONSISTENT",
+                    severity="ERROR",
+                    description=(
+                        f"{modality} posterior excluded from CI against "
+                        f"{cross_modality_anchor} anchor "
+                        f"(squared distance={distance_squared:.6g})."
+                    ),
+                    node_id=node_id,
+                    target_id=target_id,
+                    modality=modality,
+                ))
+
         if not posterior_list:
             fused_states[index] = predicted_fused_state
             fused_covariances[index] = predicted_fused_covariance
@@ -392,6 +416,36 @@ def run_federated_ci_filter(
         },
         consecutive_anomaly_history=consecutive_anomaly_history,
     )
+
+
+def _anchor_consistency_gate(posterior_list, *, anchor, threshold):
+    if not np.isfinite(threshold) or threshold <= 0.0:
+        return posterior_list, ()
+    anchor_values = [item for item in posterior_list if item[0] == anchor]
+    if len(anchor_values) != 1:
+        return posterior_list, ()
+    _, anchor_state, anchor_covariance = anchor_values[0]
+    accepted = []
+    rejected = []
+    for item in posterior_list:
+        modality, state, covariance = item
+        if modality == anchor:
+            accepted.append(item)
+            continue
+        delta = np.asarray(state, dtype=float) - np.asarray(
+            anchor_state, dtype=float
+        )
+        combined_covariance = np.asarray(
+            covariance, dtype=float
+        ) + np.asarray(anchor_covariance, dtype=float)
+        distance_squared = float(
+            delta @ np.linalg.pinv(combined_covariance) @ delta
+        )
+        if np.isfinite(distance_squared) and distance_squared <= threshold:
+            accepted.append(item)
+        else:
+            rejected.append((modality, distance_squared))
+    return accepted, tuple(rejected)
 
 
 def _validate_modal_inputs(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 import numpy as np
 
@@ -25,6 +26,7 @@ class RingCANNConfig:
     peak_firing_rate: float = 40.0
     normalized_regularization: float = 1.0e-3
     cue_gain: float = 0.25
+    integration_mode: Literal["euler", "phase_shift"] = "euler"
 
     def validate(self) -> None:
         if self.num_neurons < 3:
@@ -46,6 +48,8 @@ class RingCANNConfig:
             raise ValueError("Activation bias must be finite.")
         if not np.isfinite(self.cue_gain) or self.cue_gain < 0.0:
             raise ValueError("Cue gain must be finite and nonnegative.")
+        if self.integration_mode not in {"euler", "phase_shift"}:
+            raise ValueError("Ring CANN integration mode is unsupported.")
 
 
 @dataclass(frozen=True)
@@ -272,6 +276,14 @@ class RingCANN:
         self, *, phase_rate: float, duration: float,
         external_phase_hint: float | None, cue_gain: float,
     ) -> int:
+        if self.config.integration_mode == "phase_shift":
+            self._phase_shift_integrate(
+                phase_rate=phase_rate,
+                duration=duration,
+                external_phase_hint=external_phase_hint,
+                cue_gain=cue_gain,
+            )
+            return 1
         full_steps = int(np.floor(duration / self.config.internal_dt))
         remainder = duration - full_steps * self.config.internal_dt
         steps = [self.config.internal_dt] * full_steps
@@ -296,6 +308,38 @@ class RingCANN:
             self.firing_rate = self.activation(self.input_state)
             self._enforce_neuron_failures()
         return len(steps)
+
+    def _phase_shift_integrate(
+        self, *, phase_rate: float, duration: float,
+        external_phase_hint: float | None, cue_gain: float,
+    ) -> None:
+        """Advance an established bump by its translation symmetry.
+
+        The ring attractor's steady bump is translation invariant.  Realtime
+        operation therefore transports the existing neural state directly in
+        Fourier space instead of resolving hundreds of stable Euler substeps.
+        A valid endpoint cue applies a bounded phase correction while retaining
+        the bump shape, concentration, and any nonuniform neural activity.
+        """
+
+        phase_delta = float(phase_rate) * float(duration)
+        if external_phase_hint is not None and cue_gain > 0.0:
+            current_phase, _concentration, _width = decode_ring_activity(
+                self.firing_rate, self.preferred_phase,
+            )
+            predicted_phase = _wrapped_phase(current_phase + phase_delta)
+            innovation = float(_wrapped_signed(
+                external_phase_hint - predicted_phase
+            ))
+            phase_delta += float(np.clip(cue_gain, 0.0, 1.0)) * innovation
+        if phase_delta != 0.0:
+            self.input_state = _fractional_circular_shift(
+                self.input_state, phase_delta,
+            )
+            self.firing_rate = _fractional_circular_shift(
+                self.firing_rate, phase_delta,
+            )
+        self._enforce_neuron_failures()
 
     def _enforce_neuron_failures(self) -> None:
         if not np.any(self._failed_neuron_mask):
@@ -376,6 +420,15 @@ def periodic_spectral_derivative(samples: Array) -> Array:
     if count % 2 == 0:
         derivative_hat[count // 2] = 0.0
     return np.fft.ifft(count * derivative_hat).real
+
+
+def _fractional_circular_shift(values: Array, phase_delta: float) -> Array:
+    samples = np.asarray(values, dtype=float).reshape(-1)
+    modes = np.fft.fftfreq(samples.size, d=1.0 / samples.size)
+    shifted = np.fft.ifft(
+        np.fft.fft(samples) * np.exp(-1j * modes * float(phase_delta))
+    ).real
+    return shifted
 
 
 def _wrapped_phase(value: float) -> float:
