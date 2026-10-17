@@ -135,6 +135,12 @@ def _assign_units(
                     observation,
                     *prediction,
                     geometry=geometry,
+                    # Unit cost is the mean across its modalities.  A single
+                    # term can therefore reach N times the mean gate without
+                    # making the whole unit impossible.
+                    gate_squared_mahalanobis=(
+                        gate_squared_mahalanobis * len(indices)
+                    ),
                 ))
             distances = tuple(distances)
             individual_costs[(row, column)] = distances
@@ -232,7 +238,12 @@ def _predict_estimate(
 
 
 def _innovation_distance_from_prediction(
-    observation, state, covariance, *, geometry=None,
+    observation,
+    state,
+    covariance,
+    *,
+    geometry=None,
+    gate_squared_mahalanobis=None,
 ):
     if state is None or covariance is None:
         return np.inf
@@ -245,9 +256,26 @@ def _innovation_distance_from_prediction(
         and np.all(np.isfinite(jacobian))
     ):
         return np.inf
-    innovation_covariance = jacobian @ covariance @ jacobian.T + observation.covariance
-    innovation_covariance = 0.5 * (innovation_covariance + innovation_covariance.T)
     residual = measured - predicted
+    projected_covariance = jacobian @ covariance @ jacobian.T
+    if gate_squared_mahalanobis is not None:
+        # For positive-definite S, r.T @ inv(S) @ r >= r_i**2 / S_ii.
+        # Therefore this inexpensive component-wise test can only reject a
+        # candidate that the full Mahalanobis gate would reject as well.
+        marginal_variance = np.diag(projected_covariance) + np.diag(
+            observation.covariance
+        )
+        if (
+            np.all(np.isfinite(marginal_variance))
+            and np.all(marginal_variance > 0.0)
+            and np.any(
+                residual * residual
+                > float(gate_squared_mahalanobis) * marginal_variance
+            )
+        ):
+            return np.inf
+    innovation_covariance = projected_covariance + observation.covariance
+    innovation_covariance = 0.5 * (innovation_covariance + innovation_covariance.T)
     try:
         return float(residual @ np.linalg.solve(innovation_covariance, residual))
     except np.linalg.LinAlgError:

@@ -27,6 +27,7 @@ from tracking import (
 from cooperative.topology import chain_topology
 from tracking.association.global_nearest_neighbor import (
     _association_measurement,
+    _innovation_distance_from_prediction,
     _linearized_measurement,
     _measurement_function,
     _numerical_jacobian,
@@ -159,6 +160,41 @@ def test_gnn_leaves_out_of_gate_false_alarm_unassigned():
     assert result.unassigned_observation_indices == (0,)
     assert result.ambiguous_observation_indices == ()
     assert result.unobserved_target_ids == ("target-a",)
+
+
+def test_component_gate_preserves_in_gate_distance_and_rejects_false_alarm():
+    observer = _state(-2.0)
+    target = _state(0.5)
+    covariance = np.diag([100.0] * 3 + [1.0] * 3)
+    gate = 13.815
+    correct = _unlabeled(
+        "observer-1", 0.0, observer, target, group="target",
+    )[0]
+    false_alarm = replace(correct, measurement=np.array([0.0, 0.0, 1.0]))
+
+    correct_distance = _innovation_distance_from_prediction(
+        correct, target, covariance,
+    )
+    gated_correct_distance = _innovation_distance_from_prediction(
+        correct,
+        target,
+        covariance,
+        gate_squared_mahalanobis=gate,
+    )
+    false_distance = _innovation_distance_from_prediction(
+        false_alarm, target, covariance,
+    )
+    gated_false_distance = _innovation_distance_from_prediction(
+        false_alarm,
+        target,
+        covariance,
+        gate_squared_mahalanobis=gate,
+    )
+
+    assert correct_distance < gate
+    assert gated_correct_distance == pytest.approx(correct_distance)
+    assert false_distance > gate
+    assert np.isinf(gated_false_distance)
 
 
 def test_gnn_prediction_floor_preserves_a_correct_precise_track_match():
