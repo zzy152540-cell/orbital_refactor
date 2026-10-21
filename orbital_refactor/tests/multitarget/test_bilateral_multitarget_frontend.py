@@ -143,6 +143,7 @@ def test_all_fifteen_hostile_targets_reach_online_tracking_from_raw_data():
         result.final_position_rmse_m
     )
     assert not result.consensus_phase_metrics
+    assert result.matched_local_consensus_metrics is None
 
 
 def test_finite_modality_dropout_removes_only_the_selected_window_and_targets():
@@ -227,6 +228,50 @@ def test_radar_dropout_joint_bearing_path_runs_incremental_cann_preprocessing():
     assert result.incremental_cann.joint_bearing_measurement_count > (
         result.incremental_cann.joint_bearing_update_count
     )
+
+
+def test_radial_backup_is_not_discarded_by_joint_bearing_route():
+    result = run_bilateral_online_comparison(BilateralFrontendConfig(
+        duration_seconds=4.0,
+        random_seed=4,
+        dropout_modality="RADAR",
+        dropout_start_seconds=3.0,
+        dropout_end_seconds=3.0,
+        use_local_unified_multimodal_measurement_update=True,
+        backup_radial_range_sigma_m=0.2,
+        backup_radial_range_rate_sigma_mps=0.0125,
+    ))
+
+    assert result.incremental_cann.final_active_track_count == 15
+    assert result.without_cann.joint_bearing_update_count == 0
+    assert result.incremental_cann.joint_bearing_update_count == 0
+
+
+def test_radial_backup_can_be_restricted_to_selected_observers():
+    result = build_bilateral_raw_frontend(BilateralFrontendConfig(
+        duration_seconds=2.0,
+        random_seed=4,
+        backup_radial_range_sigma_m=1.0,
+        backup_radial_range_rate_sigma_mps=0.0125,
+        backup_radial_observer_indices=(0,),
+    ))
+    selected_id = result.truth.manifest.friendly_observer_ids[0]
+    messages = tuple(result.messages_by_timestamp[1.0])
+    selected = [
+        item for item in messages
+        if item.observer_id == selected_id and item.modality == "INFRARED"
+    ]
+    unselected = [
+        item for item in messages
+        if item.observer_id != selected_id and item.modality == "INFRARED"
+    ]
+
+    assert selected
+    assert unselected
+    assert all("rangeProxyM" in item.metadata for item in selected)
+    assert all("rangeRateProxyMps" in item.metadata for item in selected)
+    assert all("rangeProxyM" not in item.metadata for item in unselected)
+    assert all("rangeRateProxyMps" not in item.metadata for item in unselected)
 
 
 def test_unified_multimodal_path_handles_control_and_radar_dropout_epochs():
@@ -397,6 +442,21 @@ def test_distributed_node_failure_disables_edges_and_recovers_consensus_links():
     assert arm.active_communication_edge_count_by_timestamp[2.0] < (
         arm.active_communication_edge_count_by_timestamp[4.0]
     )
+    matched = arm.matched_local_consensus_metrics
+    assert matched is not None
+    assert matched.common_sample_count > 0
+    assert matched.common_sample_count <= matched.local_sample_count
+    assert matched.common_sample_count <= matched.consensus_sample_count
+    assert matched.local_only_sample_count == (
+        matched.local_sample_count - matched.common_sample_count
+    )
+    assert matched.consensus_only_sample_count == (
+        matched.consensus_sample_count - matched.common_sample_count
+    )
+    assert np.isfinite(matched.position_mean_error_improvement_percent)
+    assert np.isfinite(matched.position_rmse_improvement_percent)
+    assert np.isfinite(matched.velocity_mean_error_improvement_percent)
+    assert np.isfinite(matched.velocity_rmse_improvement_percent)
 
 
 def test_paired_cann_comparison_uses_the_same_dropout_frames_and_keeps_tracks():

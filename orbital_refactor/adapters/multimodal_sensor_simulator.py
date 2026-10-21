@@ -37,6 +37,36 @@ class MultimodalSensorSimulationConfig:
     optical: OpticalCameraConfig = field(default_factory=OpticalCameraConfig)
     infrared: InfraredCameraConfig = field(default_factory=InfraredCameraConfig)
     radar: RadarRangeDopplerConfig = field(default_factory=RadarRangeDopplerConfig)
+    infrared_range_proxy_sigma_m: float | None = None
+    infrared_range_rate_proxy_sigma_mps: float | None = None
+    backup_radial_range_sigma_m: float | None = None
+    backup_radial_range_rate_sigma_mps: float | None = None
+
+    def __post_init__(self):
+        for field_name in (
+            "infrared_range_proxy_sigma_m",
+            "infrared_range_rate_proxy_sigma_mps",
+            "backup_radial_range_sigma_m",
+            "backup_radial_range_rate_sigma_mps",
+        ):
+            raw_value = getattr(self, field_name)
+            if raw_value is None:
+                continue
+            sigma = float(raw_value)
+            if not np.isfinite(sigma) or sigma <= 0.0:
+                raise ValueError(f"{field_name} must be positive and finite.")
+            object.__setattr__(self, field_name, sigma)
+        if (
+            self.infrared_range_proxy_sigma_m is not None
+            and self.backup_radial_range_sigma_m is not None
+        ) or (
+            self.infrared_range_rate_proxy_sigma_mps is not None
+            and self.backup_radial_range_rate_sigma_mps is not None
+        ):
+            raise ValueError(
+                "Legacy infrared proxies and the independent radial backup "
+                "cannot provide the same measurement component together."
+            )
 
 
 class MeasurementSource(str, Enum):
@@ -161,6 +191,68 @@ def simulate_multimodal_sensor_epoch(
         infrared_frame, config=selected.infrared,
         covariance_calibration=calibrations.get("INFRARED"),
     )
+    if selected.infrared_range_proxy_sigma_m is not None:
+        sigma = float(selected.infrared_range_proxy_sigma_m)
+        generator = rngs.get("INFRARED")
+        if generator is None:
+            generator = np.random.default_rng()
+        measured_range = float(
+            measure_relative_range(observer, target)
+            + generator.normal(0.0, sigma)
+        )
+        infrared.metadata.update({
+            "rangeProxyM": measured_range,
+            "rangeProxyVarianceM2": sigma**2,
+            "rangeProxySource": "INFRARED_IDEALIZED_SENSITIVITY_MODEL",
+            "rangeProxyIndependentNoiseAssumed": True,
+        })
+    if selected.infrared_range_rate_proxy_sigma_mps is not None:
+        sigma = float(selected.infrared_range_rate_proxy_sigma_mps)
+        generator = rngs.get("INFRARED")
+        if generator is None:
+            generator = np.random.default_rng()
+        measured_range_rate = float(
+            measure_relative_range_rate(observer, target)
+            + generator.normal(0.0, sigma)
+        )
+        infrared.metadata.update({
+            "rangeRateProxyMps": measured_range_rate,
+            "rangeRateProxyVarianceM2ps2": sigma**2,
+            "rangeRateProxySource": "INFRARED_IDEALIZED_SENSITIVITY_MODEL",
+            "rangeRateProxyIndependentNoiseAssumed": True,
+        })
+    if selected.backup_radial_range_sigma_m is not None:
+        sigma = float(selected.backup_radial_range_sigma_m)
+        generator = rngs.get("RADIAL_BACKUP")
+        if generator is None:
+            generator = np.random.default_rng()
+        infrared.metadata.update({
+            "rangeProxyM": float(
+                measure_relative_range(observer, target)
+                + generator.normal(0.0, sigma)
+            ),
+            "rangeProxyVarianceM2": sigma**2,
+            "rangeProxySource": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+            "rangeProxyIndependentNoiseAssumed": True,
+            "radialBackupPhysicalValidation": False,
+            "radialBackupCarrierModality": "INFRARED_LOS_MESSAGE",
+        })
+    if selected.backup_radial_range_rate_sigma_mps is not None:
+        sigma = float(selected.backup_radial_range_rate_sigma_mps)
+        generator = rngs.get("RADIAL_BACKUP")
+        if generator is None:
+            generator = np.random.default_rng()
+        infrared.metadata.update({
+            "rangeRateProxyMps": float(
+                measure_relative_range_rate(observer, target)
+                + generator.normal(0.0, sigma)
+            ),
+            "rangeRateProxyVarianceM2ps2": sigma**2,
+            "rangeRateProxySource": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+            "rangeRateProxyIndependentNoiseAssumed": True,
+            "radialBackupPhysicalValidation": False,
+            "radialBackupCarrierModality": "INFRARED_LOS_MESSAGE",
+        })
     radar = radar_frame_to_observation_message(
         radar_frame, config=selected.radar,
         covariance_calibration=calibrations.get("RADAR"),
@@ -230,7 +322,8 @@ def simulate_multimodal_sensor_history(
     rngs = {
         modality: np.random.default_rng(child)
         for modality, child in zip(
-            ("RADAR", "INFRARED", "OPTICAL"), seed_sequence.spawn(3)
+            ("RADAR", "INFRARED", "OPTICAL", "RADIAL_BACKUP"),
+            seed_sequence.spawn(4),
         )
     }
     messages = []

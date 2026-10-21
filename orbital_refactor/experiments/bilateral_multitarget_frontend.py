@@ -8,7 +8,8 @@ in a separate truth lookup used by tests and later scoring.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+import hashlib
 import time
 from types import MappingProxyType
 from typing import Mapping
@@ -63,6 +64,11 @@ class BilateralFrontendConfig:
     random_seed: int = 0
     retain_raw_frames: bool = False
     sensor_config: MultimodalSensorSimulationConfig | None = None
+    backup_radial_range_sigma_m: float | None = None
+    backup_radial_range_rate_sigma_mps: float | None = None
+    backup_radial_observer_indices: tuple[int, ...] | None = None
+    prefer_complete_radial_lineage: bool = False
+    consensus_exchange_hops: int = 1
     dropout_modality: str | None = None
     dropout_start_seconds: float | None = None
     dropout_end_seconds: float | None = None
@@ -81,6 +87,7 @@ class BilateralFrontendConfig:
     preserve_angular_radial_nullspace: bool = True
     use_multi_observer_bearing_update: bool = True
     use_unified_multimodal_measurement_update: bool = False
+    use_local_unified_multimodal_measurement_update: bool = False
     use_inverse_depth_los_update: bool = False
     unified_multimodal_window_epochs: int = 1
     multi_epoch_bearing_window_epochs: int = 1
@@ -102,6 +109,31 @@ class BilateralFrontendConfig:
             )
         if int(self.image_size) < 9:
             raise ValueError("image_size must be at least 9 pixels.")
+        for field_name in (
+            "backup_radial_range_sigma_m",
+            "backup_radial_range_rate_sigma_mps",
+        ):
+            raw_value = getattr(self, field_name)
+            if raw_value is None:
+                continue
+            value = float(raw_value)
+            if not np.isfinite(value) or value <= 0.0:
+                raise ValueError(f"{field_name} must be positive and finite.")
+            object.__setattr__(self, field_name, value)
+        if self.backup_radial_observer_indices is not None:
+            indices = tuple(dict.fromkeys(
+                int(value) for value in self.backup_radial_observer_indices
+            ))
+            if any(value < 0 for value in indices):
+                raise ValueError(
+                    "backup_radial_observer_indices must be nonnegative."
+                )
+            object.__setattr__(self, "backup_radial_observer_indices", indices)
+        if int(self.consensus_exchange_hops) < 1:
+            raise ValueError("consensus_exchange_hops must be positive.")
+        object.__setattr__(
+            self, "consensus_exchange_hops", int(self.consensus_exchange_hops)
+        )
         modality = (
             None if self.dropout_modality is None
             else str(self.dropout_modality).upper()
@@ -321,6 +353,8 @@ class BilateralOnlineSmokeResult:
     consensus_recovered_link_count: int
     active_communication_node_count_by_timestamp: Mapping[float, int]
     active_communication_edge_count_by_timestamp: Mapping[float, int]
+    matched_local_consensus_metrics: "BilateralMatchedViewMetrics | None"
+    matched_local_central_metrics: "BilateralMatchedViewMetrics"
 
 
 @dataclass(frozen=True)
@@ -339,11 +373,37 @@ class BilateralPhaseMetrics:
 
 
 @dataclass(frozen=True)
+class BilateralMatchedViewMetrics:
+    """Local-versus-consensus errors on identical node/target/epoch samples."""
+
+    local_sample_count: int
+    consensus_sample_count: int
+    common_sample_count: int
+    local_only_sample_count: int
+    consensus_only_sample_count: int
+    local_position_mean_error_m: float
+    consensus_position_mean_error_m: float
+    position_mean_error_improvement_percent: float
+    local_position_rmse_m: float
+    consensus_position_rmse_m: float
+    position_rmse_improvement_percent: float
+    local_velocity_mean_error_mps: float
+    consensus_velocity_mean_error_mps: float
+    velocity_mean_error_improvement_percent: float
+    local_velocity_rmse_mps: float
+    consensus_velocity_rmse_mps: float
+    velocity_rmse_improvement_percent: float
+
+
+@dataclass(frozen=True)
 class BilateralNodeViewMetrics:
     """Identity-aware accuracy for one node or unfused independent nodes."""
 
     node_count: int
     node_ids: tuple[str, ...]
+    scored_sample_count: int
+    scored_sample_key_sha256: str
+    scored_truth_ids: tuple[str, ...]
     final_estimate_count: int
     phase_metrics: Mapping[str, BilateralPhaseMetrics]
     identity_switch_count: int
@@ -369,6 +429,18 @@ class BilateralBaselineMatrixResult:
 
     arms: Mapping[str, BilateralOnlineSmokeResult]
     local_node_baselines: Mapping[str, BilateralNodeViewMetrics]
+    matched_single_observer_cann_metrics: BilateralMatchedViewMetrics
+    matched_single_observer_joint_cann_metrics: BilateralMatchedViewMetrics
+    matched_single_observer_ablation_metrics: Mapping[
+        str, BilateralMatchedViewMetrics
+    ]
+    matched_single_observer_cann_vs_modality: Mapping[
+        str, BilateralMatchedViewMetrics
+    ]
+    matched_independent_consensus_metrics_by_cann: Mapping[
+        str, BilateralMatchedViewMetrics
+    ]
+    matched_joint_independent_consensus_metrics: BilateralMatchedViewMetrics
     tracking_modalities_by_arm: Mapping[str, tuple[str, ...]]
     uses_common_multimodal_initialization: bool
     message_count_by_timestamp: Mapping[float, int]
@@ -398,7 +470,28 @@ def build_bilateral_raw_frontend(
         >= len(scene_truth.manifest.friendly_observer_ids)
     ):
         raise ValueError("failed_observer_indices is outside the friendly roster.")
+    if (
+        selected.backup_radial_observer_indices
+        and max(selected.backup_radial_observer_indices)
+        >= len(scene_truth.manifest.friendly_observer_ids)
+    ):
+        raise ValueError(
+            "backup_radial_observer_indices is outside the friendly roster."
+        )
     sensor_config = selected.sensor_config or _sensor_config(selected.image_size)
+    if (
+        selected.backup_radial_range_sigma_m is not None
+        or selected.backup_radial_range_rate_sigma_mps is not None
+    ):
+        sensor_config = replace(
+            sensor_config,
+            backup_radial_range_sigma_m=(
+                selected.backup_radial_range_sigma_m
+            ),
+            backup_radial_range_rate_sigma_mps=(
+                selected.backup_radial_range_rate_sigma_mps
+            ),
+        )
     visibility_config = VisibilityConfig(
         earth_occultation=True,
         maximum_range=selected.maximum_observation_range_m,
@@ -469,6 +562,12 @@ def build_bilateral_raw_frontend(
                         dict(sensor_epoch.raw_frames)
                     )
                 for message in sensor_epoch.messages:
+                    if (
+                        selected.backup_radial_observer_indices is not None
+                        and observer_index
+                        not in selected.backup_radial_observer_indices
+                    ):
+                        message = _without_radial_backup_shadow(message)
                     if _drop_message(
                         selected,
                         timestamp=timestamp,
@@ -559,24 +658,78 @@ def run_bilateral_baseline_matrix(
     selected = config or BilateralFrontendConfig(duration_seconds=4.0)
     frontend = build_bilateral_raw_frontend(selected)
     definitions = {
-        "centralized_radar_only": (("RADAR",), False, False),
-        "centralized_infrared_only": (("INFRARED",), False, False),
-        "centralized_optical_only": (("OPTICAL",), False, False),
-        "centralized_multimodal_no_cann": (MODALITIES, False, False),
-        "centralized_multimodal_cann": (MODALITIES, True, False),
-        "fixed_topology_multimodal_no_cann": (MODALITIES, False, True),
-        "fixed_topology_multimodal_cann": (MODALITIES, True, True),
+        "centralized_radar_only": (("RADAR",), False, False, False),
+        "centralized_infrared_only": (("INFRARED",), False, False, False),
+        "centralized_optical_only": (("OPTICAL",), False, False, False),
+        "centralized_multimodal_no_cann": (MODALITIES, False, False, False),
+        "centralized_multimodal_cann": (MODALITIES, True, False, False),
+        "single_observer_joint_multimodal_no_cann": (
+            MODALITIES, False, False, True,
+        ),
+        "single_observer_joint_multimodal_cann": (
+            MODALITIES, True, False, True,
+        ),
+        "fixed_topology_multimodal_no_cann": (MODALITIES, False, True, False),
+        "fixed_topology_multimodal_cann": (MODALITIES, True, True, False),
+        "fixed_topology_joint_multimodal_cann": (
+            MODALITIES, True, True, True,
+        ),
     }
-    arms = {
-        name: _run_bilateral_online_arm(
+    arms = {}
+    sample_collectors = {}
+    for name, (
+        modalities, enable_cann, enable_consensus, enable_local_unified,
+    ) in definitions.items():
+        collector = {}
+        arms[name] = _run_bilateral_online_arm(
             frontend,
             enable_cann=enable_cann,
             enable_consensus=enable_consensus,
             tracking_modalities=modalities,
+            enable_local_unified=enable_local_unified,
+            sample_collector=collector,
         )
-        for name, (modalities, enable_cann, enable_consensus) in (
-            definitions.items()
-        )
+        sample_collectors[name] = collector
+    representative_node_id = frontend.truth.manifest.friendly_observer_ids[0]
+    representative_no_cann = {
+        key: sample
+        for key, sample in sample_collectors[
+            "centralized_multimodal_no_cann"
+        ]["local"].items()
+        if key[0] == representative_node_id
+    }
+    representative_cann = {
+        key: sample
+        for key, sample in sample_collectors[
+            "centralized_multimodal_cann"
+        ]["local"].items()
+        if key[0] == representative_node_id
+    }
+    representative_joint_cann = {
+        key: sample
+        for key, sample in sample_collectors[
+            "single_observer_joint_multimodal_cann"
+        ]["local"].items()
+        if key[0] == representative_node_id
+    }
+    representative_joint_no_cann = {
+        key: sample
+        for key, sample in sample_collectors[
+            "single_observer_joint_multimodal_no_cann"
+        ]["local"].items()
+        if key[0] == representative_node_id
+    }
+    representative_single_modality = {
+        modality: {
+            key: sample
+            for key, sample in sample_collectors[arm_name]["local"].items()
+            if key[0] == representative_node_id
+        }
+        for modality, arm_name in {
+            "radar": "centralized_radar_only",
+            "infrared": "centralized_infrared_only",
+            "optical": "centralized_optical_only",
+        }.items()
     }
     return BilateralBaselineMatrixResult(
         arms=MappingProxyType(arms),
@@ -594,9 +747,67 @@ def run_bilateral_baseline_matrix(
                 "centralized_multimodal_cann"
             ].independent_node_metrics,
         }),
+        matched_single_observer_cann_metrics=_matched_view_metrics(
+            representative_no_cann,
+            representative_cann,
+        ),
+        matched_single_observer_joint_cann_metrics=_matched_view_metrics(
+            representative_no_cann,
+            representative_joint_cann,
+        ),
+        matched_single_observer_ablation_metrics=MappingProxyType({
+            "federatedCannIncrement": _matched_view_metrics(
+                representative_no_cann,
+                representative_cann,
+            ),
+            "jointFusionWithoutCann": _matched_view_metrics(
+                representative_no_cann,
+                representative_joint_no_cann,
+            ),
+            "jointCannIncrement": _matched_view_metrics(
+                representative_joint_no_cann,
+                representative_joint_cann,
+            ),
+            "jointFusionWithCannCombined": _matched_view_metrics(
+                representative_no_cann,
+                representative_joint_cann,
+            ),
+        }),
+        matched_single_observer_cann_vs_modality=MappingProxyType({
+            modality: _matched_view_metrics(samples, representative_cann)
+            for modality, samples in representative_single_modality.items()
+        }),
+        matched_independent_consensus_metrics_by_cann=MappingProxyType({
+            "withoutCann": _matched_view_metrics(
+                sample_collectors[
+                    "centralized_multimodal_no_cann"
+                ]["local"],
+                sample_collectors[
+                    "fixed_topology_multimodal_no_cann"
+                ]["consensus"],
+            ),
+            "incrementalCann": _matched_view_metrics(
+                sample_collectors[
+                    "centralized_multimodal_cann"
+                ]["local"],
+                sample_collectors[
+                    "fixed_topology_multimodal_cann"
+                ]["consensus"],
+            ),
+        }),
+        matched_joint_independent_consensus_metrics=_matched_view_metrics(
+            sample_collectors[
+                "single_observer_joint_multimodal_cann"
+            ]["local"],
+            sample_collectors[
+                "fixed_topology_joint_multimodal_cann"
+            ]["consensus"],
+        ),
         tracking_modalities_by_arm=MappingProxyType({
             name: tuple(modalities)
-            for name, (modalities, _cann, _consensus) in definitions.items()
+            for name, (
+                modalities, _cann, _consensus, _local_unified,
+            ) in definitions.items()
         }),
         uses_common_multimodal_initialization=True,
         message_count_by_timestamp=MappingProxyType({
@@ -611,7 +822,10 @@ def _run_bilateral_online_arm(
     *,
     enable_cann: bool,
     enable_consensus: bool = False,
+    enable_local_unified: bool = False,
     tracking_modalities: tuple[str, ...] | None = None,
+    sample_collector: dict | None = None,
+    epoch_callback=None,
 ) -> BilateralOnlineSmokeResult:
     allowed_tracking_modalities = _normalized_modalities(tracking_modalities)
     tracker = OnlineMultiTargetTracker(
@@ -645,6 +859,10 @@ def _run_bilateral_online_arm(
         enable_unified_multimodal_update=(
             frontend.config.use_unified_multimodal_measurement_update
         ),
+        enable_local_unified_multimodal_update=(
+            enable_local_unified
+            or frontend.config.use_local_unified_multimodal_measurement_update
+        ),
         enable_inverse_depth_los_update=(
             frontend.config.use_inverse_depth_los_update
         ),
@@ -667,6 +885,10 @@ def _run_bilateral_online_arm(
         DistributedTargetConsensus(
             scene_id=frontend.truth.manifest.scene_id,
             topology=frontend.truth.manifest.friendly_topology,
+            prefer_complete_radial_lineage=(
+                frontend.config.prefer_complete_radial_lineage
+            ),
+            exchange_hops=frontend.config.consensus_exchange_hops,
         )
         if enable_consensus else None
     )
@@ -707,6 +929,9 @@ def _run_bilateral_online_arm(
     consensus_state_errors_by_timestamp: dict[float, np.ndarray] = {}
     local_state_errors_by_timestamp: dict[float, np.ndarray] = {}
     representative_state_errors_by_timestamp: dict[float, np.ndarray] = {}
+    local_samples_by_key = {}
+    consensus_samples_by_key = {}
+    central_samples_by_key = {}
     final_state_errors = np.empty((0, 2), dtype=float)
     final_local_estimate_count = 0
     final_representative_estimate_count = 0
@@ -767,6 +992,8 @@ def _run_bilateral_online_arm(
                 truth_state_by_id=truth_state_by_target,
             )
             local_samples.extend(node_epoch.samples_by_truth.values())
+            for truth_id, sample in node_epoch.samples_by_truth.items():
+                local_samples_by_key[(node_id, truth_id, timestamp)] = sample
             if node_id == representative_node_id:
                 representative_state_errors_by_timestamp[timestamp] = (
                     _sample_errors(node_epoch.samples_by_truth.values())
@@ -819,6 +1046,10 @@ def _run_bilateral_online_arm(
                     truth_state_by_id=truth_state_by_target,
                 )
                 consensus_samples.extend(epoch_result.samples_by_truth.values())
+                for truth_id, sample in epoch_result.samples_by_truth.items():
+                    consensus_samples_by_key[(
+                        node_id, truth_id, timestamp,
+                    )] = sample
             consensus_state_errors_by_timestamp[timestamp] = _sample_errors(
                 consensus_samples
             )
@@ -861,10 +1092,24 @@ def _run_bilateral_online_arm(
             },
             truth_state_by_id=truth_state_by_target,
         )
+        for node_id in local_evaluators:
+            for truth_id, sample in central_epoch.samples_by_truth.items():
+                central_samples_by_key[(node_id, truth_id, timestamp)] = sample
         final_state_errors = _sample_errors(
             central_epoch.samples_by_truth.values()
         )
         state_errors_by_timestamp[timestamp] = final_state_errors
+        if epoch_callback is not None:
+            epoch_callback({
+                "epoch_index": epoch_index,
+                "timestamp": timestamp,
+                "observer_states": observer_states,
+                "epoch_messages": epoch_messages,
+                "tracking_observations": observations,
+                "tracker_update": final_update,
+                "truth_state_by_target": truth_state_by_target,
+                "identity_epoch": central_epoch,
+            })
 
     final_active_tracks = tuple(
         track for track in final_update.tracks_by_target.values()
@@ -910,6 +1155,12 @@ def _run_bilateral_online_arm(
         state_errors_by_timestamp=representative_state_errors_by_timestamp,
         final_estimate_count=final_representative_estimate_count,
     )
+    if sample_collector is not None:
+        sample_collector.update({
+            "local": dict(local_samples_by_key),
+            "consensus": dict(consensus_samples_by_key),
+            "central": dict(central_samples_by_key),
+        })
     return BilateralOnlineSmokeResult(
         frame_count=len(frontend.truth.timestamps),
         initialized_track_count=len(initialized_ids),
@@ -1003,7 +1254,75 @@ def _run_bilateral_online_arm(
         active_communication_edge_count_by_timestamp=MappingProxyType(
             active_edge_counts
         ),
+        matched_local_consensus_metrics=(
+            _matched_view_metrics(
+                local_samples_by_key,
+                consensus_samples_by_key,
+            )
+            if consensus is not None else None
+        ),
+        matched_local_central_metrics=_matched_view_metrics(
+            local_samples_by_key,
+            central_samples_by_key,
+        ),
     )
+
+
+def _matched_view_metrics(local_samples, consensus_samples):
+    local_keys = set(local_samples)
+    consensus_keys = set(consensus_samples)
+    common_keys = tuple(sorted(local_keys & consensus_keys))
+    local_position = np.asarray([
+        local_samples[key].position_error_m for key in common_keys
+    ], dtype=float)
+    consensus_position = np.asarray([
+        consensus_samples[key].position_error_m for key in common_keys
+    ], dtype=float)
+    local_velocity = np.asarray([
+        local_samples[key].velocity_error_mps for key in common_keys
+    ], dtype=float)
+    consensus_velocity = np.asarray([
+        consensus_samples[key].velocity_error_mps for key in common_keys
+    ], dtype=float)
+    return BilateralMatchedViewMetrics(
+        local_sample_count=len(local_keys),
+        consensus_sample_count=len(consensus_keys),
+        common_sample_count=len(common_keys),
+        local_only_sample_count=len(local_keys - consensus_keys),
+        consensus_only_sample_count=len(consensus_keys - local_keys),
+        local_position_mean_error_m=_mean_or_nan(local_position),
+        consensus_position_mean_error_m=_mean_or_nan(consensus_position),
+        position_mean_error_improvement_percent=_improvement_percent(
+            _mean_or_nan(local_position),
+            _mean_or_nan(consensus_position),
+        ),
+        local_position_rmse_m=_rmse_or_nan(local_position),
+        consensus_position_rmse_m=_rmse_or_nan(consensus_position),
+        position_rmse_improvement_percent=_improvement_percent(
+            _rmse_or_nan(local_position),
+            _rmse_or_nan(consensus_position),
+        ),
+        local_velocity_mean_error_mps=_mean_or_nan(local_velocity),
+        consensus_velocity_mean_error_mps=_mean_or_nan(consensus_velocity),
+        velocity_mean_error_improvement_percent=_improvement_percent(
+            _mean_or_nan(local_velocity),
+            _mean_or_nan(consensus_velocity),
+        ),
+        local_velocity_rmse_mps=_rmse_or_nan(local_velocity),
+        consensus_velocity_rmse_mps=_rmse_or_nan(consensus_velocity),
+        velocity_rmse_improvement_percent=_improvement_percent(
+            _rmse_or_nan(local_velocity),
+            _rmse_or_nan(consensus_velocity),
+        ),
+    )
+
+
+def _improvement_percent(baseline, candidate):
+    baseline = float(baseline)
+    candidate = float(candidate)
+    if not np.isfinite(baseline) or not np.isfinite(candidate) or baseline <= 0.0:
+        return float("nan")
+    return float((baseline - candidate) / baseline * 100.0)
 
 
 def _sample_errors(samples) -> np.ndarray:
@@ -1123,9 +1442,18 @@ def _node_view_metrics(
     position_rmse = _combined_position_rmse_by_truth(
         evaluators, frontend.truth.manifest.hostile_target_ids,
     )
+    sample_keys = tuple(sorted(
+        (node_id, sample.truth_id, float(sample.timestamp))
+        for node_id, evaluator in evaluators.items()
+        for samples in evaluator.error_history_by_truth.values()
+        for sample in samples
+    ))
     return BilateralNodeViewMetrics(
         node_count=len(evaluators),
         node_ids=tuple(evaluators),
+        scored_sample_count=len(sample_keys),
+        scored_sample_key_sha256=_sample_key_sha256(sample_keys),
+        scored_truth_ids=tuple(sorted({key[1] for key in sample_keys})),
         final_estimate_count=int(final_estimate_count),
         phase_metrics=MappingProxyType(_phase_metrics(
             frontend.config,
@@ -1152,6 +1480,14 @@ def _node_view_metrics(
         ),
         position_rmse_m_by_target=MappingProxyType(position_rmse),
     )
+
+
+def _sample_key_sha256(sample_keys) -> str:
+    serialized = "\n".join(
+        f"{node_id}\x1f{truth_id}\x1f{timestamp:.17g}"
+        for node_id, truth_id, timestamp in sample_keys
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
 def _worst_finite_value(values) -> float:
@@ -1238,6 +1574,33 @@ def _strip_truth_identity(message, detection_group: str):
         valid_flag=message.valid_flag,
         metadata=metadata,
     )
+
+
+def _without_radial_backup_shadow(message):
+    metadata = dict(message.metadata)
+    if metadata.get("rangeProxySource") == (
+        "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+    ):
+        for key in (
+            "rangeProxyM", "rangeProxyVarianceM2", "rangeProxySource",
+            "rangeProxyIndependentNoiseAssumed",
+        ):
+            metadata.pop(key, None)
+    if metadata.get("rangeRateProxySource") == (
+        "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+    ):
+        for key in (
+            "rangeRateProxyMps", "rangeRateProxyVarianceM2ps2",
+            "rangeRateProxySource", "rangeRateProxyIndependentNoiseAssumed",
+        ):
+            metadata.pop(key, None)
+    if not any(
+        metadata.get(key) == "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+        for key in ("rangeProxySource", "rangeRateProxySource")
+    ):
+        metadata.pop("radialBackupPhysicalValidation", None)
+        metadata.pop("radialBackupCarrierModality", None)
+    return replace(message, metadata=metadata)
 
 
 def _drop_message(config, *, timestamp, target_index, modality) -> bool:
@@ -1339,9 +1702,10 @@ def _rng_by_modality(seed, epoch_index, observer_index, target_index):
     root = np.random.SeedSequence(
         [int(seed), int(epoch_index), int(observer_index), int(target_index)]
     )
+    stream_names = (*MODALITIES, "RADIAL_BACKUP")
     return {
         modality: np.random.default_rng(child)
-        for modality, child in zip(MODALITIES, root.spawn(len(MODALITIES)))
+        for modality, child in zip(stream_names, root.spawn(len(stream_names)))
     }
 
 

@@ -7,6 +7,7 @@ from tracking import DistributedTargetConsensus, TargetNodeReport
 
 def _report(
     observer, target, timestamp, *, offset=0.0, information_id=None, valid=True,
+    information_capabilities=(),
 ):
     return TargetNodeReport(
         observer_id=observer,
@@ -20,7 +21,55 @@ def _report(
         used_measurement_ids=(
             information_id or f"measurement-{observer}-{target}-{timestamp}",
         ),
+        information_capabilities=information_capabilities,
     )
+
+
+def test_complete_radial_lineage_gate_excludes_pure_los_reports():
+    consensus = DistributedTargetConsensus(
+        scene_id="scene",
+        topology=chain_topology(("observer_a", "observer_b")),
+        prefer_complete_radial_lineage=True,
+    )
+
+    result = consensus.step(
+        timestamp=10.0,
+        local_reports=[
+            _report("observer_a", "target_01", 10.0, offset=0.0),
+            _report(
+                "observer_b",
+                "target_01",
+                10.0,
+                offset=100.0,
+                information_capabilities=(
+                    "RADIAL_RANGE", "RADIAL_RANGE_RATE",
+                ),
+            ),
+        ],
+    )
+
+    for estimates in result.estimates_by_node.values():
+        estimate = estimates["target_01"]
+        assert estimate.contributing_observer_ids == ("observer_b",)
+        assert np.isclose(estimate.state_eci[0], 7.0e6 + 100.0)
+
+
+def test_bounded_multi_hop_exchange_reaches_second_neighbor():
+    consensus = DistributedTargetConsensus(
+        scene_id="scene",
+        topology=chain_topology(("observer_a", "observer_b", "observer_c")),
+        exchange_hops=2,
+    )
+
+    result = consensus.step(
+        timestamp=10.0,
+        local_reports=[_report("observer_a", "target_01", 10.0)],
+    )
+
+    assert set(result.estimates_by_node["observer_c"]) == {"target_01"}
+    assert result.estimates_by_node["observer_c"][
+        "target_01"
+    ].contributing_observer_ids == ("observer_a",)
 
 
 def test_three_observers_two_targets_fuse_only_across_topology_neighbors():

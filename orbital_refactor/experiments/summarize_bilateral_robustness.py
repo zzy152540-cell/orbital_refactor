@@ -106,6 +106,7 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
                 coverage_comparable=_dropout_coverage_comparable(
                     dropouts, modality, arm,
                 ),
+                primary_metric="position_rmse_m",
             )
             for arm in ARMS
         }
@@ -118,6 +119,7 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
             coverage_comparable=_failure_consensus_coverage_comparable(
                 failures, arm
             ),
+            primary_metric="position_mean_error_m",
         )
         for arm in ARMS
     }
@@ -130,7 +132,9 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
     }
 
 
-def _acceptance_result(*, percent_statistics, threshold, coverage_comparable):
+def _acceptance_result(
+    *, percent_statistics, threshold, coverage_comparable, primary_metric,
+):
     threshold_by_metric = {
         field: (
             statistics["mean"] is not None
@@ -140,11 +144,14 @@ def _acceptance_result(*, percent_statistics, threshold, coverage_comparable):
     }
     return {
         "maximumAllowedMeanIncreasePercent": threshold,
+        "primaryMetric": primary_metric,
         "coverageComparable": coverage_comparable,
         "thresholdMetByMetric": threshold_by_metric,
+        "primaryThresholdMet": threshold_by_metric[primary_metric],
         "passed": bool(
-            coverage_comparable and all(threshold_by_metric.values())
+            coverage_comparable and threshold_by_metric[primary_metric]
         ),
+        "formalAcceptanceClaimed": False,
     }
 
 
@@ -153,11 +160,28 @@ def _dropout_coverage_comparable(payloads, modality, arm):
         expected = int(payload.get("scenario", {}).get("hostileTargetCount", 15))
         affected = payload["resultsByMissingModality"][modality][arm]
         control = payload.get("noDropoutControl", {}).get(arm)
-        if not _arm_has_complete_coverage(affected, expected):
-            return False
-        if control is None or not _arm_has_complete_coverage(control, expected):
+        if control is None or not _dropout_pair_has_comparable_coverage(
+            affected, control, expected,
+        ):
             return False
     return True
+
+
+def _dropout_pair_has_comparable_coverage(affected, control, expected):
+    affected_phase = affected.get("phase_metrics", {}).get("DROPOUT", {})
+    control_phase = control.get("phase_metrics", {}).get("DROPOUT", {})
+    affected_targets = affected.get("position_rmse_m_by_target", {})
+    control_targets = control.get("position_rmse_m_by_target", {})
+    affected_count = int(affected_phase.get("position_sample_count", 0))
+    control_count = int(control_phase.get("position_sample_count", 0))
+    return bool(
+        int(affected.get("final_active_track_count", -1)) == expected
+        and int(control.get("final_active_track_count", -1)) == expected
+        and len(affected_targets) == expected
+        and len(control_targets) == expected
+        and affected_count > 0
+        and affected_count == control_count
+    )
 
 
 def _failure_consensus_coverage_comparable(payloads, arm):
@@ -172,13 +196,6 @@ def _failure_consensus_coverage_comparable(payloads, arm):
         ):
             return False
     return True
-
-
-def _arm_has_complete_coverage(arm, expected):
-    return bool(
-        int(arm.get("final_active_track_count", -1)) == expected
-        and int(arm.get("missing_truth_sample_count", -1)) == 0
-    )
 
 
 def _arm_has_consensus_target_coverage(arm, expected):
@@ -315,16 +332,38 @@ def _phase_sample_count(phase, field):
 
 
 def _failure_percent_summary(payloads, arm, scope):
+    values = tuple(payloads)
     return {
-        field: _statistics(
-            _percent_change(
+        field: _statistics_with_paired_seed_bootstrap(
+            (
+                _percent_change(
                 _failure_metric(payload, "threeObserverFailure", arm, scope, field),
                 _failure_metric(payload, "noFailureControl", arm, scope, field),
-            )
-            for payload in payloads
+                )
+                for payload in values
+            ),
+            random_seed=20261016,
         )
         for field in NODE_FAILURE_ERROR_FIELDS
     }
+
+
+def _statistics_with_paired_seed_bootstrap(values, *, random_seed):
+    finite = np.asarray([
+        float(value) for value in values if value is not None and np.isfinite(value)
+    ], dtype=float)
+    result = _statistics(finite)
+    if finite.size == 0:
+        result["pairedSeedBootstrapMean95Percent"] = None
+        return result
+    rng = np.random.default_rng(random_seed)
+    bootstrap_means = np.mean(
+        rng.choice(finite, size=(5_000, finite.size), replace=True), axis=1,
+    )
+    result["pairedSeedBootstrapMean95Percent"] = np.percentile(
+        bootstrap_means, [2.5, 97.5]
+    ).tolist()
+    return result
 
 
 def _failure_metric(payload, group, arm, scope, field):

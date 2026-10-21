@@ -15,8 +15,11 @@ EXPECTED_ARMS = {
     "centralized_optical_only",
     "centralized_multimodal_no_cann",
     "centralized_multimodal_cann",
+    "single_observer_joint_multimodal_no_cann",
+    "single_observer_joint_multimodal_cann",
     "fixed_topology_multimodal_no_cann",
     "fixed_topology_multimodal_cann",
+    "fixed_topology_joint_multimodal_cann",
 }
 
 EXPECTED_LOCAL_NODE_BASELINES = {
@@ -42,6 +45,25 @@ def test_shared_frame_baseline_matrix_runs_all_declared_arms(baseline_matrix):
     assert set(result.tracking_modalities_by_arm) == EXPECTED_ARMS
     assert set(result.local_node_baselines) == EXPECTED_LOCAL_NODE_BASELINES
     assert result.uses_common_multimodal_initialization
+    assert result.matched_single_observer_cann_metrics.common_sample_count > 0
+    assert result.matched_single_observer_joint_cann_metrics.common_sample_count > 0
+    assert set(result.matched_single_observer_ablation_metrics) == {
+        "federatedCannIncrement",
+        "jointFusionWithoutCann",
+        "jointCannIncrement",
+        "jointFusionWithCannCombined",
+    }
+    assert set(result.matched_single_observer_cann_vs_modality) == {
+        "radar", "infrared", "optical",
+    }
+    assert all(
+        metrics.common_sample_count > 0
+        for metrics in result.matched_single_observer_cann_vs_modality.values()
+    )
+    assert set(result.matched_independent_consensus_metrics_by_cann) == {
+        "withoutCann", "incrementalCann",
+    }
+    assert result.matched_joint_independent_consensus_metrics.common_sample_count > 0
     assert len(result.message_count_by_timestamp) == 4
     for name, arm in result.arms.items():
         assert arm.initialized_track_count == 15
@@ -61,16 +83,30 @@ def test_shared_frame_baseline_matrix_runs_all_declared_arms(baseline_matrix):
     assert result.arms[
         "fixed_topology_multimodal_no_cann"
     ].consensus_phase_metrics
+    central_bound = result.arms[
+        "centralized_multimodal_no_cann"
+    ].matched_local_central_metrics
+    assert central_bound.common_sample_count > 0
+    assert central_bound.common_sample_count == central_bound.local_sample_count
     single = result.local_node_baselines["single_node_multimodal_no_cann"]
     independent = result.local_node_baselines[
         "independent_15_node_multimodal_no_cann"
     ]
     assert single.node_count == 1
     assert independent.node_count == 15
+    assert single.scored_sample_count > 0
+    assert len(single.scored_sample_key_sha256) == 64
+    assert single.scored_truth_ids
     assert len(single.node_ids) == 1
     assert len(independent.node_ids) == 15
     assert single.identity_switch_count == 0
     assert independent.identity_switch_count == 0
+    assert (
+        single.scored_sample_key_sha256
+        == result.local_node_baselines[
+            "single_node_multimodal_cann"
+        ].scored_sample_key_sha256
+    )
 
 
 def test_baseline_arm_payload_is_json_serializable(baseline_matrix):

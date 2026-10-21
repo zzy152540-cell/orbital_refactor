@@ -72,6 +72,60 @@ def test_repository_example_configuration_is_valid():
         "configs/visualization_walker20.json"
     )
     assert config.total_satellites == 20
+    bilateral = load_visualization_simulation_config(
+        "configs/visualization_bilateral30.json"
+    )
+    assert bilateral.scenario_type == "BILATERAL_15X15"
+    assert bilateral.duration_s == 20.0
+
+
+def test_bilateral_configuration_exposes_only_relevant_generator_arguments():
+    config = visualization_simulation_config_from_dict({
+        "schema_version": "v1.0",
+        "scenario_type": "BILATERAL_15X15",
+        "duration_s": 20.0,
+        "dt_s": 1.0,
+        "seed": 3,
+        "cann_enabled": True,
+        "cann_node_limit": 4,
+        "output": "results/bilateral-configured",
+    })
+    assert config.bilateral_generator_arguments == {
+        "duration": 20.0,
+        "dt": 1.0,
+        "seed": 3,
+        "include_cann": True,
+        "cann_node_limit": 4,
+        "retain_raw_frames": True,
+    }
+
+
+def test_configured_runner_routes_bilateral_scenario(monkeypatch):
+    config = visualization_simulation_config_from_dict({
+        "schema_version": "v1.0",
+        "scenario_type": "BILATERAL_15X15",
+        "duration_s": 6.0,
+        "output": "results/bilateral-configured-test",
+        "open_after_run": False,
+    })
+    captured = {}
+
+    def fake_generate(output, **arguments):
+        captured.update(arguments)
+        return output
+
+    monkeypatch.setattr(
+        simulation_runner, "generate_bilateral_visualization_recording",
+        fake_generate,
+    )
+    monkeypatch.setattr(
+        simulation_runner, "load_visualization_simulation_config",
+        lambda _path: config,
+    )
+    output = simulation_runner.run_configured_visualization_simulation("unused.json")
+    assert output.as_posix() == "results/bilateral-configured-test"
+    assert captured["duration"] == 6.0
+    assert captured["retain_raw_frames"] is True
 
 
 def test_next_available_recording_path_uses_timestamp_and_strips_legacy_suffixes(

@@ -14,7 +14,10 @@ from brain_inspired.navigation_place_cells import (
 )
 from brain_inspired.orbital_direction_runner import run_orbital_direction_states
 from brain_inspired.orbital_direction_state import OrbitalDirectionConfig
-from brain_inspired.orbital_phase_adapter import OrbitalPlaneFrame
+from brain_inspired.orbital_phase_adapter import (
+    OrbitalPlaneFrame,
+    extract_orbital_phase_state,
+)
 from brain_inspired.orbital_rt_grid_runner import run_orbital_rt_grid_states
 from brain_inspired.ring_cann import RingCANNConfig
 from interfaces.data_objects import AbsolutePositionObservation
@@ -112,6 +115,12 @@ def build_cann_visualization_history(
             direction_item = direction[node]
             rt_item = rt[node]
             place_item = place[node]
+            absolute_position = _absolute_position_from_cann(
+                phase=float(direction_item.anchored_phase[index]),
+                radial_along_track=rt_item.anchored_rt[index],
+                reference_state=references[node][index],
+                frame=frames[node],
+            )
             valid = bool(direction_item.valid[index] and rt_item.valid[index])
             anchor_age = float(max(
                 direction_item.anchor_age[index], rt_item.anchor_age[index],
@@ -199,6 +208,28 @@ def build_cann_visualization_history(
                         ),
                     },
                 ),
+                VisualCANNSnapshot(
+                    node_id=node,
+                    representation="ABSOLUTE_POSITION_ECI",
+                    available=True,
+                    decoded_value=absolute_position,
+                    anchor_age=anchor_age,
+                    cue_applied=bool(
+                        direction_item.cue_applied[index]
+                        or rt_item.cue_applied[index]
+                    ),
+                    status="VALID" if valid else "INVALID",
+                    metrics={
+                        "units": "m",
+                        "source": "DIRECTION_RING_PLUS_RT_LINE_PAIR",
+                        "source_phase_rad": float(
+                            direction_item.anchored_phase[index]
+                        ),
+                        "position_error_to_posterior_m": float(np.linalg.norm(
+                            absolute_position - posterior[node][index, :3]
+                        )),
+                    },
+                ),
             ))
         navigation_by_epoch.append(tuple(navigation_items))
         cann_by_epoch.append(tuple(cann_items))
@@ -207,6 +238,26 @@ def build_cann_visualization_history(
     return CANNVisualizationHistory(
         navigation_by_epoch=tuple(navigation_by_epoch),
         cann_by_epoch=tuple(cann_by_epoch),
+    )
+
+
+def _absolute_position_from_cann(
+    *, phase, radial_along_track, reference_state, frame,
+):
+    """Transform decoded direction/RT CANN coordinates into absolute ECI."""
+
+    reference = extract_orbital_phase_state(
+        timestamp=0.0,
+        state_eci=reference_state,
+        frame=frame,
+    )
+    radial, _along_track = np.asarray(radial_along_track, dtype=float).reshape(2)
+    radius = max(reference.in_plane_radius + float(radial), 1.0)
+    decoded_phase = float(phase)
+    return (
+        radius * np.cos(decoded_phase) * frame.ascending_node_axis
+        + radius * np.sin(decoded_phase) * frame.in_plane_quadrature_axis
+        + reference.cross_track_position * frame.normal_axis
     )
 
 

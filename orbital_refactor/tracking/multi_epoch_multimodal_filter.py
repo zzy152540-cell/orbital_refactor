@@ -124,13 +124,26 @@ class FixedLagMultimodalWindow:
             for item in epoch.observations
         )
         modality_counts: dict[str, int] = {}
+        information_capabilities: set[str] = set()
         measurement_dimension = 0
         for item in all_observations:
             modality = str(
                 item.metadata.get("sourceModality", item.modality)
             ).upper()
             modality_counts[modality] = modality_counts.get(modality, 0) + 1
-            measurement_dimension += 2
+            if (
+                item.modality == "RADAR"
+                or item.metadata.get("rangeProxyM") is not None
+            ):
+                information_capabilities.add("RADIAL_RANGE")
+            if (
+                item.modality == "RADAR"
+                or item.metadata.get("rangeRateProxyMps") is not None
+            ):
+                information_capabilities.add("RADIAL_RANGE_RATE")
+            measurement_dimension += int(
+                _measurement_block(item, states[-1])[2].shape[0]
+            )
         return UnifiedMultimodalUpdate(
             timestamp=self._epochs[-1].timestamp,
             state_eci=state_vector[final_slice].copy(),
@@ -140,6 +153,7 @@ class FixedLagMultimodalWindow:
             })),
             measurement_ids=tuple(dict.fromkeys(self._information_ids)),
             modality_counts=dict(sorted(modality_counts.items())),
+            information_capabilities=tuple(sorted(information_capabilities)),
             observation_count=len(all_observations),
             measurement_dimension=measurement_dimension,
             nis=float(residual @ residual),

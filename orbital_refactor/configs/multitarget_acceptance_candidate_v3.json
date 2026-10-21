@@ -1,0 +1,242 @@
+{
+  "schemaVersion": "multitarget-acceptance-candidate.v3",
+  "freezeStatus": "TEMPORARY_NUMERICAL_ACCEPTANCE_FREEZE",
+  "purpose": "F01_TO_F10_PRE_ACCEPTANCE",
+  "commonScenario": {
+    "friendlyObserverCount": 15,
+    "hostileTargetCount": 15,
+    "durationSeconds": 120.0,
+    "sampleIntervalSeconds": 1.0,
+    "seeds": [0, 1, 2, 3, 4],
+    "eventWindowSeconds": [30.0, 89.0],
+    "processNoiseAcceleration": 0.0001,
+    "multiObserverBearingEnabled": true,
+    "unifiedMultimodalWindowEpochs": 1,
+    "multiEpochBearingWindowEpochs": 1
+  },
+  "candidateAlgorithm": {
+    "localEstimator": "SAME_PRIOR_JOINT_RADAR_LOS_EKF",
+    "localUnifiedMultimodalMeasurementUpdate": true,
+    "incrementalCannEnabled": true,
+    "cannProfile": "realtime",
+    "distributedFusion": "FIXED_TOPOLOGY_TARGET_LEVEL_CONSENSUS_CI",
+    "ciObjective": "trace",
+    "ciGridPoints": 31,
+    "radialLineageGateEnabled": false,
+    "consensusExchangeHops": 1
+  },
+  "metricConfigurations": {
+    "F01": {
+      "requirement": "SATELLITE_SCALE",
+      "minimumSatelliteCount": 25,
+      "configuredSatelliteCount": 30,
+      "composition": "15_FRIENDLY_OBSERVERS_PLUS_15_HOSTILE_TARGETS",
+      "status": "PASS_L2"
+    },
+    "F02": {
+      "requirement": "STATE_OUTPUTS",
+      "requiredOutputs": ["position", "velocity", "acceleration"],
+      "accelerationSource": "FINITE_DIFFERENCE_OF_MATCHED_ESTIMATED_VELOCITY",
+      "combinedCrossUnitRmseAllowed": false,
+      "status": "PASS_FUNCTIONAL_PENDING_FORMAL_REPORT"
+    },
+    "F03": {
+      "requirement": "SENSOR_MODALITIES",
+      "requiredModalities": ["OPTICAL", "INFRARED", "RADAR"],
+      "rawFrontendRequired": true,
+      "reportedCovarianceRequired": true,
+      "status": "PASS_L2"
+    },
+    "F04": {
+      "requirement": "ESTIMATION_STRATEGIES",
+      "requiredStrategies": [
+        "SINGLE_OBSERVER_MULTIMODAL",
+        "FIXED_TOPOLOGY_MULTI_OBSERVER_COOPERATIVE"
+      ],
+      "cannParticipatesInCandidate": true,
+      "status": "PASS_L2"
+    },
+    "P05": {
+      "scope": "ONE_FROZEN_OBSERVER_COMMON_NODE_TARGET_TIME_SAMPLES",
+      "baselineArm": "centralized_multimodal_no_cann",
+      "candidateArm": "single_observer_joint_multimodal_cann",
+      "primaryMetric": "position_rmse_m",
+      "minimumImprovementPercent": 8.0,
+      "requiredCoverageComparable": true,
+      "evidence": {
+        "pooledImprovementPercent": 83.09914325306909,
+        "fiveSeedMeanImprovementPercent": 83.61377573534804,
+        "fiveSeedMinimumImprovementPercent": 78.11787582352864,
+        "status": "PASS_L2"
+      }
+    },
+    "P07": {
+      "scope": "COMMON_NODE_TARGET_TIME_SAMPLES",
+      "baselineArm": "single_observer_joint_multimodal_cann",
+      "candidateArm": "fixed_topology_joint_multimodal_cann",
+      "primaryMetric": "position_mean_error_m",
+      "minimumImprovementPercent": 6.0,
+      "requiredCoverageComparable": true,
+      "evidence": {
+        "pooledImprovementPercent": 18.899144642074,
+        "fiveSeedMeanImprovementPercent": 19.104706355588643,
+        "fiveSeedMinimumImprovementPercent": 15.218320375905314,
+        "status": "PASS_L2"
+      }
+    },
+    "R06": {
+      "scope": "POOLED_ALL_SEEDS_ALL_TARGET_TIME_SAMPLES",
+      "candidateArm": "incrementalCann",
+      "primaryMetric": "position_rmse_m",
+      "auxiliaryMetrics": [
+        "velocity_rmse_mps",
+        "acceleration_rmse_mps2"
+      ],
+      "maximumIncreasePercent": 15.0,
+      "missingModalities": ["OPTICAL", "INFRARED", "RADAR"],
+      "modalitySpecificOverridePolicy": {
+        "OPTICAL": "NONE",
+        "INFRARED": "NONE",
+        "RADAR": "USE_RADAR_DROPOUT_OVERRIDE"
+      },
+      "radarDropoutOverride": {
+        "enabledOnAllFriendlyObservers": true,
+        "source": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+        "rangeSigmaM": 1.0,
+        "rangeRateSigmaMps": 0.0125,
+        "physicalValidation": false,
+        "physicalValidationWaivedForThisAcceptance": true
+      },
+      "evidence": {
+        "opticalPositionIncreasePercent": 0.4755872365283187,
+        "opticalVelocityIncreasePercent": 0.04409535327074554,
+        "opticalAccelerationIncreasePercent": 0.0004051870317711703,
+        "opticalPositionPairedSeedBootstrap95Percent": [
+          0.2180915178984444,
+          0.6712416154095457
+        ],
+        "infraredPositionIncreasePercent": 0.10204452376130213,
+        "infraredVelocityIncreasePercent": -0.010434511134727043,
+        "infraredAccelerationIncreasePercent": -0.000455566196100321,
+        "infraredPositionPairedSeedBootstrap95Percent": [
+          0.03913737050400545,
+          0.21468210427970646
+        ],
+        "radarPositionIncreasePercent": 3.361342607664053,
+        "radarVelocityIncreasePercent": 13.877318105950721,
+        "radarAccelerationIncreasePercent": 2.009140931371056,
+        "radarPositionPairedSeedBootstrap95Percent": [
+          2.379036263284018,
+          5.438544594696771
+        ],
+        "perModalityStatus": {
+          "OPTICAL": "PASS_L2",
+          "INFRARED": "PASS_L2",
+          "RADAR": "PASS_L2_WITH_NUMERICAL_BACKUP"
+        },
+        "status": "PASS_L2_ALL_MODALITIES_WITH_RADAR_NUMERICAL_BACKUP"
+      }
+    },
+    "R08": {
+      "scope": "SURVIVING_NODE_CONSENSUS_ALL_TARGET_SAMPLES",
+      "candidateArm": "incrementalCann",
+      "primaryMetric": "position_mean_error_m",
+      "maximumIncreasePercent": 12.0,
+      "failureDurationSeconds": 60.0,
+      "failureCases": {
+        "spatiallyDistributed": [0, 5, 10],
+        "topologicallyAdjacent": [0, 1, 2],
+        "highVisibility": [0, 12, 14],
+        "seededRandom": {
+          "0": [7, 8, 11],
+          "1": [6, 7, 11],
+          "2": [1, 3, 10],
+          "3": [1, 2, 10],
+          "4": [9, 13, 14]
+        }
+      },
+      "evidence": {
+        "spatiallyDistributedMeanIncreasePercent": -0.7805699097429543,
+        "topologicallyAdjacentMeanIncreasePercent": -4.075647919859939,
+        "highVisibilityMeanIncreasePercent": -0.15265268708140045,
+        "seededRandomMeanIncreasePercent": -0.3234760205440733,
+        "status": "PASS_L2"
+      }
+    },
+    "P09": {
+      "scope": "TARGET_REPORT_CONSTRUCTION_TO_RECEIVER_ESTIMATE_APPLIED",
+      "transport": "SAME_MACHINE_CROSS_PROCESS_IPV4_UDP_TARGET_REPORT_JSON",
+      "maximumMeanLatencyMs": 100.0,
+      "algorithmProcessingIncluded": false,
+      "visualizationIncluded": false,
+      "requiredDiagnostics": ["mean", "p95", "p99", "maximum"],
+      "evidence": {
+        "frameCount": 120,
+        "meanMs": 0.3066675,
+        "p95Ms": 0.37240999999999996,
+        "p99Ms": 0.395163,
+        "maximumMs": 0.6071,
+        "protocolClean": true,
+        "status": "PASS_L2"
+      }
+    },
+    "F10": {
+      "requirement": "BILATERAL_30_SATELLITE_VISUALIZATION",
+      "requiredElements": [
+        "FRIENDLY_AND_HOSTILE_SWARM_MOTION",
+        "COMMUNICATION_AND_OBSERVATION_EDGES",
+        "THREE_MODAL_RAW_OBSERVATIONS",
+        "HOSTILE_TARGET_ESTIMATES_AND_ERRORS",
+        "CANN_DIRECTION_RING_AND_POSITION_HEATMAP",
+        "PLAY_PAUSE_AND_TARGET_SELECTION"
+      ],
+      "automatedDataContractRegressionRequired": true,
+      "manualGuiChecklistRequired": true,
+      "evidence": {
+        "automatedDataRegression": "PASS",
+        "smokeRecording": "results/visualization_recordings/bilateral30_smoke_4s_seed0",
+        "absolutePositionCannSmokeRecording": "results/visualization_recordings/bilateral30_absolute_4s_seed0",
+        "cannPrimaryVisualization": "ABSOLUTE_POSITION_ECI_XYZ",
+        "smokeFrameCount": 5,
+        "nodeCount": 30,
+        "friendlyObserverCount": 15,
+        "hostileTargetCount": 15,
+        "finalTrackedHostileTargetCount": 15,
+        "rawObservationCountInFinalFrame": 150,
+        "cannSnapshotCountInFinalFrame": 9
+      },
+      "status": "PASS_AUTOMATED_DATA_PENDING_MANUAL_GUI_CHECKLIST"
+    }
+  },
+  "acceptanceReadiness": {
+    "developmentEvidencePassed": [
+      "F01", "F02", "F03", "F04", "P05", "R06", "P07", "R08", "P09"
+    ],
+    "conditional": [],
+    "pending": ["F10"],
+    "remainingActions": [
+      "RUN_BILATERAL_30_SATELLITE_VISUALIZATION_DATA_AND_MANUAL_GUI_CHECKLIST"
+    ]
+  },
+  "acceptanceBoundaries": {
+    "singleRuntimeConfigurationClaimed": false,
+    "metricSpecificOverride": "R06_RADAR_DROPOUT_USES_ALL_NODE_RADIAL_BACKUP",
+    "excludePartialRadialCoverage": true,
+    "excludeMultiHopCoverageExperiment": true,
+    "excludeCompleteRadialLineageGate": true,
+    "excludeRangeOnlyBackup": true,
+    "excludeRangeRateSigmaMpsAbove": 0.0125,
+    "formalPhysicalSensorClaimed": false
+  },
+  "referenceArtifacts": {
+    "P05_P07": "results/external_acceptance/v3_p05_four_arm_summary_5seed_120s.json",
+    "R06_radar": "results/external_acceptance/v3_joint_r06_radial_backup_shadow_r1_rr0p0125_summary_5seed_120s.json",
+    "R06_optical": "results/external_acceptance/frozen_v3/r06_optical_no_backup_summary_5seed_120s.json",
+    "R06_infrared": "results/external_acceptance/frozen_v3/r06_infrared_no_backup_summary_5seed_120s.json",
+    "R08_spatial": "results/external_acceptance/v3_joint_robustness_summary_5seed_120s.json",
+    "R08_adjacent": "results/external_acceptance/v3_joint_robustness_adjacent_012_summary_5seed_120s.json",
+    "R08_highVisibility": "results/external_acceptance/v3_joint_robustness_high_visibility_summary_5seed_120s.json",
+    "R08_random": "results/external_acceptance/v3_joint_robustness_random_summary_5seed_120s.json",
+    "P09": "results/external_acceptance/p09_multitarget_state_sync_latency_prescan_120frames/summary.json"
+  }
+}

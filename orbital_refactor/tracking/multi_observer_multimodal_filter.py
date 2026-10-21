@@ -24,6 +24,7 @@ class UnifiedMultimodalUpdate:
     observer_ids: tuple[str, ...]
     measurement_ids: tuple[str, ...]
     modality_counts: dict[str, int]
+    information_capabilities: tuple[str, ...]
     observation_count: int
     measurement_dimension: int
     nis: float
@@ -69,6 +70,7 @@ def unified_multi_observer_multimodal_update(
     innovations = []
     covariances = []
     modality_counts: dict[str, int] = {}
+    information_capabilities: set[str] = set()
     measurement_ids = []
     for item in values:
         jacobian, innovation, measurement_covariance = _measurement_block(
@@ -83,6 +85,13 @@ def unified_multi_observer_multimodal_update(
         modality_counts[source_modality] = (
             modality_counts.get(source_modality, 0) + 1
         )
+        if item.modality == "RADAR" or item.metadata.get("rangeProxyM") is not None:
+            information_capabilities.add("RADIAL_RANGE")
+        if (
+            item.modality == "RADAR"
+            or item.metadata.get("rangeRateProxyMps") is not None
+        ):
+            information_capabilities.add("RADIAL_RANGE_RATE")
         identifier = item.metadata.get("sourceMessageId")
         if identifier is not None:
             measurement_ids.append(str(identifier))
@@ -111,6 +120,7 @@ def unified_multi_observer_multimodal_update(
         observer_ids=tuple(sorted({item.observer_id for item in values})),
         measurement_ids=tuple(dict.fromkeys(measurement_ids)),
         modality_counts=dict(sorted(modality_counts.items())),
+        information_capabilities=tuple(sorted(information_capabilities)),
         observation_count=len(values),
         measurement_dimension=int(innovation.size),
         nis=float(innovation @ inverse_innovation @ innovation),
@@ -153,10 +163,87 @@ def _measurement_block(item, state):
         @ np.asarray(line_covariance, dtype=float).reshape(3, 3)
         @ tangent.T
     )
+    los_innovation = tangent @ (measured_line - line)
+    range_proxy = item.metadata.get("rangeProxyM")
+    range_proxy_variance = item.metadata.get("rangeProxyVarianceM2")
+    range_rate_proxy = item.metadata.get("rangeRateProxyMps")
+    range_rate_proxy_variance = item.metadata.get(
+        "rangeRateProxyVarianceM2ps2"
+    )
+    if all(value is None for value in (
+        range_proxy,
+        range_proxy_variance,
+        range_rate_proxy,
+        range_rate_proxy_variance,
+    )):
+        return (
+            jacobian,
+            los_innovation,
+            _regularize_covariance(tangent_covariance),
+        )
+    if (range_proxy is None) != (range_proxy_variance is None):
+        raise ValueError(
+            "LOS range proxy requires both rangeProxyM and "
+            "rangeProxyVarianceM2 metadata."
+        )
+    if (range_rate_proxy is None) != (range_rate_proxy_variance is None):
+        raise ValueError(
+            "LOS range-rate proxy requires both rangeRateProxyMps and "
+            "rangeRateProxyVarianceM2ps2 metadata."
+        )
+    proxy_rows = []
+    proxy_innovations = []
+    proxy_variances = []
+    if range_proxy is not None:
+        measured_range = float(range_proxy)
+        range_variance = float(range_proxy_variance)
+        if (
+            not np.isfinite(measured_range)
+            or measured_range <= 0.0
+            or not np.isfinite(range_variance)
+            or range_variance <= 0.0
+        ):
+            raise ValueError(
+                "LOS range proxy value and variance must be positive."
+            )
+        range_row = np.zeros(6, dtype=float)
+        range_row[:3] = line
+        proxy_rows.append(range_row)
+        proxy_innovations.append(measured_range - distance)
+        proxy_variances.append(range_variance)
+    if range_rate_proxy is not None:
+        measured_range_rate = float(range_rate_proxy)
+        range_rate_variance = float(range_rate_proxy_variance)
+        if (
+            not np.isfinite(measured_range_rate)
+            or not np.isfinite(range_rate_variance)
+            or range_rate_variance <= 0.0
+        ):
+            raise ValueError(
+                "LOS range-rate proxy must be finite with positive variance."
+            )
+        predicted_range_rate = float(line @ relative_velocity)
+        range_rate_row = np.zeros(6, dtype=float)
+        range_rate_row[:3] = (
+            relative_velocity - predicted_range_rate * line
+        ) / distance
+        range_rate_row[3:] = line
+        proxy_rows.append(range_rate_row)
+        proxy_innovations.append(measured_range_rate - predicted_range_rate)
+        proxy_variances.append(range_rate_variance)
+    augmented_dimension = 2 + len(proxy_rows)
+    augmented_jacobian = np.zeros((augmented_dimension, 6), dtype=float)
+    augmented_jacobian[:2] = jacobian
+    augmented_jacobian[2:] = np.asarray(proxy_rows, dtype=float)
+    augmented_covariance = np.zeros(
+        (augmented_dimension, augmented_dimension), dtype=float,
+    )
+    augmented_covariance[:2, :2] = tangent_covariance
+    augmented_covariance[2:, 2:] = np.diag(proxy_variances)
     return (
-        jacobian,
-        tangent @ (measured_line - line),
-        _regularize_covariance(tangent_covariance),
+        augmented_jacobian,
+        np.concatenate((los_innovation, proxy_innovations)),
+        _regularize_covariance(augmented_covariance),
     )
 
 
@@ -187,7 +274,10 @@ def _block_diagonal(matrices):
 
 
 def _regularize_covariance(covariance):
-    covariance = _symmetrize(np.asarray(covariance, dtype=float).reshape(2, 2))
+    covariance = np.asarray(covariance, dtype=float)
+    if covariance.ndim != 2 or covariance.shape[0] != covariance.shape[1]:
+        raise ValueError("Measurement covariance must be square.")
+    covariance = _symmetrize(covariance)
     eigenvalues, eigenvectors = np.linalg.eigh(covariance)
     scale = max(float(np.max(np.abs(eigenvalues))), 1.0)
     floor = np.finfo(float).eps * scale

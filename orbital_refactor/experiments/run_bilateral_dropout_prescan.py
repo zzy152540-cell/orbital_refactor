@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, is_dataclass
 import json
 from pathlib import Path
 
@@ -12,6 +12,7 @@ import numpy as np
 
 from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
+    run_bilateral_distributed_online_comparison,
     run_bilateral_online_comparison,
 )
 
@@ -38,6 +39,13 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--local-unified-multimodal-update", action="store_true",
+        help=(
+            "Use one same-prior radar-plus-LOS update independently at each "
+            "observer; this is the adjusted P05/P07 candidate architecture."
+        ),
+    )
+    parser.add_argument(
         "--inverse-depth-los-update", action="store_true",
         help=(
             "Use the experimental inverse-depth iterated update on LOS-only "
@@ -45,6 +53,45 @@ def main() -> None:
         ),
     )
     parser.add_argument("--unified-window-epochs", type=int, default=1)
+    parser.add_argument(
+        "--backup-radial-range-sigma-m", type=float, default=None,
+        help=(
+            "Enable an explicitly non-physical independent radial-backup "
+            "shadow measurement with this per-observer range sigma."
+        ),
+    )
+    parser.add_argument(
+        "--backup-radial-range-rate-sigma-mps", type=float, default=None,
+        help=(
+            "Enable an explicitly non-physical independent radial-backup "
+            "shadow measurement with this per-observer range-rate sigma."
+        ),
+    )
+    parser.add_argument(
+        "--backup-radial-observer-indices", type=int, nargs="+", default=None,
+        help=(
+            "Restrict the independent radial-backup shadow to these friendly "
+            "observer indices; omit to enable it on every observer."
+        ),
+    )
+    parser.add_argument(
+        "--prefer-complete-radial-lineage", action="store_true",
+        help=(
+            "Experimental consensus gate: when complete radial lineage is "
+            "available for a target, exclude pure-LOS reports from CI."
+        ),
+    )
+    parser.add_argument(
+        "--distributed-consensus", action="store_true",
+        help="Run fixed-topology target-level Consensus-CI with feedback.",
+    )
+    parser.add_argument(
+        "--consensus-exchange-hops", type=int, default=1,
+        help=(
+            "Synchronous graph-hop bound for each target report; use 7 for "
+            "full reachability on the 15-node ring."
+        ),
+    )
     parser.add_argument(
         "--modalities", nargs="+", default=("OPTICAL", "INFRARED", "RADAR")
     )
@@ -54,10 +101,30 @@ def main() -> None:
         default=Path("results/external_acceptance/bilateral_dropout_prescan.json"),
     )
     args = parser.parse_args()
-    control_result = run_bilateral_online_comparison(BilateralFrontendConfig(
+    if args.prefer_complete_radial_lineage and not args.distributed_consensus:
+        parser.error(
+            "--prefer-complete-radial-lineage requires "
+            "--distributed-consensus"
+        )
+    comparison_runner = (
+        run_bilateral_distributed_online_comparison
+        if args.distributed_consensus
+        else run_bilateral_online_comparison
+    )
+    control_result = comparison_runner(BilateralFrontendConfig(
         duration_seconds=args.duration,
         sample_interval_seconds=1.0,
         random_seed=args.seed,
+        backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
+        backup_radial_range_rate_sigma_mps=(
+            args.backup_radial_range_rate_sigma_mps
+        ),
+        backup_radial_observer_indices=(
+            None if args.backup_radial_observer_indices is None
+            else tuple(args.backup_radial_observer_indices)
+        ),
+        prefer_complete_radial_lineage=args.prefer_complete_radial_lineage,
+        consensus_exchange_hops=args.consensus_exchange_hops,
         process_noise_acceleration=args.process_noise_acceleration,
         multi_epoch_bearing_window_epochs=args.bearing_window_epochs,
         use_multi_observer_bearing_update=(
@@ -65,6 +132,9 @@ def main() -> None:
         ),
         use_unified_multimodal_measurement_update=(
             args.unified_multimodal_update
+        ),
+        use_local_unified_multimodal_measurement_update=(
+            args.local_unified_multimodal_update
         ),
         use_inverse_depth_los_update=args.inverse_depth_los_update,
         unified_multimodal_window_epochs=args.unified_window_epochs,
@@ -86,10 +156,22 @@ def main() -> None:
     records = {}
     for raw_modality in args.modalities:
         modality = str(raw_modality).upper()
-        result = run_bilateral_online_comparison(BilateralFrontendConfig(
+        result = comparison_runner(BilateralFrontendConfig(
             duration_seconds=args.duration,
             sample_interval_seconds=1.0,
             random_seed=args.seed,
+            backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
+            backup_radial_range_rate_sigma_mps=(
+                args.backup_radial_range_rate_sigma_mps
+            ),
+            backup_radial_observer_indices=(
+                None if args.backup_radial_observer_indices is None
+                else tuple(args.backup_radial_observer_indices)
+            ),
+            prefer_complete_radial_lineage=(
+                args.prefer_complete_radial_lineage
+            ),
+            consensus_exchange_hops=args.consensus_exchange_hops,
             process_noise_acceleration=args.process_noise_acceleration,
             multi_epoch_bearing_window_epochs=args.bearing_window_epochs,
             use_multi_observer_bearing_update=(
@@ -97,6 +179,9 @@ def main() -> None:
             ),
             use_unified_multimodal_measurement_update=(
                 args.unified_multimodal_update
+            ),
+            use_local_unified_multimodal_measurement_update=(
+                args.local_unified_multimodal_update
             ),
             use_inverse_depth_los_update=args.inverse_depth_los_update,
             unified_multimodal_window_epochs=args.unified_window_epochs,
@@ -143,8 +228,29 @@ def main() -> None:
             "unifiedMultimodalMeasurementUpdate": (
                 args.unified_multimodal_update
             ),
+            "localUnifiedMultimodalMeasurementUpdate": (
+                args.local_unified_multimodal_update
+            ),
             "inverseDepthLosUpdate": args.inverse_depth_los_update,
             "unifiedMultimodalWindowEpochs": args.unified_window_epochs,
+            "radialBackup": {
+                "source": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+                "physicalValidation": False,
+                "rangeSigmaM": args.backup_radial_range_sigma_m,
+                "rangeRateSigmaMps": (
+                    args.backup_radial_range_rate_sigma_mps
+                ),
+                "observerIndices": (
+                    "ALL"
+                    if args.backup_radial_observer_indices is None
+                    else list(args.backup_radial_observer_indices)
+                ),
+            },
+            "preferCompleteRadialLineage": (
+                args.prefer_complete_radial_lineage
+            ),
+            "distributedConsensus": args.distributed_consensus,
+            "consensusExchangeHops": args.consensus_exchange_hops,
         },
         "noDropoutControl": control,
         "resultsByMissingModality": records,
@@ -253,6 +359,8 @@ def _percent_change(value, baseline):
 
 
 def _jsonable(value):
+    if is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(asdict(value))
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (tuple, list)):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, is_dataclass
 import json
 from pathlib import Path
 
@@ -27,6 +27,13 @@ def main() -> None:
         "--failed-observer-indices", nargs="+", type=int, default=(0, 5, 10)
     )
     parser.add_argument(
+        "--local-unified-multimodal-update", action="store_true",
+        help=(
+            "Use the adjusted same-prior radar-plus-LOS local estimator before "
+            "fixed-topology consensus."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path(
@@ -40,6 +47,9 @@ def main() -> None:
         random_seed=args.seed,
         observer_failure_start_seconds=args.failure_start,
         observer_failure_end_seconds=args.failure_end,
+        use_local_unified_multimodal_measurement_update=(
+            args.local_unified_multimodal_update
+        ),
     )
     control_config = BilateralFrontendConfig(
         **shared, failed_observer_indices=(),
@@ -82,6 +92,9 @@ def main() -> None:
             "failedObserverIndices": list(args.failed_observer_indices),
             "failedObserverIds": list(failed_ids),
             "seed": args.seed,
+            "localUnifiedMultimodalMeasurementUpdate": (
+                args.local_unified_multimodal_update
+            ),
         },
         "noFailureControl": control_payload,
         "threeObserverFailure": failure_payload,
@@ -201,6 +214,8 @@ def _percent_change(value, baseline):
 
 
 def _jsonable(value):
+    if is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(asdict(value))
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (tuple, list)):

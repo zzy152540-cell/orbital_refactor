@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, is_dataclass
 import json
 from pathlib import Path
 
@@ -35,7 +35,7 @@ def main() -> None:
     )
     result = run_bilateral_baseline_matrix(config)
     payload = {
-        "schemaVersion": "bilateral-baseline-matrix.v1",
+        "schemaVersion": "bilateral-baseline-matrix.v3",
         "scenario": {
             "friendlyObserverCount": 15,
             "hostileTargetCount": 15,
@@ -59,6 +59,33 @@ def main() -> None:
             name: _node_view_payload(metrics)
             for name, metrics in result.local_node_baselines.items()
         },
+        "matchedSingleObserverCann": asdict(
+            result.matched_single_observer_cann_metrics
+        ),
+        "matchedSingleObserverJointCann": asdict(
+            result.matched_single_observer_joint_cann_metrics
+        ),
+        "matchedSingleObserverAblation": {
+            name: asdict(metrics)
+            for name, metrics in (
+                result.matched_single_observer_ablation_metrics.items()
+            )
+        },
+        "matchedSingleObserverCannVsModality": {
+            name: asdict(metrics)
+            for name, metrics in (
+                result.matched_single_observer_cann_vs_modality.items()
+            )
+        },
+        "matchedIndependentConsensusByCann": {
+            name: asdict(metrics)
+            for name, metrics in (
+                result.matched_independent_consensus_metrics_by_cann.items()
+            )
+        },
+        "matchedJointIndependentConsensus": asdict(
+            result.matched_joint_independent_consensus_metrics
+        ),
         "arms": {
             name: _arm_payload(arm) for name, arm in result.arms.items()
         },
@@ -112,6 +139,8 @@ def _node_view_payload(value):
 
 
 def _jsonable(value):
+    if is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(asdict(value))
     if isinstance(value, Mapping):
         return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (tuple, list)):

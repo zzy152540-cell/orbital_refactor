@@ -23,6 +23,8 @@ from cooperative.topology import NetworkTopology
 
 from .data_contracts import (
     GlobalTargetEstimate,
+    RADIAL_RANGE_CAPABILITY,
+    RADIAL_RANGE_RATE_CAPABILITY,
     TargetEstimateMessage,
     TargetNodeReport,
 )
@@ -43,7 +45,7 @@ class DistributedTargetConsensusStep:
 
 
 class DistributedTargetConsensus:
-    """Stateful one-hop Consensus-CI exchange partitioned by target identity."""
+    """Stateful bounded-hop Consensus-CI exchange by target identity."""
 
     def __init__(
         self,
@@ -54,6 +56,8 @@ class DistributedTargetConsensus:
         process_noise_acceleration: float = 1e-4,
         objective: str = "trace",
         grid_points: int = 31,
+        prefer_complete_radial_lineage: bool = False,
+        exchange_hops: int = 1,
     ) -> None:
         self.scene_id = str(scene_id).strip()
         if not self.scene_id:
@@ -65,6 +69,17 @@ class DistributedTargetConsensus:
         self.process_noise_acceleration = float(process_noise_acceleration)
         self.objective = str(objective)
         self.grid_points = int(grid_points)
+        self.prefer_complete_radial_lineage = bool(
+            prefer_complete_radial_lineage
+        )
+        if int(exchange_hops) < 1:
+            raise ValueError("exchange_hops must be positive.")
+        if int(exchange_hops) > 1 and message_channel is not None:
+            raise ValueError(
+                "Multi-hop synchronous exchange does not support a delayed "
+                "or lossy message channel."
+            )
+        self.exchange_hops = int(exchange_hops)
         self._buffers = {
             node_id: TypedMessageBuffer[TargetEstimateMessage]()
             for node_id in topology.node_ids
@@ -153,8 +168,8 @@ class DistributedTargetConsensus:
             if delivered is None:
                 continue
             delivery_succeeded_by_source[report.observer_id] = True
-            for neighbor_id in self.topology.neighbors(report.observer_id):
-                self._buffers[neighbor_id].push(delivered)
+            for receiver_id in self._exchange_receivers(report.observer_id):
+                self._buffers[receiver_id].push(delivered)
 
         for source_id, succeeded in delivery_succeeded_by_source.items():
             link_failed = (
@@ -205,6 +220,24 @@ class DistributedTargetConsensus:
             pending_message_count=sum(len(buffer) for buffer in self._buffers.values()),
         )
 
+    def _exchange_receivers(self, source_id: str) -> tuple[str, ...]:
+        """Return nodes reached within the configured synchronous hop bound."""
+
+        visited = {source_id}
+        frontier = {source_id}
+        for _ in range(self.exchange_hops):
+            next_frontier = {
+                neighbor_id
+                for node_id in frontier
+                for neighbor_id in self.topology.neighbors(node_id)
+                if neighbor_id not in visited
+            }
+            if not next_frontier:
+                break
+            visited.update(next_frontier)
+            frontier = next_frontier
+        return tuple(sorted(visited - {source_id}))
+
     def _validate_reports(
         self,
         reports: tuple[TargetNodeReport, ...],
@@ -243,6 +276,7 @@ class DistributedTargetConsensus:
             valid_flag=report.valid_flag,
             information_ids=information_ids,
             lineage_id=f"{self.scene_id}:{report.target_id}:{report.track_id}",
+            information_capabilities=report.information_capabilities,
         )
 
     def _fuse_for_node(
@@ -293,8 +327,19 @@ class DistributedTargetConsensus:
                 raise ValueError(
                     f"Node {node_id!r} received competing track IDs for target {target_id!r}."
                 )
+            selected_reports = target_reports
+            if self.prefer_complete_radial_lineage:
+                complete_radial = [
+                    report for report in target_reports
+                    if {
+                        RADIAL_RANGE_CAPABILITY,
+                        RADIAL_RANGE_RATE_CAPABILITY,
+                    } <= set(report.information_capabilities)
+                ]
+                if complete_radial:
+                    selected_reports = complete_radial
             estimates[target_id] = fuse_target_reports(
-                target_reports,
+                selected_reports,
                 objective=self.objective,
                 grid_points=self.grid_points,
             )
@@ -333,4 +378,5 @@ class DistributedTargetConsensus:
             valid_flag=message.valid_flag,
             frame=message.frame,
             used_measurement_ids=message.information_ids,
+            information_capabilities=message.information_capabilities,
         )

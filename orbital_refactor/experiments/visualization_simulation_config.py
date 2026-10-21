@@ -16,7 +16,7 @@ from experiments.v15_dynamic_visualization import COMMUNICATION_DEGRADATION_PROF
 CONFIG_SCHEMA_VERSION = "v1.0"
 CONFIG_SECTIONS = {
     "constellation": (
-        "total_satellites", "plane_count", "phasing", "altitude_km",
+        "scenario_type", "total_satellites", "plane_count", "phasing", "altitude_km",
         "inclination_deg",
     ),
     "simulation": (
@@ -40,6 +40,7 @@ CONFIG_SECTIONS = {
 
 @dataclass(frozen=True)
 class VisualizationSimulationConfig:
+    scenario_type: str = "WALKER_COOPERATIVE"
     total_satellites: int = 20
     plane_count: int = 10
     phasing: int = 1
@@ -71,6 +72,10 @@ class VisualizationSimulationConfig:
     auto_increment_output: bool = True
 
     def __post_init__(self) -> None:
+        if self.scenario_type not in {
+            "WALKER_COOPERATIVE", "BILATERAL_15X15",
+        }:
+            raise ValueError("Unknown visualization scenario_type.")
         if self.total_satellites < 2:
             raise ValueError("total_satellites must be at least two.")
         if self.plane_count < 1 or self.total_satellites % self.plane_count:
@@ -133,6 +138,17 @@ class VisualizationSimulationConfig:
                 self.enable_absolute_navigation_dropout
             ),
             "cann_node_limit": int(self.cann_node_limit),
+        }
+
+    @property
+    def bilateral_generator_arguments(self):
+        return {
+            "duration": float(self.duration_s),
+            "dt": float(self.dt_s),
+            "seed": int(self.seed),
+            "include_cann": bool(self.cann_enabled),
+            "cann_node_limit": int(self.cann_node_limit),
+            "retain_raw_frames": True,
         }
 
 

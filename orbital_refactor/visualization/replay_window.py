@@ -72,26 +72,31 @@ class ModalityObservationPanel(QtWidgets.QWidget):
 class CANNObservationPanel(QtWidgets.QWidget):
     def __init__(self) -> None:
         super().__init__()
+        self._view_context = None
         layout = QtWidgets.QVBoxLayout(self)
         controls = QtWidgets.QHBoxLayout()
-        controls.addWidget(QtWidgets.QLabel("CANN view:"))
+        controls.addWidget(QtWidgets.QLabel(
+            "Target posterior CANN: absolute orbital phase and local RT offset"
+        ))
         self.view_selector = QtWidgets.QComboBox()
-        self.view_selector.addItems(("Current neural activity", "Direction history"))
-        controls.addWidget(self.view_selector)
+        self.view_selector.addItems((
+            "Absolute phase ring", "Absolute ECI position", "Position history",
+        ))
+        self.view_selector.hide()
         controls.addStretch(1)
         layout.addLayout(controls)
 
         self.views = QtWidgets.QStackedWidget()
         layout.addWidget(self.views, 1)
-        self.view_selector.currentIndexChanged.connect(self.views.setCurrentIndex)
+        self.view_selector.currentIndexChanged.connect(self._change_view)
 
         current = QtWidgets.QWidget()
         current_layout = QtWidgets.QGridLayout(current)
         self.direction_plot = self._activity_plot(
-            "Direction cells", "absolute argument of latitude", "degree",
+            "CANN absolute ECI position", "ECI axis (X/Y/Z)", None,
         )
         self.direction_curve = self.direction_plot.plot(
-            pen=pg.mkPen("#4aa3df", width=2),
+            pen=pg.mkPen("#4aa3df", width=2), symbol="o",
         )
         self.direction_marker = pg.InfiniteLine(
             angle=90, movable=False, pen=pg.mkPen("#ff7f0e", width=2),
@@ -126,12 +131,16 @@ class CANNObservationPanel(QtWidgets.QWidget):
             pen=pg.mkPen("#55b76e", width=2),
         )
         current_layout.addWidget(self.along_plot, 1, 1)
+        current_layout.setRowStretch(0, 1)
+        current_layout.setRowStretch(1, 1)
+        current_layout.setColumnStretch(0, 1)
+        current_layout.setColumnStretch(1, 1)
         self.views.addWidget(current)
 
         history = QtWidgets.QWidget()
         history_layout = QtWidgets.QVBoxLayout(history)
         self.history_plot = pg.PlotWidget(
-            title="Direction Ring: time-neuron activity",
+            title="CANN decoded absolute ECI position history",
         )
         self.direction_image = pg.ImageItem()
         self.history_plot.addItem(self.direction_image)
@@ -139,8 +148,14 @@ class CANNObservationPanel(QtWidgets.QWidget):
             angle=90, movable=False, pen=pg.mkPen("#ff7f0e", width=2),
         )
         self.history_plot.addItem(self.direction_cursor)
+        self.position_history_curves = (
+            self.history_plot.plot(pen=pg.mkPen("#d62728", width=2), name="X"),
+            self.history_plot.plot(pen=pg.mkPen("#2ca02c", width=2), name="Y"),
+            self.history_plot.plot(pen=pg.mkPen("#1f77b4", width=2), name="Z"),
+        )
+        self.history_plot.addLegend()
         self.history_plot.setLabel("bottom", "simulation time", units="s")
-        self.history_plot.setLabel("left", "ring neuron")
+        self.history_plot.setLabel("left", "ECI position", units="km")
         history_layout.addWidget(self.history_plot)
         self.views.addWidget(history)
 
@@ -159,28 +174,71 @@ class CANNObservationPanel(QtWidgets.QWidget):
         return plot
 
     def _clear_activity(self) -> None:
-        self.direction_curve.clear()
-        self.radial_curve.clear()
-        self.along_curve.clear()
+        self.direction_curve.setData([], [])
+        self.direction_marker.hide()
+        self.radial_curve.setData([], [])
+        self.along_curve.setData([], [])
         self.direction_image.clear()
         self.place_image.clear()
+        for curve in self.position_history_curves:
+            curve.clear()
+
+    def _change_view(self, index: int) -> None:
+        self.views.setCurrentIndex(1 if index == 2 else 0)
+        if self._view_context is not None:
+            self._show_selected_view()
 
     def set_frame(self, *, model, frame, node_id: str) -> None:
         snapshots = {
             item.representation: item for item in frame.cann
             if item.node_id == node_id and item.available
         }
+        self._view_context = (model, frame, node_id, snapshots)
+        self._show_selected_view()
+
+    def _show_selected_view(self) -> None:
+        model, frame, node_id, snapshots = self._view_context
         required = ("DIRECTION_RING", "RT_LINE_PAIR", "PLACE_CELL_RT")
         if any(name not in snapshots for name in required):
             self._clear_activity()
+            self.direction_plot.setTitle("Absolute orbital-phase Ring CANN")
             self.details.setPlainText(
-                "CANN navigation display is not enabled in this recording."
+                "Target-state CANN is unavailable for the selected object "
+                "at this epoch."
             )
             return
+        self._set_absolute_phase_ring(
+            model=model, frame=frame, node_id=node_id, snapshots=snapshots,
+        )
+
+    def _set_absolute_phase_ring(
+        self, *, model, frame, node_id, snapshots,
+    ) -> None:
         direction = snapshots["DIRECTION_RING"]
         rt = snapshots["RT_LINE_PAIR"]
         place = snapshots["PLACE_CELL_RT"]
         direction_activity = np.asarray(direction.activity, dtype=float)
+        try:
+            node_index = model.node_ids.index(node_id)
+        except ValueError:
+            node_index = 0
+        node_color = pg.intColor(
+            node_index, hues=max(len(model.node_ids), 1), values=1,
+        )
+        self.direction_curve.setPen(pg.mkPen(node_color, width=2))
+        self.direction_curve.setSymbol(None)
+        self.direction_marker.show()
+        self.direction_plot.setTitle("Absolute orbital-phase Ring CANN")
+        self.direction_plot.setLabel(
+            "bottom", "absolute argument of latitude", units="deg",
+        )
+        self.direction_plot.setLabel("left", "normalized activity")
+        self.direction_plot.getAxis("bottom").setTicks(None)
+        self.direction_plot.disableAutoRange(axis="y")
+        self.direction_plot.setYRange(0.0, 1.05, padding=0.0)
+        self.direction_image.show()
+        for curve in self.position_history_curves:
+            curve.clear()
         direction_peak = max(float(np.max(direction_activity)), 1e-15)
         direction_axis = np.linspace(
             0.0, 360.0, direction_activity.size, endpoint=False,
@@ -202,32 +260,88 @@ class CANNObservationPanel(QtWidgets.QWidget):
         self.along_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
         self.place_image.setImage(np.asarray(place.activity), autoLevels=True)
 
-        history = model.cann_activity_history(node_id, "DIRECTION_RING")
-        if history is not None:
-            image = history
-            self.direction_image.setImage(
-                image, autoLevels=True,
-                rect=QtCore.QRectF(
-                    float(model.timestamps[0]), 0.0,
-                    max(float(model.timestamps[-1] - model.timestamps[0]), 1.0),
-                    float(image.shape[1]),
-                ),
+        phase_deg = float(np.rad2deg(direction.decoded_value[0]) % 360.0)
+        peak_neuron = int(np.argmax(direction_activity))
+        absolute = snapshots.get("ABSOLUTE_POSITION_ECI")
+        if absolute is None:
+            absolute_text = "CANN decoded ECI position: unavailable"
+        else:
+            position_km = np.asarray(absolute.decoded_value, dtype=float) / 1000.0
+            absolute_text = (
+                "CANN decoded ECI position: "
+                f"X={position_km[0]:.3f}, Y={position_km[1]:.3f}, "
+                f"Z={position_km[2]:.3f} km"
             )
-        self.direction_cursor.setValue(frame.timestamp)
-        phase_deg = float(np.rad2deg(direction.decoded_value[0]))
         self.details.setPlainText(
-            f"Node: {node_id}\n"
+            f"Tracked hostile target: {node_id}\n"
             f"Absolute argument of latitude: {phase_deg:.4f} deg | "
+            f"peak neuron: {peak_neuron}/{direction_activity.size - 1}\n"
+            f"Phase zero: ascending node | "
             f"concentration: {direction.concentration:.6f} | "
             f"width: {direction.bump_width:.6f}\n"
             f"RT decoded: R={rt.decoded_value[0]:.3f} m, "
             f"T={rt.decoded_value[1]:.3f} m | anchor age: "
             f"{rt.anchor_age:.1f} s\n"
-            f"Place decoded: phase={np.rad2deg(place.decoded_value[0]):.4f} deg, "
-            f"R={place.decoded_value[1]:.3f} m, "
-            f"T={place.decoded_value[2]:.3f} m | "
-            f"peak={place.concentration:.6f}\n"
+            f"{absolute_text}\n"
+            f"Input: target filter posterior | place peak: "
+            f"{place.concentration:.6f}\n"
             f"Status: direction={direction.status}, RT={rt.status}, "
+            f"place={place.status}"
+        )
+
+    def _set_absolute_position(
+        self, *, model, frame, node_id, snapshots,
+    ) -> None:
+        absolute = snapshots["ABSOLUTE_POSITION_ECI"]
+        rt = snapshots["RT_LINE_PAIR"]
+        place = snapshots["PLACE_CELL_RT"]
+        position_km = np.asarray(absolute.decoded_value, dtype=float) / 1000.0
+        self.direction_marker.hide()
+        self.direction_plot.setTitle("CANN decoded absolute ECI position")
+        self.direction_plot.setLabel("bottom", "ECI axis (X/Y/Z)")
+        self.direction_plot.setLabel("left", "position", units="km")
+        self.direction_plot.getAxis("bottom").setTicks([
+            [(0, "X"), (1, "Y"), (2, "Z")]
+        ])
+        self.direction_curve.setPen(pg.mkPen("#4aa3df", width=2))
+        self.direction_curve.setSymbol("o")
+        self.direction_plot.enableAutoRange(axis="y", enable=True)
+        self.direction_curve.setData(np.arange(3), position_km)
+        self.direction_plot.setXRange(-0.25, 2.25, padding=0.0)
+
+        rt_activity = np.asarray(rt.activity, dtype=float)
+        self.radial_curve.setData(
+            rt_activity[0] / max(float(np.max(rt_activity[0])), 1e-15)
+        )
+        self.along_curve.setData(
+            rt_activity[1] / max(float(np.max(rt_activity[1])), 1e-15)
+        )
+        self.radial_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
+        self.along_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
+        self.place_image.setImage(np.asarray(place.activity), autoLevels=True)
+
+        history = model.cann_decoded_history(node_id, "ABSOLUTE_POSITION_ECI")
+        self.direction_image.hide()
+        self.history_plot.setTitle("CANN decoded absolute ECI position history")
+        self.history_plot.setLabel("bottom", "simulation time", units="s")
+        self.history_plot.setLabel("left", "ECI position", units="km")
+        if history is not None:
+            for axis, curve in enumerate(self.position_history_curves):
+                curve.setData(model.timestamps, history[:, axis] / 1000.0)
+        self.direction_cursor.setValue(frame.timestamp)
+        conversion_error = absolute.metrics.get(
+            "position_error_to_posterior_m", float("nan")
+        )
+        self.details.setPlainText(
+            f"Node: {node_id}\n"
+            f"CANN absolute ECI: X={position_km[0]:.3f} km, "
+            f"Y={position_km[1]:.3f} km, Z={position_km[2]:.3f} km\n"
+            f"RT decoded: R={rt.decoded_value[0]:.3f} m, "
+            f"T={rt.decoded_value[1]:.3f} m | anchor age: "
+            f"{rt.anchor_age:.1f} s\n"
+            f"CANN-to-posterior position difference: "
+            f"{conversion_error:.3f} m\n"
+            f"Status: absolute={absolute.status}, RT={rt.status}, "
             f"place={place.status}"
         )
 
@@ -239,6 +353,15 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         if application is not None:
             application.setFont(QtGui.QFont("Arial", 10))
         self.model = model
+        first_frame = model.frame(0)
+        role_by_id = first_frame.metadata.get("node_role_by_id", {})
+        self.target_ids = tuple(
+            node.node_id for node in first_frame.nodes
+            if role_by_id.get(node.node_id) == "HOSTILE_TARGET"
+            or node.status.startswith("HOSTILE")
+        )
+        if not self.target_ids:
+            self.target_ids = model.node_ids
         self._current_index = 0
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._advance)
@@ -265,10 +388,8 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self.play_button.clicked.connect(self._toggle_playback)
         self.step_button = QtWidgets.QPushButton("Step")
         self.step_button.clicked.connect(self._advance)
-        self.node_selector = QtWidgets.QComboBox()
-        self.node_selector.addItems(self.model.node_ids)
-        self.node_selector.currentTextChanged.connect(self._refresh_selected_node)
         self.target_selector = QtWidgets.QComboBox()
+        self.target_selector.addItems(self.target_ids)
         self.target_selector.currentTextChanged.connect(self._refresh_selected_node)
         self.speed_selector = QtWidgets.QComboBox()
         self.speed_selector.addItems(("0.5x", "1x", "2x", "5x", "10x"))
@@ -276,9 +397,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self.time_label = QtWidgets.QLabel()
         controls.addWidget(self.play_button)
         controls.addWidget(self.step_button)
-        controls.addWidget(QtWidgets.QLabel("Satellite:"))
-        controls.addWidget(self.node_selector)
-        controls.addWidget(QtWidgets.QLabel("Observed target:"))
+        controls.addWidget(QtWidgets.QLabel("Tracked hostile target:"))
         controls.addWidget(self.target_selector)
         controls.addWidget(QtWidgets.QLabel("Speed:"))
         controls.addWidget(self.speed_selector)
@@ -326,21 +445,53 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self.orbit_axis = self.orbit_figure.add_subplot(111, projection="3d")
         left.addWidget(self.orbit_canvas)
 
-        self.error_plot = pg.PlotWidget(title="Position estimation error")
-        self.error_plot.setLabel("bottom", "simulation time", units="s")
-        self.error_plot.setLabel("left", "position error", units="m")
-        self.error_plot.showGrid(x=True, y=True, alpha=0.3)
-        self.node_error_curve = self.error_plot.plot(
-            pen=pg.mkPen("#d62728", width=2), name="selected satellite",
-        )
-        self.fleet_error_curve = self.error_plot.plot(
-            pen=pg.mkPen("#1f77b4", width=2), name="fleet RMSE",
-        )
-        self.time_cursor = pg.InfiniteLine(angle=90, movable=False,
-                                           pen=pg.mkPen("#333333"))
-        self.error_plot.addItem(self.time_cursor)
-        self.error_plot.addLegend()
-        left.addWidget(self.error_plot)
+        error_panel = QtWidgets.QWidget()
+        error_layout = QtWidgets.QVBoxLayout(error_panel)
+        self.error_tabs = QtWidgets.QTabWidget()
+        error_layout.addWidget(self.error_tabs)
+        specifications = {
+            "position": ("Target position error", "position error", "m"),
+            "velocity": ("Target velocity error", "velocity error", "m/s"),
+            "acceleration": (
+                "Target acceleration error (derived)",
+                "acceleration error", "m/s²",
+            ),
+        }
+        self.error_plots = {}
+        self.node_error_curves = {}
+        self.fleet_error_curves = {}
+        self.time_cursors = {}
+        for quantity, (title, axis_label, units) in specifications.items():
+            plot = pg.PlotWidget(title=title)
+            plot.setLabel("bottom", "simulation time", units="s")
+            plot.setLabel("left", axis_label, units=units)
+            plot.showGrid(x=True, y=True, alpha=0.3)
+            selected_curve = plot.plot(
+                pen=pg.mkPen("#d62728", width=2), name="selected target",
+            )
+            fleet_curve = plot.plot(
+                pen=pg.mkPen("#1f77b4", width=2), name="target-fleet RMSE",
+            )
+            cursor = pg.InfiniteLine(
+                angle=90, movable=False, pen=pg.mkPen("#777777"),
+            )
+            plot.addItem(cursor)
+            plot.addLegend()
+            tab_label = {
+                "position": "Position error",
+                "velocity": "Velocity error",
+                "acceleration": "Acceleration error (derived)",
+            }[quantity]
+            self.error_tabs.addTab(plot, tab_label)
+            self.error_plots[quantity] = plot
+            self.node_error_curves[quantity] = selected_curve
+            self.fleet_error_curves[quantity] = fleet_curve
+            self.time_cursors[quantity] = cursor
+        self.error_plot = self.error_plots["position"]
+        self.node_error_curve = self.node_error_curves["position"]
+        self.fleet_error_curve = self.fleet_error_curves["position"]
+        self.time_cursor = self.time_cursors["position"]
+        left.addWidget(error_panel)
 
         self.information_tabs = QtWidgets.QTabWidget()
         self.summary = QtWidgets.QPlainTextEdit()
@@ -353,13 +504,14 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         for modality, panel in self.observation_panels.items():
             self.information_tabs.addTab(panel, modality.title())
         self.cann_panel = CANNObservationPanel()
-        self.information_tabs.addTab(self.cann_panel, "CANN navigation")
+        self.information_tabs.addTab(self.cann_panel, "Target state CANN")
         right.addWidget(self.information_tabs)
 
         self.node_table = QtWidgets.QTableWidget()
-        self.node_table.setColumnCount(5)
+        self.node_table.setColumnCount(6)
         self.node_table.setHorizontalHeaderLabels(
-            ("Node", "Position error (m)", "3-sigma (m)", "Abs nav", "Status")
+            ("Target", "Position error (m)", "Velocity error (m/s)",
+             "Position 3-sigma (m)", "Track status", "CANN status")
         )
         self.node_table.horizontalHeader().setStretchLastSection(True)
         right.addWidget(self.node_table)
@@ -382,7 +534,6 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         if self.timeline.value() != self._current_index:
             self.timeline.setValue(self._current_index)
         frame = self.model.frame(self._current_index)
-        self._update_target_selector(frame)
         self.time_label.setText(
             f"t = {frame.timestamp:.1f} s   "
             f"epoch {frame.epoch_index + 1}/{len(self.model)}"
@@ -390,20 +541,6 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self._draw_orbit(frame)
         self._draw_errors(frame.timestamp)
         self._populate_status(frame)
-
-    def _update_target_selector(self, frame) -> None:
-        observer = self.node_selector.currentText()
-        targets = sorted({
-            item.target_id for item in frame.observations
-            if item.observer_id == observer
-        })
-        previous = self.target_selector.currentText()
-        self.target_selector.blockSignals(True)
-        self.target_selector.clear()
-        self.target_selector.addItems(targets)
-        if previous in targets:
-            self.target_selector.setCurrentText(previous)
-        self.target_selector.blockSignals(False)
 
     def _draw_orbit(self, frame) -> None:
         axis = self.orbit_axis
@@ -415,39 +552,69 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             ) / 1000.0
             for node in frame.nodes
         }
-        selected = self.node_selector.currentText()
+        selected = self.target_selector.currentText()
         values = np.asarray(list(positions.values()))
         if self._layer_visible("earth"):
             self._draw_earth(axis)
         legend_handles = []
         if self._layer_visible("satellites"):
-            axis.scatter(values[:, 0], values[:, 1], values[:, 2], s=22,
-                         color="#1f77b4", label="satellites")
-            legend_handles.append(Line2D(
-                [], [], marker="o", linestyle="None", color="#1f77b4",
-                label="satellites",
-            ))
+            role_groups = (
+                ("FRIENDLY", "#1f77b4", "friendly observers"),
+                ("HOSTILE", "#d62728", "hostile targets"),
+            )
+            categorized = False
+            for prefix, color, label in role_groups:
+                role_values = np.asarray([
+                    positions[node.node_id] for node in frame.nodes
+                    if node.status.startswith(prefix)
+                ])
+                if not role_values.size:
+                    continue
+                categorized = True
+                axis.scatter(
+                    role_values[:, 0], role_values[:, 1], role_values[:, 2],
+                    s=24, color=color, label=label,
+                )
+                legend_handles.append(Line2D(
+                    [], [], marker="o", linestyle="None", color=color,
+                    label=label,
+                ))
+            if not categorized:
+                axis.scatter(values[:, 0], values[:, 1], values[:, 2], s=22,
+                             color="#1f77b4", label="satellites")
+                legend_handles.append(Line2D(
+                    [], [], marker="o", linestyle="None", color="#1f77b4",
+                    label="satellites",
+                ))
         edge_styles = {
             "CONFIGURED_TOPOLOGY": ("#9e9e9e", ":", 0.45),
             "ACTIVE_TOPOLOGY": ("#1f77b4", "-", 0.85),
             "ACTUAL_INFORMATION_FLOW": ("#2ca02c", "-", 1.0),
             "PENDING_INFORMATION_FLOW": ("#ffbf00", "--", 0.9),
+            "OBSERVATION_LINK": ("#9467bd", "--", 0.22),
         }
         edge_layers = {
             "CONFIGURED_TOPOLOGY": "configured",
             "ACTIVE_TOPOLOGY": "active",
             "ACTUAL_INFORMATION_FLOW": "delivered",
             "PENDING_INFORMATION_FLOW": "delayed",
+            "OBSERVATION_LINK": "active",
         }
         edge_labels = {
             "CONFIGURED_TOPOLOGY": "configured topology",
             "ACTIVE_TOPOLOGY": "active topology",
             "ACTUAL_INFORMATION_FLOW": "delivered flow",
             "PENDING_INFORMATION_FLOW": "delayed flow",
+            "OBSERVATION_LINK": "observation link",
         }
         visible_edge_types = set()
         for edge in frame.edges:
             if not self._layer_visible(edge_layers.get(edge.edge_type, "active")):
+                continue
+            if (
+                edge.edge_type == "OBSERVATION_LINK"
+                and edge.target_node_id != selected
+            ):
                 continue
             left, right = positions[edge.source_node_id], positions[edge.target_node_id]
             color, linestyle, alpha = edge_styles.get(
@@ -492,7 +659,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             if self._layer_visible("satellites"):
                 axis.scatter(*point, s=85, color="#ff7f0e", edgecolor="black")
         self._equalize_3d_axes(axis, values)
-        axis.set_title("Walker constellation: configured / active / information flow")
+        axis.set_title(f"Bilateral constellation and observations of {selected}")
         axis.set_xlabel("ECI x (km)")
         axis.set_ylabel("ECI y (km)")
         axis.set_zlabel("ECI z (km)")
@@ -534,19 +701,37 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         axis.set_box_aspect((1, 1, 1))
 
     def _draw_errors(self, timestamp: float) -> None:
-        selected = self.node_selector.currentText()
-        node_error = self.model.node_position_error_history(selected)
-        self.node_error_curve.setData(self.model.timestamps, node_error)
-        self.fleet_error_curve.setData(
-            self.model.timestamps, self.model.fleet_position_rmse_history,
-        )
-        self.time_cursor.setValue(timestamp)
+        selected = self.target_selector.currentText()
+        for quantity in ("position", "velocity", "acceleration"):
+            node_error = self.model.node_error_history(selected, quantity)
+            target_errors = np.stack([
+                self.model.node_error_history(node_id, quantity)
+                for node_id in self.target_ids
+            ])
+            valid = np.isfinite(target_errors)
+            counts = np.sum(valid, axis=0)
+            fleet_error = np.full(target_errors.shape[1], np.nan)
+            available = counts > 0
+            fleet_error[available] = np.sqrt(
+                np.nansum(np.square(target_errors), axis=0)[available]
+                / counts[available]
+            )
+            self.node_error_curves[quantity].setData(
+                self.model.timestamps, node_error,
+            )
+            self.fleet_error_curves[quantity].setData(
+                self.model.timestamps, fleet_error,
+            )
+            self.time_cursors[quantity].setValue(timestamp)
+
+    def _refresh_error_plot(self, _index: int | None = None) -> None:
+        if hasattr(self, "time_cursors"):
+            self._draw_errors(self.model.frame(self._current_index).timestamp)
 
     def _populate_status(self, frame) -> None:
-        selected = self.node_selector.currentText()
         target = self.target_selector.currentText()
         selected_observations = tuple(
-            item for item in frame.observations if item.observer_id == selected
+            item for item in frame.observations if item.target_id == target
         )
         counts = {
             modality: sum(item.modality == modality for item in selected_observations)
@@ -562,7 +747,9 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"{sum(item.edge_type == 'ACTIVE_TOPOLOGY' for item in frame.edges)} / "
             f"{sum(item.edge_type == 'ACTUAL_INFORMATION_FLOW' for item in frame.edges)}\n"
             f"Observations this epoch: {len(frame.observations)}\n"
-            f"Selected link: {selected} -> {target or 'none'}\n"
+            f"Tracked hostile target: {target or 'none'}\n"
+            f"Active observing friendly nodes: "
+            f"{len({item.observer_id for item in selected_observations})}\n"
             f"RADAR / INFRARED / OPTICAL: "
             f"{counts['RADAR']} / {counts['INFRARED']} / {counts['OPTICAL']}\n"
             f"Fleet position RMSE: "
@@ -576,28 +763,44 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"Resynchronized links: "
             f"{frame.metadata.get('resynchronization_count', 'n/a')}"
         )
-        by_modality = {
-            item.modality: item for item in selected_observations
-            if item.target_id == target
-        }
+        by_modality = {}
+        for modality in ("RADAR", "INFRARED", "OPTICAL"):
+            candidates = [
+                item for item in selected_observations
+                if item.modality == modality
+            ]
+            if candidates:
+                by_modality[modality] = max(
+                    candidates,
+                    key=lambda item: (item.valid, item.visible),
+                )
         for modality, panel in self.observation_panels.items():
             panel.set_observation(by_modality.get(modality))
         self.cann_panel.set_frame(
-            model=self.model, frame=frame, node_id=selected,
+            model=self.model, frame=frame, node_id=target,
         )
         navigation = {item.node_id: item for item in frame.navigation}
-        self.node_table.setRowCount(len(frame.nodes))
-        for row, node in enumerate(frame.nodes):
+        targets = [
+            node for node in frame.nodes if node.node_id in self.target_ids
+        ]
+        self.node_table.setRowCount(len(targets))
+        for row, node in enumerate(targets):
             error = (
-                float("nan") if node.truth_state is None else
+                float("nan") if node.truth_state is None or not node.valid else
                 float(np.linalg.norm(node.estimate_state[:3] - node.truth_state[:3]))
+            )
+            velocity_error = (
+                float("nan") if node.truth_state is None or not node.valid else
+                float(np.linalg.norm(
+                    node.estimate_state[3:6] - node.truth_state[3:6]
+                ))
             )
             three_sigma = 3.0 * np.sqrt(np.sum(node.covariance_diagonal[:3]))
             nav = navigation.get(node.node_id)
             values = (
-                node.node_id, f"{error:.3f}", f"{three_sigma:.3f}",
-                "yes" if nav and nav.absolute_navigation_available else "no",
-                node.status,
+                node.node_id, f"{error:.3f}", f"{velocity_error:.5f}",
+                f"{three_sigma:.3f}", node.status,
+                "n/a" if nav is None else nav.status,
             )
             for column, value in enumerate(values):
                 self.node_table.setItem(row, column, QtWidgets.QTableWidgetItem(value))

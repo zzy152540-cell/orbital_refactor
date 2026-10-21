@@ -92,6 +92,7 @@ class OnlineMultiTargetTracker:
         preserve_angular_radial_nullspace: bool = False,
         enable_multi_observer_bearing_update: bool = False,
         enable_unified_multimodal_update: bool = False,
+        enable_local_unified_multimodal_update: bool = False,
         enable_inverse_depth_los_update: bool = False,
         unified_multimodal_window_epochs: int = 1,
         multi_epoch_bearing_window_epochs: int = 1,
@@ -122,6 +123,9 @@ class OnlineMultiTargetTracker:
         )
         self.enable_unified_multimodal_update = bool(
             enable_unified_multimodal_update
+        )
+        self.enable_local_unified_multimodal_update = bool(
+            enable_local_unified_multimodal_update
         )
         self.enable_inverse_depth_los_update = bool(
             enable_inverse_depth_los_update
@@ -432,6 +436,71 @@ class OnlineMultiTargetTracker:
             current_key = (observer_id, epoch)
             if previous_key not in self._observer_states:
                 raise ValueError(f"Missing retained observer state for {previous_key!r}.")
+            if self.enable_local_unified_multimodal_update:
+                values = tuple(
+                    item for item in items
+                    if item.valid_flag and item.modality in {"RADAR", "LOS"}
+                )
+                values = self._preprocess_unified_observations(
+                    target_id=target_id,
+                    observations=values,
+                    timestamp=epoch,
+                )
+                if not values:
+                    continue
+                process_noise_scale = (
+                    self.maneuver_detector.process_noise_scale(target_id)
+                )
+                update = unified_multi_observer_multimodal_update(
+                    prior,
+                    values,
+                    timestamp=epoch,
+                    process_noise_acceleration=(
+                        self.process_noise_acceleration * process_noise_scale
+                    ),
+                )
+                prior_information_ids = self._local_prior_information_ids.get(
+                    (observer_id, target_id), ()
+                )
+                information_ids = tuple(dict.fromkeys((
+                    *prior_information_ids,
+                    *update.measurement_ids,
+                )))
+                total = max(update.observation_count, 1)
+                modality_weights = {
+                    name.lower(): count / total
+                    for name, count in update.modality_counts.items()
+                }
+                quality = quality_score_from_covariance(update.covariance_eci)
+                report = TargetNodeReport(
+                    observer_id=observer_id,
+                    target_id=target_id,
+                    track_id=prior.track_id,
+                    timestamp=epoch,
+                    state_eci=update.state_eci,
+                    covariance_eci=update.covariance_eci,
+                    quality_score=float(np.clip(
+                        quality / (1.0 + quality), 0.0, 1.0,
+                    )),
+                    valid_flag=True,
+                    modality_weights=modality_weights,
+                    used_measurement_ids=information_ids,
+                    information_capabilities=update.information_capabilities,
+                )
+                reports.append(report)
+                self._local_priors[(observer_id, target_id)] = (
+                    TargetInitialState(
+                        target_id=target_id,
+                        track_id=prior.track_id,
+                        timestamp=epoch,
+                        state_eci=update.state_eci,
+                        covariance_eci=update.covariance_eci,
+                    )
+                )
+                self._local_prior_information_ids[(observer_id, target_id)] = (
+                    information_ids
+                )
+                continue
             observations = [
                 _tracking_observation(
                     item, target_id, self._observer_quaternions[current_key],
@@ -607,6 +676,9 @@ class OnlineMultiTargetTracker:
                 valid_flag=True,
                 modality_weights=modality_weights,
                 used_measurement_ids=information_ids,
+                information_capabilities=getattr(
+                    update, "information_capabilities", (),
+                ),
             ))
             updated_targets.add(target_id)
             shared_prior = TargetInitialState(
@@ -637,6 +709,20 @@ class OnlineMultiTargetTracker:
         ):
             values = tuple(item for item in target_observations if item.valid_flag)
             if any(item.modality == "RADAR" for item in values):
+                self._multi_epoch_bearing_windows.pop(target_id, None)
+                continue
+            if (
+                self.enable_local_unified_multimodal_update
+                and any(
+                    item.metadata.get("rangeProxyM") is not None
+                    or item.metadata.get("rangeRateProxyMps") is not None
+                    for item in values
+                )
+            ):
+                # A LOS carrier with an independent radial-backup block is not
+                # a pure bearing-only epoch.  Leave it for the node-local
+                # unified update so the radial rows are neither discarded here
+                # nor double-counted in a second update.
                 self._multi_epoch_bearing_windows.pop(target_id, None)
                 continue
             lines = tuple(item for item in values if item.modality == "LOS")

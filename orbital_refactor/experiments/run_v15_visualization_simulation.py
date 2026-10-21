@@ -9,6 +9,9 @@ from pathlib import Path
 from experiments.run_v15_dynamic_visualization_recording import (
     generate_dynamic_walker_recording,
 )
+from experiments.run_bilateral_visualization_recording import (
+    generate_bilateral_visualization_recording,
+)
 from experiments.visualization_simulation_config import (
     load_visualization_simulation_config,
     next_available_recording_path,
@@ -24,9 +27,14 @@ def run_configured_visualization_simulation(config_path: str | Path) -> Path:
                 "Output already exists and auto_increment_output is disabled."
             )
         config = replace(config, output=str(next_available_recording_path(requested)))
-    output = generate_dynamic_walker_recording(
-        Path(config.output), **config.generator_arguments,
-    )
+    if config.scenario_type == "BILATERAL_15X15":
+        output = generate_bilateral_visualization_recording(
+            Path(config.output), **config.bilateral_generator_arguments,
+        )
+    else:
+        output = generate_dynamic_walker_recording(
+            Path(config.output), **config.generator_arguments,
+        )
     if config.open_after_run:
         from experiments.run_v15_visualization_window import configure_qt_runtime
         configure_qt_runtime()

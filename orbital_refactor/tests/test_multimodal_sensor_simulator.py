@@ -80,6 +80,112 @@ def test_modality_random_streams_are_independent():
         np.testing.assert_array_equal(left.covariance, right.covariance)
 
 
+def test_infrared_range_proxy_is_opt_in_noisy_sensor_metadata():
+    observer = np.array([7e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    target = observer + np.array([1000.0, 100.0, -50.0, 0.0, 0.0, 0.0])
+    sigma = 5.0
+    epoch = simulate_multimodal_sensor_epoch(
+        timestamp=2.0,
+        observer_id="a",
+        target_id="b",
+        observer_state=observer,
+        target_state=target,
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+        config=MultimodalSensorSimulationConfig(
+            infrared_range_proxy_sigma_m=sigma,
+        ),
+        rng_by_modality={
+            modality: np.random.default_rng(seed)
+            for modality, seed in (("RADAR", 1), ("INFRARED", 2), ("OPTICAL", 3))
+        },
+    )
+    infrared = next(
+        item for item in epoch.messages if item.modality == "INFRARED"
+    )
+    assert infrared.metadata["rangeProxyVarianceM2"] == sigma**2
+    assert infrared.metadata["rangeProxyIndependentNoiseAssumed"] is True
+    assert np.isfinite(infrared.metadata["rangeProxyM"])
+    assert "rangeProxyM" not in next(
+        item for item in _epoch().messages if item.modality == "INFRARED"
+    ).metadata
+
+
+def test_infrared_range_proxy_sigma_must_be_positive():
+    with np.testing.assert_raises(ValueError):
+        MultimodalSensorSimulationConfig(infrared_range_proxy_sigma_m=0.0)
+    with np.testing.assert_raises(ValueError):
+        MultimodalSensorSimulationConfig(
+            infrared_range_rate_proxy_sigma_mps=-0.1,
+        )
+
+
+def test_infrared_range_rate_proxy_is_opt_in_sensor_metadata():
+    observer = np.array([7e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    target = observer + np.array([1000.0, 100.0, -50.0, 1.0, -0.2, 0.1])
+    sigma = 0.01
+    epoch = simulate_multimodal_sensor_epoch(
+        timestamp=2.0,
+        observer_id="a",
+        target_id="b",
+        observer_state=observer,
+        target_state=target,
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+        config=MultimodalSensorSimulationConfig(
+            infrared_range_rate_proxy_sigma_mps=sigma,
+        ),
+        rng_by_modality={
+            modality: np.random.default_rng(seed)
+            for modality, seed in (("RADAR", 1), ("INFRARED", 2), ("OPTICAL", 3))
+        },
+    )
+    infrared = next(
+        item for item in epoch.messages if item.modality == "INFRARED"
+    )
+    assert infrared.metadata["rangeRateProxyVarianceM2ps2"] == sigma**2
+    assert np.isfinite(infrared.metadata["rangeRateProxyMps"])
+
+
+def test_independent_radial_backup_is_explicit_shadow_metadata():
+    observer = np.array([7e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    target = observer + np.array([1000.0, 100.0, -50.0, 1.0, -0.2, 0.1])
+    epoch = simulate_multimodal_sensor_epoch(
+        timestamp=2.0,
+        observer_id="a",
+        target_id="b",
+        observer_state=observer,
+        target_state=target,
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+        config=MultimodalSensorSimulationConfig(
+            backup_radial_range_sigma_m=0.2,
+            backup_radial_range_rate_sigma_mps=0.0125,
+        ),
+        rng_by_modality={
+            modality: np.random.default_rng(seed)
+            for modality, seed in (
+                ("RADAR", 1), ("INFRARED", 2), ("OPTICAL", 3),
+                ("RADIAL_BACKUP", 4),
+            )
+        },
+    )
+    infrared = next(
+        item for item in epoch.messages if item.modality == "INFRARED"
+    )
+    assert infrared.metadata["rangeProxyVarianceM2"] == 0.2**2
+    assert infrared.metadata["rangeRateProxyVarianceM2ps2"] == 0.0125**2
+    assert infrared.metadata["rangeProxySource"] == (
+        "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+    )
+    assert infrared.metadata["radialBackupPhysicalValidation"] is False
+
+
+def test_independent_radial_backup_rejects_duplicate_legacy_proxy():
+    with np.testing.assert_raises(ValueError):
+        MultimodalSensorSimulationConfig(
+            infrared_range_proxy_sigma_m=1.0,
+            backup_radial_range_sigma_m=1.0,
+        )
+
+
 def test_camera_modalities_accept_independent_mounting_attitudes():
     observer = np.zeros(6)
     target = np.array([1000.0, 100.0, -50.0, 0.0, 0.0, 0.0])

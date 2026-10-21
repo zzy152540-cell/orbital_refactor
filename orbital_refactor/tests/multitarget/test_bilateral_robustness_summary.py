@@ -1,4 +1,7 @@
-from experiments.summarize_bilateral_robustness import summarize_robustness
+from experiments.summarize_bilateral_robustness import (
+    _acceptance_result,
+    summarize_robustness,
+)
 
 
 def _phase(value):
@@ -39,6 +42,9 @@ def _arm(value, *, consensus=False):
         "consensus_recovered_link_count": 12,
         "processing_mean_ms": 20.0,
         "missing_truth_sample_count": 0,
+        "position_rmse_m_by_target": {
+            f"target-{index}": value for index in range(15)
+        },
     }
 
 
@@ -124,3 +130,26 @@ def test_robustness_summary_aggregates_both_scenario_contracts():
     assert summary["threeObserverFailure"][
         "consensusFailureVsControlPercent"
     ]["incrementalCann"]["position_mean_error_m"]["mean"] == 0.0
+    assert summary["threeObserverFailure"][
+        "consensusFailureVsControlPercent"
+    ]["incrementalCann"]["position_mean_error_m"][
+        "pairedSeedBootstrapMean95Percent"
+    ] == [0.0, 0.0]
+
+
+def test_acceptance_uses_frozen_position_primary_not_auxiliary_metrics():
+    result = _acceptance_result(
+        percent_statistics={
+            "position_rmse_m": {"mean": 10.0},
+            "velocity_rmse_mps": {"mean": 30.0},
+            "acceleration_rmse_mps2": {"mean": 40.0},
+        },
+        threshold=15.0,
+        coverage_comparable=True,
+        primary_metric="position_rmse_m",
+    )
+
+    assert result["primaryThresholdMet"]
+    assert not result["thresholdMetByMetric"]["velocity_rmse_mps"]
+    assert result["passed"]
+    assert not result["formalAcceptanceClaimed"]

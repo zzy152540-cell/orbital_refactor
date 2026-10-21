@@ -72,6 +72,9 @@ def test_unified_update_combines_radar_and_los_on_one_state_prior():
         propagated_prior[3:] - truth[3:]
     )
     assert result.modality_counts == {"OPTICAL": 2, "RADAR": 2}
+    assert result.information_capabilities == (
+        "RADIAL_RANGE", "RADIAL_RANGE_RATE",
+    )
     assert result.observation_count == 4
     assert result.measurement_dimension == 8
     assert np.linalg.eigvalsh(result.covariance_eci).min() >= -1e-8
@@ -110,8 +113,97 @@ def test_unified_update_accepts_los_only_when_radar_is_missing():
     )
 
     assert result.modality_counts == {"INFRARED": 2}
+    assert result.information_capabilities == ()
     assert result.observation_count == 2
     assert np.all(np.isfinite(result.state_eci))
+
+
+def test_los_range_proxy_adds_one_radial_measurement_dimension():
+    truth_at_zero = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    truth = rk4_step_absolute(truth_at_zero, 1.0)
+    prior = TargetInitialState(
+        target_id="target-1",
+        track_id="track-1",
+        timestamp=0.0,
+        state_eci=truth_at_zero + np.array([100.0, 0.0, 0.0, 0, 0, 0]),
+        covariance_eci=np.diag([1e4, 100.0, 100.0, 1.0, 1.0, 1.0]),
+    )
+    observer = np.array([6.8e6, -1.0e6, 0.0, 0.0, 0.0, 0.0])
+    relative = truth[:3] - observer[:3]
+    distance = float(np.linalg.norm(relative))
+    line = relative / distance
+    observation = UnlabeledIODObservation(
+        timestamp=1.0,
+        observer_id="observer-0",
+        modality="LOS",
+        observer_state_eci=observer,
+        measurement=line,
+        covariance=np.diag([1e-10, 1e-10]),
+        detection_group_id="group-0",
+        metadata={
+            "sourceModality": "INFRARED",
+            "rangeProxyM": distance,
+            "rangeProxyVarianceM2": 1.0,
+        },
+    )
+
+    result = unified_multi_observer_multimodal_update(
+        prior, (observation,), timestamp=1.0,
+    )
+    propagated = rk4_step_absolute(prior.state_eci, 1.0)
+
+    assert result.measurement_dimension == 3
+    assert result.information_capabilities == ("RADIAL_RANGE",)
+    assert np.linalg.norm(result.state_eci[:3] - truth[:3]) < np.linalg.norm(
+        propagated[:3] - truth[:3]
+    )
+
+
+def test_los_range_rate_proxy_adds_direct_radial_velocity_constraint():
+    truth_at_zero = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    truth = rk4_step_absolute(truth_at_zero, 1.0)
+    prior = TargetInitialState(
+        target_id="target-1",
+        track_id="track-1",
+        timestamp=0.0,
+        state_eci=truth_at_zero + np.array([50.0, 0.0, 0.0, 2.0, 0, 0]),
+        covariance_eci=np.diag([1e4, 100.0, 100.0, 10.0, 1.0, 1.0]),
+    )
+    observer = np.array([6.8e6, -1.0e6, 0.0, 0.0, 0.0, 0.0])
+    relative = truth[:3] - observer[:3]
+    relative_velocity = truth[3:] - observer[3:]
+    distance = float(np.linalg.norm(relative))
+    line = relative / distance
+    range_rate = float(line @ relative_velocity)
+    observation = UnlabeledIODObservation(
+        timestamp=1.0,
+        observer_id="observer-0",
+        modality="LOS",
+        observer_state_eci=observer,
+        measurement=line,
+        covariance=np.diag([1e-10, 1e-10]),
+        detection_group_id="group-0",
+        metadata={
+            "sourceModality": "INFRARED",
+            "rangeProxyM": distance,
+            "rangeProxyVarianceM2": 1.0,
+            "rangeRateProxyMps": range_rate,
+            "rangeRateProxyVarianceM2ps2": 1e-4,
+        },
+    )
+
+    result = unified_multi_observer_multimodal_update(
+        prior, (observation,), timestamp=1.0,
+    )
+    propagated = rk4_step_absolute(prior.state_eci, 1.0)
+
+    assert result.measurement_dimension == 4
+    assert result.information_capabilities == (
+        "RADIAL_RANGE", "RADIAL_RANGE_RATE",
+    )
+    assert np.linalg.norm(result.state_eci[3:] - truth[3:]) < np.linalg.norm(
+        propagated[3:] - truth[3:]
+    )
 
 
 def test_fixed_lag_window_slides_without_reusing_the_oldest_measurements():

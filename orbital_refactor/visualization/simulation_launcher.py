@@ -10,6 +10,9 @@ from PySide6 import QtCore, QtWidgets
 from experiments.run_v15_dynamic_visualization_recording import (
     generate_dynamic_walker_recording,
 )
+from experiments.run_bilateral_visualization_recording import (
+    generate_bilateral_visualization_recording,
+)
 from experiments.visualization_simulation_config import (
     VisualizationSimulationConfig,
     load_visualization_simulation_config,
@@ -31,10 +34,17 @@ class SimulationWorker(QtCore.QThread):
 
     def run(self) -> None:
         try:
-            output = generate_dynamic_walker_recording(
-                Path(self.config.output), **self.config.generator_arguments,
-                progress_callback=self._report_progress,
-            )
+            if self.config.scenario_type == "BILATERAL_15X15":
+                output = generate_bilateral_visualization_recording(
+                    Path(self.config.output),
+                    **self.config.bilateral_generator_arguments,
+                    progress_callback=self._report_progress,
+                )
+            else:
+                output = generate_dynamic_walker_recording(
+                    Path(self.config.output), **self.config.generator_arguments,
+                    progress_callback=self._report_progress,
+                )
         except Exception as exc:  # surfaced to the GUI; traceback stays in logs
             self.failed.emit(f"{type(exc).__name__}: {exc}")
             return
@@ -62,6 +72,12 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         root.addWidget(tabs, 1)
 
         self.total_satellites = self._integer(2, 100)
+        self.scenario_type = QtWidgets.QComboBox()
+        self.scenario_type.addItem("Walker cooperative constellation", "WALKER_COOPERATIVE")
+        self.scenario_type.addItem("Bilateral: 15 friendly + 15 hostile", "BILATERAL_15X15")
+        self.scenario_type.currentIndexChanged.connect(
+            self._apply_scenario_controls
+        )
         self.plane_count = self._integer(1, 100)
         self.phasing = self._integer(0, 99)
         self.altitude_km = self._decimal(100.0, 100000.0, 1)
@@ -107,6 +123,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         output_row.addWidget(browse_output)
 
         self._add_tab(tabs, "Constellation", (
+            ("Scenario", self.scenario_type),
             ("Total satellites", self.total_satellites),
             ("Orbital planes", self.plane_count),
             ("Walker phasing", self.phasing),
@@ -201,6 +218,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
 
     def config(self) -> VisualizationSimulationConfig:
         return VisualizationSimulationConfig(
+            scenario_type=self.scenario_type.currentData(),
             total_satellites=self.total_satellites.value(),
             plane_count=self.plane_count.value(), phasing=self.phasing.value(),
             altitude_km=self.altitude_km.value(),
@@ -233,6 +251,8 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         )
 
     def set_config(self, config: VisualizationSimulationConfig) -> None:
+        scenario_index = self.scenario_type.findData(config.scenario_type)
+        self.scenario_type.setCurrentIndex(max(0, scenario_index))
         self.total_satellites.setValue(config.total_satellites)
         self.plane_count.setValue(config.plane_count)
         self.phasing.setValue(config.phasing)
@@ -264,6 +284,28 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.output.setText(config.output)
         self.open_after_run.setChecked(config.open_after_run)
         self.auto_increment_output.setChecked(config.auto_increment_output)
+        self._apply_scenario_controls()
+
+    def _apply_scenario_controls(self) -> None:
+        bilateral = self.scenario_type.currentData() == "BILATERAL_15X15"
+        for widget in (
+            self.total_satellites, self.plane_count, self.phasing,
+            self.altitude_km, self.inclination_deg, self.maximum_range_km,
+            self.absolute_dropout, self.process_noise, self.radar_enabled,
+            self.infrared_enabled, self.optical_enabled,
+            self.radar_range_sigma, self.radar_rate_sigma,
+            self.infrared_sigma, self.optical_sigma, self.absolute_sigma,
+            self.replay_window, self.max_pinned_age,
+            self.communication_profile, self.topology_audit_max_duration_s,
+            self.link_suspension,
+        ):
+            widget.setEnabled(not bilateral)
+        if bilateral:
+            self.total_satellites.setValue(30)
+            if "bilateral" not in self.output.text().lower():
+                self.output.setText(
+                    "results/visualization_recordings/bilateral30_configured"
+                )
 
     def _load_config(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -345,6 +387,10 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             "cann_disabled": "CANN disabled",
             "recording_write_started": "Writing replay recording",
             "recording_complete": "Replay recording complete",
+            "bilateral_frontend_started": "Generating bilateral raw sensor frontend",
+            "bilateral_frontend_complete": "Bilateral raw frontend complete",
+            "bilateral_tracking_complete": "Bilateral target tracking complete",
+            "bilateral_cann_complete": "Absolute-position CANN display complete",
         }
         self.progress_bar.setValue(percent)
         self.status.setPlainText(

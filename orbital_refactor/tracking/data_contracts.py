@@ -11,6 +11,12 @@ from .track_lifecycle import TrackLifecycle
 Array = np.ndarray
 ECI_FRAME = "J2000_ECI"
 MAX_INFORMATION_IDS = 256
+RADIAL_RANGE_CAPABILITY = "RADIAL_RANGE"
+RADIAL_RANGE_RATE_CAPABILITY = "RADIAL_RANGE_RATE"
+SUPPORTED_INFORMATION_CAPABILITIES = frozenset({
+    RADIAL_RANGE_CAPABILITY,
+    RADIAL_RANGE_RATE_CAPABILITY,
+})
 
 
 def _identifier(value: str, field_name: str) -> str:
@@ -67,6 +73,21 @@ def _information_ids(values) -> tuple[str, ...]:
     )
     unique = tuple(dict.fromkeys(identifiers))
     return unique[-MAX_INFORMATION_IDS:]
+
+
+def _information_capabilities(values) -> tuple[str, ...]:
+    capabilities = tuple(dict.fromkeys(
+        str(value).strip().upper() for value in values
+    ))
+    if any(not value for value in capabilities):
+        raise ValueError("information_capabilities cannot contain empty values.")
+    unsupported = set(capabilities) - SUPPORTED_INFORMATION_CAPABILITIES
+    if unsupported:
+        raise ValueError(
+            "Unsupported information capabilities: "
+            f"{sorted(unsupported)}"
+        )
+    return tuple(sorted(capabilities))
 
 
 @dataclass(frozen=True)
@@ -126,6 +147,7 @@ class LocalTargetEstimate:
     frame: str = ECI_FRAME
     modality_weights: Mapping[str, float] = field(default_factory=dict)
     used_measurement_ids: tuple[str, ...] = ()
+    information_capabilities: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "observer_id", _identifier(self.observer_id, "observer_id"))
@@ -139,6 +161,11 @@ class LocalTargetEstimate:
         object.__setattr__(self, "modality_weights", dict(self.modality_weights))
         object.__setattr__(
             self, "used_measurement_ids", _information_ids(self.used_measurement_ids)
+        )
+        object.__setattr__(
+            self,
+            "information_capabilities",
+            _information_capabilities(self.information_capabilities),
         )
 
 
@@ -166,6 +193,7 @@ class TargetEstimateMessage:
     arrival_timestamp: float | None = None
     information_ids: tuple[str, ...] = ()
     lineage_id: str | None = None
+    information_capabilities: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "message_id", _identifier(self.message_id, "message_id"))
@@ -190,6 +218,11 @@ class TargetEstimateMessage:
             object.__setattr__(
                 self, "lineage_id", _identifier(self.lineage_id, "lineage_id")
             )
+        object.__setattr__(
+            self,
+            "information_capabilities",
+            _information_capabilities(self.information_capabilities),
+        )
 
 
 @dataclass(frozen=True)

@@ -1,0 +1,23 @@
+{
+  "schema_version": "v1.0",
+  "constellation": {
+    "scenario_type": "BILATERAL_15X15"
+  },
+  "simulation": {
+    "duration_s": 20.0,
+    "dt_s": 1.0,
+    "seed": 0
+  },
+  "cann": {
+    "cann_enabled": true,
+    "cann_node_limit": 3
+  },
+  "output": {
+    "output": "results/visualization_recordings/bilateral30_configured",
+    "open_after_run": true,
+    "auto_increment_output": true
+  },
+  "integrity": {
+    "policy": "validated_baseline"
+  }
+}

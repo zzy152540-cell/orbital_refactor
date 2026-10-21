@@ -28,6 +28,8 @@ SUMMARY_FIELDS = (
     "consensus_track_replacement_count",
     "consensus_missing_truth_sample_count",
 )
+P05_MINIMUM_IMPROVEMENT_PERCENT = 8.0
+P07_MINIMUM_IMPROVEMENT_PERCENT = 6.0
 
 
 def main() -> None:
@@ -138,12 +140,16 @@ def summarize_payloads(payloads) -> dict:
         for name in local_names
     }
     return {
-        "schemaVersion": "bilateral-baseline-matrix-summary.v1",
+        "schemaVersion": "bilateral-baseline-matrix-summary.v3",
         "seedCount": len(values),
         "seeds": sorted(seeds),
         "durationSeconds": values[0]["scenario"]["durationSeconds"],
         "arms": arms,
         "localNodeBaselines": local_node_baselines,
+        "fourMetricEvidence": {
+            "P05": _p05_evidence(values),
+            "P07": _p07_evidence(values),
+        },
     }
 
 
@@ -188,6 +194,15 @@ def _summarize_local_node_runs(runs) -> dict:
     return {
         "nodeCount": int(runs[0]["node_count"]),
         "nodeIds": list(runs[0]["node_ids"]),
+        "scoredSampleCounts": [
+            int(run.get("scored_sample_count", 0)) for run in runs
+        ],
+        "scoredSampleKeySha256": [
+            run.get("scored_sample_key_sha256") for run in runs
+        ],
+        "scoredTruthIds": [
+            list(run.get("scored_truth_ids", ())) for run in runs
+        ],
         "fullRunMetrics": {
             field: _statistics(
                 run["phase_metrics"]["FULL_RUN"].get(field) for run in runs
@@ -224,6 +239,449 @@ def _summarize_local_node_runs(runs) -> dict:
         ),
         "positionRmseByTarget": target_statistics,
     }
+
+
+def _p05_evidence(payloads) -> dict:
+    baseline_name = "single_node_multimodal_no_cann"
+    candidate_name = "single_node_multimodal_cann"
+    required = {baseline_name, candidate_name}
+    if any(
+        not required.issubset(payload.get("localNodeBaselines", {}))
+        for payload in payloads
+    ):
+        return {
+            "status": "NOT_AVAILABLE",
+            "reason": "Single-observer paired baselines are missing.",
+        }
+    coverage_by_seed = []
+    per_seed = []
+    for payload in payloads:
+        baseline = payload["localNodeBaselines"][baseline_name]
+        candidate = payload["localNodeBaselines"][candidate_name]
+        comparable = _same_node_sample_coverage(baseline, candidate)
+        coverage_by_seed.append(comparable)
+        baseline_phase = baseline["phase_metrics"]["FULL_RUN"]
+        candidate_phase = candidate["phase_metrics"]["FULL_RUN"]
+        per_seed.append({
+            "seed": int(payload["scenario"]["seed"]),
+            "coverageComparable": comparable,
+            "scoredSampleCount": int(
+                baseline.get("scored_sample_count", 0)
+            ),
+            "scoredTruthCount": len(baseline.get("scored_truth_ids", ())),
+            "positionRmseImprovementPercent": _improvement_percent(
+                baseline_phase["position_rmse_m"],
+                candidate_phase["position_rmse_m"],
+            ),
+        })
+    pooled = _pooled_node_pair(
+        payloads, baseline_name=baseline_name, candidate_name=candidate_name,
+        field="position_rmse_m", count_field="position_sample_count",
+    )
+    coverage_comparable = all(coverage_by_seed)
+    threshold_met = bool(
+        pooled["improvementPercent"] is not None
+        and pooled["improvementPercent"] >= P05_MINIMUM_IMPROVEMENT_PERCENT
+    )
+    matched_records = [
+        payload.get("matchedSingleObserverCann") for payload in payloads
+    ]
+    matched_evidence = (
+        None
+        if any(record is None for record in matched_records)
+        else _matched_pair_evidence(
+            matched_records, seeds=[
+                int(payload["scenario"]["seed"]) for payload in payloads
+            ],
+            minimum_improvement_percent=P05_MINIMUM_IMPROVEMENT_PERCENT,
+        )
+    )
+    joint_records = [
+        payload.get("matchedSingleObserverJointCann") for payload in payloads
+    ]
+    joint_candidate_evidence = (
+        {
+            "status": "NOT_AVAILABLE",
+            "reason": "Joint same-epoch multimodal candidate is missing.",
+        }
+        if any(record is None for record in joint_records)
+        else _matched_pair_evidence(
+            joint_records, seeds=[
+                int(payload["scenario"]["seed"]) for payload in payloads
+            ],
+            minimum_improvement_percent=P05_MINIMUM_IMPROVEMENT_PERCENT,
+        )
+    )
+    ablation_names = (
+        "federatedCannIncrement",
+        "jointFusionWithoutCann",
+        "jointCannIncrement",
+        "jointFusionWithCannCombined",
+    )
+    joint_ablation = {}
+    for name in ablation_names:
+        records = [
+            payload.get("matchedSingleObserverAblation", {}).get(name)
+            for payload in payloads
+        ]
+        joint_ablation[name] = (
+            {
+                "status": "NOT_AVAILABLE",
+                "reason": f"P05 ablation arm {name} is missing.",
+            }
+            if any(record is None for record in records)
+            else _matched_pair_evidence(
+                records,
+                seeds=[
+                    int(payload["scenario"]["seed"])
+                    for payload in payloads
+                ],
+                minimum_improvement_percent=(
+                    P05_MINIMUM_IMPROVEMENT_PERCENT
+                ),
+            )
+        )
+    modality_names = ("radar", "infrared", "optical")
+    auxiliary_vs_single_modality = {}
+    for modality in modality_names:
+        records = [
+            payload.get("matchedSingleObserverCannVsModality", {}).get(
+                modality
+            )
+            for payload in payloads
+        ]
+        auxiliary_vs_single_modality[modality] = (
+            {
+                "status": "NOT_AVAILABLE",
+                "reason": (
+                    "Exact matched single-observer modality comparison is "
+                    "missing."
+                ),
+            }
+            if any(record is None for record in records)
+            else _matched_pair_evidence(
+                records, seeds=[
+                    int(payload["scenario"]["seed"]) for payload in payloads
+                ],
+                minimum_improvement_percent=P05_MINIMUM_IMPROVEMENT_PERCENT,
+            )
+        )
+    return {
+        "metricScope": "ONE_OBSERVER_COMMON_NODE_TARGET_TIME_SAMPLES",
+        "primaryMetric": "position_rmse_m",
+        "minimumImprovementPercent": P05_MINIMUM_IMPROVEMENT_PERCENT,
+        "baseline": baseline_name,
+        "candidate": candidate_name,
+        "coverageComparable": coverage_comparable,
+        "thresholdMet": threshold_met,
+        "developmentGatePassed": bool(coverage_comparable and threshold_met),
+        "formalAcceptanceClaimed": False,
+        "perSeed": per_seed,
+        "pooled": pooled,
+        "exactMatchedEvidence": matched_evidence,
+        "experimentalJointMeasurementCandidate": joint_candidate_evidence,
+        "jointMeasurementCannAblation": joint_ablation,
+        "auxiliaryExactMatchedVsSingleModality": (
+            auxiliary_vs_single_modality
+        ),
+        "auxiliaryComparisonCanReplacePrimary": False,
+    }
+
+
+def _p07_evidence(payloads) -> dict:
+    candidates = {
+        "fixed_topology_multimodal_no_cann": "withoutCann",
+        "fixed_topology_multimodal_cann": "incrementalCann",
+    }
+    comparisons = {}
+    for arm_name, label in candidates.items():
+        matched = [
+            payload.get("matchedIndependentConsensusByCann", {}).get(label)
+            for payload in payloads
+        ]
+        if any(record is None for record in matched):
+            comparisons[label] = {
+                "status": "NOT_AVAILABLE",
+                "reason": (
+                    "Cross-arm independent-local versus cooperative-consensus "
+                    "matched samples are missing."
+                ),
+            }
+            continue
+        comparisons[label] = _matched_pair_evidence(
+            matched, seeds=[
+                int(payload["scenario"]["seed"]) for payload in payloads
+            ],
+        )
+    central_records = [
+        payload.get("arms", {}).get(
+            "centralized_multimodal_no_cann", {}
+        ).get("matched_local_central_metrics")
+        for payload in payloads
+    ]
+    centralized_upper_bound = (
+        {
+            "status": "NOT_AVAILABLE",
+            "reason": "Matched local-central samples are missing.",
+        }
+        if any(record is None for record in central_records)
+        else _matched_pair_evidence(
+            central_records, seeds=[
+                int(payload["scenario"]["seed"]) for payload in payloads
+            ],
+        )
+    )
+    joint_records = [
+        payload.get("matchedJointIndependentConsensus")
+        for payload in payloads
+    ]
+    joint_algorithm_comparison = (
+        {
+            "status": "NOT_AVAILABLE",
+            "reason": (
+                "Matched joint-update independent versus cooperative samples "
+                "are missing."
+            ),
+        }
+        if any(record is None for record in joint_records)
+        else _matched_pair_evidence(
+            joint_records, seeds=[
+                int(payload["scenario"]["seed"]) for payload in payloads
+            ],
+        )
+    )
+    return {
+        "metricScope": "COMMON_NODE_TARGET_TIME_SAMPLES",
+        "minimumImprovementPercent": P07_MINIMUM_IMPROVEMENT_PERCENT,
+        "primaryMetricFreezeStatus": (
+            "PENDING_POSITION_MEAN_ERROR_VS_POSITION_RMSE_DECISION"
+        ),
+        "formalAcceptanceClaimed": False,
+        "comparisons": comparisons,
+        "adjustedJointMeasurementAlgorithm": joint_algorithm_comparison,
+        "centralizedAllObservationDiagnosticUpperBound": (
+            centralized_upper_bound
+        ),
+    }
+
+
+def _matched_pair_evidence(
+    records, *, seeds=None,
+    minimum_improvement_percent=P07_MINIMUM_IMPROVEMENT_PERCENT,
+) -> dict:
+    coverage_comparable = all(
+        int(record["common_sample_count"]) > 0
+        and int(record["common_sample_count"])
+        == int(record["local_sample_count"])
+        for record in records
+    )
+    mean_error = _pooled_matched_pair(
+        records,
+        local_field="local_position_mean_error_m",
+        consensus_field="consensus_position_mean_error_m",
+        squared=False,
+    )
+    rmse = _pooled_matched_pair(
+        records,
+        local_field="local_position_rmse_m",
+        consensus_field="consensus_position_rmse_m",
+        squared=True,
+    )
+    result = {
+        "coverageComparable": coverage_comparable,
+        "localOnlySampleCount": int(sum(
+            record["local_only_sample_count"] for record in records
+        )),
+        "consensusOnlySampleCount": int(sum(
+            record["consensus_only_sample_count"] for record in records
+        )),
+        "positionMeanError": mean_error,
+        "positionRmse": rmse,
+        "thresholdMetByCandidatePrimaryMetric": {
+            "position_mean_error_m": bool(
+                mean_error["improvementPercent"] is not None
+                and mean_error["improvementPercent"]
+                >= minimum_improvement_percent
+            ),
+            "position_rmse_m": bool(
+                rmse["improvementPercent"] is not None
+                and rmse["improvementPercent"]
+                >= minimum_improvement_percent
+            ),
+        },
+    }
+    if seeds is not None:
+        seed_values = tuple(int(seed) for seed in seeds)
+        if len(seed_values) != len(records):
+            raise ValueError("Matched records and seeds must have equal length.")
+        per_seed = []
+        mean_improvements = []
+        rmse_improvements = []
+        for seed, record in zip(seed_values, records, strict=True):
+            mean_improvement = _improvement_percent(
+                record["local_position_mean_error_m"],
+                record["consensus_position_mean_error_m"],
+            )
+            rmse_improvement = _improvement_percent(
+                record["local_position_rmse_m"],
+                record["consensus_position_rmse_m"],
+            )
+            mean_improvements.append(mean_improvement)
+            rmse_improvements.append(rmse_improvement)
+            per_seed.append({
+                "seed": seed,
+                "commonSampleCount": int(record["common_sample_count"]),
+                "positionMeanErrorImprovementPercent": mean_improvement,
+                "positionRmseImprovementPercent": rmse_improvement,
+                "meanErrorThresholdMet": bool(
+                    mean_improvement is not None
+                    and mean_improvement >= minimum_improvement_percent
+                ),
+                "rmseThresholdMet": bool(
+                    rmse_improvement is not None
+                    and rmse_improvement >= minimum_improvement_percent
+                ),
+            })
+        result["perSeed"] = per_seed
+        result["improvementAcrossSeeds"] = {
+            "positionMeanErrorPercent": _improvement_statistics(
+                mean_improvements
+            ),
+            "positionRmsePercent": _improvement_statistics(
+                rmse_improvements
+            ),
+        }
+    return result
+
+
+def _improvement_statistics(values) -> dict:
+    raw = np.asarray(
+        [value for value in values if value is not None], dtype=float,
+    )
+    if raw.size == 0:
+        return {
+            "count": 0, "mean": None, "std": None,
+            "min": None, "max": None, "meanConfidenceInterval95": None,
+        }
+    if not np.all(np.isfinite(raw)):
+        raise ValueError("Improvement values must be finite or null.")
+    if raw.size == 1:
+        interval = [float(raw[0]), float(raw[0])]
+    else:
+        generator = np.random.default_rng(20261019)
+        resampled_means = np.mean(
+            generator.choice(raw, size=(20_000, raw.size), replace=True),
+            axis=1,
+        )
+        interval = [
+            float(np.percentile(resampled_means, 2.5)),
+            float(np.percentile(resampled_means, 97.5)),
+        ]
+    return {
+        "count": int(raw.size),
+        "mean": float(np.mean(raw)),
+        "std": float(np.std(raw)),
+        "min": float(np.min(raw)),
+        "max": float(np.max(raw)),
+        "meanConfidenceInterval95": interval,
+        "confidenceIntervalMethod": (
+            "deterministic_seed_level_percentile_bootstrap_20000"
+        ),
+    }
+
+
+def _same_node_sample_coverage(baseline, candidate) -> bool:
+    baseline_digest = baseline.get("scored_sample_key_sha256")
+    candidate_digest = candidate.get("scored_sample_key_sha256")
+    return bool(
+        baseline_digest
+        and baseline_digest == candidate_digest
+        and tuple(baseline.get("node_ids", ()))
+        == tuple(candidate.get("node_ids", ()))
+        and int(baseline.get("scored_sample_count", 0)) > 0
+        and int(baseline.get("scored_sample_count", 0))
+        == int(candidate.get("scored_sample_count", -1))
+    )
+
+
+def _pooled_node_pair(
+    payloads, *, baseline_name, candidate_name, field, count_field,
+) -> dict:
+    baseline_sum = 0.0
+    candidate_sum = 0.0
+    sample_count = 0
+    for payload in payloads:
+        baseline = payload["localNodeBaselines"][baseline_name][
+            "phase_metrics"
+        ]["FULL_RUN"]
+        candidate = payload["localNodeBaselines"][candidate_name][
+            "phase_metrics"
+        ]["FULL_RUN"]
+        count = int(baseline[count_field])
+        if count != int(candidate[count_field]):
+            continue
+        baseline_sum += float(baseline[field]) ** 2 * count
+        candidate_sum += float(candidate[field]) ** 2 * count
+        sample_count += count
+    baseline_value = (baseline_sum / sample_count) ** 0.5 if sample_count else None
+    candidate_value = (
+        (candidate_sum / sample_count) ** 0.5 if sample_count else None
+    )
+    return {
+        "sampleCount": sample_count,
+        "baseline": baseline_value,
+        "candidate": candidate_value,
+        "improvementPercent": _improvement_percent(
+            baseline_value, candidate_value
+        ),
+    }
+
+
+def _pooled_matched_pair(
+    records, *, local_field, consensus_field, squared,
+) -> dict:
+    count = sum(int(record["common_sample_count"]) for record in records)
+    if not count:
+        local_value = consensus_value = None
+    elif squared:
+        local_value = (
+            sum(
+                float(record[local_field]) ** 2
+                * int(record["common_sample_count"])
+                for record in records
+            ) / count
+        ) ** 0.5
+        consensus_value = (
+            sum(
+                float(record[consensus_field]) ** 2
+                * int(record["common_sample_count"])
+                for record in records
+            ) / count
+        ) ** 0.5
+    else:
+        local_value = sum(
+            float(record[local_field]) * int(record["common_sample_count"])
+            for record in records
+        ) / count
+        consensus_value = sum(
+            float(record[consensus_field])
+            * int(record["common_sample_count"])
+            for record in records
+        ) / count
+    return {
+        "commonSampleCount": count,
+        "local": local_value,
+        "consensus": consensus_value,
+        "improvementPercent": _improvement_percent(
+            local_value, consensus_value
+        ),
+    }
+
+
+def _improvement_percent(baseline, candidate):
+    if baseline is None or candidate is None or float(baseline) <= 0.0:
+        return None
+    return float((float(baseline) - float(candidate)) / float(baseline) * 100.0)
 
 
 if __name__ == "__main__":
