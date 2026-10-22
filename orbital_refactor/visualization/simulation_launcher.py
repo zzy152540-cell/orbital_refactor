@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import sys
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from experiments.run_v15_dynamic_visualization_recording import (
     generate_dynamic_walker_recording,
@@ -19,8 +20,20 @@ from experiments.visualization_simulation_config import (
     next_available_recording_path,
     save_visualization_simulation_config,
 )
+from visualization.acceptance_test_workflow import (
+    FORMAL_MODE,
+    PRESETS,
+    QUICK_MODE,
+    build_acceptance_plan,
+    describe_acceptance_plan,
+    finalize_acceptance_plan,
+    make_acceptance_output_directory,
+)
 from visualization.replay_model import VisualizationReplayModel
 from visualization.replay_window import VisualizationReplayWindow
+
+
+MAX_PARALLEL_ACCEPTANCE_JOBS = 2
 
 
 class SimulationWorker(QtCore.QThread):
@@ -34,7 +47,9 @@ class SimulationWorker(QtCore.QThread):
 
     def run(self) -> None:
         try:
-            if self.config.scenario_type == "BILATERAL_15X15":
+            if self.config.scenario_type in {
+                "BILATERAL_CONFIGURABLE", "BILATERAL_15X15",
+            }:
                 output = generate_bilateral_visualization_recording(
                     Path(self.config.output),
                     **self.config.bilateral_generator_arguments,
@@ -59,8 +74,12 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         super().__init__()
         self._worker = None
         self._replay_window = None
+        self._acceptance_processes = {}
+        self._acceptance_plan = None
+        self._acceptance_job_index = 0
+        self._acceptance_completed_jobs = 0
         self.setWindowTitle("Satellite Swarm Simulation Setup")
-        self.resize(760, 600)
+        self.resize(860, 680)
         self._build_ui()
         self.set_config(VisualizationSimulationConfig())
 
@@ -74,6 +93,10 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.total_satellites = self._integer(2, 100)
         self.scenario_type = QtWidgets.QComboBox()
         self.scenario_type.addItem("Walker cooperative constellation", "WALKER_COOPERATIVE")
+        self.scenario_type.addItem(
+            "Bilateral: configurable friendly + hostile Walker fleets",
+            "BILATERAL_CONFIGURABLE",
+        )
         self.scenario_type.addItem("Bilateral: 15 friendly + 15 hostile", "BILATERAL_15X15")
         self.scenario_type.currentIndexChanged.connect(
             self._apply_scenario_controls
@@ -82,6 +105,16 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.phasing = self._integer(0, 99)
         self.altitude_km = self._decimal(100.0, 100000.0, 1)
         self.inclination_deg = self._decimal(0.0, 180.0, 2)
+        self.friendly_total_satellites = self._integer(2, 100)
+        self.friendly_plane_count = self._integer(1, 100)
+        self.friendly_phasing = self._integer(0, 99)
+        self.friendly_altitude_km = self._decimal(100.0, 100000.0, 1)
+        self.friendly_inclination_deg = self._decimal(0.0, 180.0, 2)
+        self.hostile_total_satellites = self._integer(2, 100)
+        self.hostile_plane_count = self._integer(1, 100)
+        self.hostile_phasing = self._integer(0, 99)
+        self.hostile_altitude_km = self._decimal(100.0, 100000.0, 1)
+        self.hostile_inclination_deg = self._decimal(0.0, 180.0, 2)
         self.duration_s = self._decimal(2.0, 86400.0, 1)
         self.dt_s = self._decimal(0.1, 3600.0, 2)
         self.maximum_range_km = self._decimal(1.0, 100000.0, 1)
@@ -122,13 +155,23 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         browse_output.clicked.connect(self._browse_output)
         output_row.addWidget(browse_output)
 
-        self._add_tab(tabs, "Constellation", (
+        _, self.constellation_form = self._add_tab(tabs, "Constellation", (
             ("Scenario", self.scenario_type),
-            ("Total satellites", self.total_satellites),
-            ("Orbital planes", self.plane_count),
+            ("Walker total satellites", self.total_satellites),
+            ("Walker orbital planes", self.plane_count),
             ("Walker phasing", self.phasing),
-            ("Altitude (km)", self.altitude_km),
-            ("Inclination (deg)", self.inclination_deg),
+            ("Walker altitude (km)", self.altitude_km),
+            ("Walker inclination (deg)", self.inclination_deg),
+            ("Friendly satellites", self.friendly_total_satellites),
+            ("Friendly orbital planes", self.friendly_plane_count),
+            ("Friendly Walker phasing", self.friendly_phasing),
+            ("Friendly altitude (km)", self.friendly_altitude_km),
+            ("Friendly inclination (deg)", self.friendly_inclination_deg),
+            ("Hostile satellites", self.hostile_total_satellites),
+            ("Hostile orbital planes", self.hostile_plane_count),
+            ("Hostile Walker phasing", self.hostile_phasing),
+            ("Hostile altitude (km)", self.hostile_altitude_km),
+            ("Hostile inclination (deg)", self.hostile_inclination_deg),
         ))
         self._add_tab(tabs, "Simulation & dynamics", (
             ("Duration (s)", self.duration_s),
@@ -166,6 +209,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             ("Existing output", self.auto_increment_output),
             ("After run", self.open_after_run),
         ))
+        self._build_acceptance_tab(tabs)
 
         buttons = QtWidgets.QHBoxLayout()
         self.load_button = QtWidgets.QPushButton("Load config")
@@ -189,6 +233,70 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.progress_bar.setValue(0)
         root.addWidget(self.progress_bar)
         root.addWidget(self.status)
+
+    def _build_acceptance_tab(self, tabs) -> None:
+        page = QtWidgets.QWidget()
+        root = QtWidgets.QVBoxLayout(page)
+        form = QtWidgets.QFormLayout()
+        self.acceptance_test = QtWidgets.QComboBox()
+        for preset in PRESETS:
+            self.acceptance_test.addItem(preset.name, preset.preset_id)
+        self.acceptance_mode = QtWidgets.QComboBox()
+        self.acceptance_mode.addItem("快速检查（seed 0，非正式）", QUICK_MODE)
+        self.acceptance_mode.addItem("正式验收（seed 0～4）", FORMAL_MODE)
+        self.acceptance_output = QtWidgets.QLineEdit()
+        output_row = QtWidgets.QHBoxLayout()
+        output_row.addWidget(self.acceptance_output, 1)
+        browse = QtWidgets.QPushButton("Browse...")
+        browse.clicked.connect(self._browse_acceptance_output)
+        output_row.addWidget(browse)
+        form.addRow("Test item", self.acceptance_test)
+        form.addRow("Run mode", self.acceptance_mode)
+        form.addRow("Result directory", output_row)
+        root.addLayout(form)
+
+        self.acceptance_description = QtWidgets.QPlainTextEdit()
+        self.acceptance_description.setReadOnly(True)
+        self.acceptance_description.setMaximumHeight(155)
+        root.addWidget(self.acceptance_description)
+
+        controls = QtWidgets.QHBoxLayout()
+        self.acceptance_run_button = QtWidgets.QPushButton("Run selected test")
+        self.acceptance_stop_button = QtWidgets.QPushButton("Stop")
+        self.acceptance_open_button = QtWidgets.QPushButton("Open result folder")
+        self.acceptance_stop_button.setEnabled(False)
+        self.acceptance_run_button.clicked.connect(self._run_acceptance_test)
+        self.acceptance_stop_button.clicked.connect(self._stop_acceptance_test)
+        self.acceptance_open_button.clicked.connect(self._open_acceptance_output)
+        controls.addWidget(self.acceptance_run_button)
+        controls.addWidget(self.acceptance_stop_button)
+        controls.addWidget(self.acceptance_open_button)
+        root.addLayout(controls)
+
+        self.acceptance_progress = QtWidgets.QProgressBar()
+        self.acceptance_progress.setRange(0, 100)
+        root.addWidget(self.acceptance_progress)
+        self.acceptance_results = QtWidgets.QTreeWidget()
+        self.acceptance_results.setHeaderLabels(
+            ("Metric", "Value", "Threshold", "Status")
+        )
+        self.acceptance_results.setRootIsDecorated(False)
+        self.acceptance_results.setAlternatingRowColors(True)
+        root.addWidget(self.acceptance_results, 1)
+        self.acceptance_log = QtWidgets.QPlainTextEdit()
+        self.acceptance_log.setReadOnly(True)
+        self.acceptance_log.setMaximumBlockCount(1000)
+        self.acceptance_log.setMaximumHeight(135)
+        root.addWidget(self.acceptance_log)
+        tabs.addTab(page, "Acceptance tests")
+
+        self.acceptance_test.currentIndexChanged.connect(
+            self._refresh_acceptance_plan
+        )
+        self.acceptance_mode.currentIndexChanged.connect(
+            self._refresh_acceptance_plan
+        )
+        self._refresh_acceptance_plan()
 
     @staticmethod
     def _integer(minimum, maximum):
@@ -215,6 +323,14 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             QtWidgets.QSizePolicy.Policy.Expanding,
         ))
         tabs.addTab(page, title)
+        return page, form
+
+    def _set_constellation_fields_visible(self, fields, visible) -> None:
+        for field in fields:
+            label = self.constellation_form.labelForField(field)
+            if label is not None:
+                label.setVisible(visible)
+            field.setVisible(visible)
 
     def config(self) -> VisualizationSimulationConfig:
         return VisualizationSimulationConfig(
@@ -223,6 +339,16 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             plane_count=self.plane_count.value(), phasing=self.phasing.value(),
             altitude_km=self.altitude_km.value(),
             inclination_deg=self.inclination_deg.value(),
+            friendly_total_satellites=self.friendly_total_satellites.value(),
+            friendly_plane_count=self.friendly_plane_count.value(),
+            friendly_phasing=self.friendly_phasing.value(),
+            friendly_altitude_km=self.friendly_altitude_km.value(),
+            friendly_inclination_deg=self.friendly_inclination_deg.value(),
+            hostile_total_satellites=self.hostile_total_satellites.value(),
+            hostile_plane_count=self.hostile_plane_count.value(),
+            hostile_phasing=self.hostile_phasing.value(),
+            hostile_altitude_km=self.hostile_altitude_km.value(),
+            hostile_inclination_deg=self.hostile_inclination_deg.value(),
             duration_s=self.duration_s.value(), dt_s=self.dt_s.value(),
             maximum_range_km=self.maximum_range_km.value(),
             seed=self.seed.value(),
@@ -258,6 +384,24 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.phasing.setValue(config.phasing)
         self.altitude_km.setValue(config.altitude_km)
         self.inclination_deg.setValue(config.inclination_deg)
+        self.friendly_total_satellites.setValue(
+            config.friendly_total_satellites
+        )
+        self.friendly_plane_count.setValue(config.friendly_plane_count)
+        self.friendly_phasing.setValue(config.friendly_phasing)
+        self.friendly_altitude_km.setValue(config.friendly_altitude_km)
+        self.friendly_inclination_deg.setValue(
+            config.friendly_inclination_deg
+        )
+        self.hostile_total_satellites.setValue(
+            config.hostile_total_satellites
+        )
+        self.hostile_plane_count.setValue(config.hostile_plane_count)
+        self.hostile_phasing.setValue(config.hostile_phasing)
+        self.hostile_altitude_km.setValue(config.hostile_altitude_km)
+        self.hostile_inclination_deg.setValue(
+            config.hostile_inclination_deg
+        )
         self.duration_s.setValue(config.duration_s)
         self.dt_s.setValue(config.dt_s)
         self.maximum_range_km.setValue(config.maximum_range_km)
@@ -287,10 +431,30 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self._apply_scenario_controls()
 
     def _apply_scenario_controls(self) -> None:
-        bilateral = self.scenario_type.currentData() == "BILATERAL_15X15"
-        for widget in (
+        scenario = self.scenario_type.currentData()
+        bilateral = scenario in {
+            "BILATERAL_CONFIGURABLE", "BILATERAL_15X15",
+        }
+        frozen_bilateral = scenario == "BILATERAL_15X15"
+        walker_fields = (
             self.total_satellites, self.plane_count, self.phasing,
-            self.altitude_km, self.inclination_deg, self.maximum_range_km,
+            self.altitude_km, self.inclination_deg,
+        )
+        bilateral_fields = (
+            self.friendly_total_satellites, self.friendly_plane_count,
+            self.friendly_phasing, self.friendly_altitude_km,
+            self.friendly_inclination_deg, self.hostile_total_satellites,
+            self.hostile_plane_count, self.hostile_phasing,
+            self.hostile_altitude_km, self.hostile_inclination_deg,
+        )
+        self._set_constellation_fields_visible(walker_fields, not bilateral)
+        self._set_constellation_fields_visible(bilateral_fields, bilateral)
+        for widget in walker_fields:
+            widget.setEnabled(not bilateral)
+        for widget in bilateral_fields:
+            widget.setEnabled(scenario == "BILATERAL_CONFIGURABLE")
+        for widget in (
+            self.maximum_range_km,
             self.absolute_dropout, self.process_noise, self.radar_enabled,
             self.infrared_enabled, self.optical_enabled,
             self.radar_range_sigma, self.radar_rate_sigma,
@@ -300,8 +464,18 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             self.link_suspension,
         ):
             widget.setEnabled(not bilateral)
+        if frozen_bilateral:
+            self.friendly_total_satellites.setValue(15)
+            self.friendly_plane_count.setValue(3)
+            self.friendly_phasing.setValue(1)
+            self.friendly_altitude_km.setValue(700.0)
+            self.friendly_inclination_deg.setValue(53.0)
+            self.hostile_total_satellites.setValue(15)
+            self.hostile_plane_count.setValue(3)
+            self.hostile_phasing.setValue(1)
+            self.hostile_altitude_km.setValue(705.0)
+            self.hostile_inclination_deg.setValue(53.0)
         if bilateral:
-            self.total_satellites.setValue(30)
             if "bilateral" not in self.output.text().lower():
                 self.output.setText(
                     "results/visualization_recordings/bilateral30_configured"
@@ -339,6 +513,243 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         )
         if path:
             self.output.setText(str(Path(path) / "visualization_recording"))
+
+    def _browse_acceptance_output(self) -> None:
+        path = QtWidgets.QFileDialog.getExistingDirectory(
+            self, "Select acceptance result directory", "results"
+        )
+        if path:
+            self.acceptance_output.setText(path)
+            self._refresh_acceptance_description()
+
+    def _refresh_acceptance_plan(self) -> None:
+        preset_id = self.acceptance_test.currentData()
+        mode = self.acceptance_mode.currentData()
+        if not preset_id or not mode:
+            return
+        self.acceptance_output.setText(str(
+            make_acceptance_output_directory(preset_id)
+        ))
+        self._refresh_acceptance_description()
+
+    def _refresh_acceptance_description(self) -> None:
+        try:
+            plan = build_acceptance_plan(
+                self.acceptance_test.currentData(),
+                self.acceptance_mode.currentData(),
+                self.acceptance_output.text().strip(),
+            )
+            self.acceptance_description.setPlainText(
+                describe_acceptance_plan(plan)
+            )
+        except Exception as exc:
+            self.acceptance_description.setPlainText(
+                f"Invalid test configuration: {type(exc).__name__}: {exc}"
+            )
+
+    def _run_acceptance_test(self) -> None:
+        try:
+            plan = build_acceptance_plan(
+                self.acceptance_test.currentData(),
+                self.acceptance_mode.currentData(),
+                self.acceptance_output.text().strip(),
+            )
+            output = Path(plan.output_directory)
+            if output.exists() and any(output.iterdir()):
+                raise FileExistsError(
+                    "Result directory already contains files. Select a new directory."
+                )
+            output.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            self._show_acceptance_error(exc)
+            return
+        self._acceptance_plan = plan
+        self._acceptance_job_index = 0
+        self._acceptance_completed_jobs = 0
+        self._acceptance_processes.clear()
+        self.acceptance_results.clear()
+        self.acceptance_log.clear()
+        self.acceptance_progress.setValue(0)
+        self._set_acceptance_running(True)
+        self.acceptance_log.appendPlainText(
+            f"Starting {plan.preset.name} ({'formal' if plan.formal else 'quick'})"
+        )
+        self._start_next_acceptance_job()
+
+    def _start_next_acceptance_job(self) -> None:
+        plan = self._acceptance_plan
+        if plan is None:
+            return
+        while (
+            self._acceptance_job_index < len(plan.jobs)
+            and len(self._acceptance_processes) < MAX_PARALLEL_ACCEPTANCE_JOBS
+        ):
+            job_index = self._acceptance_job_index
+            self._acceptance_job_index += 1
+            self._start_acceptance_job(job_index)
+        if (
+            self._acceptance_completed_jobs >= len(plan.jobs)
+            and not self._acceptance_processes
+        ):
+            self._finish_acceptance_plan()
+
+    def _start_acceptance_job(self, job_index: int) -> None:
+        plan = self._acceptance_plan
+        if plan is None:
+            return
+        job = plan.jobs[job_index]
+        self.acceptance_log.appendPlainText(
+            f"\n[{job_index + 1}/{len(plan.jobs)}] {job.label}"
+        )
+        process = QtCore.QProcess(self)
+        process.setWorkingDirectory(str(Path.cwd()))
+        environment = QtCore.QProcessEnvironment.systemEnvironment()
+        for name in (
+            "OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        ):
+            environment.insert(name, "1")
+        process.setProcessEnvironment(environment)
+        process.setProcessChannelMode(
+            QtCore.QProcess.ProcessChannelMode.MergedChannels
+        )
+        process.readyReadStandardOutput.connect(
+            lambda process=process, index=job_index:
+                self._read_acceptance_output(process, index)
+        )
+        process.finished.connect(
+            lambda exit_code, exit_status, process=process, index=job_index:
+                self._acceptance_job_finished(
+                    process, index, exit_code, exit_status,
+                )
+        )
+        process.errorOccurred.connect(
+            lambda error, process=process, index=job_index:
+                self._acceptance_process_error(process, index, error)
+        )
+        self._acceptance_processes[process] = job_index
+        process.start(sys.executable, ["-m", job.module, *job.arguments])
+
+    def _read_acceptance_output(self, process, job_index: int) -> None:
+        if process not in self._acceptance_processes:
+            return
+        text = bytes(
+            process.readAllStandardOutput()
+        ).decode("utf-8", errors="replace").rstrip()
+        if text:
+            prefix = f"[{job_index + 1}] "
+            self.acceptance_log.appendPlainText(
+                prefix + text.replace("\n", "\n" + prefix)
+            )
+
+    def _acceptance_job_finished(
+        self, process, job_index: int, exit_code, exit_status,
+    ) -> None:
+        if process not in self._acceptance_processes:
+            return
+        self._read_acceptance_output(process, job_index)
+        self._acceptance_processes.pop(process, None)
+        process.deleteLater()
+        plan = self._acceptance_plan
+        if plan is None:
+            return
+        if exit_code != 0 or exit_status != QtCore.QProcess.ExitStatus.NormalExit:
+            self._abort_acceptance_jobs(
+                f"Test stopped: process exit code {exit_code}."
+            )
+            return
+        job = plan.jobs[job_index]
+        if not Path(job.output_path).exists():
+            self._abort_acceptance_jobs(
+                f"Test stopped: expected output was not created: {job.output_path}"
+            )
+            return
+        self._acceptance_completed_jobs += 1
+        self.acceptance_progress.setValue(round(
+            90 * self._acceptance_completed_jobs / len(plan.jobs)
+        ))
+        self._start_next_acceptance_job()
+
+    def _acceptance_process_error(self, process, job_index: int, error) -> None:
+        if process not in self._acceptance_processes:
+            return
+        if error == QtCore.QProcess.ProcessError.Crashed:
+            return
+        self.acceptance_log.appendPlainText(
+            f"Process {job_index + 1} error: {error}"
+        )
+        if error == QtCore.QProcess.ProcessError.FailedToStart:
+            self._abort_acceptance_jobs(
+                f"Test stopped: process {job_index + 1} failed to start."
+            )
+
+    def _abort_acceptance_jobs(self, message: str) -> None:
+        processes = tuple(self._acceptance_processes)
+        self._acceptance_processes.clear()
+        for process in processes:
+            if process.state() != QtCore.QProcess.ProcessState.NotRunning:
+                process.kill()
+        self._acceptance_plan = None
+        self._set_acceptance_running(False)
+        self.acceptance_log.appendPlainText(message)
+
+    def _finish_acceptance_plan(self) -> None:
+        try:
+            outcome = finalize_acceptance_plan(self._acceptance_plan)
+        except Exception as exc:
+            self._set_acceptance_running(False)
+            self._show_acceptance_error(exc)
+            return
+        for metric in outcome.metrics:
+            value = "N/A" if metric.value is None else f"{metric.value:.6g} {metric.unit}"
+            status = (
+                "Recorded" if metric.passed is None
+                else "PASS" if metric.passed else "FAIL"
+            )
+            item = QtWidgets.QTreeWidgetItem(
+                (metric.metric, value, metric.threshold, status)
+            )
+            if metric.passed is False:
+                item.setForeground(3, QtGui.QBrush(QtGui.QColor("#b00020")))
+            elif metric.passed is True:
+                item.setForeground(3, QtGui.QBrush(QtGui.QColor("#137333")))
+            self.acceptance_results.addTopLevelItem(item)
+        self.acceptance_results.resizeColumnToContents(0)
+        self.acceptance_progress.setValue(100)
+        self.acceptance_log.appendPlainText(
+            f"\nCompleted: {outcome.status}\n{outcome.note}\n"
+            f"Summary: {outcome.summary_path}"
+        )
+        self._set_acceptance_running(False)
+        if self._acceptance_plan.recording_path is not None:
+            self._open_replay(Path(self._acceptance_plan.recording_path))
+
+    def _stop_acceptance_test(self) -> None:
+        self._abort_acceptance_jobs("Test stopped by user.")
+
+    def _set_acceptance_running(self, running: bool) -> None:
+        self.acceptance_run_button.setEnabled(not running)
+        self.acceptance_stop_button.setEnabled(running)
+        self.acceptance_test.setEnabled(not running)
+        self.acceptance_mode.setEnabled(not running)
+        self.acceptance_output.setEnabled(not running)
+        self.acceptance_run_button.setText(
+            "Running..." if running else "Run selected test"
+        )
+
+    def _open_acceptance_output(self) -> None:
+        path = Path(self.acceptance_output.text().strip())
+        if not path.exists():
+            self._show_acceptance_error(FileNotFoundError(path))
+            return
+        QtGui.QDesktopServices.openUrl(
+            QtCore.QUrl.fromLocalFile(str(path.resolve()))
+        )
+
+    def _show_acceptance_error(self, exc: Exception) -> None:
+        self.acceptance_log.appendPlainText(
+            f"Error: {type(exc).__name__}: {exc}"
+        )
 
     def _open_recording_dialog(self) -> None:
         path = QtWidgets.QFileDialog.getExistingDirectory(

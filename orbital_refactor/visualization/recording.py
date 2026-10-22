@@ -17,7 +17,9 @@ from visualization.data_contract import (
 )
 
 
-RECORDING_FORMAT_VERSION = "v1.0"
+RECORDING_FORMAT_VERSION = "v1.1"
+SUPPORTED_RECORDING_FORMAT_VERSIONS = frozenset({"v1.0", "v1.1"})
+_PACKED_ARRAY_KEY = "packed_array_bytes"
 
 
 @dataclass(frozen=True)
@@ -70,12 +72,20 @@ class VisualizationRecordingWriter:
             raise ValueError("Recording timestamps must be strictly increasing.")
 
         encoded = visualization_frame_to_dict(frame)
-        arrays: dict[str, np.ndarray] = {}
+        array_chunks: list[np.ndarray] = []
         externalized = _externalize_arrays(
-            encoded, arrays=arrays, counter=[0],
+            encoded, chunks=array_chunks, byte_count=[0],
         )
-        np.savez_compressed(
-            self._arrays_path / f"{self._count:08d}.npz", **arrays,
+        packed = (
+            np.concatenate(array_chunks)
+            if array_chunks else np.empty(0, dtype=np.uint8)
+        )
+        # Sensor images and CANN arrays are already dense numeric data.  One
+        # uncompressed byte blob avoids hundreds of ZIP members per frame and
+        # is materially faster to write and load than savez_compressed.
+        np.savez(
+            self._arrays_path / f"{self._count:08d}.npz",
+            **{_PACKED_ARRAY_KEY: packed},
         )
         frame_path = self._frames_path / f"{self._count:08d}.json"
         frame_path.write_text(
@@ -129,7 +139,7 @@ class VisualizationRecordingReader:
             raise FileNotFoundError(f"Missing recording manifest: {manifest_path}")
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.manifest = VisualizationRecordingManifest(**payload)
-        if self.manifest.format_version != RECORDING_FORMAT_VERSION:
+        if self.manifest.format_version not in SUPPORTED_RECORDING_FORMAT_VERSIONS:
             raise ValueError("Unsupported visualization recording format.")
         if self.manifest.frame_schema_version != VISUALIZATION_SCHEMA_VERSION:
             raise ValueError("Unsupported visualization frame schema.")
@@ -146,7 +156,11 @@ class VisualizationRecordingReader:
         payload = json.loads(frame_path.read_text(encoding="utf-8"))
         archive_path = self.source / "arrays" / f"{index:08d}.npz"
         with np.load(archive_path, allow_pickle=False) as arrays:
-            restored = _restore_arrays(payload, arrays=arrays)
+            # Materialize each archive member once.  NpzFile.__getitem__ reads
+            # the ZIP member on every access, which is especially expensive
+            # when many logical arrays share the v1.1 packed byte blob.
+            loaded_arrays = {key: arrays[key] for key in arrays.files}
+        restored = _restore_arrays(payload, arrays=loaded_arrays)
         return visualization_frame_from_dict(restored)
 
     def __iter__(self) -> Iterator[VisualizationFrame]:
@@ -155,28 +169,37 @@ class VisualizationRecordingReader:
 
 
 def _externalize_arrays(
-    value: Any, *, arrays: dict[str, np.ndarray], counter: list[int],
+    value: Any, *, chunks: list[np.ndarray], byte_count: list[int],
 ) -> Any:
     if isinstance(value, dict) and value.get("__array__") is True:
-        array = np.asarray(value["data"], dtype=np.dtype(value["dtype"]))
+        array = np.ascontiguousarray(
+            value["data"], dtype=np.dtype(value["dtype"]),
+        )
         expected_shape = tuple(int(item) for item in value["shape"])
         if array.shape != expected_shape:
             raise ValueError("Encoded visualization array has an invalid shape.")
-        name = f"array_{counter[0]:04d}"
-        counter[0] += 1
-        arrays[name] = array
-        return {"__array_key__": name}
+        raw = array.reshape(-1).view(np.uint8)
+        offset = byte_count[0]
+        byte_count[0] += raw.size
+        chunks.append(raw)
+        return {
+            "__packed_array__": True,
+            "offset": offset,
+            "nbytes": raw.size,
+            "dtype": str(array.dtype),
+            "shape": list(array.shape),
+        }
     if isinstance(value, dict):
         return {
             key: _externalize_arrays(
-                item, arrays=arrays, counter=counter,
+                item, chunks=chunks, byte_count=byte_count,
             )
             for key, item in value.items()
         }
     if isinstance(value, list):
         return [
             _externalize_arrays(
-                item, arrays=arrays, counter=counter,
+                item, chunks=chunks, byte_count=byte_count,
             )
             for item in value
         ]
@@ -184,6 +207,30 @@ def _externalize_arrays(
 
 
 def _restore_arrays(value: Any, *, arrays: Mapping[str, np.ndarray]) -> Any:
+    if isinstance(value, dict) and value.get("__packed_array__") is True:
+        if _PACKED_ARRAY_KEY not in arrays:
+            raise ValueError("Visualization frame is missing its packed array blob.")
+        blob = np.asarray(arrays[_PACKED_ARRAY_KEY], dtype=np.uint8)
+        offset = int(value["offset"])
+        nbytes = int(value["nbytes"])
+        dtype = np.dtype(value["dtype"])
+        shape = tuple(int(item) for item in value["shape"])
+        if offset < 0 or nbytes < 0 or offset + nbytes > blob.size:
+            raise ValueError("Visualization frame contains an invalid array slice.")
+        expected_nbytes = int(np.prod(shape, dtype=np.int64)) * dtype.itemsize
+        if nbytes != expected_nbytes:
+            raise ValueError("Visualization frame contains an invalid array size.")
+        array = np.frombuffer(
+            blob[offset:offset + nbytes], dtype=dtype,
+        ).reshape(shape)
+        return {
+            "__array__": True,
+            "dtype": str(dtype),
+            "shape": list(shape),
+            # The decoder accepts array-like input.  Keeping this as an array
+            # avoids a costly ndarray -> Python list -> ndarray round trip.
+            "data": array,
+        }
     if isinstance(value, dict) and set(value) == {"__array_key__"}:
         key = str(value["__array_key__"])
         if key not in arrays:
@@ -193,7 +240,7 @@ def _restore_arrays(value: Any, *, arrays: Mapping[str, np.ndarray]) -> Any:
             "__array__": True,
             "dtype": str(array.dtype),
             "shape": list(array.shape),
-            "data": array.tolist(),
+            "data": array,
         }
     if isinstance(value, dict):
         return {

@@ -15,6 +15,9 @@ from experiments.bilateral_multitarget_frontend import (
     build_bilateral_raw_frontend,
 )
 from interfaces.data_objects import AbsolutePositionObservation, RawSensorFrame
+from orbital_core.constants import R_EARTH
+from scenarios.bilateral_multitarget import generate_bilateral_walker_truth
+from scenarios.walker_scenario import WalkerDeltaConfig
 from visualization.cann_history_adapter import build_cann_visualization_history
 from visualization.data_contract import (
     VisualEdge,
@@ -35,6 +38,27 @@ def generate_bilateral_visualization_recording(
     include_cann: bool = True,
     cann_node_limit: int = 3,
     retain_raw_frames: bool = True,
+    enable_consensus: bool = False,
+    enable_local_unified: bool = True,
+    tracking_observer_indices: tuple[int, ...] | None = None,
+    show_communication_topology: bool = True,
+    radial_backup_profile: str = "none",
+    dropout_modality: str | None = None,
+    dropout_start: float | None = None,
+    dropout_end: float | None = None,
+    failed_observer_indices: tuple[int, ...] | None = None,
+    failure_start: float | None = None,
+    failure_end: float | None = None,
+    friendly_total_satellites: int = 15,
+    friendly_plane_count: int = 3,
+    friendly_phasing: int = 1,
+    friendly_altitude_m: float = 700_000.0,
+    friendly_inclination_rad: float = np.deg2rad(53.0),
+    hostile_total_satellites: int = 15,
+    hostile_plane_count: int = 3,
+    hostile_phasing: int = 1,
+    hostile_altitude_m: float = 705_000.0,
+    hostile_inclination_rad: float = np.deg2rad(53.0),
     progress_callback=None,
 ) -> Path:
     """Run the accepted bilateral frontend and export immutable GUI frames."""
@@ -46,28 +70,108 @@ def generate_bilateral_visualization_recording(
     output = Path(output)
     if output.exists():
         raise FileExistsError(f"Visualization recording already exists: {output}")
+    radial_profile = str(radial_backup_profile).lower()
+    if radial_profile not in {"none", "legacy", "independent"}:
+        raise ValueError("radial_backup_profile must be none, legacy or independent.")
+    radial_enabled = radial_profile != "none"
     config = BilateralFrontendConfig(
         duration_seconds=float(duration),
         sample_interval_seconds=float(dt),
         random_seed=int(seed),
         retain_raw_frames=bool(retain_raw_frames),
-        use_local_unified_multimodal_measurement_update=True,
+        use_local_unified_multimodal_measurement_update=bool(
+            enable_local_unified
+        ),
+        backup_radial_range_sigma_m=1.0 if radial_enabled else None,
+        backup_radial_range_rate_sigma_mps=(
+            0.0125 if radial_enabled else None
+        ),
+        independent_radial_backup_channel=(radial_profile == "independent"),
+        dropout_modality=dropout_modality,
+        dropout_start_seconds=dropout_start,
+        dropout_end_seconds=dropout_end,
+        observer_failure_start_seconds=failure_start,
+        observer_failure_end_seconds=failure_end,
+        failed_observer_indices=failed_observer_indices,
+        maximum_track_count=int(hostile_total_satellites),
     )
     progress("bilateral_frontend_started", 0.02)
-    frontend = build_bilateral_raw_frontend(config)
+    friendly_config = WalkerDeltaConfig(
+        total_satellites=int(friendly_total_satellites),
+        plane_count=int(friendly_plane_count),
+        phasing=int(friendly_phasing),
+        semi_major_axis=R_EARTH + float(friendly_altitude_m),
+        eccentricity=0.0,
+        inclination=float(friendly_inclination_rad),
+        node_prefix="friendly",
+    )
+    hostile_config = WalkerDeltaConfig(
+        total_satellites=int(hostile_total_satellites),
+        plane_count=int(hostile_plane_count),
+        phasing=int(hostile_phasing),
+        semi_major_axis=R_EARTH + float(hostile_altitude_m),
+        eccentricity=0.0,
+        inclination=float(hostile_inclination_rad),
+        raan_origin=np.deg2rad(0.5),
+        base_true_anomaly=np.deg2rad(36.0),
+        node_prefix="hostile",
+    )
+    frozen_15x15 = (
+        int(friendly_total_satellites) == 15
+        and int(hostile_total_satellites) == 15
+        and int(friendly_plane_count) == 3
+        and int(hostile_plane_count) == 3
+        and int(friendly_phasing) == 1
+        and int(hostile_phasing) == 1
+        and np.isclose(float(friendly_altitude_m), 700_000.0)
+        and np.isclose(float(hostile_altitude_m), 705_000.0)
+        and np.isclose(float(friendly_inclination_rad), np.deg2rad(53.0))
+        and np.isclose(float(hostile_inclination_rad), np.deg2rad(53.0))
+    )
+    scene_id = (
+        "bilateral-15-friendly-15-hostile"
+        if frozen_15x15 else
+        f"bilateral-{int(friendly_total_satellites)}-friendly-"
+        f"{int(hostile_total_satellites)}-hostile"
+    )
+    truth = generate_bilateral_walker_truth(
+        duration_seconds=float(duration),
+        sample_interval_seconds=float(dt),
+        friendly_config=friendly_config,
+        hostile_config=hostile_config,
+        scene_id=scene_id,
+        minimum_total_satellites=2,
+    )
+    frontend = build_bilateral_raw_frontend(config, truth=truth)
+    friendly_ids = frontend.truth.manifest.friendly_observer_ids
+    if tracking_observer_indices is None:
+        tracking_observer_ids = None
+    else:
+        indices = tuple(dict.fromkeys(
+            int(value) for value in tracking_observer_indices
+        ))
+        if not indices or any(
+            value < 0 or value >= len(friendly_ids) for value in indices
+        ):
+            raise ValueError(
+                "tracking_observer_indices must identify existing observers."
+            )
+        tracking_observer_ids = tuple(friendly_ids[index] for index in indices)
     progress("bilateral_frontend_complete", 0.35)
     captured = []
     _run_bilateral_online_arm(
         frontend,
-        enable_cann=True,
-        enable_local_unified=True,
+        enable_cann=bool(include_cann),
+        enable_consensus=bool(enable_consensus),
+        enable_local_unified=bool(enable_local_unified),
+        tracking_observer_ids=tracking_observer_ids,
+        require_scored_truth=False,
         epoch_callback=captured.append,
     )
     progress("bilateral_tracking_complete", 0.65)
     if len(captured) != len(frontend.truth.timestamps):
         raise RuntimeError("Bilateral visualization capture is incomplete.")
 
-    friendly_ids = frontend.truth.manifest.friendly_observer_ids
     hostile_ids = frontend.truth.manifest.hostile_target_ids
     cann_history = _hostile_target_cann_history(
         frontend, captured,
@@ -79,6 +183,15 @@ def generate_bilateral_visualization_recording(
     for payload in captured:
         index = int(payload["epoch_index"])
         timestamp = float(payload["timestamp"])
+        active_ids = set(_active_friendly_ids(frontend, timestamp))
+        active_edges = (
+            tuple(
+                edge for edge in configured_edges
+                if edge.source_node_id in active_ids
+                and edge.target_node_id in active_ids
+            )
+            if show_communication_topology else ()
+        )
         nodes = _visual_nodes(
             frontend,
             payload,
@@ -107,12 +220,12 @@ def generate_bilateral_visualization_recording(
             for node in tracked
         ], dtype=float)
         frames.append(VisualizationFrame(
-            scenario_id="bilateral-15-friendly-15-hostile",
+            scenario_id=frontend.truth.manifest.scene_id,
             run_id=f"seed-{seed}-joint-multimodal-cann",
             timestamp=timestamp,
             epoch_index=index,
             nodes=nodes,
-            edges=(*configured_edges, *observation_edges),
+            edges=(*active_edges, *observation_edges),
             observations=observations,
             navigation=(
                 _default_navigation(friendly_ids, hostile_ids)
@@ -126,9 +239,23 @@ def generate_bilateral_visualization_recording(
             metadata={
                 "fleet_position_rmse_m": (
                     float(np.sqrt(np.mean(np.square(errors))))
-                    if errors.size else 0.0
+                    if errors.size else None
                 ),
                 "friendly_observer_count": len(friendly_ids),
+                "estimation_observer_ids": list(
+                    friendly_ids
+                    if tracking_observer_ids is None
+                    else tracking_observer_ids
+                ),
+                "estimation_observer_scope": (
+                    "ALL_OBSERVERS"
+                    if tracking_observer_ids is None
+                    else "SELECTED_OBSERVERS_AFTER_COMMON_INITIALIZATION"
+                ),
+                "consensus_enabled": bool(enable_consensus),
+                "communication_topology_displayed": bool(
+                    show_communication_topology
+                ),
                 "hostile_target_count": len(hostile_ids),
                 "tracked_hostile_target_count": len(tracked),
                 "node_role_by_id": {
@@ -137,6 +264,11 @@ def generate_bilateral_visualization_recording(
                 },
                 "truth_usage": "DISPLAY_AND_SCORING_ONLY",
                 "topology_version": "friendly-ring-v1",
+                "acceptance_dropout_modality": dropout_modality,
+                "failed_observer_ids": sorted(
+                    set(friendly_ids) - active_ids
+                ),
+                "radial_backup_profile": radial_profile,
                 "transmitted_message_count": len(payload["epoch_messages"]),
                 "delivered_message_count": len(payload["epoch_messages"]),
                 "dropped_message_count": 0,
@@ -160,6 +292,7 @@ def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
     }
     samples = payload["identity_epoch"].samples_by_truth
     nodes = []
+    active_ids = set(_active_friendly_ids(frontend, float(payload["timestamp"])))
     for node_id in friendly_ids:
         truth = frontend.truth.friendly_truth_state_history_by_node[node_id][index]
         covariance = np.eye(6) * 1e-6
@@ -169,7 +302,10 @@ def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
             truth_state=truth,
             covariance_diagonal=np.diag(covariance),
             covariance=covariance,
-            status="FRIENDLY_OBSERVER",
+            status=(
+                "FRIENDLY_OBSERVER"
+                if node_id in active_ids else "FRIENDLY_NODE_FAILED"
+            ),
         ))
     for target_id in hostile_ids:
         truth = frontend.truth.hostile_truth_state_history_by_target[target_id][index]
@@ -255,6 +391,24 @@ def _friendly_topology_edges(frontend):
     return tuple(
         VisualEdge(left, right, "ACTIVE_TOPOLOGY")
         for left, right in sorted(pairs)
+    )
+
+
+def _active_friendly_ids(frontend, timestamp):
+    config = frontend.config
+    if (
+        config.failed_observer_indices is None
+        or not config.observer_failure_start_seconds
+        <= timestamp <= config.observer_failure_end_seconds
+    ):
+        return frontend.truth.manifest.friendly_observer_ids
+    failed = {
+        frontend.truth.manifest.friendly_observer_ids[index]
+        for index in config.failed_observer_indices
+    }
+    return tuple(
+        node_id for node_id in frontend.truth.manifest.friendly_observer_ids
+        if node_id not in failed
     )
 
 
@@ -425,6 +579,34 @@ def main() -> None:
     parser.add_argument("--dt", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-cann", action="store_true")
+    parser.add_argument("--consensus", action="store_true")
+    parser.add_argument("--no-local-unified", action="store_true")
+    parser.add_argument("--tracking-observer-indices", type=int, nargs="+")
+    parser.add_argument("--hide-communication-topology", action="store_true")
+    parser.add_argument(
+        "--radial-backup-profile",
+        choices=("none", "legacy", "independent"), default="none",
+    )
+    parser.add_argument("--dropout-modality")
+    parser.add_argument("--dropout-start", type=float)
+    parser.add_argument("--dropout-end", type=float)
+    parser.add_argument("--failed-observer-indices", type=int, nargs="+")
+    parser.add_argument("--failure-start", type=float)
+    parser.add_argument("--failure-end", type=float)
+    parser.add_argument("--friendly-total-satellites", type=int, default=15)
+    parser.add_argument("--friendly-plane-count", type=int, default=3)
+    parser.add_argument("--friendly-phasing", type=int, default=1)
+    parser.add_argument("--friendly-altitude-km", type=float, default=700.0)
+    parser.add_argument(
+        "--friendly-inclination-deg", type=float, default=53.0,
+    )
+    parser.add_argument("--hostile-total-satellites", type=int, default=15)
+    parser.add_argument("--hostile-plane-count", type=int, default=3)
+    parser.add_argument("--hostile-phasing", type=int, default=1)
+    parser.add_argument("--hostile-altitude-km", type=float, default=705.0)
+    parser.add_argument(
+        "--hostile-inclination-deg", type=float, default=53.0,
+    )
     parser.add_argument(
         "--cann-node-limit", type=int, default=3,
         help="maximum number of hostile target posterior CANN histories",
@@ -440,6 +622,39 @@ def main() -> None:
         include_cann=not args.no_cann,
         cann_node_limit=args.cann_node_limit,
         retain_raw_frames=not args.no_raw_frames,
+        enable_consensus=args.consensus,
+        enable_local_unified=not args.no_local_unified,
+        tracking_observer_indices=(
+            None if args.tracking_observer_indices is None
+            else tuple(args.tracking_observer_indices)
+        ),
+        show_communication_topology=(
+            not args.hide_communication_topology
+        ),
+        radial_backup_profile=args.radial_backup_profile,
+        dropout_modality=args.dropout_modality,
+        dropout_start=args.dropout_start,
+        dropout_end=args.dropout_end,
+        failed_observer_indices=(
+            None if args.failed_observer_indices is None
+            else tuple(args.failed_observer_indices)
+        ),
+        failure_start=args.failure_start,
+        failure_end=args.failure_end,
+        friendly_total_satellites=args.friendly_total_satellites,
+        friendly_plane_count=args.friendly_plane_count,
+        friendly_phasing=args.friendly_phasing,
+        friendly_altitude_m=1000.0 * args.friendly_altitude_km,
+        friendly_inclination_rad=np.deg2rad(
+            args.friendly_inclination_deg
+        ),
+        hostile_total_satellites=args.hostile_total_satellites,
+        hostile_plane_count=args.hostile_plane_count,
+        hostile_phasing=args.hostile_phasing,
+        hostile_altitude_m=1000.0 * args.hostile_altitude_km,
+        hostile_inclination_rad=np.deg2rad(
+            args.hostile_inclination_deg
+        ),
     )
     print(output)
     if args.open:

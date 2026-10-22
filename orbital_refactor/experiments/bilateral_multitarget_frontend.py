@@ -67,6 +67,7 @@ class BilateralFrontendConfig:
     backup_radial_range_sigma_m: float | None = None
     backup_radial_range_rate_sigma_mps: float | None = None
     backup_radial_observer_indices: tuple[int, ...] | None = None
+    independent_radial_backup_channel: bool = False
     prefer_complete_radial_lineage: bool = False
     consensus_exchange_hops: int = 1
     dropout_modality: str | None = None
@@ -129,6 +130,14 @@ class BilateralFrontendConfig:
                     "backup_radial_observer_indices must be nonnegative."
                 )
             object.__setattr__(self, "backup_radial_observer_indices", indices)
+        if self.independent_radial_backup_channel and (
+            self.backup_radial_range_sigma_m is None
+            or self.backup_radial_range_rate_sigma_mps is None
+        ):
+            raise ValueError(
+                "The independent radial backup channel requires both range "
+                "and range-rate uncertainty settings."
+            )
         if int(self.consensus_exchange_hops) < 1:
             raise ValueError("consensus_exchange_hops must be positive.")
         object.__setattr__(
@@ -561,23 +570,32 @@ def build_bilateral_raw_frontend(
                     raw_frames[detection_group] = MappingProxyType(
                         dict(sensor_epoch.raw_frames)
                     )
-                for message in sensor_epoch.messages:
+                for sensor_message in sensor_epoch.messages:
+                    message = sensor_message
                     if (
                         selected.backup_radial_observer_indices is not None
                         and observer_index
                         not in selected.backup_radial_observer_indices
                     ):
                         message = _without_radial_backup_shadow(message)
-                    if _drop_message(
-                        selected,
-                        timestamp=timestamp,
-                        target_index=target_index,
-                        modality=message.modality,
-                    ):
-                        continue
-                    epoch_messages.append(
-                        _strip_truth_identity(message, detection_group)
+                    separated = (
+                        _separate_radial_backup_channel(message)
+                        if selected.independent_radial_backup_channel
+                        else (message,)
                     )
+                    for separated_message in separated:
+                        if _drop_message(
+                            selected,
+                            timestamp=timestamp,
+                            target_index=target_index,
+                            modality=_logical_modality(separated_message),
+                        ):
+                            continue
+                        epoch_messages.append(
+                            _strip_truth_identity(
+                                separated_message, detection_group
+                            )
+                        )
         messages_by_timestamp[timestamp] = tuple(epoch_messages)
         for target_id, observers in visible_observers.items():
             visible_by_target_epoch[(target_id, timestamp)] = tuple(observers)
@@ -824,10 +842,27 @@ def _run_bilateral_online_arm(
     enable_consensus: bool = False,
     enable_local_unified: bool = False,
     tracking_modalities: tuple[str, ...] | None = None,
+    tracking_observer_ids: tuple[str, ...] | None = None,
+    require_scored_truth: bool = True,
     sample_collector: dict | None = None,
     epoch_callback=None,
 ) -> BilateralOnlineSmokeResult:
     allowed_tracking_modalities = _normalized_modalities(tracking_modalities)
+    allowed_tracking_observers = (
+        None if tracking_observer_ids is None
+        else frozenset(str(value) for value in tracking_observer_ids)
+    )
+    known_observers = frozenset(
+        frontend.truth.manifest.friendly_observer_ids
+    )
+    if allowed_tracking_observers is not None:
+        if not allowed_tracking_observers:
+            raise ValueError("tracking_observer_ids cannot be empty.")
+        unknown = allowed_tracking_observers - known_observers
+        if unknown:
+            raise ValueError(
+                f"Unknown tracking observer ids: {sorted(unknown)}"
+            )
     tracker = OnlineMultiTargetTracker(
         scene_id=frontend.truth.manifest.scene_id,
         process_noise_acceleration=(
@@ -943,6 +978,14 @@ def _run_bilateral_online_arm(
             for observer_id in frontend.truth.manifest.friendly_observer_ids
         }
         epoch_messages = frontend.messages_by_timestamp[timestamp]
+        if (
+            allowed_tracking_observers is not None
+            and len(initialized_ids) == len(truth_ids)
+        ):
+            epoch_messages = tuple(
+                message for message in epoch_messages
+                if message.observer_id in allowed_tracking_observers
+            )
         if (
             allowed_tracking_modalities is not None
             and len(initialized_ids) == len(truth_ids)
@@ -1116,12 +1159,18 @@ def _run_bilateral_online_arm(
         if track.lifecycle.value != "TERMINATED"
     )
     estimates = tuple(track.estimate.state_eci for track in final_active_tracks)
-    if not final_state_errors.size:
+    if not final_state_errors.size and require_scored_truth:
         raise ValueError("Smoke-test scoring requires at least one tracked truth.")
-    acceleration_errors = _final_acceleration_errors(
-        central_evaluator.state_history_by_truth,
-        frontend.truth.hostile_truth_state_history_by_target,
-        frontend.truth.timestamps,
+    acceleration_errors = (
+        _final_acceleration_errors(
+            central_evaluator.state_history_by_truth,
+            frontend.truth.hostile_truth_state_history_by_target,
+            frontend.truth.timestamps,
+        )
+        if any(
+            len(history) >= 2
+            for history in central_evaluator.state_history_by_truth.values()
+        ) else np.empty(0, dtype=float)
     )
     acceleration_errors_by_timestamp = _acceleration_errors_by_timestamp(
         central_evaluator.state_history_by_truth,
@@ -1167,11 +1216,12 @@ def _run_bilateral_online_arm(
         final_active_track_count=len(estimates),
         retired_track_count=len(retired_ids),
         final_position_rmse_m=_rmse_or_nan(final_state_errors[:, 0]),
-        final_maximum_position_error_m=float(np.max(final_state_errors[:, 0])),
-        final_velocity_rmse_mps=_rmse_or_nan(final_state_errors[:, 1]),
-        final_acceleration_rmse_mps2=float(
-            np.sqrt(np.mean(np.square(acceleration_errors)))
+        final_maximum_position_error_m=(
+            float(np.max(final_state_errors[:, 0]))
+            if final_state_errors.size else float("nan")
         ),
+        final_velocity_rmse_mps=_rmse_or_nan(final_state_errors[:, 1]),
+        final_acceleration_rmse_mps2=_rmse_or_nan(acceleration_errors),
         processing_mean_ms=float(np.mean(processing_seconds) * 1_000.0),
         processing_p95_ms=float(
             np.percentile(processing_seconds, 95) * 1_000.0
@@ -1563,7 +1613,11 @@ def _strip_truth_identity(message, detection_group: str):
         if "target" not in str(key).lower()
     }
     return UnlabeledObservationMessage(
-        message_id=f"{detection_group}:{message.modality.lower()}",
+        message_id=(
+            f"{detection_group}:radial_backup"
+            if _logical_modality(message) == "RADIAL_BACKUP"
+            else f"{detection_group}:{message.modality.lower()}"
+        ),
         observer_id=message.observer_id,
         timestamp=message.timestamp,
         modality=message.modality,
@@ -1574,6 +1628,58 @@ def _strip_truth_identity(message, detection_group: str):
         valid_flag=message.valid_flag,
         metadata=metadata,
     )
+
+
+def _logical_modality(message) -> str:
+    return str(
+        message.metadata.get("sourceModality", message.modality)
+    ).upper()
+
+
+def _separate_radial_backup_channel(message):
+    metadata = dict(message.metadata)
+    if not (
+        metadata.get("rangeProxySource")
+        == "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+        and metadata.get("rangeRateProxySource")
+        == "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+    ):
+        return (message,)
+    measurement = np.array([
+        float(metadata["rangeProxyM"]),
+        float(metadata["rangeRateProxyMps"]),
+    ])
+    covariance = np.diag([
+        float(metadata["rangeProxyVarianceM2"]),
+        float(metadata["rangeRateProxyVarianceM2ps2"]),
+    ])
+    clean = _without_radial_backup_shadow(message)
+    backup = replace(
+        message,
+        message_id=f"{message.message_id}:radial_backup",
+        physical_observation_id=f"{message.information_id}:radial_backup",
+        modality="RADAR",
+        frame="ECI",
+        measurement=measurement,
+        covariance=covariance,
+        confidence=1.0,
+        valid_flag=True,
+        metadata={
+            "sensor_modality": "RADIAL_BACKUP",
+            "sourceModality": "RADIAL_BACKUP",
+            "measurement_type": "RANGE_RANGE_RATE",
+            "measurement_component": "INDEPENDENT_RADIAL_BACKUP",
+            "raw_source_type": "NUMERICAL_RADIAL_BACKUP_SHADOW",
+            "rangeProxySource": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+            "rangeRateProxySource": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+            "rangeProxyIndependentNoiseAssumed": True,
+            "rangeRateProxyIndependentNoiseAssumed": True,
+            "radialBackupPhysicalValidation": False,
+            "radialBackupCarrierModality": "INDEPENDENT_CHANNEL",
+            "independentRadialBackupChannel": True,
+        },
+    )
+    return clean, backup
 
 
 def _without_radial_backup_shadow(message):

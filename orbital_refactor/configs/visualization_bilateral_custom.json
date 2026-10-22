@@ -1,0 +1,33 @@
+{
+  "schema_version": "v1.0",
+  "constellation": {
+    "scenario_type": "BILATERAL_CONFIGURABLE",
+    "friendly_total_satellites": 8,
+    "friendly_plane_count": 2,
+    "friendly_phasing": 1,
+    "friendly_altitude_km": 700.0,
+    "friendly_inclination_deg": 53.0,
+    "hostile_total_satellites": 6,
+    "hostile_plane_count": 3,
+    "hostile_phasing": 1,
+    "hostile_altitude_km": 705.0,
+    "hostile_inclination_deg": 53.0
+  },
+  "simulation": {
+    "duration_s": 120.0,
+    "dt_s": 1.0,
+    "seed": 0
+  },
+  "cann": {
+    "cann_enabled": true,
+    "cann_node_limit": 3
+  },
+  "output": {
+    "output": "results/visualization_recordings/bilateral_custom",
+    "open_after_run": true,
+    "auto_increment_output": true
+  },
+  "integrity": {
+    "policy": "validated_baseline"
+  }
+}

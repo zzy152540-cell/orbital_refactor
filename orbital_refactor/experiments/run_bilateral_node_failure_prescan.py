@@ -33,12 +33,22 @@ def main() -> None:
             "fixed-topology consensus."
         ),
     )
+    parser.add_argument("--backup-radial-range-sigma-m", type=float)
+    parser.add_argument("--backup-radial-range-rate-sigma-mps", type=float)
+    parser.add_argument(
+        "--independent-radial-backup-channel", action="store_true",
+        help="Separate the numerical radial backup from its legacy IR carrier.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
         default=Path(
             "results/external_acceptance/bilateral_node_failure_prescan.json"
         ),
+    )
+    parser.add_argument(
+        "--control-input", type=Path,
+        help="Reuse a fingerprint-matched nominal acceptance control artifact.",
     )
     args = parser.parse_args()
     shared = dict(
@@ -50,6 +60,13 @@ def main() -> None:
         use_local_unified_multimodal_measurement_update=(
             args.local_unified_multimodal_update
         ),
+        backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
+        backup_radial_range_rate_sigma_mps=(
+            args.backup_radial_range_rate_sigma_mps
+        ),
+        independent_radial_backup_channel=(
+            args.independent_radial_backup_channel
+        ),
     )
     control_config = BilateralFrontendConfig(
         **shared, failed_observer_indices=(),
@@ -59,12 +76,45 @@ def main() -> None:
     )
     control_frontend = build_bilateral_raw_frontend(control_config)
     failure_frontend = build_bilateral_raw_frontend(failure_config)
-    control = run_bilateral_distributed_online_comparison(control_config)
+    control = None
+    control_provenance = {"reused": False, "source": None}
+    if args.control_input is not None:
+        from experiments.run_bilateral_acceptance_control import (
+            build_control_contract,
+            load_matching_control,
+        )
+
+        if (
+            args.backup_radial_range_sigma_m is not None
+            or args.backup_radial_range_rate_sigma_mps is not None
+            or args.independent_radial_backup_channel
+            or not args.local_unified_multimodal_update
+        ):
+            raise ValueError(
+                "--control-input requires the frozen nominal R08 configuration."
+            )
+        expected_contract = build_control_contract(
+            duration=args.duration,
+            event_start=args.failure_start,
+            event_end=args.failure_end,
+            seed=args.seed,
+            family="nominal",
+        )
+        control_payload = load_matching_control(
+            args.control_input, expected_contract,
+        )
+        control_provenance = {
+            "reused": True, "source": str(args.control_input),
+            "family": "nominal",
+        }
+        print(f"CONTROL reused from {args.control_input}")
+    else:
+        control = run_bilateral_distributed_online_comparison(control_config)
+        control_payload = {
+            "withoutCann": _arm(control.without_cann),
+            "incrementalCann": _arm(control.incremental_cann),
+        }
     failure = run_bilateral_distributed_online_comparison(failure_config)
-    control_payload = {
-        "withoutCann": _arm(control.without_cann),
-        "incrementalCann": _arm(control.incremental_cann),
-    }
     failure_payload = {
         "withoutCann": _arm(failure.without_cann),
         "incrementalCann": _arm(failure.incremental_cann),
@@ -95,8 +145,16 @@ def main() -> None:
             "localUnifiedMultimodalMeasurementUpdate": (
                 args.local_unified_multimodal_update
             ),
+            "independentRadialBackup": {
+                "enabled": args.backup_radial_range_sigma_m is not None,
+                "rangeSigmaM": args.backup_radial_range_sigma_m,
+                "rangeRateSigmaMps": args.backup_radial_range_rate_sigma_mps,
+                "independentChannel": args.independent_radial_backup_channel,
+                "physicalValidation": False,
+            },
         },
         "noFailureControl": control_payload,
+        "controlProvenance": control_provenance,
         "threeObserverFailure": failure_payload,
         "failureVsControlPercent": _failure_vs_control(
             failure_payload, control_payload
@@ -115,7 +173,9 @@ def main() -> None:
     print(
         "failedObservers=", failed_ids,
         "controlWindowPositionMeanError=",
-        control.incremental_cann.phase_metrics["DROPOUT"].position_mean_error_m,
+        control_payload["incrementalCann"]["phase_metrics"]["DROPOUT"][
+            "position_mean_error_m"
+        ],
         "failureWindowPositionMeanError=",
         failure.incremental_cann.phase_metrics["DROPOUT"].position_mean_error_m,
     )
@@ -208,6 +268,11 @@ def _visibility_loss_by_target(control, failure, *, start, end):
 
 
 def _percent_change(value, baseline):
+    try:
+        value = float(value)
+        baseline = float(baseline)
+    except (TypeError, ValueError):
+        return None
     if not np.isfinite(value) or not np.isfinite(baseline) or baseline == 0.0:
         return None
     return 100.0 * (value / baseline - 1.0)

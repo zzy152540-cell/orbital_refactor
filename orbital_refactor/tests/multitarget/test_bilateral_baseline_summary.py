@@ -101,6 +101,10 @@ def test_p05_uses_exact_single_observer_sample_fingerprint():
                     "consensus_position_mean_error_m": 9.0,
                     "local_position_rmse_m": 10.0,
                     "consensus_position_rmse_m": 9.0,
+                        "local_velocity_mean_error_mps": 1.0,
+                        "consensus_velocity_mean_error_mps": 0.9,
+                        "local_velocity_rmse_mps": 1.0,
+                        "consensus_velocity_rmse_mps": 0.9,
                 }
                 for modality in ("radar", "infrared", "optical")
             },
@@ -115,6 +119,10 @@ def test_p05_uses_exact_single_observer_sample_fingerprint():
                     "consensus_position_mean_error_m": 9.0,
                     "local_position_rmse_m": 10.0,
                     "consensus_position_rmse_m": 9.0,
+                        "local_velocity_mean_error_mps": 1.0,
+                        "consensus_velocity_mean_error_mps": 0.9,
+                        "local_velocity_rmse_mps": 1.0,
+                        "consensus_velocity_rmse_mps": 0.9,
                 }
                 for name in (
                     "federatedCannIncrement",
@@ -151,6 +159,10 @@ def test_p07_keeps_mean_error_and_rmse_candidates_separate():
         "consensus_position_mean_error_m": 9.0,
         "local_position_rmse_m": 12.0,
         "consensus_position_rmse_m": 11.4,
+        "local_velocity_mean_error_mps": 1.0,
+        "consensus_velocity_mean_error_mps": 0.9,
+        "local_velocity_rmse_mps": 1.2,
+        "consensus_velocity_rmse_mps": 1.14,
     }
     payload = {
         "scenario": {"seed": 0},
@@ -178,7 +190,7 @@ def test_p07_keeps_mean_error_and_rmse_candidates_separate():
     assert comparison["coverageComparable"]
     assert comparison["positionMeanError"]["improvementPercent"] == 10.0
     assert comparison["positionRmse"]["improvementPercent"] == pytest.approx(5.0)
-    assert evidence["primaryMetricFreezeStatus"].startswith("PENDING_")
+    assert evidence["primaryMetricFreezeStatus"] == "FROZEN_POSITION_MEAN_ERROR"
     assert evidence["centralizedAllObservationDiagnosticUpperBound"][
         "coverageComparable"
     ]

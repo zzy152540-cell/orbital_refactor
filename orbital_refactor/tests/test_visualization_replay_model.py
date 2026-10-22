@@ -28,7 +28,11 @@ def test_replay_model_exposes_timeline_and_node_series():
                         truth_state=np.arange(6.0) + node,
                         covariance_diagonal=np.ones(6),
                     ) for node in range(2)),
-                    metadata={"fleet_position_rmse_m": float(index)},
+                    metadata={
+                        "fleet_position_rmse_m": (
+                            None if index == 0 else float(index)
+                        )
+                    },
                 ))
         model = VisualizationReplayModel(target)
         assert len(model) == 3
@@ -37,6 +41,10 @@ def test_replay_model_exposes_timeline_and_node_series():
         truth, estimate = model.node_position_history(model.node_ids[0])
         assert truth.shape == estimate.shape == (3, 3)
         assert model.node_position_error_history(model.node_ids[0]).shape == (3,)
+        assert (
+            model.node_position_error_history(model.node_ids[0])
+            is model.node_position_error_history(model.node_ids[0])
+        )
         np.testing.assert_allclose(
             model.node_velocity_error_history(model.node_ids[0]),
             np.sqrt(3.0) * np.arange(3),
@@ -50,6 +58,7 @@ def test_replay_model_exposes_timeline_and_node_series():
         )
         assert model.fleet_velocity_rmse_history.shape == (3,)
         assert model.fleet_acceleration_rmse_history.shape == (3,)
+        assert np.isfinite(model.fleet_position_rmse_history[0])
     finally:
         if target.exists():
             shutil.rmtree(target)

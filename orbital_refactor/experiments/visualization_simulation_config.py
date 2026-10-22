@@ -18,6 +18,10 @@ CONFIG_SECTIONS = {
     "constellation": (
         "scenario_type", "total_satellites", "plane_count", "phasing", "altitude_km",
         "inclination_deg",
+        "friendly_total_satellites", "friendly_plane_count", "friendly_phasing",
+        "friendly_altitude_km", "friendly_inclination_deg",
+        "hostile_total_satellites", "hostile_plane_count", "hostile_phasing",
+        "hostile_altitude_km", "hostile_inclination_deg",
     ),
     "simulation": (
         "duration_s", "dt_s", "seed", "enable_absolute_navigation_dropout",
@@ -46,6 +50,16 @@ class VisualizationSimulationConfig:
     phasing: int = 1
     altitude_km: float = 700.0
     inclination_deg: float = 53.0
+    friendly_total_satellites: int = 15
+    friendly_plane_count: int = 3
+    friendly_phasing: int = 1
+    friendly_altitude_km: float = 700.0
+    friendly_inclination_deg: float = 53.0
+    hostile_total_satellites: int = 15
+    hostile_plane_count: int = 3
+    hostile_phasing: int = 1
+    hostile_altitude_km: float = 705.0
+    hostile_inclination_deg: float = 53.0
     duration_s: float = 120.0
     dt_s: float = 2.0
     maximum_range_km: float = 6000.0
@@ -73,7 +87,7 @@ class VisualizationSimulationConfig:
 
     def __post_init__(self) -> None:
         if self.scenario_type not in {
-            "WALKER_COOPERATIVE", "BILATERAL_15X15",
+            "WALKER_COOPERATIVE", "BILATERAL_CONFIGURABLE", "BILATERAL_15X15",
         }:
             raise ValueError("Unknown visualization scenario_type.")
         if self.total_satellites < 2:
@@ -82,8 +96,26 @@ class VisualizationSimulationConfig:
             raise ValueError("plane_count must divide total_satellites.")
         if not 0 <= self.phasing < self.plane_count:
             raise ValueError("phasing must be in [0, plane_count).")
+        for role in ("friendly", "hostile"):
+            total = int(getattr(self, f"{role}_total_satellites"))
+            planes = int(getattr(self, f"{role}_plane_count"))
+            phasing = int(getattr(self, f"{role}_phasing"))
+            if total < 2:
+                raise ValueError(
+                    f"{role}_total_satellites must be at least two."
+                )
+            if planes < 1 or total % planes:
+                raise ValueError(
+                    f"{role}_plane_count must divide {role}_total_satellites."
+                )
+            if not 0 <= phasing < planes:
+                raise ValueError(
+                    f"{role}_phasing must be in [0, {role}_plane_count)."
+                )
         positive = (
-            self.altitude_km, self.duration_s, self.dt_s, self.maximum_range_km,
+            self.altitude_km, self.friendly_altitude_km,
+            self.hostile_altitude_km, self.duration_s, self.dt_s,
+            self.maximum_range_km,
             self.process_noise_acceleration, self.radar_range_sigma_m,
             self.radar_range_rate_sigma_mps, self.infrared_angle_sigma_deg,
             self.optical_image_sigma, self.absolute_navigation_sigma_m,
@@ -94,6 +126,12 @@ class VisualizationSimulationConfig:
             raise ValueError("Physical scales and time settings must be positive.")
         if not np.isfinite(self.inclination_deg) or not 0.0 <= self.inclination_deg <= 180.0:
             raise ValueError("inclination_deg must be in [0, 180].")
+        for role in ("friendly", "hostile"):
+            inclination = float(getattr(self, f"{role}_inclination_deg"))
+            if not np.isfinite(inclination) or not 0.0 <= inclination <= 180.0:
+                raise ValueError(
+                    f"{role}_inclination_deg must be in [0, 180]."
+                )
         if self.communication_profile not in COMMUNICATION_DEGRADATION_PROFILES:
             raise ValueError("Unknown communication_profile.")
         if not any((self.radar_enabled, self.infrared_enabled, self.optical_enabled)):
@@ -142,6 +180,7 @@ class VisualizationSimulationConfig:
 
     @property
     def bilateral_generator_arguments(self):
+        frozen = self.scenario_type == "BILATERAL_15X15"
         return {
             "duration": float(self.duration_s),
             "dt": float(self.dt_s),
@@ -149,6 +188,38 @@ class VisualizationSimulationConfig:
             "include_cann": bool(self.cann_enabled),
             "cann_node_limit": int(self.cann_node_limit),
             "retain_raw_frames": True,
+            # The ordinary bilateral scene uses the same three physical
+            # modalities as the nominal acceptance controls.  A synthetic
+            # radial backup is enabled only by an explicit robustness preset.
+            "radial_backup_profile": "none",
+            "enable_local_unified": True,
+            "enable_consensus": bool(frozen),
+            "friendly_total_satellites": (
+                15 if frozen else int(self.friendly_total_satellites)
+            ),
+            "friendly_plane_count": (
+                3 if frozen else int(self.friendly_plane_count)
+            ),
+            "friendly_phasing": 1 if frozen else int(self.friendly_phasing),
+            "friendly_altitude_m": 1000.0 * (
+                700.0 if frozen else float(self.friendly_altitude_km)
+            ),
+            "friendly_inclination_rad": np.deg2rad(
+                53.0 if frozen else float(self.friendly_inclination_deg)
+            ),
+            "hostile_total_satellites": (
+                15 if frozen else int(self.hostile_total_satellites)
+            ),
+            "hostile_plane_count": (
+                3 if frozen else int(self.hostile_plane_count)
+            ),
+            "hostile_phasing": 1 if frozen else int(self.hostile_phasing),
+            "hostile_altitude_m": 1000.0 * (
+                705.0 if frozen else float(self.hostile_altitude_km)
+            ),
+            "hostile_inclination_rad": np.deg2rad(
+                53.0 if frozen else float(self.hostile_inclination_deg)
+            ),
         }
 
 

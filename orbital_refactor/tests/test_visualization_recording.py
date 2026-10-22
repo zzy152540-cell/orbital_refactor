@@ -10,6 +10,7 @@ from visualization.data_contract import (
     VisualizationFrame,
 )
 from visualization.recording import (
+    RECORDING_FORMAT_VERSION,
     VisualizationRecordingReader,
     VisualizationRecordingWriter,
 )
@@ -42,6 +43,7 @@ def test_recording_round_trip_and_random_access():
 
         reader = VisualizationRecordingReader(target)
         assert len(reader) == 2
+        assert reader.manifest.format_version == RECORDING_FORMAT_VERSION == "v1.1"
         assert reader.manifest.start_timestamp == 0.0
         assert reader[-1].epoch_index == 1
         np.testing.assert_array_equal(
@@ -51,6 +53,8 @@ def test_recording_round_trip_and_random_access():
         array_files = tuple((target / "arrays").iterdir())
         assert len(array_files) == 2
         assert all(path.suffix == ".npz" for path in array_files)
+        with np.load(array_files[0], allow_pickle=False) as archive:
+            assert archive.files == ["packed_array_bytes"]
     finally:
         if target.exists():
             shutil.rmtree(target)

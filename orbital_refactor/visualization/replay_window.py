@@ -704,17 +704,8 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         selected = self.target_selector.currentText()
         for quantity in ("position", "velocity", "acceleration"):
             node_error = self.model.node_error_history(selected, quantity)
-            target_errors = np.stack([
-                self.model.node_error_history(node_id, quantity)
-                for node_id in self.target_ids
-            ])
-            valid = np.isfinite(target_errors)
-            counts = np.sum(valid, axis=0)
-            fleet_error = np.full(target_errors.shape[1], np.nan)
-            available = counts > 0
-            fleet_error[available] = np.sqrt(
-                np.nansum(np.square(target_errors), axis=0)[available]
-                / counts[available]
+            fleet_error = self.model.fleet_error_rmse_history(
+                quantity, self.target_ids,
             )
             self.node_error_curves[quantity].setData(
                 self.model.timestamps, node_error,
@@ -737,6 +728,14 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             modality: sum(item.modality == modality for item in selected_observations)
             for modality in ("RADAR", "INFRARED", "OPTICAL")
         }
+        fleet_rmse = frame.metadata.get("fleet_position_rmse_m")
+        try:
+            fleet_rmse = float(fleet_rmse)
+        except (TypeError, ValueError):
+            fleet_rmse = float("nan")
+        fleet_rmse_text = (
+            f"{fleet_rmse:.3f} m" if np.isfinite(fleet_rmse) else "N/A"
+        )
         self.summary.setPlainText(
             f"Scenario: {frame.scenario_id}\n"
             f"Run: {frame.run_id}\n"
@@ -752,8 +751,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"{len({item.observer_id for item in selected_observations})}\n"
             f"RADAR / INFRARED / OPTICAL: "
             f"{counts['RADAR']} / {counts['INFRARED']} / {counts['OPTICAL']}\n"
-            f"Fleet position RMSE: "
-            f"{frame.metadata.get('fleet_position_rmse_m', float('nan')):.3f} m\n"
+            f"Fleet position RMSE: {fleet_rmse_text}\n"
             f"Topology version: {frame.metadata.get('topology_version', 'n/a')}\n"
             f"Sent / delivered / dropped / delayed: "
             f"{frame.metadata.get('transmitted_message_count', 'n/a')} / "

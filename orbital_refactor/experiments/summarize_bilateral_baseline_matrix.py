@@ -76,6 +76,21 @@ def summarize_payloads(payloads) -> dict:
         }
         arms[arm_name] = {
             "metrics": metrics,
+            "fullRunMetrics": {
+                field: _statistics(
+                    run.get("phase_metrics", {})
+                    .get("FULL_RUN", {})
+                    .get(field)
+                    for run in runs
+                )
+                for field in (
+                    "position_rmse_m",
+                    "velocity_rmse_mps",
+                    "acceleration_rmse_mps2",
+                    "position_sample_count",
+                    "acceleration_sample_count",
+                )
+            },
             "meanLocalModalityWeight": {
                 modality: _statistics(
                     run.get("mean_local_modality_weight", {}).get(modality)
@@ -454,7 +469,7 @@ def _p07_evidence(payloads) -> dict:
         "metricScope": "COMMON_NODE_TARGET_TIME_SAMPLES",
         "minimumImprovementPercent": P07_MINIMUM_IMPROVEMENT_PERCENT,
         "primaryMetricFreezeStatus": (
-            "PENDING_POSITION_MEAN_ERROR_VS_POSITION_RMSE_DECISION"
+            "FROZEN_POSITION_MEAN_ERROR"
         ),
         "formalAcceptanceClaimed": False,
         "comparisons": comparisons,
@@ -487,6 +502,18 @@ def _matched_pair_evidence(
         consensus_field="consensus_position_rmse_m",
         squared=True,
     )
+    velocity_mean_error = _pooled_matched_pair(
+        records,
+        local_field="local_velocity_mean_error_mps",
+        consensus_field="consensus_velocity_mean_error_mps",
+        squared=False,
+    )
+    velocity_rmse = _pooled_matched_pair(
+        records,
+        local_field="local_velocity_rmse_mps",
+        consensus_field="consensus_velocity_rmse_mps",
+        squared=True,
+    )
     result = {
         "coverageComparable": coverage_comparable,
         "localOnlySampleCount": int(sum(
@@ -497,6 +524,8 @@ def _matched_pair_evidence(
         )),
         "positionMeanError": mean_error,
         "positionRmse": rmse,
+        "velocityMeanError": velocity_mean_error,
+        "velocityRmse": velocity_rmse,
         "thresholdMetByCandidatePrimaryMetric": {
             "position_mean_error_m": bool(
                 mean_error["improvementPercent"] is not None
@@ -506,6 +535,16 @@ def _matched_pair_evidence(
             "position_rmse_m": bool(
                 rmse["improvementPercent"] is not None
                 and rmse["improvementPercent"]
+                >= minimum_improvement_percent
+            ),
+            "velocity_mean_error_mps": bool(
+                velocity_mean_error["improvementPercent"] is not None
+                and velocity_mean_error["improvementPercent"]
+                >= minimum_improvement_percent
+            ),
+            "velocity_rmse_mps": bool(
+                velocity_rmse["improvementPercent"] is not None
+                and velocity_rmse["improvementPercent"]
                 >= minimum_improvement_percent
             ),
         },

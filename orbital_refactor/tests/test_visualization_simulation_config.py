@@ -77,6 +77,12 @@ def test_repository_example_configuration_is_valid():
     )
     assert bilateral.scenario_type == "BILATERAL_15X15"
     assert bilateral.duration_s == 20.0
+    custom = load_visualization_simulation_config(
+        "configs/visualization_bilateral_custom.json"
+    )
+    assert custom.scenario_type == "BILATERAL_CONFIGURABLE"
+    assert custom.friendly_total_satellites == 8
+    assert custom.hostile_total_satellites == 6
 
 
 def test_bilateral_configuration_exposes_only_relevant_generator_arguments():
@@ -90,14 +96,48 @@ def test_bilateral_configuration_exposes_only_relevant_generator_arguments():
         "cann_node_limit": 4,
         "output": "results/bilateral-configured",
     })
-    assert config.bilateral_generator_arguments == {
-        "duration": 20.0,
-        "dt": 1.0,
-        "seed": 3,
-        "include_cann": True,
-        "cann_node_limit": 4,
-        "retain_raw_frames": True,
-    }
+    arguments = config.bilateral_generator_arguments
+    assert arguments["duration"] == 20.0
+    assert arguments["dt"] == 1.0
+    assert arguments["seed"] == 3
+    assert arguments["include_cann"] is True
+    assert arguments["cann_node_limit"] == 4
+    assert arguments["retain_raw_frames"] is True
+    assert arguments["radial_backup_profile"] == "none"
+    assert arguments["enable_local_unified"] is True
+    assert arguments["enable_consensus"] is True
+    assert arguments["friendly_total_satellites"] == 15
+    assert arguments["friendly_plane_count"] == 3
+    assert arguments["hostile_total_satellites"] == 15
+    assert arguments["hostile_plane_count"] == 3
+
+
+def test_configurable_bilateral_walker_fleets_are_forwarded():
+    config = visualization_simulation_config_from_dict({
+        "schema_version": "v1.0",
+        "scenario_type": "BILATERAL_CONFIGURABLE",
+        "friendly_total_satellites": 8,
+        "friendly_plane_count": 2,
+        "friendly_phasing": 1,
+        "friendly_altitude_km": 720.0,
+        "friendly_inclination_deg": 55.0,
+        "hostile_total_satellites": 6,
+        "hostile_plane_count": 3,
+        "hostile_phasing": 2,
+        "hostile_altitude_km": 760.0,
+        "hostile_inclination_deg": 57.0,
+    })
+    arguments = config.bilateral_generator_arguments
+
+    assert arguments["friendly_total_satellites"] == 8
+    assert arguments["friendly_plane_count"] == 2
+    assert arguments["friendly_altitude_m"] == 720_000.0
+    assert arguments["hostile_total_satellites"] == 6
+    assert arguments["hostile_plane_count"] == 3
+    assert arguments["hostile_altitude_m"] == 760_000.0
+    assert arguments["radial_backup_profile"] == "none"
+    assert arguments["enable_local_unified"] is True
+    assert arguments["enable_consensus"] is False
 
 
 def test_configured_runner_routes_bilateral_scenario(monkeypatch):

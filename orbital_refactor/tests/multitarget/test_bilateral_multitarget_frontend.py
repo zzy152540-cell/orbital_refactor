@@ -274,6 +274,42 @@ def test_radial_backup_can_be_restricted_to_selected_observers():
     assert all("rangeRateProxyMps" not in item.metadata for item in unselected)
 
 
+def test_independent_radial_backup_survives_infrared_and_radar_dropout():
+    for missing_modality in ("INFRARED", "RADAR"):
+        result = build_bilateral_raw_frontend(BilateralFrontendConfig(
+            duration_seconds=4.0,
+            random_seed=4,
+            dropout_modality=missing_modality,
+            dropout_start_seconds=3.0,
+            dropout_end_seconds=3.0,
+            backup_radial_range_sigma_m=1.0,
+            backup_radial_range_rate_sigma_mps=0.0125,
+            independent_radial_backup_channel=True,
+        ))
+        messages = tuple(result.messages_by_timestamp[3.0])
+        backups = [
+            item for item in messages
+            if item.metadata.get("sourceModality") == "RADIAL_BACKUP"
+        ]
+
+        assert backups
+        assert all(item.modality == "RADAR" for item in backups)
+        assert all(
+            item.metadata["radialBackupCarrierModality"]
+            == "INDEPENDENT_CHANNEL"
+            for item in backups
+        )
+        assert not any(
+            item.modality == missing_modality
+            and item.metadata.get("sourceModality") != "RADIAL_BACKUP"
+            for item in messages
+        )
+        assert all(
+            "rangeProxyM" not in item.metadata
+            for item in messages if item.modality == "INFRARED"
+        )
+
+
 def test_unified_multimodal_path_handles_control_and_radar_dropout_epochs():
     result = run_bilateral_online_comparison(BilateralFrontendConfig(
         duration_seconds=4.0,

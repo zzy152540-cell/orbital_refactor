@@ -35,6 +35,9 @@ def baseline_matrix():
     return run_bilateral_baseline_matrix(BilateralFrontendConfig(
         duration_seconds=3.0,
         random_seed=13,
+        backup_radial_range_sigma_m=1.0,
+        backup_radial_range_rate_sigma_mps=0.0125,
+        independent_radial_backup_channel=True,
     ))
 
 

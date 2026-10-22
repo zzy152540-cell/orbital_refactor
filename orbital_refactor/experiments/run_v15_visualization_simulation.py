@@ -27,7 +27,9 @@ def run_configured_visualization_simulation(config_path: str | Path) -> Path:
                 "Output already exists and auto_increment_output is disabled."
             )
         config = replace(config, output=str(next_available_recording_path(requested)))
-    if config.scenario_type == "BILATERAL_15X15":
+    if config.scenario_type in {
+        "BILATERAL_CONFIGURABLE", "BILATERAL_15X15",
+    }:
         output = generate_bilateral_visualization_recording(
             Path(config.output), **config.bilateral_generator_arguments,
         )

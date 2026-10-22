@@ -75,6 +75,10 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--independent-radial-backup-channel", action="store_true",
+        help="Separate the numerical radial backup from its legacy IR carrier.",
+    )
+    parser.add_argument(
         "--prefer-complete-radial-lineage", action="store_true",
         help=(
             "Experimental consensus gate: when complete radial lineage is "
@@ -100,6 +104,10 @@ def main() -> None:
         type=Path,
         default=Path("results/external_acceptance/bilateral_dropout_prescan.json"),
     )
+    parser.add_argument(
+        "--control-input", type=Path,
+        help="Reuse a fingerprint-matched acceptance control artifact.",
+    )
     args = parser.parse_args()
     if args.prefer_complete_radial_lineage and not args.distributed_consensus:
         parser.error(
@@ -111,48 +119,75 @@ def main() -> None:
         if args.distributed_consensus
         else run_bilateral_online_comparison
     )
-    control_result = comparison_runner(BilateralFrontendConfig(
-        duration_seconds=args.duration,
-        sample_interval_seconds=1.0,
-        random_seed=args.seed,
-        backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
-        backup_radial_range_rate_sigma_mps=(
-            args.backup_radial_range_rate_sigma_mps
-        ),
-        backup_radial_observer_indices=(
-            None if args.backup_radial_observer_indices is None
-            else tuple(args.backup_radial_observer_indices)
-        ),
-        prefer_complete_radial_lineage=args.prefer_complete_radial_lineage,
-        consensus_exchange_hops=args.consensus_exchange_hops,
-        process_noise_acceleration=args.process_noise_acceleration,
-        multi_epoch_bearing_window_epochs=args.bearing_window_epochs,
-        use_multi_observer_bearing_update=(
-            not args.disable_multi_observer_bearing
-        ),
-        use_unified_multimodal_measurement_update=(
-            args.unified_multimodal_update
-        ),
-        use_local_unified_multimodal_measurement_update=(
-            args.local_unified_multimodal_update
-        ),
-        use_inverse_depth_los_update=args.inverse_depth_los_update,
-        unified_multimodal_window_epochs=args.unified_window_epochs,
-        dropout_modality="OPTICAL",
-        dropout_start_seconds=args.dropout_start,
-        dropout_end_seconds=args.dropout_end,
-        dropout_target_indices=(),
-    ))
-    control = {
-        "withoutCann": _arm(control_result.without_cann),
-        "incrementalCann": _arm(control_result.incremental_cann),
-    }
-    print(
-        "CONTROL tracks=",
-        control_result.incremental_cann.final_active_track_count,
-        "window_position_rmse_m=",
-        control_result.incremental_cann.phase_metrics["DROPOUT"].position_rmse_m,
-    )
+    control_provenance = {"reused": False, "source": None}
+    if args.control_input is not None:
+        from experiments.run_bilateral_acceptance_control import (
+            build_control_contract,
+            load_matching_control,
+        )
+
+        family = _acceptance_control_family(args)
+        expected_contract = build_control_contract(
+            duration=args.duration,
+            event_start=args.dropout_start,
+            event_end=args.dropout_end,
+            seed=args.seed,
+            family=family,
+        )
+        control = load_matching_control(args.control_input, expected_contract)
+        control_provenance = {
+            "reused": True, "source": str(args.control_input),
+            "family": family,
+        }
+        print(f"CONTROL reused from {args.control_input}")
+    else:
+        control_result = comparison_runner(BilateralFrontendConfig(
+            duration_seconds=args.duration,
+            sample_interval_seconds=1.0,
+            random_seed=args.seed,
+            backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
+            backup_radial_range_rate_sigma_mps=(
+                args.backup_radial_range_rate_sigma_mps
+            ),
+            backup_radial_observer_indices=(
+                None if args.backup_radial_observer_indices is None
+                else tuple(args.backup_radial_observer_indices)
+            ),
+            independent_radial_backup_channel=(
+                args.independent_radial_backup_channel
+            ),
+            prefer_complete_radial_lineage=args.prefer_complete_radial_lineage,
+            consensus_exchange_hops=args.consensus_exchange_hops,
+            process_noise_acceleration=args.process_noise_acceleration,
+            multi_epoch_bearing_window_epochs=args.bearing_window_epochs,
+            use_multi_observer_bearing_update=(
+                not args.disable_multi_observer_bearing
+            ),
+            use_unified_multimodal_measurement_update=(
+                args.unified_multimodal_update
+            ),
+            use_local_unified_multimodal_measurement_update=(
+                args.local_unified_multimodal_update
+            ),
+            use_inverse_depth_los_update=args.inverse_depth_los_update,
+            unified_multimodal_window_epochs=args.unified_window_epochs,
+            dropout_modality="OPTICAL",
+            dropout_start_seconds=args.dropout_start,
+            dropout_end_seconds=args.dropout_end,
+            dropout_target_indices=(),
+        ))
+        control = {
+            "withoutCann": _arm(control_result.without_cann),
+            "incrementalCann": _arm(control_result.incremental_cann),
+        }
+        print(
+            "CONTROL tracks=",
+            control_result.incremental_cann.final_active_track_count,
+            "window_position_rmse_m=",
+            control_result.incremental_cann.phase_metrics[
+                "DROPOUT"
+            ].position_rmse_m,
+        )
     records = {}
     for raw_modality in args.modalities:
         modality = str(raw_modality).upper()
@@ -167,6 +202,9 @@ def main() -> None:
             backup_radial_observer_indices=(
                 None if args.backup_radial_observer_indices is None
                 else tuple(args.backup_radial_observer_indices)
+            ),
+            independent_radial_backup_channel=(
+                args.independent_radial_backup_channel
             ),
             prefer_complete_radial_lineage=(
                 args.prefer_complete_radial_lineage
@@ -245,6 +283,7 @@ def main() -> None:
                     if args.backup_radial_observer_indices is None
                     else list(args.backup_radial_observer_indices)
                 ),
+                "independentChannel": args.independent_radial_backup_channel,
             },
             "preferCompleteRadialLineage": (
                 args.prefer_complete_radial_lineage
@@ -253,6 +292,7 @@ def main() -> None:
             "consensusExchangeHops": args.consensus_exchange_hops,
         },
         "noDropoutControl": control,
+        "controlProvenance": control_provenance,
         "resultsByMissingModality": records,
         "timingNote": (
             "processing metrics cover local full-frame estimation and are not "
@@ -268,6 +308,37 @@ def main() -> None:
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     print(f"wrote {args.output}")
+
+
+def _acceptance_control_family(args) -> str:
+    nominal = (
+        args.backup_radial_range_sigma_m is None
+        and args.backup_radial_range_rate_sigma_mps is None
+    )
+    radar_backup = (
+        args.backup_radial_range_sigma_m == 1.0
+        and args.backup_radial_range_rate_sigma_mps == 0.0125
+        and args.backup_radial_observer_indices is None
+        and not args.independent_radial_backup_channel
+    )
+    fixed_algorithm = (
+        args.distributed_consensus
+        and args.local_unified_multimodal_update
+        and not args.unified_multimodal_update
+        and not args.inverse_depth_los_update
+        and not args.disable_multi_observer_bearing
+        and args.consensus_exchange_hops == 1
+        and args.process_noise_acceleration == 1e-4
+        and args.bearing_window_epochs == 1
+        and args.unified_window_epochs == 1
+        and not args.prefer_complete_radial_lineage
+    )
+    if not fixed_algorithm or not (nominal or radar_backup):
+        raise ValueError(
+            "--control-input is only supported for the frozen nominal or "
+            "radar-backup acceptance configuration."
+        )
+    return "nominal" if nominal else "radar-backup"
 
 
 def _arm(value):
@@ -353,6 +424,11 @@ def _dropout_vs_control(record, control):
 
 
 def _percent_change(value, baseline):
+    try:
+        value = float(value)
+        baseline = float(baseline)
+    except (TypeError, ValueError):
+        return None
     if not np.isfinite(value) or not np.isfinite(baseline) or baseline == 0.0:
         return None
     return 100.0 * (value / baseline - 1.0)

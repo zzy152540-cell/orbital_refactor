@@ -43,6 +43,64 @@ from .data_contracts import AssociationResult, UnlabeledIODObservation
 from .pipeline import AssociationPipelineUpdate, MultiTargetAssociationPipeline
 
 
+def _coalesce_same_epoch_radial_observations(observations):
+    """Combine parallel radial streams for legacy one-stream local filters.
+
+    The unified multimodal updater can consume the physical RADAR observation
+    and the independent RADIAL_BACKUP observation separately.  The legacy
+    local-filter interface, however, permits only one observation per modality
+    and timestamp.  Since both radial streams share the same range/range-rate
+    measurement model, their information-form combination is an equivalent
+    single observation for that interface.
+    """
+
+    values = tuple(observations)
+    radial = tuple(
+        item for item in values
+        if item.valid_flag and item.modality == "RADAR"
+    )
+    if len(radial) <= 1:
+        return values
+    information = np.zeros((2, 2), dtype=float)
+    information_measurement = np.zeros(2, dtype=float)
+    for item in radial:
+        item_information = np.linalg.inv(item.covariance)
+        information += item_information
+        information_measurement += item_information @ item.measurement
+    covariance = np.linalg.inv(information)
+    measurement = covariance @ information_measurement
+    first = radial[0]
+    source_ids = tuple(
+        str(item.metadata.get(
+            "sourceMessageId",
+            f"{item.observer_id}:{item.timestamp:.9f}:{item.modality}",
+        ))
+        for item in radial
+    )
+    source_modalities = tuple(
+        str(item.metadata.get("sourceModality", item.modality)).upper()
+        for item in radial
+    )
+    combined = replace(
+        first,
+        measurement=measurement,
+        covariance=covariance,
+        metadata={
+            **first.metadata,
+            "confidence": min(
+                float(item.metadata.get("confidence", 1.0)) for item in radial
+            ),
+            "sourceModality": "RADAR",
+            "sourceMessageId": "+".join(source_ids),
+            "sourceMessageIds": source_ids,
+            "combinedRadialSources": source_modalities,
+            "containsIndependentRadialBackup": "RADIAL_BACKUP" in source_modalities,
+        },
+    )
+    radial_ids = {id(item) for item in radial}
+    return tuple(item for item in values if id(item) not in radial_ids) + (combined,)
+
+
 @dataclass(frozen=True)
 class OnlineTrackingUpdate:
     timestamp: float
@@ -420,6 +478,7 @@ class OnlineMultiTargetTracker:
         for (observer_id, target_id), items in sorted(grouped.items()):
             if target_id in jointly_updated_targets:
                 continue
+            items = _coalesce_same_epoch_radial_observations(items)
             prior = self._local_priors.get((observer_id, target_id))
             if prior is None:
                 prior = self._manager.tracks[target_id].estimate

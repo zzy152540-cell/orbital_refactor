@@ -29,7 +29,9 @@ def unlabeled_iod_observations_from_messages(
         observer_state = observer_state_by_epoch[key]
         metadata = {
             **message.metadata,
-            "sourceModality": message.modality,
+            "sourceModality": message.metadata.get(
+                "sourceModality", message.modality
+            ),
             "sourceMessageId": message.message_id,
             "confidence": message.confidence,
         }

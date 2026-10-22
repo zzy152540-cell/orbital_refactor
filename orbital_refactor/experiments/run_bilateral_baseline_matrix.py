@@ -20,6 +20,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--duration", type=float, default=20.0)
     parser.add_argument("--seed", type=int, default=11)
+    parser.add_argument("--backup-radial-range-sigma-m", type=float)
+    parser.add_argument("--backup-radial-range-rate-sigma-mps", type=float)
+    parser.add_argument(
+        "--independent-radial-backup-channel", action="store_true",
+        help="Separate the numerical radial backup from its legacy IR carrier.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -32,6 +38,13 @@ def main() -> None:
         duration_seconds=args.duration,
         sample_interval_seconds=1.0,
         random_seed=args.seed,
+        backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
+        backup_radial_range_rate_sigma_mps=(
+            args.backup_radial_range_rate_sigma_mps
+        ),
+        independent_radial_backup_channel=(
+            args.independent_radial_backup_channel
+        ),
     )
     result = run_bilateral_baseline_matrix(config)
     payload = {
@@ -42,6 +55,13 @@ def main() -> None:
             "durationSeconds": args.duration,
             "sampleIntervalSeconds": 1.0,
             "seed": args.seed,
+            "independentRadialBackup": {
+                "enabled": args.backup_radial_range_sigma_m is not None,
+                "rangeSigmaM": args.backup_radial_range_sigma_m,
+                "rangeRateSigmaMps": args.backup_radial_range_rate_sigma_mps,
+                "independentChannel": args.independent_radial_backup_channel,
+                "physicalValidation": False,
+            },
         },
         "comparisonContract": {
             "sharedRenderedSensorFrames": True,

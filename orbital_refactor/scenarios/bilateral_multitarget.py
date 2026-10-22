@@ -232,6 +232,7 @@ def generate_bilateral_walker_truth(
     hostile_config: WalkerDeltaConfig | None = None,
     topology_policy: str = "ring",
     scene_id: str = "bilateral-walker-15x15",
+    minimum_total_satellites: int = 25,
 ) -> BilateralWalkerTruth:
     """Generate the initial 15-friendly/15-hostile non-maneuvering truth case."""
 
@@ -273,8 +274,14 @@ def generate_bilateral_walker_truth(
     )
     if set(friendly.node_ids) & set(hostile.node_ids):
         raise ValueError("Friendly and hostile Walker IDs must be disjoint.")
-    if len(friendly.node_ids) + len(hostile.node_ids) < 25:
-        raise ValueError("The V2 Walker truth case requires at least 25 satellites.")
+    minimum_total = int(minimum_total_satellites)
+    if minimum_total < 2:
+        raise ValueError("minimum_total_satellites must be at least two.")
+    if len(friendly.node_ids) + len(hostile.node_ids) < minimum_total:
+        raise ValueError(
+            "The bilateral Walker truth case requires at least "
+            f"{minimum_total} satellites."
+        )
     topology = _build_topology(tuple(friendly.node_ids), topology_policy)
     hostile_metadata = {
         target_id: {

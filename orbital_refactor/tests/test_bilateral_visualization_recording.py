@@ -18,6 +18,7 @@ def test_bilateral_recording_contains_roles_edges_observations_and_estimates(tmp
     frames = tuple(VisualizationRecordingReader(output))
 
     assert len(frames) == 5
+    assert frames[0].metadata["fleet_position_rmse_m"] is None
     frame = frames[-1]
     assert len(frame.nodes) == 30
     assert sum(node.status.startswith("FRIENDLY") for node in frame.nodes) == 15
@@ -35,6 +36,7 @@ def test_bilateral_recording_contains_roles_edges_observations_and_estimates(tmp
     assert frame.metadata["friendly_observer_count"] == 15
     assert frame.metadata["hostile_target_count"] == 15
     assert np.isfinite(frame.metadata["fleet_position_rmse_m"])
+    assert frame.metadata["radial_backup_profile"] == "none"
 
 
 def test_bilateral_recording_cann_exposes_absolute_eci_position(tmp_path):
@@ -69,3 +71,103 @@ def test_bilateral_recording_cann_exposes_absolute_eci_position(tmp_path):
         if item.node_id == absolute.node_id
     )
     assert selected.status == "TARGET_FILTER_UNINITIALIZED"
+
+
+def test_acceptance_recording_applies_dropout_and_node_failure(tmp_path):
+    dropout_output = generate_bilateral_visualization_recording(
+        tmp_path / "acceptance-dropout",
+        duration=8.0,
+        dt=1.0,
+        seed=0,
+        include_cann=False,
+        enable_consensus=True,
+        radial_backup_profile="legacy",
+        dropout_modality="RADAR",
+        dropout_start=3.0,
+        dropout_end=5.0,
+        retain_raw_frames=False,
+    )
+    dropout_frame = tuple(VisualizationRecordingReader(dropout_output))[4]
+
+    assert dropout_frame.metadata["acceptance_dropout_modality"] == "RADAR"
+    assert dropout_frame.metadata["radial_backup_profile"] == "legacy"
+    assert not any(
+        observation.modality == "RADAR"
+        for observation in dropout_frame.observations
+    )
+
+    failure_output = generate_bilateral_visualization_recording(
+        tmp_path / "acceptance-failure",
+        duration=8.0,
+        dt=1.0,
+        seed=0,
+        include_cann=False,
+        enable_consensus=True,
+        radial_backup_profile="none",
+        failed_observer_indices=(0, 1, 2),
+        failure_start=3.0,
+        failure_end=5.0,
+        retain_raw_frames=False,
+    )
+    failure_frame = tuple(VisualizationRecordingReader(failure_output))[4]
+
+    assert len(failure_frame.metadata["failed_observer_ids"]) == 3
+    assert sum(
+        node.status == "FRIENDLY_NODE_FAILED" for node in failure_frame.nodes
+    ) == 3
+
+
+def test_single_observer_recording_restricts_estimation_after_initialization(
+    tmp_path,
+):
+    output = generate_bilateral_visualization_recording(
+        tmp_path / "single-observer",
+        duration=8.0,
+        dt=1.0,
+        seed=0,
+        include_cann=False,
+        enable_consensus=False,
+        tracking_observer_indices=(0,),
+        show_communication_topology=False,
+        radial_backup_profile="none",
+        retain_raw_frames=False,
+    )
+    frames = tuple(VisualizationRecordingReader(output))
+    final = frames[-1]
+
+    assert final.metadata["estimation_observer_scope"] == (
+        "SELECTED_OBSERVERS_AFTER_COMMON_INITIALIZATION"
+    )
+    assert tuple(final.metadata["estimation_observer_ids"]) == (
+        "friendly_p01_s01",
+    )
+    assert not any(edge.edge_type == "ACTIVE_TOPOLOGY" for edge in final.edges)
+    assert {
+        observation.observer_id for observation in final.observations
+    } == {"friendly_p01_s01"}
+
+
+def test_configurable_bilateral_walker_population_is_recorded(tmp_path):
+    output = generate_bilateral_visualization_recording(
+        tmp_path / "bilateral-6x4",
+        duration=8.0,
+        dt=1.0,
+        seed=0,
+        include_cann=False,
+        radial_backup_profile="none",
+        friendly_total_satellites=6,
+        friendly_plane_count=2,
+        friendly_phasing=1,
+        friendly_altitude_m=720_000.0,
+        hostile_total_satellites=4,
+        hostile_plane_count=2,
+        hostile_phasing=1,
+        hostile_altitude_m=760_000.0,
+        retain_raw_frames=False,
+    )
+    frame = tuple(VisualizationRecordingReader(output))[-1]
+
+    assert frame.scenario_id == "bilateral-6-friendly-4-hostile"
+    assert frame.metadata["friendly_observer_count"] == 6
+    assert frame.metadata["hostile_target_count"] == 4
+    assert len(frame.nodes) == 10
