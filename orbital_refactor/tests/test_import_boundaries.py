@@ -19,3 +19,17 @@ def test_adapters_import_before_interfaces_without_cycle():
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_interfaces_import_before_adapters_without_cycle():
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from interfaces.state_awareness_module import StateAwarenessModule",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stderr

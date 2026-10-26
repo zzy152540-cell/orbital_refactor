@@ -6,7 +6,6 @@ from typing import Any
 import numpy as np
 
 from interfaces.data_objects import ModuleInput
-from interfaces.state_awareness_module import StateAwarenessModule
 
 
 @dataclass(frozen=True)
@@ -21,8 +20,16 @@ class MultiNodeRunResult:
 def run_multi_node_histories(
     module_inputs: dict[str, ModuleInput],
     *,
-    module_factory=StateAwarenessModule,
+    module_factory=None,
 ) -> MultiNodeRunResult:
+    if module_factory is None:
+        # Import lazily so that importing interfaces.state_awareness_module can
+        # safely reach cooperative.topology through the package initializer.
+        # A module-level import here creates interfaces -> adapters -> scenarios
+        # -> cooperative -> interfaces and fails in a clean interpreter.
+        from interfaces.state_awareness_module import StateAwarenessModule
+
+        module_factory = StateAwarenessModule
     if not module_inputs:
         raise ValueError("module_inputs cannot be empty.")
     histories: dict[str, Any] = {}
