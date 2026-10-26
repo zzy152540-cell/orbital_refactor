@@ -89,6 +89,11 @@ class DistributedTargetNodeNetwork:
         if self.identity_resolver is not None:
             for node_id in removed:
                 released.extend(self.identity_resolver.remove_observer(node_id))
+            update_identity_topology = getattr(
+                self.identity_resolver, "update_topology", None,
+            )
+            if update_identity_topology is not None:
+                update_identity_topology(topology)
         self.consensus.update_topology(topology)
         self.trackers_by_node = trackers
         return DistributedNodeMembershipUpdate(
@@ -103,8 +108,10 @@ class DistributedTargetNodeNetwork:
         *,
         timestamp: float,
         observations_by_node: Mapping[str, tuple],
+        discovery_observations_by_node: Mapping[str, tuple] | None = None,
         observer_states_eci: Mapping[str, np.ndarray],
         q_eci2pri_by_observer: Mapping[str, np.ndarray],
+        apply_consensus_feedback: bool = True,
     ) -> DistributedNodeNetworkUpdate:
         active_nodes = set(observer_states_eci)
         if active_nodes != set(q_eci2pri_by_observer):
@@ -116,6 +123,19 @@ class DistributedTargetNodeNetwork:
             raise ValueError(
                 f"Observation batches reference unknown nodes: {sorted(unknown_observation_nodes)}"
             )
+        discovery_by_node = (
+            observations_by_node
+            if discovery_observations_by_node is None
+            else discovery_observations_by_node
+        )
+        unknown_discovery_nodes = (
+            set(discovery_by_node) - set(self.trackers_by_node)
+        )
+        if unknown_discovery_nodes:
+            raise ValueError(
+                "Discovery batches reference unknown nodes: "
+                f"{sorted(unknown_discovery_nodes)}"
+            )
 
         tracking_by_node = {}
         reports = []
@@ -123,6 +143,11 @@ class DistributedTargetNodeNetwork:
             tracking = self.trackers_by_node[node_id].step(
                 timestamp=timestamp,
                 observations=observations_by_node.get(node_id, ()),
+                discovery_observations=(
+                    None
+                    if discovery_observations_by_node is None
+                    else discovery_by_node.get(node_id, ())
+                ),
                 observer_states_eci={node_id: observer_states_eci[node_id]},
                 q_eci2pri_by_observer={node_id: q_eci2pri_by_observer[node_id]},
             )
@@ -162,9 +187,10 @@ class DistributedTargetNodeNetwork:
                 consensus_step,
                 estimates_by_node={node_id: node_estimates},
             )
-            feedback_by_node[node_id] = self.trackers_by_node[
-                node_id
-            ].apply_consensus_feedback(node_consensus)
+            if apply_consensus_feedback:
+                feedback_by_node[node_id] = self.trackers_by_node[
+                    node_id
+                ].apply_consensus_feedback(node_consensus)
 
         return DistributedNodeNetworkUpdate(
             timestamp=float(timestamp),

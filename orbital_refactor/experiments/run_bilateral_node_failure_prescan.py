@@ -13,7 +13,12 @@ import numpy as np
 from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
     build_bilateral_raw_frontend,
+    derive_bilateral_fault_frontend,
+    run_bilateral_cann_acceptance_frontend,
     run_bilateral_distributed_online_comparison,
+)
+from experiments.run_bilateral_visualization_recording import (
+    write_bilateral_visualization_recording,
 )
 
 
@@ -50,11 +55,19 @@ def main() -> None:
         "--control-input", type=Path,
         help="Reuse a fingerprint-matched nominal acceptance control artifact.",
     )
+    parser.add_argument(
+        "--acceptance-cann-only", action="store_true",
+        help="Run only the cooperative CANN arm used by the acceptance metric.",
+    )
+    parser.add_argument("--recording-output", type=Path)
     args = parser.parse_args()
+    if args.recording_output is not None and not args.acceptance_cann_only:
+        parser.error("--recording-output requires --acceptance-cann-only")
     shared = dict(
         duration_seconds=args.duration,
         sample_interval_seconds=1.0,
         random_seed=args.seed,
+        retain_raw_frames=args.recording_output is not None,
         observer_failure_start_seconds=args.failure_start,
         observer_failure_end_seconds=args.failure_end,
         use_local_unified_multimodal_measurement_update=(
@@ -75,7 +88,10 @@ def main() -> None:
         **shared, failed_observer_indices=tuple(args.failed_observer_indices),
     )
     control_frontend = build_bilateral_raw_frontend(control_config)
-    failure_frontend = build_bilateral_raw_frontend(failure_config)
+    failure_frontend = derive_bilateral_fault_frontend(
+        control_frontend, failure_config,
+    )
+    iod_initialization_cache = {}
     control = None
     control_provenance = {"reused": False, "source": None}
     if args.control_input is not None:
@@ -109,16 +125,36 @@ def main() -> None:
         }
         print(f"CONTROL reused from {args.control_input}")
     else:
-        control = run_bilateral_distributed_online_comparison(control_config)
-        control_payload = {
-            "withoutCann": _arm(control.without_cann),
-            "incrementalCann": _arm(control.incremental_cann),
+        if args.acceptance_cann_only:
+            control_arm = run_bilateral_cann_acceptance_frontend(
+                control_frontend,
+                enable_consensus=True,
+                iod_initialization_cache=iod_initialization_cache,
+            )
+            control_payload = {"incrementalCann": _arm(control_arm)}
+        else:
+            control = run_bilateral_distributed_online_comparison(
+                control_config
+            )
+            control_payload = {
+                "withoutCann": _arm(control.without_cann),
+                "incrementalCann": _arm(control.incremental_cann),
+            }
+    if args.acceptance_cann_only:
+        captured = []
+        failure_arm = run_bilateral_cann_acceptance_frontend(
+            failure_frontend,
+            enable_consensus=True,
+            iod_initialization_cache=iod_initialization_cache,
+            epoch_callback=(captured.append if args.recording_output else None),
+        )
+        failure_payload = {"incrementalCann": _arm(failure_arm)}
+    else:
+        failure = run_bilateral_distributed_online_comparison(failure_config)
+        failure_payload = {
+            "withoutCann": _arm(failure.without_cann),
+            "incrementalCann": _arm(failure.incremental_cann),
         }
-    failure = run_bilateral_distributed_online_comparison(failure_config)
-    failure_payload = {
-        "withoutCann": _arm(failure.without_cann),
-        "incrementalCann": _arm(failure.incremental_cann),
-    }
     failed_ids = tuple(
         failure_frontend.truth.manifest.friendly_observer_ids[index]
         for index in args.failed_observer_indices
@@ -170,6 +206,19 @@ def main() -> None:
         json.dumps(_jsonable(payload), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    if args.recording_output is not None:
+        write_bilateral_visualization_recording(
+            args.recording_output,
+            frontend=failure_frontend,
+            captured=captured,
+            include_cann=True,
+            cann_node_limit=0,
+            enable_consensus=True,
+            show_communication_topology=True,
+            radial_backup_profile="none",
+            seed=args.seed,
+            source_result_path=args.output,
+        )
     print(
         "failedObservers=", failed_ids,
         "controlWindowPositionMeanError=",
@@ -177,7 +226,9 @@ def main() -> None:
             "position_mean_error_m"
         ],
         "failureWindowPositionMeanError=",
-        failure.incremental_cann.phase_metrics["DROPOUT"].position_mean_error_m,
+        failure_payload["incrementalCann"]["phase_metrics"]["DROPOUT"][
+            "position_mean_error_m"
+        ],
     )
     print(f"wrote {args.output}")
 
@@ -224,6 +275,8 @@ def _node_view(value):
 def _failure_vs_control(failure, control):
     result = {}
     for arm_name in ("withoutCann", "incrementalCann"):
+        if arm_name not in failure or arm_name not in control:
+            continue
         affected = failure[arm_name]["phase_metrics"]["DROPOUT"]
         reference = control[arm_name]["phase_metrics"]["DROPOUT"]
         result[arm_name] = {

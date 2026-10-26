@@ -52,6 +52,7 @@ class IncrementalMultimodalCANNConfig:
     infrared: bool = True
     radar: bool = True
     optical: bool = True
+    radial_backup: bool = False
     profile: str = "realtime"
     infrared_coupled_config: CoupledRingLineCANNConfig | None = None
     recovery_gap_seconds: float = 2.0
@@ -102,6 +103,7 @@ class IncrementalMultimodalCANNPreprocessor:
             "OPTICAL": _IncrementalOptical(self.config),
             "INFRARED": _IncrementalInfrared(infrared_config, self.config),
         }
+        self._radial_backup_state = _IncrementalRadar(self.config)
         self.performance = IncrementalCANNPerformance()
 
     def process(
@@ -115,6 +117,10 @@ class IncrementalMultimodalCANNPreprocessor:
         if any(not np.isclose(item.timestamp, timestamp) for item in values):
             raise ValueError("Incremental CANN observations must match the epoch.")
         normalized = [_canonical_modality(item.modality) for item in values]
+        radar_available = any(
+            modality == "RADAR" and item.valid_flag
+            for item, modality in zip(values, normalized)
+        )
         enabled = {
             "RADAR": self.config.radar,
             "OPTICAL": self.config.optical,
@@ -132,7 +138,21 @@ class IncrementalMultimodalCANNPreprocessor:
                 result.append(item)
                 continue
             modality_started = time.perf_counter()
-            result.append(self._states[modality].process(item))
+            processed = self._states[modality].process(item)
+            if (
+                self.config.radial_backup
+                and not radar_available
+                and _has_radial_backup(processed)
+            ):
+                radial_started = time.perf_counter()
+                processed = self._process_radial_backup(processed)
+                radial_elapsed = time.perf_counter() - radial_started
+                self.performance.seconds_by_modality["RADIAL_BACKUP"] = (
+                    self.performance.seconds_by_modality.get(
+                        "RADIAL_BACKUP", 0.0,
+                    ) + radial_elapsed
+                )
+            result.append(processed)
             elapsed = time.perf_counter() - modality_started
             self.performance.seconds_by_modality[modality] = (
                 self.performance.seconds_by_modality.get(modality, 0.0) + elapsed
@@ -142,11 +162,65 @@ class IncrementalMultimodalCANNPreprocessor:
         self.performance.total_seconds += time.perf_counter() - started
         return result
 
+    def _process_radial_backup(self, item: Observation) -> Observation:
+        metadata = dict(item.metadata)
+        covariance = np.diag([
+            float(metadata["rangeProxyVarianceM2"]),
+            float(metadata["rangeRateProxyVarianceM2ps2"]),
+        ])
+        source_id = str(metadata.get(
+            "observation_id",
+            f"{item.observer_id}:{item.target_id}:{item.timestamp:.12g}",
+        ))
+        radial = self._radial_backup_state.process(replace(
+            item,
+            modality="RADAR",
+            source_type="RADIAL_BACKUP_CANN_INPUT",
+            measurement=np.asarray([
+                metadata["rangeProxyM"], metadata["rangeRateProxyMps"],
+            ], dtype=float),
+            covariance=covariance,
+            frame="SPRI",
+            metadata={
+                **metadata,
+                "observation_id": f"{source_id}:radial_backup",
+            },
+        ))
+        radial_covariance = np.asarray(radial.covariance, dtype=float)
+        metadata.update({
+            "rangeProxyM": float(radial.measurement[0]),
+            "rangeRateProxyMps": float(radial.measurement[1]),
+            "rangeProxyVarianceM2": float(radial_covariance[0, 0]),
+            "rangeRateProxyVarianceM2ps2": float(radial_covariance[1, 1]),
+            "radialBackupCannProcessed": True,
+            "radialBackupCannDiagnostics": dict(
+                radial.metadata.get("cann_diagnostics", {})
+            ),
+            "radialBackupCannSourceMeasurementIds": tuple(
+                radial.metadata.get("source_measurement_ids", ())
+            ),
+        })
+        return replace(item, metadata=metadata)
+
 
 def _canonical_modality(value: str) -> str:
     name = str(value).upper()
     return {"IR": "INFRARED", "RAD": "RADAR", "OPT": "OPTICAL"}.get(
         name, name,
+    )
+
+
+def _has_radial_backup(item: Observation) -> bool:
+    metadata = item.metadata
+    return bool(
+        metadata.get("rangeProxySource")
+        == "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+        and metadata.get("rangeRateProxySource")
+        == "INDEPENDENT_RADIAL_BACKUP_SHADOW"
+        and metadata.get("rangeProxyM") is not None
+        and metadata.get("rangeRateProxyMps") is not None
+        and metadata.get("rangeProxyVarianceM2") is not None
+        and metadata.get("rangeRateProxyVarianceM2ps2") is not None
     )
 
 

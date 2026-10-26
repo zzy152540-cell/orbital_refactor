@@ -145,6 +145,47 @@ def test_infrared_range_rate_proxy_is_opt_in_sensor_metadata():
     assert np.isfinite(infrared.metadata["rangeRateProxyMps"])
 
 
+def test_optical_and_infrared_can_provide_independent_idealized_radial_proxies():
+    observer = np.array([7e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    target = observer + np.array([1000.0, 100.0, -50.0, 1.0, -0.2, 0.1])
+    epoch = simulate_multimodal_sensor_epoch(
+        timestamp=2.0,
+        observer_id="a",
+        target_id="b",
+        observer_state=observer,
+        target_state=target,
+        quaternion_i2b_wxyz=np.array([1.0, 0.0, 0.0, 0.0]),
+        config=MultimodalSensorSimulationConfig(
+            optical_range_proxy_sigma_m=1.0,
+            optical_range_rate_proxy_sigma_mps=0.01,
+            infrared_range_proxy_sigma_m=1.0,
+            infrared_range_rate_proxy_sigma_mps=0.01,
+        ),
+        rng_by_modality={
+            modality: np.random.default_rng(seed)
+            for modality, seed in (("RADAR", 1), ("INFRARED", 2), ("OPTICAL", 3))
+        },
+    )
+    messages = {item.modality: item for item in epoch.messages}
+    optical = messages["OPTICAL"]
+    infrared = messages["INFRARED"]
+    assert optical.metadata["rangeProxySource"] == (
+        "OPTICAL_IDEALIZED_DEPTH_MODEL"
+    )
+    assert optical.metadata["rangeRateProxySource"] == (
+        "OPTICAL_IDEALIZED_DEPTH_MODEL"
+    )
+    assert infrared.metadata["rangeProxySource"] == (
+        "INFRARED_IDEALIZED_SENSITIVITY_MODEL"
+    )
+    assert optical.metadata["radialProxyPhysicalValidation"] is False
+    assert infrared.metadata["radialProxyPhysicalValidation"] is False
+    assert optical.metadata["rangeProxyM"] != infrared.metadata["rangeProxyM"]
+    assert optical.metadata["rangeRateProxyMps"] != (
+        infrared.metadata["rangeRateProxyMps"]
+    )
+
+
 def test_independent_radial_backup_is_explicit_shadow_metadata():
     observer = np.array([7e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
     target = observer + np.array([1000.0, 100.0, -50.0, 1.0, -0.2, 0.1])
@@ -183,6 +224,11 @@ def test_independent_radial_backup_rejects_duplicate_legacy_proxy():
         MultimodalSensorSimulationConfig(
             infrared_range_proxy_sigma_m=1.0,
             backup_radial_range_sigma_m=1.0,
+        )
+    with np.testing.assert_raises(ValueError):
+        MultimodalSensorSimulationConfig(
+            optical_range_rate_proxy_sigma_mps=0.01,
+            backup_radial_range_rate_sigma_mps=0.01,
         )
 
 

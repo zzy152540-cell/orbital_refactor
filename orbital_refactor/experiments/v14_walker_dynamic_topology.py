@@ -224,12 +224,14 @@ def build_v14_walker_dynamic_topology_plan(
 def run_v14_walker_dynamic_filter_smoke(
     *, duration: float = 120.0, dt: float = 2.0, seed: int = 0,
     maximum_range: float = 7000e3, maximum_degree: int = 3,
+    walker_config: WalkerDeltaConfig | None = None,
 ) -> WalkerDynamicFilterResult:
     """Run the current offline exact-replay path on a selected topology plan."""
 
     plan = build_v14_walker_dynamic_topology_plan(
         duration=duration, dt=dt, maximum_range=maximum_range,
         maximum_degree=maximum_degree,
+        walker_config=walker_config,
     )
     union_topology, union_edges = union_topology_from_epoch_records(
         plan.scenario.node_ids, plan.epoch_records
@@ -293,12 +295,14 @@ def run_v14_walker_online_dynamic_filter_smoke(
     max_pinned_age: float = 20.0,
     packet_loss_rate: float = 0.0, communication_delay: float = 0.0,
     topology_policy: TopologyPolicy | None = None,
+    walker_config: WalkerDeltaConfig | None = None,
 ) -> WalkerOnlineDynamicFilterResult:
     """Run the Walker plan through lifecycle-aware online orchestration."""
 
     plan = build_v14_walker_dynamic_topology_plan(
         duration=duration, dt=dt, maximum_range=maximum_range,
         maximum_degree=maximum_degree,
+        walker_config=walker_config,
     )
     online_policy = topology_policy or LowChurnConnectedTreePolicy(
         maximum_degree

@@ -155,6 +155,35 @@ def test_incremental_processor_accepts_sparse_modalities_and_records_cost():
     assert set(processor.performance.seconds_by_modality) == {"RADAR", "INFRARED"}
 
 
+def test_radial_backup_cann_is_opt_in_and_preserves_shadow_lineage():
+    source = _observations(
+        "INFRARED", [np.deg2rad([10.0, 2.0])], [0.0],
+    )[0]
+    source.metadata.update({
+        "rangeProxyM": 1_000_000.0,
+        "rangeProxyVarianceM2": 1.0,
+        "rangeProxySource": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+        "rangeRateProxyMps": 100.0,
+        "rangeRateProxyVarianceM2ps2": 0.0125**2,
+        "rangeRateProxySource": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
+        "radialBackupPhysicalValidation": False,
+    })
+
+    default = IncrementalMultimodalCANNPreprocessor().process(
+        [source], np.asarray([0.0]),
+    )[0]
+    experimental = IncrementalMultimodalCANNPreprocessor(
+        IncrementalMultimodalCANNConfig(radial_backup=True),
+    ).process([source], np.asarray([0.0]))[0]
+
+    assert "radialBackupCannProcessed" not in default.metadata
+    assert experimental.metadata["radialBackupCannProcessed"] is True
+    assert experimental.metadata["rangeProxyM"] == 1_000_000.0
+    assert experimental.metadata["rangeRateProxyMps"] == 100.0
+    assert experimental.metadata["radialBackupPhysicalValidation"] is False
+    assert experimental.metadata["radialBackupCannSourceMeasurementIds"]
+
+
 def test_realtime_profile_reduces_ring_integration_resolution_explicitly():
     realtime = IncrementalMultimodalCANNConfig(profile="realtime")
     research = IncrementalMultimodalCANNConfig(profile="research")

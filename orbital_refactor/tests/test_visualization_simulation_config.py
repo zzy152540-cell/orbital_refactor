@@ -110,6 +110,11 @@ def test_bilateral_configuration_exposes_only_relevant_generator_arguments():
     assert arguments["friendly_plane_count"] == 3
     assert arguments["hostile_total_satellites"] == 15
     assert arguments["hostile_plane_count"] == 3
+    assert arguments["maximum_observation_range_m"] == 6_000_000.0
+    assert arguments["process_noise_acceleration"] == 1e-4
+    assert arguments["tracking_modalities"] == (
+        "RADAR", "INFRARED", "OPTICAL",
+    )
 
 
 def test_configurable_bilateral_walker_fleets_are_forwarded():
@@ -126,6 +131,17 @@ def test_configurable_bilateral_walker_fleets_are_forwarded():
         "hostile_phasing": 2,
         "hostile_altitude_km": 760.0,
         "hostile_inclination_deg": 57.0,
+        "maximum_range_km": 4500.0,
+        "bilateral_process_noise_acceleration": 2e-4,
+        "radar_enabled": True,
+        "infrared_enabled": False,
+        "optical_enabled": True,
+        "estimation_architecture": "SINGLE_OBSERVER",
+        "tracking_observer_index": 3,
+        "tracking_target_index": 4,
+        "dropout_modality": "RADAR",
+        "dropout_start_s": 20.0,
+        "dropout_duration_s": 30.0,
     })
     arguments = config.bilateral_generator_arguments
 
@@ -138,6 +154,32 @@ def test_configurable_bilateral_walker_fleets_are_forwarded():
     assert arguments["radial_backup_profile"] == "none"
     assert arguments["enable_local_unified"] is True
     assert arguments["enable_consensus"] is False
+    assert arguments["maximum_observation_range_m"] == 4_500_000.0
+    assert arguments["process_noise_acceleration"] == 2e-4
+    assert arguments["tracking_modalities"] == ("RADAR", "OPTICAL")
+    assert arguments["enable_consensus"] is False
+    assert arguments["tracking_observer_indices"] == (3,)
+    assert arguments["tracking_target_indices"] == (4,)
+    assert arguments["show_communication_topology"] is False
+    assert arguments["dropout_modality"] == "RADAR"
+    assert arguments["dropout_start"] == 20.0
+    assert arguments["dropout_end"] == pytest.approx(50.0)
+    assert arguments["dropout_end"] < 50.0
+    assert arguments["configured_dropout_duration_s"] == 30.0
+
+
+def test_configurable_bilateral_cooperative_architecture_enables_consensus():
+    config = visualization_simulation_config_from_dict({
+        "schema_version": "v1.0",
+        "scenario_type": "BILATERAL_CONFIGURABLE",
+        "estimation_architecture": "MULTI_COOPERATIVE",
+    })
+    arguments = config.bilateral_generator_arguments
+
+    assert arguments["enable_consensus"] is True
+    assert arguments["tracking_observer_indices"] is None
+    assert arguments["tracking_target_indices"] is None
+    assert arguments["show_communication_topology"] is True
 
 
 def test_configured_runner_routes_bilateral_scenario(monkeypatch):

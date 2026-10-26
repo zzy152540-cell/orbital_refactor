@@ -150,6 +150,8 @@ def run_federated_ci_filter(
     ci_grid_points: int = 101,
     cross_modality_anchor: str | None = None,
     cross_modality_gate_threshold: float = np.inf,
+    fusion_method: str = "ci",
+    information_allocation_weights: Mapping[str, float] | None = None,
     node_id: str = "node_0",
     target_id: str = "target_0",
 ) -> FederatedCIHistory:
@@ -177,6 +179,14 @@ def run_federated_ci_filter(
         measurements_by_modality,
         valid_flags_by_modality,
         local_filters,
+    )
+    fusion_method = str(fusion_method).lower()
+    if fusion_method not in {"ci", "fixed_information"}:
+        raise ValueError(
+            "fusion_method must be 'ci' or 'fixed_information'."
+        )
+    allocation_weights = _normalized_information_allocation_weights(
+        modalities, information_allocation_weights,
     )
     initial_state = np.asarray(initial_state, dtype=float).reshape(6)
     initial_covariance = np.asarray(initial_covariance, dtype=float).reshape(6, 6)
@@ -234,15 +244,33 @@ def run_federated_ci_filter(
             )
         )
 
+        valid_modalities = tuple(
+            modality for modality in modalities
+            if bool(valid_flags_by_modality[modality][index])
+        )
+        active_allocation = _active_information_allocation(
+            valid_modalities, allocation_weights,
+        )
+
         for modality in modalities:
             ekf = local_filters[modality]
-            predicted_state, predicted_covariance = ekf.predict(
-                previous_states[modality],
-                previous_covariances[modality],
-                chief_history[index - 1],
-                dt,
-            )
             measurement_is_valid = bool(valid_flags_by_modality[modality][index])
+            if fusion_method == "fixed_information":
+                predicted_state = predicted_fused_state.copy()
+                if measurement_is_valid:
+                    predicted_covariance = (
+                        predicted_fused_covariance
+                        / active_allocation[modality]
+                    )
+                else:
+                    predicted_covariance = predicted_fused_covariance.copy()
+            else:
+                predicted_state, predicted_covariance = ekf.predict(
+                    previous_states[modality],
+                    previous_covariances[modality],
+                    chief_history[index - 1],
+                    dt,
+                )
             if not measurement_is_valid:
                 state, covariance = predicted_state, predicted_covariance
                 local_output_valid[modality][index] = True
@@ -301,6 +329,10 @@ def run_federated_ci_filter(
                             modality=modality,
                         )
                     )
+                    if fusion_method == "fixed_information":
+                        posterior_list.append(
+                            (modality, predicted_state, predicted_covariance)
+                        )
                 else:
                     statistics[modality]["accepted"] += 1
                     posterior_list.append((modality, state, covariance))
@@ -368,14 +400,22 @@ def run_federated_ci_filter(
             )
         else:
             posterior_list.sort(key=lambda item: _MODALITY_ORDER.get(item[0], 99))
-            fusion = ci_fuse_posteriors(
-                posterior_list,
-                objective=ci_objective,
-                grid_points=ci_grid_points,
-            )
-            fused_states[index] = fusion.state
-            fused_covariances[index] = fusion.covariance
-            ci_weight_history.append(dict(fusion.weights))
+            if fusion_method == "fixed_information":
+                state, covariance = _fuse_information_partitions(
+                    posterior_list,
+                )
+                fused_states[index] = state
+                fused_covariances[index] = covariance
+                ci_weight_history.append(dict(active_allocation))
+            else:
+                fusion = ci_fuse_posteriors(
+                    posterior_list,
+                    objective=ci_objective,
+                    grid_points=ci_grid_points,
+                )
+                fused_states[index] = fusion.state
+                fused_covariances[index] = fusion.covariance
+                ci_weight_history.append(dict(fusion.weights))
 
         if reset_feedback:
             for modality in modalities:
@@ -416,6 +456,63 @@ def run_federated_ci_filter(
         },
         consecutive_anomaly_history=consecutive_anomaly_history,
     )
+
+
+def _normalized_information_allocation_weights(
+    modalities, configured_weights,
+):
+    if configured_weights is None:
+        return {name: 1.0 / len(modalities) for name in modalities}
+    aliases = {
+        "radar": "rad", "rad": "rad",
+        "infrared": "ir", "ir": "ir",
+        "optical": "opt", "opt": "opt",
+        "learning": "nn", "nn": "nn",
+    }
+    normalized = {}
+    for name, value in configured_weights.items():
+        key = aliases.get(str(name).lower(), str(name).lower())
+        if key in modalities:
+            weight = float(value)
+            if not np.isfinite(weight) or weight <= 0.0:
+                raise ValueError(
+                    "information allocation weights must be finite and positive."
+                )
+            normalized[key] = weight
+    missing = set(modalities) - set(normalized)
+    if missing:
+        raise ValueError(
+            "Missing information allocation weights for modalities: "
+            f"{sorted(missing)}"
+        )
+    total = float(sum(normalized.values()))
+    return {name: normalized[name] / total for name in modalities}
+
+
+def _active_information_allocation(valid_modalities, configured_weights):
+    if not valid_modalities:
+        return {}
+    total = float(sum(configured_weights[name] for name in valid_modalities))
+    return {
+        name: configured_weights[name] / total
+        for name in valid_modalities
+    }
+
+
+def _fuse_information_partitions(posteriors):
+    information_matrix = np.zeros((6, 6), dtype=float)
+    information_state = np.zeros(6, dtype=float)
+    for _name, state, covariance in posteriors:
+        inverse = np.linalg.pinv(
+            0.5 * (np.asarray(covariance) + np.asarray(covariance).T)
+        )
+        information_matrix += inverse
+        information_state += inverse @ np.asarray(state, dtype=float)
+    covariance = np.linalg.pinv(
+        0.5 * (information_matrix + information_matrix.T)
+    )
+    covariance = 0.5 * (covariance + covariance.T)
+    return covariance @ information_state, covariance
 
 
 def _anchor_consistency_gate(posterior_list, *, anchor, threshold):

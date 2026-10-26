@@ -206,6 +206,65 @@ def test_los_range_rate_proxy_adds_direct_radial_velocity_constraint():
     )
 
 
+def test_electro_optical_radial_proxies_fail_over_without_double_counting():
+    truth_at_zero = np.array([7.0e6, 0.0, 0.0, 0.0, 7500.0, 0.0])
+    truth = rk4_step_absolute(truth_at_zero, 1.0)
+    prior = TargetInitialState(
+        target_id="target-1",
+        track_id="track-1",
+        timestamp=0.0,
+        state_eci=truth_at_zero + np.array([50.0, 0.0, 0.0, 1.0, 0, 0]),
+        covariance_eci=np.diag([1e4, 100.0, 100.0, 10.0, 1.0, 1.0]),
+    )
+    observer = np.array([6.8e6, -1.0e6, 0.0, 0.0, 0.0, 0.0])
+    relative = truth[:3] - observer[:3]
+    distance = float(np.linalg.norm(relative))
+    line = relative / distance
+    range_rate = float(line @ (truth[3:] - observer[3:]))
+
+    def los(source, priority):
+        return UnlabeledIODObservation(
+            timestamp=1.0,
+            observer_id="observer-0",
+            modality="LOS",
+            observer_state_eci=observer,
+            measurement=line,
+            covariance=np.diag([1e-10, 1e-10]),
+            detection_group_id="group-0",
+            metadata={
+                "sourceModality": source,
+                "rangeProxyM": distance,
+                "rangeProxyVarianceM2": 4.0,
+                "rangeRateProxyMps": range_rate,
+                "rangeRateProxyVarianceM2ps2": 1e-4,
+                "radialProxyFusionPolicy": "radar_primary_failover",
+                "radialProxyFailoverPriority": priority,
+            },
+        )
+
+    optical = los("OPTICAL", 2)
+    infrared = los("INFRARED", 1)
+    fallback = unified_multi_observer_multimodal_update(
+        prior, (optical, infrared), timestamp=1.0,
+    )
+    assert fallback.measurement_dimension == 6
+
+    radar = UnlabeledIODObservation(
+        timestamp=1.0,
+        observer_id="observer-0",
+        modality="RADAR",
+        observer_state_eci=observer,
+        measurement=np.array([distance, range_rate]),
+        covariance=np.diag([4.0, 1e-4]),
+        detection_group_id="group-0",
+        metadata={"sourceModality": "RADAR"},
+    )
+    primary = unified_multi_observer_multimodal_update(
+        prior, (optical, infrared, radar), timestamp=1.0,
+    )
+    assert primary.measurement_dimension == 6
+
+
 def test_fixed_lag_window_slides_without_reusing_the_oldest_measurements():
     truth_zero = np.array([7.1e6, 2.0e5, 3.0e5, -150.0, 7450.0, 50.0])
     prior = TargetInitialState(

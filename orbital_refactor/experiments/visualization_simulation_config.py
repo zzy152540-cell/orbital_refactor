@@ -26,15 +26,22 @@ CONFIG_SECTIONS = {
     "simulation": (
         "duration_s", "dt_s", "seed", "enable_absolute_navigation_dropout",
     ),
-    "dynamics": ("process_noise_acceleration",),
+    "dynamics": (
+        "process_noise_acceleration", "bilateral_process_noise_acceleration",
+    ),
     "measurements": (
         "radar_enabled", "infrared_enabled", "optical_enabled",
+        "dropout_modality", "dropout_start_s", "dropout_duration_s",
         "radar_range_sigma_m", "radar_range_rate_sigma_mps",
         "infrared_angle_sigma_deg", "optical_image_sigma",
         "absolute_navigation_sigma_m",
     ),
     "visibility": ("maximum_range_km",),
-    "filter": ("replay_history_window_s", "max_pinned_age_s"),
+    "filter": (
+        "estimation_architecture", "tracking_observer_index",
+        "tracking_target_index",
+        "replay_history_window_s", "max_pinned_age_s",
+    ),
     "communication": ("communication_profile",),
     "topology": ("topology_audit_max_duration_s", "enable_link_suspension"),
     "cann": ("cann_enabled", "cann_node_limit"),
@@ -66,14 +73,21 @@ class VisualizationSimulationConfig:
     seed: int = 0
     enable_absolute_navigation_dropout: bool = True
     process_noise_acceleration: float = 1e-8
+    bilateral_process_noise_acceleration: float = 1e-4
     radar_enabled: bool = True
     infrared_enabled: bool = True
     optical_enabled: bool = True
+    dropout_modality: str = "NONE"
+    dropout_start_s: float = 30.0
+    dropout_duration_s: float = 60.0
     radar_range_sigma_m: float = 2.0
     radar_range_rate_sigma_mps: float = 0.05
     infrared_angle_sigma_deg: float = 0.05
     optical_image_sigma: float = 1e-3
     absolute_navigation_sigma_m: float = 3.0
+    estimation_architecture: str = "MULTI_INDEPENDENT"
+    tracking_observer_index: int = 0
+    tracking_target_index: int = 0
     replay_history_window_s: float = 10.0
     max_pinned_age_s: float = 10.0
     communication_profile: str = "mild"
@@ -116,7 +130,9 @@ class VisualizationSimulationConfig:
             self.altitude_km, self.friendly_altitude_km,
             self.hostile_altitude_km, self.duration_s, self.dt_s,
             self.maximum_range_km,
-            self.process_noise_acceleration, self.radar_range_sigma_m,
+            self.process_noise_acceleration,
+            self.bilateral_process_noise_acceleration,
+            self.radar_range_sigma_m,
             self.radar_range_rate_sigma_mps, self.infrared_angle_sigma_deg,
             self.optical_image_sigma, self.absolute_navigation_sigma_m,
             self.replay_history_window_s, self.max_pinned_age_s,
@@ -134,8 +150,53 @@ class VisualizationSimulationConfig:
                 )
         if self.communication_profile not in COMMUNICATION_DEGRADATION_PROFILES:
             raise ValueError("Unknown communication_profile.")
+        if self.estimation_architecture not in {
+            "SINGLE_OBSERVER", "MULTI_INDEPENDENT", "MULTI_COOPERATIVE",
+        }:
+            raise ValueError("Unknown estimation_architecture.")
+        if not 0 <= self.tracking_observer_index < self.friendly_total_satellites:
+            raise ValueError(
+                "tracking_observer_index must identify a friendly satellite."
+            )
+        if not 0 <= self.tracking_target_index < self.hostile_total_satellites:
+            raise ValueError(
+                "tracking_target_index must identify a hostile target."
+            )
         if not any((self.radar_enabled, self.infrared_enabled, self.optical_enabled)):
             raise ValueError("At least one relative measurement modality is required.")
+        if self.dropout_modality not in {
+            "NONE", "RADAR", "INFRARED", "OPTICAL",
+        }:
+            raise ValueError("Unknown dropout_modality.")
+        if not np.isfinite(self.dropout_start_s) or self.dropout_start_s < 0.0:
+            raise ValueError("dropout_start_s must be finite and non-negative.")
+        if (
+            not np.isfinite(self.dropout_duration_s)
+            or self.dropout_duration_s <= 0.0
+        ):
+            raise ValueError("dropout_duration_s must be positive.")
+        if (
+            self.scenario_type == "BILATERAL_CONFIGURABLE"
+            and self.dropout_modality != "NONE"
+            and self.dropout_start_s + self.dropout_duration_s
+            > self.duration_s + 1e-12
+        ):
+            raise ValueError(
+                "The configured modality-dropout window exceeds the simulation."
+            )
+        enabled_by_modality = {
+            "RADAR": self.radar_enabled,
+            "INFRARED": self.infrared_enabled,
+            "OPTICAL": self.optical_enabled,
+        }
+        if (
+            self.scenario_type == "BILATERAL_CONFIGURABLE"
+            and self.dropout_modality != "NONE"
+            and not enabled_by_modality[self.dropout_modality]
+        ):
+            raise ValueError(
+                "The dropout modality must also be enabled for normal operation."
+            )
         if not self.output.strip():
             raise ValueError("output cannot be empty.")
         if self.cann_node_limit < 0:
@@ -181,6 +242,27 @@ class VisualizationSimulationConfig:
     @property
     def bilateral_generator_arguments(self):
         frozen = self.scenario_type == "BILATERAL_15X15"
+        architecture = (
+            "MULTI_COOPERATIVE" if frozen else self.estimation_architecture
+        )
+        dropout_enabled = not frozen and self.dropout_modality != "NONE"
+        dropout_end = (
+            np.nextafter(
+                float(self.dropout_start_s + self.dropout_duration_s),
+                float(self.dropout_start_s),
+            )
+            if dropout_enabled else None
+        )
+        tracking_modalities = (
+            ("RADAR", "INFRARED", "OPTICAL")
+            if frozen else tuple(
+                name for name, enabled in (
+                    ("RADAR", self.radar_enabled),
+                    ("INFRARED", self.infrared_enabled),
+                    ("OPTICAL", self.optical_enabled),
+                ) if enabled
+            )
+        )
         return {
             "duration": float(self.duration_s),
             "dt": float(self.dt_s),
@@ -193,7 +275,37 @@ class VisualizationSimulationConfig:
             # radial backup is enabled only by an explicit robustness preset.
             "radial_backup_profile": "none",
             "enable_local_unified": True,
-            "enable_consensus": bool(frozen),
+            "enable_consensus": architecture == "MULTI_COOPERATIVE",
+            "tracking_observer_indices": (
+                (int(self.tracking_observer_index),)
+                if architecture == "SINGLE_OBSERVER" else None
+            ),
+            "tracking_target_indices": (
+                (int(self.tracking_target_index),)
+                if architecture == "SINGLE_OBSERVER" else None
+            ),
+            "show_communication_topology": (
+                architecture == "MULTI_COOPERATIVE"
+            ),
+            "maximum_observation_range_m": (
+                6_000_000.0 if frozen
+                else float(self.maximum_range_km) * 1000.0
+            ),
+            "process_noise_acceleration": (
+                1e-4 if frozen
+                else float(self.bilateral_process_noise_acceleration)
+            ),
+            "tracking_modalities": tracking_modalities,
+            "dropout_modality": (
+                str(self.dropout_modality) if dropout_enabled else None
+            ),
+            "dropout_start": (
+                float(self.dropout_start_s) if dropout_enabled else None
+            ),
+            "dropout_end": dropout_end,
+            "configured_dropout_duration_s": (
+                float(self.dropout_duration_s) if dropout_enabled else None
+            ),
             "friendly_total_satellites": (
                 15 if frozen else int(self.friendly_total_satellites)
             ),

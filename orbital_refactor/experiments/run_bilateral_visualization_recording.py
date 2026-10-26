@@ -13,6 +13,7 @@ from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
     _run_bilateral_online_arm,
     build_bilateral_raw_frontend,
+    electro_optical_radial_failover_sensor_config,
 )
 from interfaces.data_objects import AbsolutePositionObservation, RawSensorFrame
 from orbital_core.constants import R_EARTH
@@ -41,11 +42,21 @@ def generate_bilateral_visualization_recording(
     enable_consensus: bool = False,
     enable_local_unified: bool = True,
     tracking_observer_indices: tuple[int, ...] | None = None,
+    tracking_target_indices: tuple[int, ...] | None = None,
+    tracking_modalities: tuple[str, ...] = (
+        "RADAR", "INFRARED", "OPTICAL",
+    ),
+    maximum_observation_range_m: float = 6_000_000.0,
+    process_noise_acceleration: float = 1e-4,
     show_communication_topology: bool = True,
     radial_backup_profile: str = "none",
+    electro_optical_radial_failover: bool = False,
+    eo_radial_range_sigma_m: float = 2.5,
+    eo_radial_range_rate_sigma_mps: float = 0.010,
     dropout_modality: str | None = None,
     dropout_start: float | None = None,
     dropout_end: float | None = None,
+    configured_dropout_duration_s: float | None = None,
     failed_observer_indices: tuple[int, ...] | None = None,
     failure_start: float | None = None,
     failure_end: float | None = None,
@@ -74,10 +85,22 @@ def generate_bilateral_visualization_recording(
     if radial_profile not in {"none", "legacy", "independent"}:
         raise ValueError("radial_backup_profile must be none, legacy or independent.")
     radial_enabled = radial_profile != "none"
+    if electro_optical_radial_failover and radial_enabled:
+        raise ValueError(
+            "electro-optical radial failover cannot be combined with a "
+            "legacy radial backup profile."
+        )
     config = BilateralFrontendConfig(
         duration_seconds=float(duration),
         sample_interval_seconds=float(dt),
         random_seed=int(seed),
+        sensor_config=(
+            electro_optical_radial_failover_sensor_config(
+                range_sigma_m=eo_radial_range_sigma_m,
+                range_rate_sigma_mps=eo_radial_range_rate_sigma_mps,
+            )
+            if electro_optical_radial_failover else None
+        ),
         retain_raw_frames=bool(retain_raw_frames),
         use_local_unified_multimodal_measurement_update=bool(
             enable_local_unified
@@ -94,6 +117,8 @@ def generate_bilateral_visualization_recording(
         observer_failure_end_seconds=failure_end,
         failed_observer_indices=failed_observer_indices,
         maximum_track_count=int(hostile_total_satellites),
+        maximum_observation_range_m=float(maximum_observation_range_m),
+        process_noise_acceleration=float(process_noise_acceleration),
     )
     progress("bilateral_frontend_started", 0.02)
     friendly_config = WalkerDeltaConfig(
@@ -144,6 +169,7 @@ def generate_bilateral_visualization_recording(
     )
     frontend = build_bilateral_raw_frontend(config, truth=truth)
     friendly_ids = frontend.truth.manifest.friendly_observer_ids
+    hostile_ids = frontend.truth.manifest.hostile_target_ids
     if tracking_observer_indices is None:
         tracking_observer_ids = None
     else:
@@ -157,14 +183,29 @@ def generate_bilateral_visualization_recording(
                 "tracking_observer_indices must identify existing observers."
             )
         tracking_observer_ids = tuple(friendly_ids[index] for index in indices)
+    if tracking_target_indices is None:
+        tracking_target_ids = None
+    else:
+        indices = tuple(dict.fromkeys(
+            int(value) for value in tracking_target_indices
+        ))
+        if not indices or any(
+            value < 0 or value >= len(hostile_ids) for value in indices
+        ):
+            raise ValueError(
+                "tracking_target_indices must identify existing hostile targets."
+            )
+        tracking_target_ids = tuple(hostile_ids[index] for index in indices)
     progress("bilateral_frontend_complete", 0.35)
     captured = []
-    _run_bilateral_online_arm(
+    arm_result = _run_bilateral_online_arm(
         frontend,
         enable_cann=bool(include_cann),
         enable_consensus=bool(enable_consensus),
         enable_local_unified=bool(enable_local_unified),
         tracking_observer_ids=tracking_observer_ids,
+        tracking_target_ids=tracking_target_ids,
+        tracking_modalities=tuple(tracking_modalities),
         require_scored_truth=False,
         epoch_callback=captured.append,
     )
@@ -172,12 +213,90 @@ def generate_bilateral_visualization_recording(
     if len(captured) != len(frontend.truth.timestamps):
         raise RuntimeError("Bilateral visualization capture is incomplete.")
 
+    progress("bilateral_cann_complete" if include_cann else "cann_disabled", 0.82)
+    write_bilateral_visualization_recording(
+        output,
+        frontend=frontend,
+        captured=captured,
+        include_cann=include_cann,
+        cann_node_limit=cann_node_limit,
+        tracking_observer_ids=tracking_observer_ids,
+        tracking_target_ids=tracking_target_ids,
+        tracking_modalities=tuple(tracking_modalities),
+        enable_consensus=enable_consensus,
+        show_communication_topology=show_communication_topology,
+        radial_backup_profile=radial_profile,
+        electro_optical_radial_failover=electro_optical_radial_failover,
+        dropout_modality=dropout_modality,
+        configured_dropout_duration_s=configured_dropout_duration_s,
+        estimation_diagnostics={
+            "all_states_finite": bool(arm_result.all_states_finite),
+            "cann_preprocessed_observation_count": int(
+                arm_result.cann_preprocessed_observation_count
+            ),
+            "unified_multimodal_update_count": int(
+                arm_result.unified_multimodal_update_count
+            ),
+            "consensus_received_message_count": int(
+                arm_result.consensus_received_message_count
+            ),
+            "identity_switch_count": int(arm_result.identity_switch_count),
+            "consensus_identity_switch_count": int(
+                arm_result.consensus_identity_switch_count
+            ),
+        },
+        seed=seed,
+    )
+    progress("recording_complete", 1.0)
+    return output
+
+
+def write_bilateral_visualization_recording(
+    output: str | Path,
+    *,
+    frontend,
+    captured,
+    include_cann: bool = True,
+    cann_node_limit: int = 0,
+    tracking_observer_ids: tuple[str, ...] | None = None,
+    tracking_target_ids: tuple[str, ...] | None = None,
+    tracking_modalities: tuple[str, ...] = (
+        "RADAR", "INFRARED", "OPTICAL",
+    ),
+    enable_consensus: bool = False,
+    show_communication_topology: bool = True,
+    radial_backup_profile: str = "none",
+    electro_optical_radial_failover: bool = False,
+    dropout_modality: str | None = None,
+    configured_dropout_duration_s: float | None = None,
+    estimation_diagnostics: dict | None = None,
+    seed: int = 0,
+    source_result_path: str | Path | None = None,
+) -> Path:
+    """Write replay frames captured during an already completed estimator run."""
+
+    output = Path(output)
+    if output.exists():
+        raise FileExistsError(f"Visualization recording already exists: {output}")
+    if len(captured) != len(frontend.truth.timestamps):
+        raise RuntimeError("Bilateral visualization capture is incomplete.")
+    radial_profile = str(radial_backup_profile).lower()
+    sensor_config = frontend.config.sensor_config
+    eo_policy = (
+        None if sensor_config is None else
+        sensor_config.electro_optical_radial_proxy_policy
+    )
+    if electro_optical_radial_failover and sensor_config is None:
+        raise ValueError(
+            "electro_optical_radial_failover requires a configured sensor model."
+        )
+    friendly_ids = frontend.truth.manifest.friendly_observer_ids
     hostile_ids = frontend.truth.manifest.hostile_target_ids
     cann_history = _hostile_target_cann_history(
         frontend, captured,
         node_limit=cann_node_limit,
+        target_ids=tracking_target_ids,
     ) if include_cann else None
-    progress("bilateral_cann_complete" if include_cann else "cann_disabled", 0.82)
     configured_edges = _friendly_topology_edges(frontend)
     frames = []
     for payload in captured:
@@ -199,6 +318,22 @@ def generate_bilateral_visualization_recording(
             hostile_ids=hostile_ids,
         )
         observations = _visual_observations(frontend, payload["epoch_messages"])
+        observation_source_ids = {
+            item.observer_id for item in observations
+        }
+        selected_observer_ids = (
+            set() if tracking_observer_ids is None
+            else set(tracking_observer_ids)
+        )
+        if tracking_observer_ids is None:
+            estimation_phase = (
+                "MULTI_COOPERATIVE_TRACKING" if enable_consensus
+                else "MULTI_INDEPENDENT_TRACKING"
+            )
+        elif observation_source_ids.issubset(selected_observer_ids):
+            estimation_phase = "SELECTED_OBSERVER_TRACKING"
+        else:
+            estimation_phase = "COMMON_MULTIOBSERVER_INITIALIZATION"
         observation_edges = tuple(
             VisualEdge(
                 observer_id,
@@ -252,6 +387,38 @@ def generate_bilateral_visualization_recording(
                     if tracking_observer_ids is None
                     else "SELECTED_OBSERVERS_AFTER_COMMON_INITIALIZATION"
                 ),
+                "estimation_target_ids": list(
+                    hostile_ids
+                    if tracking_target_ids is None
+                    else tracking_target_ids
+                ),
+                "estimation_target_scope": (
+                    "ALL_HOSTILE_TARGETS"
+                    if tracking_target_ids is None
+                    else "SELECTED_HOSTILE_TARGETS_ONLY"
+                ),
+                "estimation_architecture": (
+                    "SINGLE_OBSERVER"
+                    if tracking_observer_ids is not None
+                    else (
+                        "MULTI_COOPERATIVE" if enable_consensus
+                        else "MULTI_INDEPENDENT"
+                    )
+                ),
+                "estimation_phase": estimation_phase,
+                "tracking_modalities": list(tracking_modalities),
+                "tracking_modality_scope": (
+                    "SELECTED_MODALITIES_AFTER_COMMON_MULTIMODAL_INITIALIZATION"
+                ),
+                "maximum_observation_range_m": float(
+                    frontend.config.maximum_observation_range_m
+                ),
+                "process_noise_acceleration": float(
+                    frontend.config.process_noise_acceleration
+                ),
+                "estimation_diagnostics": dict(
+                    estimation_diagnostics or {}
+                ),
                 "consensus_enabled": bool(enable_consensus),
                 "communication_topology_displayed": bool(
                     show_communication_topology
@@ -263,12 +430,42 @@ def generate_bilateral_visualization_recording(
                     **{node_id: "HOSTILE_TARGET" for node_id in hostile_ids},
                 },
                 "truth_usage": "DISPLAY_AND_SCORING_ONLY",
-                "topology_version": "friendly-ring-v1",
+                "topology_version": (
+                    "friendly-ring-v1"
+                    if show_communication_topology else
+                    "not-active-for-estimation"
+                ),
                 "acceptance_dropout_modality": dropout_modality,
+                "dropout_start_seconds": (
+                    frontend.config.dropout_start_seconds
+                ),
+                "dropout_end_seconds": frontend.config.dropout_end_seconds,
+                "configured_dropout_duration_s": (
+                    configured_dropout_duration_s
+                ),
                 "failed_observer_ids": sorted(
                     set(friendly_ids) - active_ids
                 ),
                 "radial_backup_profile": radial_profile,
+                "electro_optical_radial_failover": bool(
+                    electro_optical_radial_failover
+                ),
+                "electro_optical_radial_failover_policy": (
+                    eo_policy if electro_optical_radial_failover else None
+                ),
+                "electro_optical_range_proxy_sigma_m": (
+                    sensor_config.optical_range_proxy_sigma_m
+                    if electro_optical_radial_failover else None
+                ),
+                "electro_optical_range_rate_proxy_sigma_mps": (
+                    sensor_config.optical_range_rate_proxy_sigma_mps
+                    if electro_optical_radial_failover else None
+                ),
+                "acceptance_result_path": (
+                    None if source_result_path is None
+                    else str(source_result_path)
+                ),
+                "recording_source": "IN_PROCESS_ESTIMATOR_CAPTURE",
                 "transmitted_message_count": len(payload["epoch_messages"]),
                 "delivered_message_count": len(payload["epoch_messages"]),
                 "dropped_message_count": 0,
@@ -279,7 +476,6 @@ def generate_bilateral_visualization_recording(
     with VisualizationRecordingWriter(output) as writer:
         for frame in frames:
             writer.append(frame)
-    progress("recording_complete", 1.0)
     return output
 
 
@@ -412,14 +608,19 @@ def _active_friendly_ids(frontend, timestamp):
     )
 
 
-def _hostile_target_cann_history(frontend, captured, *, node_limit):
+def _hostile_target_cann_history(
+    frontend, captured, *, node_limit, target_ids=None,
+):
     friendly_ids = frontend.truth.manifest.friendly_observer_ids
     hostile_ids = frontend.truth.manifest.hostile_target_ids
-    selected_count = (
-        len(hostile_ids) if int(node_limit) <= 0
-        else min(int(node_limit), len(hostile_ids))
+    candidates = (
+        tuple(hostile_ids) if target_ids is None else tuple(target_ids)
     )
-    selected = tuple(hostile_ids[:selected_count])
+    selected_count = (
+        len(candidates) if int(node_limit) <= 0
+        else min(int(node_limit), len(candidates))
+    )
+    selected = tuple(candidates[:selected_count])
     times = np.asarray(frontend.truth.timestamps, dtype=float)
     posterior_by_epoch = tuple(
         {
@@ -582,10 +783,27 @@ def main() -> None:
     parser.add_argument("--consensus", action="store_true")
     parser.add_argument("--no-local-unified", action="store_true")
     parser.add_argument("--tracking-observer-indices", type=int, nargs="+")
+    parser.add_argument("--tracking-target-indices", type=int, nargs="+")
+    parser.add_argument(
+        "--tracking-modalities", nargs="+",
+        choices=("RADAR", "INFRARED", "OPTICAL"),
+        default=("RADAR", "INFRARED", "OPTICAL"),
+    )
+    parser.add_argument("--maximum-observation-range-km", type=float, default=6000.0)
+    parser.add_argument("--process-noise-acceleration", type=float, default=1e-4)
     parser.add_argument("--hide-communication-topology", action="store_true")
     parser.add_argument(
         "--radial-backup-profile",
         choices=("none", "legacy", "independent"), default="none",
+    )
+    parser.add_argument(
+        "--electro-optical-radial-failover", action="store_true",
+    )
+    parser.add_argument(
+        "--eo-radial-range-sigma-m", type=float, default=2.5,
+    )
+    parser.add_argument(
+        "--eo-radial-range-rate-sigma-mps", type=float, default=0.010,
     )
     parser.add_argument("--dropout-modality")
     parser.add_argument("--dropout-start", type=float)
@@ -628,10 +846,26 @@ def main() -> None:
             None if args.tracking_observer_indices is None
             else tuple(args.tracking_observer_indices)
         ),
+        tracking_target_indices=(
+            None if args.tracking_target_indices is None
+            else tuple(args.tracking_target_indices)
+        ),
+        tracking_modalities=tuple(args.tracking_modalities),
+        maximum_observation_range_m=(
+            1000.0 * args.maximum_observation_range_km
+        ),
+        process_noise_acceleration=args.process_noise_acceleration,
         show_communication_topology=(
             not args.hide_communication_topology
         ),
         radial_backup_profile=args.radial_backup_profile,
+        electro_optical_radial_failover=(
+            args.electro_optical_radial_failover
+        ),
+        eo_radial_range_sigma_m=args.eo_radial_range_sigma_m,
+        eo_radial_range_rate_sigma_mps=(
+            args.eo_radial_range_rate_sigma_mps
+        ),
         dropout_modality=args.dropout_modality,
         dropout_start=args.dropout_start,
         dropout_end=args.dropout_end,

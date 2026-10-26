@@ -14,6 +14,7 @@ from orbital_core.dynamics import (
 from tracking.data_contracts import TargetInitialState
 from tracking.multi_observer_multimodal_filter import (
     UnifiedMultimodalUpdate,
+    _apply_radial_proxy_failover_policy,
     _measurement_block,
     unified_multi_observer_multimodal_update,
 )
@@ -64,7 +65,7 @@ class FixedLagMultimodalWindow:
 
     def append(self, observations, *, timestamp: float) -> None:
         epoch = float(timestamp)
-        values = tuple(observations)
+        values = _apply_radial_proxy_failover_policy(tuple(observations))
         if not values:
             raise ValueError("A fixed-lag epoch requires observations.")
         if epoch <= self._anchor.timestamp:

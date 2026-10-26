@@ -23,8 +23,35 @@ def main() -> None:
     parser.add_argument("--backup-radial-range-sigma-m", type=float)
     parser.add_argument("--backup-radial-range-rate-sigma-mps", type=float)
     parser.add_argument(
+        "--fixed-federated-weights", type=float, nargs=3,
+        metavar=("RADAR", "INFRARED", "OPTICAL"),
+        help=(
+            "Prior-information allocation used only by "
+            "p05-fixed-weight-pilot."
+        ),
+    )
+    parser.add_argument(
         "--independent-radial-backup-channel", action="store_true",
         help="Separate the numerical radial backup from its legacy IR carrier.",
+    )
+    parser.add_argument(
+        "--primary-acceptance-only", action="store_true",
+        help=(
+            "Run only the five estimator arms needed by the frozen P05/P07 "
+            "primary acceptance metrics."
+        ),
+    )
+    parser.add_argument(
+        "--acceptance-scope",
+        choices=(
+            "p05-control", "p05-candidate", "p05-optical-pilot",
+            "p05-fixed-weight-pilot",
+            "p07-control", "p07-candidate",
+        ),
+        help=(
+            "Run only the one control arm or matched control/candidate pair "
+            "required by the selected acceptance item."
+        ),
     )
     parser.add_argument(
         "--output",
@@ -46,7 +73,18 @@ def main() -> None:
             args.independent_radial_backup_channel
         ),
     )
-    result = run_bilateral_baseline_matrix(config)
+    result = run_bilateral_baseline_matrix(
+        config,
+        primary_acceptance_only=args.primary_acceptance_only,
+        acceptance_scope=args.acceptance_scope,
+        fixed_federated_weights=(
+            None if args.fixed_federated_weights is None else {
+                "rad": args.fixed_federated_weights[0],
+                "ir": args.fixed_federated_weights[1],
+                "opt": args.fixed_federated_weights[2],
+            }
+        ),
+    )
     payload = {
         "schemaVersion": "bilateral-baseline-matrix.v3",
         "scenario": {
@@ -55,6 +93,13 @@ def main() -> None:
             "durationSeconds": args.duration,
             "sampleIntervalSeconds": 1.0,
             "seed": args.seed,
+            "armSelection": (
+                args.acceptance_scope.upper().replace("-", "_")
+                if args.acceptance_scope else (
+                    "P05_P07_PRIMARY"
+                    if args.primary_acceptance_only else "FULL"
+                )
+            ),
             "independentRadialBackup": {
                 "enabled": args.backup_radial_range_sigma_m is not None,
                 "rangeSigmaM": args.backup_radial_range_sigma_m,
@@ -79,11 +124,15 @@ def main() -> None:
             name: _node_view_payload(metrics)
             for name, metrics in result.local_node_baselines.items()
         },
-        "matchedSingleObserverCann": asdict(
-            result.matched_single_observer_cann_metrics
+        "matchedSingleObserverCann": (
+            asdict(result.matched_single_observer_cann_metrics)
+            if result.matched_single_observer_cann_metrics is not None
+            else None
         ),
-        "matchedSingleObserverJointCann": asdict(
-            result.matched_single_observer_joint_cann_metrics
+        "matchedSingleObserverJointCann": (
+            asdict(result.matched_single_observer_joint_cann_metrics)
+            if result.matched_single_observer_joint_cann_metrics is not None
+            else None
         ),
         "matchedSingleObserverAblation": {
             name: asdict(metrics)
@@ -97,14 +146,22 @@ def main() -> None:
                 result.matched_single_observer_cann_vs_modality.items()
             )
         },
+        "matchedSingleObserverJointCannVsModality": {
+            name: asdict(metrics)
+            for name, metrics in (
+                result.matched_single_observer_joint_cann_vs_modality.items()
+            )
+        },
         "matchedIndependentConsensusByCann": {
             name: asdict(metrics)
             for name, metrics in (
                 result.matched_independent_consensus_metrics_by_cann.items()
             )
         },
-        "matchedJointIndependentConsensus": asdict(
-            result.matched_joint_independent_consensus_metrics
+        "matchedJointIndependentConsensus": (
+            asdict(result.matched_joint_independent_consensus_metrics)
+            if result.matched_joint_independent_consensus_metrics is not None
+            else None
         ),
         "arms": {
             name: _arm_payload(arm) for name, arm in result.arms.items()

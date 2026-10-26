@@ -37,13 +37,25 @@ class MultimodalSensorSimulationConfig:
     optical: OpticalCameraConfig = field(default_factory=OpticalCameraConfig)
     infrared: InfraredCameraConfig = field(default_factory=InfraredCameraConfig)
     radar: RadarRangeDopplerConfig = field(default_factory=RadarRangeDopplerConfig)
+    optical_range_proxy_sigma_m: float | None = None
+    optical_range_rate_proxy_sigma_mps: float | None = None
     infrared_range_proxy_sigma_m: float | None = None
     infrared_range_rate_proxy_sigma_mps: float | None = None
+    electro_optical_radial_proxy_policy: str = "independent"
     backup_radial_range_sigma_m: float | None = None
     backup_radial_range_rate_sigma_mps: float | None = None
 
     def __post_init__(self):
+        policy = str(self.electro_optical_radial_proxy_policy).strip().lower()
+        if policy not in {"independent", "radar_primary_failover"}:
+            raise ValueError(
+                "electro_optical_radial_proxy_policy must be independent or "
+                "radar_primary_failover."
+            )
+        object.__setattr__(self, "electro_optical_radial_proxy_policy", policy)
         for field_name in (
+            "optical_range_proxy_sigma_m",
+            "optical_range_rate_proxy_sigma_mps",
             "infrared_range_proxy_sigma_m",
             "infrared_range_rate_proxy_sigma_mps",
             "backup_radial_range_sigma_m",
@@ -57,14 +69,20 @@ class MultimodalSensorSimulationConfig:
                 raise ValueError(f"{field_name} must be positive and finite.")
             object.__setattr__(self, field_name, sigma)
         if (
-            self.infrared_range_proxy_sigma_m is not None
+            (
+                self.optical_range_proxy_sigma_m is not None
+                or self.infrared_range_proxy_sigma_m is not None
+            )
             and self.backup_radial_range_sigma_m is not None
         ) or (
-            self.infrared_range_rate_proxy_sigma_mps is not None
+            (
+                self.optical_range_rate_proxy_sigma_mps is not None
+                or self.infrared_range_rate_proxy_sigma_mps is not None
+            )
             and self.backup_radial_range_rate_sigma_mps is not None
         ):
             raise ValueError(
-                "Legacy infrared proxies and the independent radial backup "
+                "Idealized electro-optical proxies and the independent radial backup "
                 "cannot provide the same measurement component together."
             )
 
@@ -191,6 +209,44 @@ def simulate_multimodal_sensor_epoch(
         infrared_frame, config=selected.infrared,
         covariance_calibration=calibrations.get("INFRARED"),
     )
+    if selected.optical_range_proxy_sigma_m is not None:
+        sigma = float(selected.optical_range_proxy_sigma_m)
+        generator = rngs.get("OPTICAL")
+        if generator is None:
+            generator = np.random.default_rng()
+        optical.metadata.update({
+            "rangeProxyM": float(
+                measure_relative_range(observer, target)
+                + generator.normal(0.0, sigma)
+            ),
+            "rangeProxyVarianceM2": sigma**2,
+            "rangeProxySource": "OPTICAL_IDEALIZED_DEPTH_MODEL",
+            "rangeProxyIndependentNoiseAssumed": True,
+            "radialProxyPhysicalValidation": False,
+            "radialProxyFusionPolicy": (
+                selected.electro_optical_radial_proxy_policy
+            ),
+            "radialProxyFailoverPriority": 2,
+        })
+    if selected.optical_range_rate_proxy_sigma_mps is not None:
+        sigma = float(selected.optical_range_rate_proxy_sigma_mps)
+        generator = rngs.get("OPTICAL")
+        if generator is None:
+            generator = np.random.default_rng()
+        optical.metadata.update({
+            "rangeRateProxyMps": float(
+                measure_relative_range_rate(observer, target)
+                + generator.normal(0.0, sigma)
+            ),
+            "rangeRateProxyVarianceM2ps2": sigma**2,
+            "rangeRateProxySource": "OPTICAL_IDEALIZED_DEPTH_MODEL",
+            "rangeRateProxyIndependentNoiseAssumed": True,
+            "radialProxyPhysicalValidation": False,
+            "radialProxyFusionPolicy": (
+                selected.electro_optical_radial_proxy_policy
+            ),
+            "radialProxyFailoverPriority": 2,
+        })
     if selected.infrared_range_proxy_sigma_m is not None:
         sigma = float(selected.infrared_range_proxy_sigma_m)
         generator = rngs.get("INFRARED")
@@ -205,6 +261,11 @@ def simulate_multimodal_sensor_epoch(
             "rangeProxyVarianceM2": sigma**2,
             "rangeProxySource": "INFRARED_IDEALIZED_SENSITIVITY_MODEL",
             "rangeProxyIndependentNoiseAssumed": True,
+            "radialProxyPhysicalValidation": False,
+            "radialProxyFusionPolicy": (
+                selected.electro_optical_radial_proxy_policy
+            ),
+            "radialProxyFailoverPriority": 1,
         })
     if selected.infrared_range_rate_proxy_sigma_mps is not None:
         sigma = float(selected.infrared_range_rate_proxy_sigma_mps)
@@ -220,6 +281,11 @@ def simulate_multimodal_sensor_epoch(
             "rangeRateProxyVarianceM2ps2": sigma**2,
             "rangeRateProxySource": "INFRARED_IDEALIZED_SENSITIVITY_MODEL",
             "rangeRateProxyIndependentNoiseAssumed": True,
+            "radialProxyPhysicalValidation": False,
+            "radialProxyFusionPolicy": (
+                selected.electro_optical_radial_proxy_policy
+            ),
+            "radialProxyFailoverPriority": 1,
         })
     if selected.backup_radial_range_sigma_m is not None:
         sigma = float(selected.backup_radial_range_sigma_m)

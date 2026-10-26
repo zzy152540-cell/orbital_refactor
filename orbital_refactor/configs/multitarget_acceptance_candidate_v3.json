@@ -94,16 +94,16 @@
       ],
       "maximumIncreasePercent": 15.0,
       "missingModalities": ["OPTICAL", "INFRARED", "RADAR"],
-      "modalitySpecificOverridePolicy": {
-        "OPTICAL": "NONE",
-        "INFRARED": "NONE",
-        "RADAR": "USE_RADAR_DROPOUT_OVERRIDE"
-      },
-      "radarDropoutOverride": {
-        "enabledOnAllFriendlyObservers": true,
-        "source": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
-        "rangeSigmaM": 1.0,
-        "rangeRateSigmaMps": 0.0125,
+      "sharedElectroOpticalRadialFailover": {
+        "appliedToControlAndAllDropoutGroups": true,
+        "policy": "RADAR_PRIMARY_FAILOVER",
+        "radarPrimary": true,
+        "fallbackPriority": ["INFRARED", "OPTICAL"],
+        "source": "IDEALIZED_ELECTRO_OPTICAL_RADIAL_PROXY",
+        "opticalRangeSigmaM": 2.5,
+        "opticalRangeRateSigmaMps": 0.01,
+        "infraredRangeSigmaM": 2.5,
+        "infraredRangeRateSigmaMps": 0.01,
         "physicalValidation": false,
         "physicalValidationWaivedForThisAcceptance": true
       },
@@ -122,19 +122,38 @@
           0.03913737050400545,
           0.21468210427970646
         ],
-        "radarPositionIncreasePercent": 3.361342607664053,
-        "radarVelocityIncreasePercent": 13.877318105950721,
-        "radarAccelerationIncreasePercent": 2.009140931371056,
+        "radarPositionIncreasePercent": 3.6655076881079607,
+        "radarVelocityIncreasePercent": -4.900740504150292,
+        "radarAccelerationIncreasePercent": 1.3637322993520495,
         "radarPositionPairedSeedBootstrap95Percent": [
-          2.379036263284018,
-          5.438544594696771
+          -1.7227679039542587,
+          6.261887417785639
         ],
         "perModalityStatus": {
           "OPTICAL": "PASS_L2",
           "INFRARED": "PASS_L2",
-          "RADAR": "PASS_L2_WITH_NUMERICAL_BACKUP"
+          "RADAR": "PASS_L2_WITH_IDEALIZED_EO_FAILOVER"
         },
-        "status": "PASS_L2_ALL_MODALITIES_WITH_RADAR_NUMERICAL_BACKUP"
+        "worstSeedIncreasePercentByModality": {
+          "OPTICAL": {
+            "position": 0.7821923866582647,
+            "velocity": 0.23535045582856462,
+            "acceleration": 0.0008908782324290598
+          },
+          "INFRARED": {
+            "position": 0.3533972554498055,
+            "velocity": 0.08756899396642481,
+            "acceleration": 0.0023423972587366393
+          },
+          "RADAR": {
+            "position": 6.818870049132664,
+            "velocity": 3.3435408306999426,
+            "acceleration": 3.800286926693519
+          }
+        },
+        "allReportedStateMetricsPassed15Percent": true,
+        "coveragePassed": true,
+        "status": "PASS_L2_ALL_MODALITIES_WITH_SHARED_EO_FAILOVER"
       }
     },
     "R08": {
@@ -220,19 +239,14 @@
   },
   "acceptanceBoundaries": {
     "singleRuntimeConfigurationClaimed": false,
-    "metricSpecificOverride": "R06_RADAR_DROPOUT_USES_ALL_NODE_RADIAL_BACKUP",
-    "excludePartialRadialCoverage": true,
-    "excludeMultiHopCoverageExperiment": true,
-    "excludeCompleteRadialLineageGate": true,
-    "excludeRangeOnlyBackup": true,
-    "excludeRangeRateSigmaMpsAbove": 0.0125,
+    "metricSpecificOverride": "R06_SHARED_RADAR_PRIMARY_EO_RADIAL_FAILOVER",
+    "legacyIndependentRadialBackupUsed": false,
+    "electroOpticalProxyPhysicalValidationClaimed": false,
     "formalPhysicalSensorClaimed": false
   },
   "referenceArtifacts": {
     "P05_P07": "results/external_acceptance/v3_p05_four_arm_summary_5seed_120s.json",
-    "R06_radar": "results/external_acceptance/v3_joint_r06_radial_backup_shadow_r1_rr0p0125_summary_5seed_120s.json",
-    "R06_optical": "results/external_acceptance/frozen_v3/r06_optical_no_backup_summary_5seed_120s.json",
-    "R06_infrared": "results/external_acceptance/frozen_v3/r06_infrared_no_backup_summary_5seed_120s.json",
+    "R06": "results/external_acceptance/r06_eo_failover_formal/r06_eo_failover_summary_5seed_120s.json",
     "R08_spatial": "results/external_acceptance/v3_joint_robustness_summary_5seed_120s.json",
     "R08_adjacent": "results/external_acceptance/v3_joint_robustness_adjacent_012_summary_5seed_120s.json",
     "R08_highVisibility": "results/external_acceptance/v3_joint_robustness_high_visibility_summary_5seed_120s.json",

@@ -145,6 +145,35 @@ def test_all_modalities_missing_propagates_previous_fused_state():
     assert any(event.event_type == "ALL_MODALITIES_UNAVAILABLE" for event in result.abnormal_events)
 
 
+def test_fixed_information_federation_uses_declared_allocation_and_handles_dropout():
+    t, chief, qhist, x0, p0, zopt, zir, zrad, valid = _synthetic_inputs()
+    valid_ir = valid.copy()
+    valid_ir[2] = False
+    result = run_federated_ci_filter(
+        timestamps=t,
+        chief_state_history_eci=chief,
+        q_eci2pri_history=qhist,
+        measurements_by_modality={"opt": zopt, "ir": zir, "rad": zrad},
+        valid_flags_by_modality={"opt": valid, "ir": valid_ir, "rad": valid},
+        local_filters=_new_filters(),
+        initial_state=x0,
+        initial_covariance=p0,
+        reset_feedback=True,
+        fusion_method="fixed_information",
+        information_allocation_weights={
+            "rad": 0.4, "ir": 0.3, "opt": 0.3,
+        },
+    )
+
+    assert np.all(np.isfinite(result.fused_state_history))
+    assert np.all(np.isfinite(result.fused_covariance_history))
+    assert result.ci_weight_history[1] == {
+        "opt": 0.3, "ir": 0.3, "rad": 0.4,
+    }
+    assert np.isclose(sum(result.ci_weight_history[2].values()), 1.0)
+    assert "ir" not in result.ci_weight_history[2]
+
+
 def test_anchor_consistency_gate_excludes_overconfident_angular_outlier():
     radar_state = np.zeros(6)
     radar_covariance = np.eye(6) * 4.0

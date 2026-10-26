@@ -163,6 +163,13 @@ def test_p07_keeps_mean_error_and_rmse_candidates_separate():
         "consensus_velocity_mean_error_mps": 0.9,
         "local_velocity_rmse_mps": 1.2,
         "consensus_velocity_rmse_mps": 1.14,
+        "local_acceleration_sample_count": 80,
+        "consensus_acceleration_sample_count": 90,
+        "common_acceleration_sample_count": 80,
+        "local_only_acceleration_sample_count": 0,
+        "consensus_only_acceleration_sample_count": 10,
+        "local_acceleration_rmse_mps2": 0.20,
+        "consensus_acceleration_rmse_mps2": 0.18,
     }
     payload = {
         "scenario": {"seed": 0},
@@ -190,6 +197,13 @@ def test_p07_keeps_mean_error_and_rmse_candidates_separate():
     assert comparison["coverageComparable"]
     assert comparison["positionMeanError"]["improvementPercent"] == 10.0
     assert comparison["positionRmse"]["improvementPercent"] == pytest.approx(5.0)
+    assert comparison["accelerationCoverageComparable"]
+    assert comparison["accelerationRmse"][
+        "commonSampleCount"
+    ] == 80
+    assert comparison["accelerationRmse"][
+        "improvementPercent"
+    ] == pytest.approx(10.0)
     assert evidence["primaryMetricFreezeStatus"] == "FROZEN_POSITION_MEAN_ERROR"
     assert evidence["centralizedAllObservationDiagnosticUpperBound"][
         "coverageComparable"

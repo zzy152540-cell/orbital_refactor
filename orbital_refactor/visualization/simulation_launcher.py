@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
-import sys
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -31,6 +30,7 @@ from visualization.acceptance_test_workflow import (
 )
 from visualization.replay_model import VisualizationReplayModel
 from visualization.replay_window import VisualizationReplayWindow
+from visualization.process_launch import module_process_command
 
 
 MAX_PARALLEL_ACCEPTANCE_JOBS = 2
@@ -124,14 +124,51 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             "Interrupt absolute navigation on two nodes"
         )
         self.process_noise = self._decimal(1e-12, 1.0, 12)
+        self.bilateral_process_noise = self._decimal(1e-12, 1.0, 12)
         self.radar_enabled = QtWidgets.QCheckBox("Enable radar measurements")
         self.infrared_enabled = QtWidgets.QCheckBox("Enable infrared measurements")
         self.optical_enabled = QtWidgets.QCheckBox("Enable optical measurements")
+        self.modality_dropout = QtWidgets.QComboBox()
+        self.modality_dropout.addItem("No modality dropout", "NONE")
+        self.modality_dropout.addItem("Radar dropout", "RADAR")
+        self.modality_dropout.addItem("Infrared dropout", "INFRARED")
+        self.modality_dropout.addItem("Optical dropout", "OPTICAL")
+        self.dropout_start_s = self._decimal(0.0, 86400.0, 1)
+        self.dropout_duration_s = self._decimal(0.1, 86400.0, 1)
+        self.modality_dropout.currentIndexChanged.connect(
+            self._apply_dropout_controls
+        )
         self.radar_range_sigma = self._decimal(0.001, 10000.0, 3)
         self.radar_rate_sigma = self._decimal(0.0001, 1000.0, 4)
         self.infrared_sigma = self._decimal(0.0001, 90.0, 4)
         self.optical_sigma = self._decimal(1e-8, 1.0, 8)
         self.absolute_sigma = self._decimal(0.001, 10000.0, 3)
+        self.estimation_architecture = QtWidgets.QComboBox()
+        self.estimation_architecture.addItem(
+            "Single-observer multimodal estimation", "SINGLE_OBSERVER"
+        )
+        self.estimation_architecture.addItem(
+            "Multi-observer independent estimation", "MULTI_INDEPENDENT"
+        )
+        self.estimation_architecture.addItem(
+            "Multi-star cooperative estimation (Consensus-CI)",
+            "MULTI_COOPERATIVE",
+        )
+        self._last_configurable_estimation_architecture = "MULTI_INDEPENDENT"
+        self.tracking_observer_number = self._integer(1, 100)
+        self.tracking_target_number = self._integer(1, 100)
+        self.estimation_architecture.currentIndexChanged.connect(
+            self._apply_estimation_controls
+        )
+        self.estimation_architecture.currentIndexChanged.connect(
+            self._remember_configurable_estimation_architecture
+        )
+        self.friendly_total_satellites.valueChanged.connect(
+            self._apply_estimation_controls
+        )
+        self.hostile_total_satellites.valueChanged.connect(
+            self._apply_estimation_controls
+        )
         self.replay_window = self._decimal(0.1, 10000.0, 1)
         self.max_pinned_age = self._decimal(0.1, 10000.0, 1)
         self.communication_profile = QtWidgets.QComboBox()
@@ -179,18 +216,25 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             ("Random seed", self.seed),
             ("Navigation fault", self.absolute_dropout),
             ("Process acceleration noise", self.process_noise),
+            ("Bilateral tracking process noise", self.bilateral_process_noise),
         ))
         self._add_tab(tabs, "Measurements & visibility", (
             ("Radar", self.radar_enabled),
             ("Infrared", self.infrared_enabled),
             ("Optical", self.optical_enabled),
-            ("Maximum link range (km)", self.maximum_range_km),
+            ("Modality fault", self.modality_dropout),
+            ("Dropout start (s)", self.dropout_start_s),
+            ("Dropout duration (s)", self.dropout_duration_s),
+            ("Maximum observation/link range (km)", self.maximum_range_km),
             ("Radar range sigma (m)", self.radar_range_sigma),
             ("Radar range-rate sigma (m/s)", self.radar_rate_sigma),
             ("Infrared angle sigma (deg)", self.infrared_sigma),
             ("Optical image sigma", self.optical_sigma),
         ))
         self._add_tab(tabs, "Filter & integrity", (
+            ("Estimation architecture", self.estimation_architecture),
+            ("Single observer number (1-based)", self.tracking_observer_number),
+            ("Single target number (1-based)", self.tracking_target_number),
             ("Absolute navigation sigma (m)", self.absolute_sigma),
             ("Replay history window (s)", self.replay_window),
             ("Maximum pinned age (s)", self.max_pinned_age),
@@ -244,6 +288,12 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_mode = QtWidgets.QComboBox()
         self.acceptance_mode.addItem("快速检查（seed 0，非正式）", QUICK_MODE)
         self.acceptance_mode.addItem("正式验收（seed 0～4）", FORMAL_MODE)
+        self.acceptance_default_r06_window = QtWidgets.QCheckBox(
+            "Use default R06 dropout window"
+        )
+        self.acceptance_default_r06_window.setChecked(True)
+        self.acceptance_dropout_start_s = self._decimal(0.0, 86400.0, 1)
+        self.acceptance_dropout_duration_s = self._decimal(1.0, 86400.0, 1)
         self.acceptance_output = QtWidgets.QLineEdit()
         output_row = QtWidgets.QHBoxLayout()
         output_row.addWidget(self.acceptance_output, 1)
@@ -252,6 +302,11 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         output_row.addWidget(browse)
         form.addRow("Test item", self.acceptance_test)
         form.addRow("Run mode", self.acceptance_mode)
+        form.addRow("R06 window", self.acceptance_default_r06_window)
+        form.addRow("R06 dropout start (s)", self.acceptance_dropout_start_s)
+        form.addRow(
+            "R06 dropout duration (s)", self.acceptance_dropout_duration_s
+        )
         form.addRow("Result directory", output_row)
         root.addLayout(form)
 
@@ -295,6 +350,15 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         )
         self.acceptance_mode.currentIndexChanged.connect(
             self._refresh_acceptance_plan
+        )
+        self.acceptance_default_r06_window.toggled.connect(
+            self._refresh_acceptance_window_controls
+        )
+        self.acceptance_dropout_start_s.valueChanged.connect(
+            self._refresh_acceptance_description
+        )
+        self.acceptance_dropout_duration_s.valueChanged.connect(
+            self._refresh_acceptance_description
         )
         self._refresh_acceptance_plan()
 
@@ -354,14 +418,23 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             seed=self.seed.value(),
             enable_absolute_navigation_dropout=self.absolute_dropout.isChecked(),
             process_noise_acceleration=self.process_noise.value(),
+            bilateral_process_noise_acceleration=(
+                self.bilateral_process_noise.value()
+            ),
             radar_enabled=self.radar_enabled.isChecked(),
             infrared_enabled=self.infrared_enabled.isChecked(),
             optical_enabled=self.optical_enabled.isChecked(),
+            dropout_modality=self.modality_dropout.currentData(),
+            dropout_start_s=self.dropout_start_s.value(),
+            dropout_duration_s=self.dropout_duration_s.value(),
             radar_range_sigma_m=self.radar_range_sigma.value(),
             radar_range_rate_sigma_mps=self.radar_rate_sigma.value(),
             infrared_angle_sigma_deg=self.infrared_sigma.value(),
             optical_image_sigma=self.optical_sigma.value(),
             absolute_navigation_sigma_m=self.absolute_sigma.value(),
+            estimation_architecture=self.estimation_architecture.currentData(),
+            tracking_observer_index=self.tracking_observer_number.value() - 1,
+            tracking_target_index=self.tracking_target_number.value() - 1,
             replay_history_window_s=self.replay_window.value(),
             max_pinned_age_s=self.max_pinned_age.value(),
             communication_profile=self.communication_profile.currentText(),
@@ -408,14 +481,34 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.seed.setValue(config.seed)
         self.absolute_dropout.setChecked(config.enable_absolute_navigation_dropout)
         self.process_noise.setValue(config.process_noise_acceleration)
+        self.bilateral_process_noise.setValue(
+            config.bilateral_process_noise_acceleration
+        )
         self.radar_enabled.setChecked(config.radar_enabled)
         self.infrared_enabled.setChecked(config.infrared_enabled)
         self.optical_enabled.setChecked(config.optical_enabled)
+        self.modality_dropout.setCurrentIndex(max(
+            0, self.modality_dropout.findData(config.dropout_modality),
+        ))
+        self.dropout_start_s.setValue(config.dropout_start_s)
+        self.dropout_duration_s.setValue(config.dropout_duration_s)
         self.radar_range_sigma.setValue(config.radar_range_sigma_m)
         self.radar_rate_sigma.setValue(config.radar_range_rate_sigma_mps)
         self.infrared_sigma.setValue(config.infrared_angle_sigma_deg)
         self.optical_sigma.setValue(config.optical_image_sigma)
         self.absolute_sigma.setValue(config.absolute_navigation_sigma_m)
+        self.estimation_architecture.setCurrentIndex(max(
+            0,
+            self.estimation_architecture.findData(
+                config.estimation_architecture
+            ),
+        ))
+        self.tracking_observer_number.setValue(
+            config.tracking_observer_index + 1
+        )
+        self.tracking_target_number.setValue(
+            config.tracking_target_index + 1
+        )
         self.replay_window.setValue(config.replay_history_window_s)
         self.max_pinned_age.setValue(config.max_pinned_age_s)
         self.communication_profile.setCurrentText(config.communication_profile)
@@ -436,6 +529,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             "BILATERAL_CONFIGURABLE", "BILATERAL_15X15",
         }
         frozen_bilateral = scenario == "BILATERAL_15X15"
+        configurable_bilateral = scenario == "BILATERAL_CONFIGURABLE"
         walker_fields = (
             self.total_satellites, self.plane_count, self.phasing,
             self.altitude_km, self.inclination_deg,
@@ -454,9 +548,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         for widget in bilateral_fields:
             widget.setEnabled(scenario == "BILATERAL_CONFIGURABLE")
         for widget in (
-            self.maximum_range_km,
-            self.absolute_dropout, self.process_noise, self.radar_enabled,
-            self.infrared_enabled, self.optical_enabled,
+            self.absolute_dropout,
             self.radar_range_sigma, self.radar_rate_sigma,
             self.infrared_sigma, self.optical_sigma, self.absolute_sigma,
             self.replay_window, self.max_pinned_age,
@@ -464,6 +556,43 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             self.link_suspension,
         ):
             widget.setEnabled(not bilateral)
+        self.process_noise.setEnabled(not bilateral)
+        self.bilateral_process_noise.setEnabled(configurable_bilateral)
+        self.estimation_architecture.setEnabled(configurable_bilateral)
+        if frozen_bilateral:
+            with QtCore.QSignalBlocker(self.estimation_architecture):
+                self.estimation_architecture.setCurrentIndex(
+                    self.estimation_architecture.findData("MULTI_COOPERATIVE")
+                )
+        elif configurable_bilateral:
+            with QtCore.QSignalBlocker(self.estimation_architecture):
+                self.estimation_architecture.setCurrentIndex(max(
+                    0, self.estimation_architecture.findData(
+                        self._last_configurable_estimation_architecture
+                    ),
+                ))
+        for widget in (
+            self.maximum_range_km, self.radar_enabled,
+            self.infrared_enabled, self.optical_enabled,
+        ):
+            widget.setEnabled(not frozen_bilateral)
+        self.modality_dropout.setEnabled(configurable_bilateral)
+        bilateral_tracking_help = (
+            "For bilateral target tracking, enabled modalities are applied "
+            "after the common multimodal target-initialization stage."
+        )
+        for widget in (
+            self.radar_enabled, self.infrared_enabled, self.optical_enabled,
+        ):
+            widget.setToolTip(
+                bilateral_tracking_help if bilateral else ""
+            )
+        self.bilateral_process_noise.setToolTip(
+            "Target-tracker process acceleration noise for the configurable "
+            "bilateral scene. The frozen 15:15 scene uses 1e-4."
+        )
+        self._apply_estimation_controls()
+        self._apply_dropout_controls()
         if frozen_bilateral:
             self.friendly_total_satellites.setValue(15)
             self.friendly_plane_count.setValue(3)
@@ -480,6 +609,52 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
                 self.output.setText(
                     "results/visualization_recordings/bilateral30_configured"
                 )
+
+    def _apply_dropout_controls(self) -> None:
+        enabled = (
+            self.scenario_type.currentData() == "BILATERAL_CONFIGURABLE"
+            and self.modality_dropout.currentData() != "NONE"
+        )
+        self.dropout_start_s.setEnabled(enabled)
+        self.dropout_duration_s.setEnabled(enabled)
+        help_text = (
+            "The interval is applied to free bilateral simulation only. "
+            "An outage before target initialization may prevent track birth."
+        )
+        self.modality_dropout.setToolTip(help_text)
+        self.dropout_start_s.setToolTip(help_text)
+        self.dropout_duration_s.setToolTip(help_text)
+
+    def _apply_estimation_controls(self) -> None:
+        configurable_bilateral = (
+            self.scenario_type.currentData() == "BILATERAL_CONFIGURABLE"
+        )
+        self.tracking_observer_number.setMaximum(max(
+            1, self.friendly_total_satellites.value()
+        ))
+        self.tracking_target_number.setMaximum(max(
+            1, self.hostile_total_satellites.value()
+        ))
+        single = (
+            configurable_bilateral
+            and self.estimation_architecture.currentData()
+            == "SINGLE_OBSERVER"
+        )
+        self.tracking_observer_number.setEnabled(single)
+        self.tracking_target_number.setEnabled(single)
+        self.estimation_architecture.setToolTip(
+            "Single-observer mode performs common multimodal initialization "
+            "for only the selected hostile target, then restricts continued "
+            "tracking to the selected friendly observer. The frozen 15:15 scene always "
+            "uses multi-star cooperative Consensus-CI."
+        )
+
+    def _remember_configurable_estimation_architecture(self) -> None:
+        if self.scenario_type.currentData() != "BILATERAL_CONFIGURABLE":
+            return
+        value = self.estimation_architecture.currentData()
+        if value:
+            self._last_configurable_estimation_architecture = str(value)
 
     def _load_config(self) -> None:
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -527,18 +702,35 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         mode = self.acceptance_mode.currentData()
         if not preset_id or not mode:
             return
+        self._refresh_acceptance_window_controls()
         self.acceptance_output.setText(str(
             make_acceptance_output_directory(preset_id)
         ))
         self._refresh_acceptance_description()
 
+    def _refresh_acceptance_window_controls(self) -> None:
+        preset_id = self.acceptance_test.currentData()
+        mode = self.acceptance_mode.currentData()
+        if not preset_id or not mode:
+            return
+        is_r06 = str(preset_id).startswith("R06_")
+        self.acceptance_default_r06_window.setEnabled(is_r06)
+        if self.acceptance_default_r06_window.isChecked():
+            start, duration = (
+                (6.0, 8.0) if mode == QUICK_MODE else (30.0, 60.0)
+            )
+            self.acceptance_dropout_start_s.setValue(start)
+            self.acceptance_dropout_duration_s.setValue(duration)
+        custom_enabled = (
+            is_r06 and not self.acceptance_default_r06_window.isChecked()
+        )
+        self.acceptance_dropout_start_s.setEnabled(custom_enabled)
+        self.acceptance_dropout_duration_s.setEnabled(custom_enabled)
+        self._refresh_acceptance_description()
+
     def _refresh_acceptance_description(self) -> None:
         try:
-            plan = build_acceptance_plan(
-                self.acceptance_test.currentData(),
-                self.acceptance_mode.currentData(),
-                self.acceptance_output.text().strip(),
-            )
+            plan = self._build_acceptance_plan_from_ui()
             self.acceptance_description.setPlainText(
                 describe_acceptance_plan(plan)
             )
@@ -549,11 +741,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
 
     def _run_acceptance_test(self) -> None:
         try:
-            plan = build_acceptance_plan(
-                self.acceptance_test.currentData(),
-                self.acceptance_mode.currentData(),
-                self.acceptance_output.text().strip(),
-            )
+            plan = self._build_acceptance_plan_from_ui()
             output = Path(plan.output_directory)
             if output.exists() and any(output.iterdir()):
                 raise FileExistsError(
@@ -575,6 +763,26 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             f"Starting {plan.preset.name} ({'formal' if plan.formal else 'quick'})"
         )
         self._start_next_acceptance_job()
+
+    def _build_acceptance_plan_from_ui(self):
+        preset_id = self.acceptance_test.currentData()
+        custom_r06 = (
+            str(preset_id).startswith("R06_")
+            and not self.acceptance_default_r06_window.isChecked()
+        )
+        return build_acceptance_plan(
+            preset_id,
+            self.acceptance_mode.currentData(),
+            self.acceptance_output.text().strip(),
+            r06_event_start_s=(
+                self.acceptance_dropout_start_s.value()
+                if custom_r06 else None
+            ),
+            r06_event_duration_s=(
+                self.acceptance_dropout_duration_s.value()
+                if custom_r06 else None
+            ),
+        )
 
     def _start_next_acceptance_job(self) -> None:
         plan = self._acceptance_plan
@@ -628,7 +836,8 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
                 self._acceptance_process_error(process, index, error)
         )
         self._acceptance_processes[process] = job_index
-        process.start(sys.executable, ["-m", job.module, *job.arguments])
+        program, arguments = module_process_command(job.module, job.arguments)
+        process.start(program, arguments)
 
     def _read_acceptance_output(self, process, job_index: int) -> None:
         if process not in self._acceptance_processes:
@@ -733,6 +942,12 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_test.setEnabled(not running)
         self.acceptance_mode.setEnabled(not running)
         self.acceptance_output.setEnabled(not running)
+        if running:
+            self.acceptance_default_r06_window.setEnabled(False)
+            self.acceptance_dropout_start_s.setEnabled(False)
+            self.acceptance_dropout_duration_s.setEnabled(False)
+        else:
+            self._refresh_acceptance_window_controls()
         self.acceptance_run_button.setText(
             "Running..." if running else "Run selected test"
         )
@@ -810,9 +1025,20 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
 
     def _simulation_completed(self, output: str) -> None:
         config = self._worker.config
+        configuration_path = Path(output) / "launch_config.json"
+        try:
+            save_visualization_simulation_config(config, configuration_path)
+            configuration_note = f"\nConfiguration: {configuration_path}"
+        except Exception as exc:
+            configuration_note = (
+                f"\nConfiguration snapshot warning: "
+                f"{type(exc).__name__}: {exc}"
+            )
         self._set_running(False)
         self.progress_bar.setValue(100)
-        self.status.setPlainText(f"Simulation completed: {output}")
+        self.status.setPlainText(
+            f"Simulation completed: {output}{configuration_note}"
+        )
         if config.open_after_run:
             self._open_replay(output)
 

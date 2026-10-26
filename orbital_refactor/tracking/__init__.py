@@ -34,6 +34,7 @@ from .distributed_identity import (
     TargetIdentityAssignment,
     TargetIdentityResolution,
 )
+from .distributed_identity_consensus import NeighborTrackIdentityConsensus
 from .local_target_filter import run_local_target_filter, run_local_target_history
 from .known_target_pipeline import run_known_target_batch
 from .track_manager import TrackManager
@@ -126,6 +127,7 @@ __all__ = [
     "DistributedNodeMembershipUpdate",
     "DistributedTargetNodeNetwork",
     "CooperativeTrackIdentityResolver",
+    "NeighborTrackIdentityConsensus",
     "TargetIdentityAssignment",
     "TargetIdentityResolution",
     "run_local_target_filter",

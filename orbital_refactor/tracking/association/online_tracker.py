@@ -151,6 +151,8 @@ class OnlineMultiTargetTracker:
         enable_multi_observer_bearing_update: bool = False,
         enable_unified_multimodal_update: bool = False,
         enable_local_unified_multimodal_update: bool = False,
+        local_fusion_method: str = "ci",
+        local_information_allocation_weights: Mapping[str, float] | None = None,
         enable_inverse_depth_los_update: bool = False,
         unified_multimodal_window_epochs: int = 1,
         multi_epoch_bearing_window_epochs: int = 1,
@@ -184,6 +186,18 @@ class OnlineMultiTargetTracker:
         )
         self.enable_local_unified_multimodal_update = bool(
             enable_local_unified_multimodal_update
+        )
+        self.local_fusion_method = str(local_fusion_method).lower()
+        if self.local_fusion_method not in {"ci", "fixed_information"}:
+            raise ValueError(
+                "local_fusion_method must be 'ci' or 'fixed_information'."
+            )
+        self.local_information_allocation_weights = (
+            None if local_information_allocation_weights is None
+            else {
+                str(name): float(value)
+                for name, value in local_information_allocation_weights.items()
+            }
         )
         self.enable_inverse_depth_los_update = bool(
             enable_inverse_depth_los_update
@@ -298,6 +312,7 @@ class OnlineMultiTargetTracker:
         *,
         timestamp: float,
         observations,
+        discovery_observations=None,
         observer_states_eci: Mapping[str, np.ndarray],
         q_eci2pri_by_observer: Mapping[str, np.ndarray],
     ) -> OnlineTrackingUpdate:
@@ -311,6 +326,25 @@ class OnlineMultiTargetTracker:
             raise TypeError("Online tracker requires unlabeled IOD observations.")
         if any(not np.isclose(item.timestamp, epoch) for item in values):
             raise ValueError("Every observation must match the online step timestamp.")
+        discovery_values = (
+            None
+            if discovery_observations is None
+            else tuple(discovery_observations)
+        )
+        if discovery_values is not None and any(
+            not isinstance(item, UnlabeledIODObservation)
+            for item in discovery_values
+        ):
+            raise TypeError(
+                "Online tracker discovery observations must be unlabeled IOD observations."
+            )
+        if discovery_values is not None and any(
+            not np.isclose(item.timestamp, epoch)
+            for item in discovery_values
+        ):
+            raise ValueError(
+                "Every discovery observation must match the online step timestamp."
+            )
         for observer_id in observer_states_eci:
             key = (str(observer_id), epoch)
             self._observer_states[key] = np.asarray(
@@ -324,7 +358,11 @@ class OnlineMultiTargetTracker:
             target_id: track.estimate
             for target_id, track in self.tracks.items()
         }
-        routed = self.association_pipeline.step(values, estimates)
+        routed = self.association_pipeline.step(
+            values,
+            estimates,
+            discovery_observations=discovery_values,
+        )
         raw_births = dict(routed.autonomous_iod.initialized_states_by_target)
         resolution = self.duplicate_track_resolver.resolve(raw_births, self.tracks)
         births = dict(resolution.accepted_births)
@@ -597,6 +635,10 @@ class OnlineMultiTargetTracker:
                     },
                     "filter": {
                         "architecture": "federated_ci",
+                        "fusion_method": self.local_fusion_method,
+                        "information_allocation_weights": (
+                            self.local_information_allocation_weights
+                        ),
                         "process_noise": make_process_noise(
                             dt, self.process_noise_acceleration * process_noise_scale,
                         ),

@@ -59,24 +59,28 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
         modality: _dropout_modality_summary(dropouts, modality)
         for modality in modalities
     }
+    failure_arms = tuple(
+        arm for arm in ARMS
+        if all(arm in payload["threeObserverFailure"] for payload in failures)
+    )
     failure_summary = {
         "acceptanceMetricScope": "SURVIVING_NODE_CONSENSUS_ALL_TARGET_SAMPLES",
         "arms": {
-            arm: _failure_arm_summary(failures, arm) for arm in ARMS
+            arm: _failure_arm_summary(failures, arm) for arm in failure_arms
         },
         "targetAggregateFailureVsControlPercent": {
             arm: _failure_percent_summary(failures, arm, "targetAggregate")
-            for arm in ARMS
+            for arm in failure_arms
         },
         "consensusFailureVsControlPercent": {
             arm: _failure_percent_summary(failures, arm, "consensus")
-            for arm in ARMS
+            for arm in failure_arms
         },
         "independentNodeFailureVsControlPercent": {
             arm: _failure_percent_summary(failures, arm, "independentNode")
-            for arm in ARMS
+            for arm in failure_arms
         },
-        "pairedCannDeltaPercent": {
+        "pairedCannDeltaPercent": ({
             field: _statistics(
                 _percent_change(
                     payload["threeObserverFailure"]["incrementalCann"]
@@ -87,7 +91,7 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
                 for payload in failures
             )
             for field in NODE_FAILURE_ERROR_FIELDS
-        },
+        } if set(ARMS).issubset(failure_arms) else {}),
     }
     for modality, record in dropout_summary.items():
         record["acceptanceMetricScope"] = (
@@ -108,7 +112,7 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
                 ),
                 primary_metric="position_rmse_m",
             )
-            for arm in ARMS
+            for arm in record["arms"]
         }
     failure_summary["acceptance"] = {
         arm: _acceptance_result(
@@ -121,7 +125,7 @@ def summarize_robustness(dropout_payloads, failure_payloads) -> dict:
             ),
             primary_metric="position_mean_error_m",
         )
-        for arm in ARMS
+        for arm in failure_arms
     }
     return {
         "schemaVersion": "bilateral-robustness-summary.v3",
@@ -209,6 +213,9 @@ def _arm_has_consensus_target_coverage(arm, expected):
 
 def _dropout_modality_summary(payloads, modality):
     records = [payload["resultsByMissingModality"][modality] for payload in payloads]
+    arms = tuple(
+        arm for arm in ARMS if all(arm in record for record in records)
+    )
     return {
         "arms": {
             arm: {
@@ -231,7 +238,7 @@ def _dropout_modality_summary(payloads, modality):
                     record[arm]["processing_mean_ms"] for record in records
                 ),
             }
-            for arm in ARMS
+            for arm in arms
         },
         "dropoutVsControlPercent": {
             arm: {
@@ -241,7 +248,7 @@ def _dropout_modality_summary(payloads, modality):
                 )
                 for field in ERROR_FIELDS
             }
-            for arm in ARMS
+            for arm in arms
         },
         "pooledDropoutVsControl": {
             arm: {
@@ -250,14 +257,15 @@ def _dropout_modality_summary(payloads, modality):
                 )
                 for field in ERROR_FIELDS
             }
-            for arm in ARMS
+            for arm in arms
         },
-        "pairedCannDeltaPercent": {
+        "pairedCannDeltaPercent": ({
             field: _statistics(
                 record["pairedCannDeltaPercent"][field] for record in records
             )
             for field in ERROR_FIELDS
-        },
+        } if all("pairedCannDeltaPercent" in record for record in records)
+        else {}),
     }
 
 

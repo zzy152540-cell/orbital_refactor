@@ -55,6 +55,12 @@ class StateAwarenessModule:
                 cross_modality_gate_threshold=(
                     adapted.cross_modality_gate_threshold
                 ),
+                fusion_method=str(
+                    filter_config.get("fusion_method", "ci")
+                ),
+                information_allocation_weights=(
+                    filter_config.get("information_allocation_weights")
+                ),
                 node_id=adapted.node_id,
                 target_id=adapted.target_id,
             )

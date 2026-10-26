@@ -8,6 +8,7 @@ from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
     _topology_with_inactive_nodes,
     build_bilateral_raw_frontend,
+    derive_bilateral_fault_frontend,
     run_bilateral_distributed_online_comparison,
     run_bilateral_online_comparison,
     run_bilateral_online_smoke,
@@ -112,6 +113,73 @@ def test_frontend_is_deterministic_and_does_not_retain_images_by_default():
         left.message_id == right.message_id
         and np.array_equal(left.measurement, right.measurement)
         for left, right in zip(first.messages, second.messages)
+    )
+
+
+@pytest.mark.parametrize(
+    ("control_faults", "experiment_faults"),
+    (
+        (
+            {
+                "dropout_modality": "OPTICAL",
+                "dropout_start_seconds": 1.0,
+                "dropout_end_seconds": 2.0,
+                "dropout_target_indices": (),
+            },
+            {
+                "dropout_modality": "OPTICAL",
+                "dropout_start_seconds": 1.0,
+                "dropout_end_seconds": 2.0,
+            },
+        ),
+        (
+            {
+                "observer_failure_start_seconds": 1.0,
+                "observer_failure_end_seconds": 2.0,
+                "failed_observer_indices": (),
+            },
+            {
+                "observer_failure_start_seconds": 1.0,
+                "observer_failure_end_seconds": 2.0,
+                "failed_observer_indices": (0, 5, 10),
+            },
+        ),
+    ),
+)
+def test_derived_fault_frontend_matches_independent_render(
+    control_faults, experiment_faults,
+):
+    common = {
+        "duration_seconds": 3.0,
+        "random_seed": 19,
+        "use_local_unified_multimodal_measurement_update": True,
+    }
+    nominal = build_bilateral_raw_frontend(BilateralFrontendConfig(
+        **common, **control_faults,
+    ))
+    experiment_config = BilateralFrontendConfig(
+        **common, **experiment_faults,
+    )
+    derived = derive_bilateral_fault_frontend(
+        nominal, experiment_config,
+    )
+    independently_rendered = build_bilateral_raw_frontend(
+        experiment_config, truth=nominal.truth,
+    )
+
+    assert derived.visible_observers_by_target_and_timestamp == (
+        independently_rendered.visible_observers_by_target_and_timestamp
+    )
+    assert len(derived.messages) == len(independently_rendered.messages)
+    assert all(
+        left.message_id == right.message_id
+        and left.observer_id == right.observer_id
+        and left.modality == right.modality
+        and np.array_equal(left.measurement, right.measurement)
+        and np.array_equal(left.covariance, right.covariance)
+        for left, right in zip(
+            derived.messages, independently_rendered.messages, strict=True,
+        )
     )
 
 

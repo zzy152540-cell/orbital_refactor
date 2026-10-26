@@ -6,7 +6,7 @@
 
 共同场景固定为 15 颗我方观测星、15 个敌方目标、120 s、1 s 采样，使用 seeds 0--4。核心候选固定为同一先验上的雷达与 LOS 联合量测更新，并启用 realtime CANN。
 
-本次为了完成工程数值验收，R06 雷达缺失场景允许在全部 15 个我方观测节点上启用独立径向影子备份：距离标准差 1 m、距离率标准差 0.0125 m/s。该假设本轮不要求映射到真实传感器，但结果和报告必须继续标记 `physicalValidation=false`，不得表述为现有红外或光学硬件能力。
+R06 控制组及三类缺失组统一采用雷达主用、光电径向代理故障接管策略。光学和红外代理的距离标准差均为 2.5 m、距离率标准差均为 0.01 m/s；雷达正常时代理径向分量被抑制，雷达缺失时红外优先接管、光学备用。该理想化代理不映射到真实传感器，结果和报告必须继续标记 `physicalValidation=false`。
 
 ## 2. 完整指标冻结表
 
@@ -18,7 +18,7 @@
 | F04 | 单观测星与固定拓扑协同 | 两条策略+CANN参与 | 功能齐全 | 两条路径均可独立运行 |
 | P05 | 单观测星旧多模态无 CANN → 单观测星联合融合+CANN | 共同样本位置 RMSE 改善 | ≥8% | 池化 83.10%，最差 seed 78.12% |
 | P07 | 联合融合+CANN 独立节点 → 同算法固定拓扑共识 | 共同样本位置平均误差改善 | ≥6% | 池化 18.90%，最差 seed 15.22% |
-| R06 | 正常三模态 → 单模态时段缺失；仅雷达缺失使用全节点径向备份 | 池化位置 RMSE 增幅 | ≤15% | 光学 +0.48%、红外 +0.10%、雷达 +3.36%，三类均通过 |
+| R06 | 统一雷达主用/光电故障接管配置下，正常三模态 → 单模态时段缺失 | 池化位置 RMSE 增幅 | ≤15% | 光学 +0.48%、红外 +0.10%、雷达 +3.67%，三类均通过 |
 | R08 | 无失效 → 三节点观测和通信同时失效 | 存活节点共识位置平均误差增幅 | ≤12% | 四类组合均通过，位置均值增幅 −4.08% 至 −0.15% |
 | P09 | 目标报告构造 → 接收节点应用 | 平均同步延迟 | ≤100 ms | 120帧平均0.307 ms，P95 0.372 ms，最大0.607 ms |
 | F10 | 30星双方可视化 | 要素与交互检查 | 全部具备 | 双方30星录像与自动数据回归通过，待人工GUI检查 |
@@ -27,12 +27,11 @@ P05 的 83.10% 是“联合融合+CANN”组合改善，主要由联合融合贡
 
 ## 3. 明确排除的实验设置
 
-- 不使用 8/15、12/15 或 14/15 径向备份覆盖；
+- 不使用旧独立 `RADIAL_BACKUP` 影子通道；
 - 不使用 7 跳同步传播实验作为本轮主验收配置；
 - 不启用完整径向血缘整报告门控；
-- 不使用仅距离备份；
-- 不把距离率标准差放宽到 0.025 m/s；
-- 不把影子径向来源写成已经具备物理传感器依据。
+- 不使用仅距离代理；
+- 不把理想化光电径向代理写成已经具备物理传感器依据。
 
 ## 4. P05/P07 执行命令
 
@@ -58,34 +57,24 @@ python -m experiments.summarize_bilateral_baseline_matrix `
 ## 5. R06 执行命令
 
 ```powershell
-# 光学和红外缺失：不启用雷达专用径向备份
+# 每个 seed 共享一次正常前端，并派生三类缺失组
 0..4 | ForEach-Object {
   python -m experiments.run_bilateral_dropout_prescan `
     --duration 120 `
     --dropout-start 30 `
     --dropout-end 89 `
     --seed $_ `
+    --acceptance-cann-only `
     --local-unified-multimodal-update `
-    --modalities OPTICAL INFRARED `
-    --output "results/external_acceptance/frozen_v3/los_dropout_seed${_}_120s.json"
-}
-
-# 雷达缺失：启用全节点独立径向影子备份
-0..4 | ForEach-Object {
-  python -m experiments.run_bilateral_dropout_prescan `
-    --duration 120 `
-    --dropout-start 30 `
-    --dropout-end 89 `
-    --seed $_ `
-    --local-unified-multimodal-update `
-    --backup-radial-range-sigma-m 1.0 `
-    --backup-radial-range-rate-sigma-mps 0.0125 `
-    --modalities RADAR `
-    --output "results/external_acceptance/frozen_v3/radar_dropout_seed${_}_120s.json"
+    --electro-optical-radial-failover `
+    --eo-radial-range-sigma-m 2.5 `
+    --eo-radial-range-rate-sigma-mps 0.01 `
+    --modalities OPTICAL INFRARED RADAR `
+    --output "results/external_acceptance/r06_eo_failover_formal/r06_eo_failover_seed${_}_120s.json"
 }
 ```
 
-径向备份参数只能出现在雷达缺失命令中，不得用于光学或红外缺失对照。雷达命令不要传入 `--backup-radial-observer-indices`，其省略含义是全部 15 个观测节点启用备份。不要传入 `--distributed-consensus`、`--prefer-complete-radial-lineage` 或多跳参数；当前五 seed 通过证据来自独立节点池化口径。
+控制组和三个实验组必须统一使用上述故障接管参数；不得同时传入旧 `--backup-radial-*` 或 `--independent-radial-backup-channel` 参数。不要传入 `--distributed-consensus`、`--prefer-complete-radial-lineage` 或多跳参数；当前五 seed 通过证据来自独立节点池化口径。
 
 ## 6. R08 执行命令
 
@@ -108,7 +97,7 @@ python -m experiments.summarize_bilateral_baseline_matrix `
 
 ## 7. 验收报告用语
 
-可以写：P05、R06、P07、R08 和 P09 在当前冻结的工程数值配置下达到 L2 门限；R06 光学、红外缺失不启用径向备份，雷达缺失采用全节点独立径向影子备份。
+可以写：P05、R06、P07、R08 和 P09 在当前冻结的工程数值配置下达到 L2 门限；R06 四组统一采用雷达主用、光电径向代理故障接管配置，三类模态缺失均满足门限。
 
 不应写：现有红外/光学传感器已经实现该径向精度；CANN 单独贡献 P05 的全部改善；部分节点径向备份已经通过；当前结果已经完成物理传感器正式验收。
 
@@ -162,5 +151,5 @@ F10还必须人工检查30星双方角色、通信边与观测边、三模态面
 ## 10. 当前验收就绪度
 
 - 已有L2开发证据：F01、F02、F03、F04、P05、R06、P07、R08、P09；
-- R06三模态数值门限通过：光学 +0.48%、红外 +0.10%、雷达 +3.36%；仅雷达缺失使用全节点径向影子备份；
+- R06三模态数值门限通过：光学 +0.48%、红外 +0.10%、雷达 +3.67%；四组统一采用光电径向故障接管配置，旧独立径向备份未启用；
 - 未闭环：F10双方30星自动数据回归已通过，仅剩人工GUI检查。

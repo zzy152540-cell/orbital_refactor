@@ -13,17 +13,23 @@ import numpy as np
 
 from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
-    run_bilateral_distributed_online_comparison,
+    build_bilateral_raw_frontend,
+    electro_optical_radial_failover_sensor_config,
+    run_bilateral_cann_acceptance_frontend,
+)
+from experiments.run_bilateral_visualization_recording import (
+    write_bilateral_visualization_recording,
 )
 
 
 def build_control_contract(
     *, duration: float, event_start: float, event_end: float, seed: int,
-    family: str,
+    family: str, distributed_consensus: bool = True,
 ) -> dict:
-    if family not in {"nominal", "radar-backup"}:
+    if family not in {"nominal", "radar-backup", "electro-optical-failover"}:
         raise ValueError(f"Unsupported acceptance control family: {family}")
     radial = family == "radar-backup"
+    eo_failover = family == "electro-optical-failover"
     return {
         "schemaVersion": "bilateral-acceptance-control-contract.v1",
         "family": family,
@@ -35,7 +41,7 @@ def build_control_contract(
         "eventEndSeconds": float(event_end),
         "seed": int(seed),
         "localUnifiedMultimodalMeasurementUpdate": True,
-        "distributedConsensus": True,
+        "distributedConsensus": bool(distributed_consensus),
         "consensusExchangeHops": 1,
         "processNoiseAcceleration": 1e-4,
         "bearingWindowEpochs": 1,
@@ -46,6 +52,13 @@ def build_control_contract(
             "rangeRateSigmaMps": 0.0125 if radial else None,
             "observerIndices": "ALL",
             "independentChannel": False,
+            "physicalValidation": False,
+        },
+        "electroOpticalRadialFailover": {
+            "enabled": eo_failover,
+            "policy": "radar_primary_failover" if eo_failover else None,
+            "rangeSigmaM": 2.5 if eo_failover else None,
+            "rangeRateSigmaMps": 0.010 if eo_failover else None,
             "physicalValidation": False,
         },
     }
@@ -132,9 +145,16 @@ def main() -> None:
     parser.add_argument("--event-end", type=float, required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument(
-        "--family", choices=("nominal", "radar-backup"), required=True,
+        "--family",
+        choices=("nominal", "radar-backup", "electro-optical-failover"),
+        required=True,
+    )
+    parser.add_argument(
+        "--distributed-consensus", action="store_true",
+        help="Run the R08 cooperative control arm; omit for the R06 local arm.",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--recording-output", type=Path)
     args = parser.parse_args()
 
     contract = build_control_contract(
@@ -143,13 +163,19 @@ def main() -> None:
         event_end=args.event_end,
         seed=args.seed,
         family=args.family,
+        distributed_consensus=args.distributed_consensus,
     )
     radial = args.family == "radar-backup"
-    result = run_bilateral_distributed_online_comparison(
-        BilateralFrontendConfig(
+    eo_failover = args.family == "electro-optical-failover"
+    config = BilateralFrontendConfig(
             duration_seconds=args.duration,
             sample_interval_seconds=1.0,
             random_seed=args.seed,
+            sensor_config=(
+                electro_optical_radial_failover_sensor_config()
+                if eo_failover else None
+            ),
+            retain_raw_frames=args.recording_output is not None,
             backup_radial_range_sigma_m=1.0 if radial else None,
             backup_radial_range_rate_sigma_mps=0.0125 if radial else None,
             use_local_unified_multimodal_measurement_update=True,
@@ -158,20 +184,39 @@ def main() -> None:
             dropout_end_seconds=args.event_end,
             dropout_target_indices=(),
         )
+    frontend = build_bilateral_raw_frontend(config)
+    captured = []
+    result = run_bilateral_cann_acceptance_frontend(
+        frontend,
+        enable_consensus=args.distributed_consensus,
+        epoch_callback=(captured.append if args.recording_output else None),
     )
     payload = {
         "schemaVersion": "bilateral-acceptance-control.v1",
         "controlContract": contract,
         "controlContractSha256": control_contract_sha256(contract),
         "control": {
-            "withoutCann": _arm(result.without_cann),
-            "incrementalCann": _arm(result.incremental_cann),
+            "incrementalCann": _arm(result),
         },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8",
     )
+    if args.recording_output is not None:
+        write_bilateral_visualization_recording(
+            args.recording_output,
+            frontend=frontend,
+            captured=captured,
+            include_cann=True,
+            cann_node_limit=0,
+            enable_consensus=args.distributed_consensus,
+            show_communication_topology=args.distributed_consensus,
+            radial_backup_profile=("legacy" if radial else "none"),
+            electro_optical_radial_failover=eo_failover,
+            seed=args.seed,
+            source_result_path=args.output,
+        )
     print(
         f"wrote {args.output} family={args.family} "
         f"fingerprint={payload['controlContractSha256']}"

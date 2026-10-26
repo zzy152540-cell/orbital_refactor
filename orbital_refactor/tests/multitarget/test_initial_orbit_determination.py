@@ -1,6 +1,8 @@
 import numpy as np
 from dataclasses import replace
 
+import tracking.initial_orbit.multi_target_initializer as initializer_module
+
 from orbital_core.constants import R_EARTH
 from orbital_core.dynamics import propagate_absolute_orbit
 from orbital_core.coordinates import build_rtn_quaternion_history, state_history_eci_to_spri
@@ -159,6 +161,53 @@ def test_multi_target_manager_waits_for_short_arc_then_initializes_each_target()
     repeated = manager.ingest(target_1)
     assert repeated.estimates_by_target == {}
     assert repeated.initialized_states_by_target == {}
+
+
+def test_multi_target_manager_reuses_identical_short_arc_across_algorithm_arms(
+    monkeypatch,
+):
+    _truth, observations = _observations()
+    cache = {}
+    calls = []
+    original = initializer_module.initialize_target
+
+    def counted_initialize(*args, **kwargs):
+        calls.append(kwargs["target_id"])
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        initializer_module, "initialize_target", counted_initialize,
+    )
+
+    def run_arm(target_id):
+        manager = MultiTargetIODManager(
+            initialization_cache=cache,
+            buffer_config=IODBufferConfig(
+                minimum_epochs=3,
+                minimum_observers=2,
+                minimum_time_span_seconds=20.0,
+                maximum_time_span_seconds=30.0,
+            ),
+        )
+        update = None
+        for timestamp in (0.0, 10.0, 20.0):
+            update = manager.ingest([
+                replace(item, target_id=target_id)
+                for item in observations
+                if item.timestamp == timestamp
+            ])
+        return update.initialized_states_by_target[target_id]
+
+    first = run_arm("target-local-a")
+    second = run_arm("target-local-b")
+
+    assert calls == ["target-local-a"]
+    assert first.target_id == "target-local-a"
+    assert second.target_id == "target-local-b"
+    assert first.track_id == "track-target-local-a"
+    assert second.track_id == "track-target-local-b"
+    np.testing.assert_array_equal(first.state_eci, second.state_eci)
+    np.testing.assert_array_equal(first.covariance_eci, second.covariance_eci)
 
 
 def test_successful_iod_hands_off_to_continuous_tracking_without_reinitializing():

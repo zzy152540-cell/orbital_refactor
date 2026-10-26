@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -45,7 +45,7 @@ def unified_multi_observer_multimodal_update(
     """
 
     epoch = float(timestamp)
-    values = tuple(observations)
+    values = _apply_radial_proxy_failover_policy(tuple(observations))
     if not values:
         raise ValueError("At least one multimodal observation is required.")
     if any(
@@ -125,6 +125,76 @@ def unified_multi_observer_multimodal_update(
         measurement_dimension=int(innovation.size),
         nis=float(innovation @ inverse_innovation @ innovation),
     )
+
+
+def _apply_radial_proxy_failover_policy(observations):
+    """Use one radial source per detection when EO proxies are fallbacks.
+
+    RADAR is primary.  When it is unavailable, the lowest-priority-numbered
+    electro-optical proxy is retained while every LOS direction measurement
+    remains in the update.  The default ``independent`` proxy policy is not
+    changed by this helper.
+    """
+
+    values = list(observations)
+    groups: dict[tuple[str, float, str], list[int]] = {}
+    for index, item in enumerate(values):
+        group_id = getattr(item, "detection_group_id", None)
+        if group_id is None:
+            group_id = item.metadata.get("detectionGroupId")
+        if group_id is None:
+            continue
+        key = (item.observer_id, float(item.timestamp), str(group_id))
+        groups.setdefault(key, []).append(index)
+    for indices in groups.values():
+        candidates = [
+            index for index in indices
+            if values[index].metadata.get("radialProxyFusionPolicy")
+            == "radar_primary_failover"
+            and (
+                values[index].metadata.get("rangeProxyM") is not None
+                or values[index].metadata.get("rangeRateProxyMps") is not None
+            )
+        ]
+        if not candidates:
+            continue
+        radar_present = any(values[index].modality == "RADAR" for index in indices)
+        selected_index = None
+        if not radar_present:
+            selected_index = min(
+                candidates,
+                key=lambda index: (
+                    int(values[index].metadata.get(
+                        "radialProxyFailoverPriority", 100,
+                    )),
+                    str(values[index].metadata.get(
+                        "sourceModality", values[index].modality,
+                    )),
+                ),
+            )
+        for index in candidates:
+            metadata = dict(values[index].metadata)
+            if index == selected_index:
+                metadata["radialProxyUsed"] = True
+                metadata["radialProxySelectionReason"] = "EO_FAILOVER_SELECTED"
+            else:
+                for key in (
+                    "rangeProxyM",
+                    "rangeProxyVarianceM2",
+                    "rangeProxySource",
+                    "rangeProxyIndependentNoiseAssumed",
+                    "rangeRateProxyMps",
+                    "rangeRateProxyVarianceM2ps2",
+                    "rangeRateProxySource",
+                    "rangeRateProxyIndependentNoiseAssumed",
+                ):
+                    metadata.pop(key, None)
+                metadata["radialProxyUsed"] = False
+                metadata["radialProxySelectionReason"] = (
+                    "RADAR_PRIMARY" if radar_present else "EO_STANDBY"
+                )
+            values[index] = replace(values[index], metadata=metadata)
+    return tuple(values)
 
 
 def _measurement_block(item, state):

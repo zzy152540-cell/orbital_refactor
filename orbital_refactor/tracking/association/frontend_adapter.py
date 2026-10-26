@@ -33,6 +33,7 @@ def unlabeled_iod_observations_from_messages(
                 "sourceModality", message.modality
             ),
             "sourceMessageId": message.message_id,
+            "detectionGroupId": message.detection_group_id,
             "confidence": message.confidence,
         }
         if message.modality == "RADAR":

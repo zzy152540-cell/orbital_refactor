@@ -153,3 +153,29 @@ def test_acceptance_uses_frozen_position_primary_not_auxiliary_metrics():
     assert not result["thresholdMetByMetric"]["velocity_rmse_mps"]
     assert result["passed"]
     assert not result["formalAcceptanceClaimed"]
+
+
+def test_robustness_summary_accepts_lean_cann_only_payloads():
+    dropouts = [_dropout_payload(0), _dropout_payload(1)]
+    failures = [_failure_payload(0), _failure_payload(1)]
+    for payload in dropouts:
+        payload["noDropoutControl"].pop("withoutCann")
+        for record in payload["resultsByMissingModality"].values():
+            record.pop("withoutCann")
+            record["dropoutVsControlPercent"].pop("withoutCann")
+            record.pop("pairedCannDeltaPercent")
+    for payload in failures:
+        payload["noFailureControl"].pop("withoutCann")
+        payload["threeObserverFailure"].pop("withoutCann")
+        payload["failureVsControlPercent"].pop("withoutCann")
+
+    summary = summarize_robustness(dropouts, failures)
+
+    optical = summary["modalityDropout"]["OPTICAL"]
+    assert set(optical["arms"]) == {"incrementalCann"}
+    assert not optical["pairedCannDeltaPercent"]
+    failure = summary["threeObserverFailure"]
+    assert set(failure["arms"]) == {"incrementalCann"}
+    assert not failure["pairedCannDeltaPercent"]
+    assert optical["acceptance"]["incrementalCann"]["passed"]
+    assert failure["acceptance"]["incrementalCann"]["passed"]

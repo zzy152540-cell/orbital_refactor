@@ -57,6 +57,8 @@ class MultiTargetAssociationPipeline:
         self,
         observations,
         tracks: Mapping[str, GlobalTargetEstimate | TargetInitialState],
+        *,
+        discovery_observations=None,
     ) -> AssociationPipelineUpdate:
         values = tuple(observations)
         if any(not isinstance(item, UnlabeledIODObservation) for item in values):
@@ -82,7 +84,40 @@ class MultiTargetAssociationPipeline:
             values[index] for index in association.unassigned_observation_indices
             if index not in ambiguous
         )
-        autonomous = self.autonomous_iod_manager.ingest(unassigned)
+        discovery_values = (
+            unassigned
+            if discovery_observations is None
+            else tuple(discovery_observations)
+        )
+        if any(
+            not isinstance(item, UnlabeledIODObservation)
+            for item in discovery_values
+        ):
+            raise TypeError(
+                "Discovery pipeline requires unlabeled IOD observations."
+            )
+        if discovery_observations is not None and tracks:
+            discovery_association = associate_to_tracks(
+                discovery_values,
+                tracks,
+                gate_squared_mahalanobis=self.gate_squared_mahalanobis,
+                minimum_cost_margin=self.minimum_cost_margin,
+                prediction_position_sigma_floor_m=(
+                    self.prediction_position_sigma_floor_m
+                ),
+                prediction_velocity_sigma_floor_mps=(
+                    self.prediction_velocity_sigma_floor_mps
+                ),
+            )
+            discovery_ambiguous = set(
+                discovery_association.ambiguous_observation_indices
+            )
+            discovery_values = tuple(
+                discovery_values[index]
+                for index in discovery_association.unassigned_observation_indices
+                if index not in discovery_ambiguous
+            )
+        autonomous = self.autonomous_iod_manager.ingest(discovery_values)
         return AssociationPipelineUpdate(
             association=association,
             observations_by_target={

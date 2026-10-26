@@ -41,9 +41,11 @@ from tracking.association.data_contracts import UnlabeledObservationMessage
 from tracking.association.frontend_adapter import (
     unlabeled_iod_observations_from_messages,
 )
+from tracking.association.candidate_manager import AutonomousIODManager
 from tracking.association.online_tracker import OnlineMultiTargetTracker
 from tracking.association.pipeline import MultiTargetAssociationPipeline
 from tracking.distributed_target_consensus import DistributedTargetConsensus
+from tracking.initial_orbit.multi_target_initializer import MultiTargetIODManager
 
 from experiments.multitarget_identity_evaluation import (
     IdentityAwareTrackEvaluator,
@@ -68,6 +70,7 @@ class BilateralFrontendConfig:
     backup_radial_range_rate_sigma_mps: float | None = None
     backup_radial_observer_indices: tuple[int, ...] | None = None
     independent_radial_backup_channel: bool = False
+    cann_process_radial_backup: bool = False
     prefer_complete_radial_lineage: bool = False
     consensus_exchange_hops: int = 1
     dropout_modality: str | None = None
@@ -402,6 +405,14 @@ class BilateralMatchedViewMetrics:
     local_velocity_rmse_mps: float
     consensus_velocity_rmse_mps: float
     velocity_rmse_improvement_percent: float
+    local_acceleration_sample_count: int
+    consensus_acceleration_sample_count: int
+    common_acceleration_sample_count: int
+    local_only_acceleration_sample_count: int
+    consensus_only_acceleration_sample_count: int
+    local_acceleration_rmse_mps2: float
+    consensus_acceleration_rmse_mps2: float
+    acceleration_rmse_improvement_percent: float
 
 
 @dataclass(frozen=True)
@@ -438,18 +449,23 @@ class BilateralBaselineMatrixResult:
 
     arms: Mapping[str, BilateralOnlineSmokeResult]
     local_node_baselines: Mapping[str, BilateralNodeViewMetrics]
-    matched_single_observer_cann_metrics: BilateralMatchedViewMetrics
-    matched_single_observer_joint_cann_metrics: BilateralMatchedViewMetrics
+    matched_single_observer_cann_metrics: BilateralMatchedViewMetrics | None
+    matched_single_observer_joint_cann_metrics: BilateralMatchedViewMetrics | None
     matched_single_observer_ablation_metrics: Mapping[
         str, BilateralMatchedViewMetrics
     ]
     matched_single_observer_cann_vs_modality: Mapping[
         str, BilateralMatchedViewMetrics
     ]
+    matched_single_observer_joint_cann_vs_modality: Mapping[
+        str, BilateralMatchedViewMetrics
+    ]
     matched_independent_consensus_metrics_by_cann: Mapping[
         str, BilateralMatchedViewMetrics
     ]
-    matched_joint_independent_consensus_metrics: BilateralMatchedViewMetrics
+    matched_joint_independent_consensus_metrics: (
+        BilateralMatchedViewMetrics | None
+    )
     tracking_modalities_by_arm: Mapping[str, tuple[str, ...]]
     uses_common_multimodal_initialization: bool
     message_count_by_timestamp: Mapping[float, int]
@@ -613,6 +629,85 @@ def build_bilateral_raw_frontend(
     )
 
 
+def derive_bilateral_fault_frontend(
+    nominal: BilateralFrontendResult,
+    config: BilateralFrontendConfig,
+) -> BilateralFrontendResult:
+    """Apply a modality or observer fault to an already rendered stream.
+
+    The caller must preserve the nominal orbit, sensor, noise, and radial
+    backup configuration.  This operation changes only message availability,
+    which guarantees that surviving observations remain byte-for-byte equal
+    to the matched control.
+    """
+
+    if (
+        config.duration_seconds != nominal.config.duration_seconds
+        or config.sample_interval_seconds
+        != nominal.config.sample_interval_seconds
+        or config.random_seed != nominal.config.random_seed
+    ):
+        raise ValueError(
+            "Derived fault frontend must share duration, sampling, and seed."
+        )
+    observer_ids = nominal.truth.manifest.friendly_observer_ids
+    observer_index = {
+        observer_id: index for index, observer_id in enumerate(observer_ids)
+    }
+    target_ids = nominal.truth.manifest.hostile_target_ids
+    target_index = {
+        target_id: index for index, target_id in enumerate(target_ids)
+    }
+    messages_by_timestamp = {}
+    visible_by_target_epoch = {}
+    for timestamp_value in nominal.truth.timestamps:
+        timestamp = float(timestamp_value)
+        kept = []
+        for message in nominal.messages_by_timestamp[timestamp]:
+            failed = _observer_failed(
+                config,
+                timestamp=timestamp,
+                observer_index=observer_index[message.observer_id],
+            )
+            target_id = nominal.truth_target_by_detection_group[
+                message.detection_group_id
+            ]
+            dropped = _drop_message(
+                config,
+                timestamp=timestamp,
+                target_index=target_index[target_id],
+                modality=_logical_modality(message),
+            )
+            if not failed and not dropped:
+                kept.append(message)
+        messages_by_timestamp[timestamp] = tuple(kept)
+        for target_id in target_ids:
+            visible = nominal.visible_observers_by_target_and_timestamp[
+                (target_id, timestamp)
+            ]
+            visible_by_target_epoch[(target_id, timestamp)] = tuple(
+                observer_id for observer_id in visible
+                if not _observer_failed(
+                    config,
+                    timestamp=timestamp,
+                    observer_index=observer_index[observer_id],
+                )
+            )
+    return BilateralFrontendResult(
+        config=config,
+        truth=nominal.truth,
+        messages_by_timestamp=MappingProxyType(messages_by_timestamp),
+        observer_state_by_epoch=nominal.observer_state_by_epoch,
+        truth_target_by_detection_group=(
+            nominal.truth_target_by_detection_group
+        ),
+        visible_observers_by_target_and_timestamp=MappingProxyType(
+            visible_by_target_epoch
+        ),
+        raw_frames_by_detection_group=nominal.raw_frames_by_detection_group,
+    )
+
+
 def run_bilateral_online_smoke(
     config: BilateralFrontendConfig | None = None,
     *,
@@ -632,9 +727,16 @@ def run_bilateral_online_comparison(
 
     selected = config or BilateralFrontendConfig(duration_seconds=4.0)
     frontend = build_bilateral_raw_frontend(selected)
+    initialization_cache = {}
     return BilateralOnlineComparisonResult(
-        without_cann=_run_bilateral_online_arm(frontend, enable_cann=False),
-        incremental_cann=_run_bilateral_online_arm(frontend, enable_cann=True),
+        without_cann=_run_bilateral_online_arm(
+            frontend, enable_cann=False,
+            iod_initialization_cache=initialization_cache,
+        ),
+        incremental_cann=_run_bilateral_online_arm(
+            frontend, enable_cann=True,
+            iod_initialization_cache=initialization_cache,
+        ),
         message_count_by_timestamp=MappingProxyType({
             timestamp: len(messages)
             for timestamp, messages in frontend.messages_by_timestamp.items()
@@ -649,12 +751,15 @@ def run_bilateral_distributed_online_comparison(
 
     selected = config or BilateralFrontendConfig(duration_seconds=4.0)
     frontend = build_bilateral_raw_frontend(selected)
+    initialization_cache = {}
     return BilateralOnlineComparisonResult(
         without_cann=_run_bilateral_online_arm(
             frontend, enable_cann=False, enable_consensus=True,
+            iod_initialization_cache=initialization_cache,
         ),
         incremental_cann=_run_bilateral_online_arm(
             frontend, enable_cann=True, enable_consensus=True,
+            iod_initialization_cache=initialization_cache,
         ),
         message_count_by_timestamp=MappingProxyType({
             timestamp: len(messages)
@@ -663,8 +768,51 @@ def run_bilateral_distributed_online_comparison(
     )
 
 
+def run_bilateral_cann_acceptance_arm(
+    config: BilateralFrontendConfig | None = None,
+    *,
+    enable_consensus: bool = False,
+) -> BilateralOnlineSmokeResult:
+    """Run only the CANN arm required by a frozen acceptance item."""
+
+    selected = config or BilateralFrontendConfig(duration_seconds=4.0)
+    frontend = build_bilateral_raw_frontend(selected)
+    return run_bilateral_cann_acceptance_frontend(
+        frontend, enable_consensus=enable_consensus,
+    )
+
+
+def run_bilateral_cann_acceptance_frontend(
+    frontend: BilateralFrontendResult,
+    *,
+    enable_consensus: bool = False,
+    topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
+    iod_initialization_cache: dict | None = None,
+    epoch_callback=None,
+) -> BilateralOnlineSmokeResult:
+    """Run the acceptance CANN arm on an already rendered frontend."""
+
+    return _run_bilateral_online_arm(
+        frontend,
+        enable_cann=True,
+        enable_consensus=enable_consensus,
+        topology_by_timestamp=topology_by_timestamp,
+        iod_initialization_cache=(
+            {} if iod_initialization_cache is None
+            else iod_initialization_cache
+        ),
+        epoch_callback=epoch_callback,
+    )
+
+
 def run_bilateral_baseline_matrix(
     config: BilateralFrontendConfig | None = None,
+    *,
+    primary_acceptance_only: bool = False,
+    acceptance_scope: str | None = None,
+    fixed_federated_weights: Mapping[str, float] | None = None,
+    frontend: BilateralFrontendResult | None = None,
+    topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
 ) -> BilateralBaselineMatrixResult:
     """Compare modality, CANN, and fixed-topology arms on identical frames.
 
@@ -673,30 +821,98 @@ def run_bilateral_baseline_matrix(
     its configured modality ablation only after all hostile tracks exist.
     """
 
-    selected = config or BilateralFrontendConfig(duration_seconds=4.0)
-    frontend = build_bilateral_raw_frontend(selected)
+    if frontend is None:
+        selected = config or BilateralFrontendConfig(duration_seconds=4.0)
+        frontend = build_bilateral_raw_frontend(selected)
+    elif config is not None and config != frontend.config:
+        raise ValueError("config must match the supplied frontend.config.")
     definitions = {
-        "centralized_radar_only": (("RADAR",), False, False, False),
-        "centralized_infrared_only": (("INFRARED",), False, False, False),
-        "centralized_optical_only": (("OPTICAL",), False, False, False),
-        "centralized_multimodal_no_cann": (MODALITIES, False, False, False),
-        "centralized_multimodal_cann": (MODALITIES, True, False, False),
+        "centralized_radar_only": (("RADAR",), False, False, False, None),
+        "centralized_infrared_only": (("INFRARED",), False, False, False, None),
+        "centralized_optical_only": (("OPTICAL",), False, False, False, None),
+        "centralized_multimodal_no_cann": (
+            MODALITIES, False, False, False, None,
+        ),
+        "centralized_multimodal_cann": (
+            MODALITIES, True, False, False, None,
+        ),
         "single_observer_joint_multimodal_no_cann": (
-            MODALITIES, False, False, True,
+            MODALITIES, False, False, True, None,
         ),
         "single_observer_joint_multimodal_cann": (
-            MODALITIES, True, False, True,
+            MODALITIES, True, False, True, None,
         ),
-        "fixed_topology_multimodal_no_cann": (MODALITIES, False, True, False),
-        "fixed_topology_multimodal_cann": (MODALITIES, True, True, False),
+        "fixed_topology_multimodal_no_cann": (
+            MODALITIES, False, True, False, None,
+        ),
+        "fixed_topology_multimodal_cann": (
+            MODALITIES, True, True, False, None,
+        ),
         "fixed_topology_joint_multimodal_cann": (
-            MODALITIES, True, True, True,
+            MODALITIES, True, True, True, None,
         ),
     }
+    acceptance_arm_names = {
+        "p05-control": {
+            "centralized_multimodal_no_cann",
+        },
+        "p05-candidate": {
+            "centralized_multimodal_no_cann",
+            "single_observer_joint_multimodal_cann",
+        },
+        "p05-optical-pilot": {
+            "centralized_optical_only",
+            "single_observer_joint_multimodal_cann",
+        },
+        "p05-fixed-weight-pilot": {
+            "single_observer_fixed_weight_federated_no_cann",
+            "single_observer_joint_multimodal_cann",
+        },
+        "p07-control": {
+            "single_observer_joint_multimodal_cann",
+        },
+        "p07-candidate": {
+            "single_observer_joint_multimodal_cann",
+            "fixed_topology_joint_multimodal_cann",
+        },
+    }
+    if acceptance_scope == "p05-fixed-weight-pilot":
+        pilot_weights = fixed_federated_weights or {
+            "rad": 0.4, "ir": 0.3, "opt": 0.3,
+        }
+        definitions["single_observer_fixed_weight_federated_no_cann"] = (
+            MODALITIES, False, False, False,
+            dict(pilot_weights),
+        )
+    if acceptance_scope is not None:
+        try:
+            required = acceptance_arm_names[acceptance_scope]
+        except KeyError as exc:
+            raise ValueError(
+                f"Unknown bilateral acceptance scope: {acceptance_scope}"
+            ) from exc
+        definitions = {
+            name: definition for name, definition in definitions.items()
+            if name in required
+        }
+    elif primary_acceptance_only:
+        required = {
+            "centralized_multimodal_no_cann",
+            "centralized_multimodal_cann",
+            "single_observer_joint_multimodal_no_cann",
+            "single_observer_joint_multimodal_cann",
+            "fixed_topology_joint_multimodal_cann",
+        }
+        definitions = {
+            name: definition for name, definition in definitions.items()
+            if name in required
+        }
     arms = {}
     sample_collectors = {}
+    initialization_cache = {}
     for name, (
         modalities, enable_cann, enable_consensus, enable_local_unified,
+        fixed_information_weights,
     ) in definitions.items():
         collector = {}
         arms[name] = _run_bilateral_online_arm(
@@ -705,126 +921,259 @@ def run_bilateral_baseline_matrix(
             enable_consensus=enable_consensus,
             tracking_modalities=modalities,
             enable_local_unified=enable_local_unified,
+            fixed_information_weights=fixed_information_weights,
             sample_collector=collector,
+            iod_initialization_cache=initialization_cache,
+            topology_by_timestamp=topology_by_timestamp,
         )
         sample_collectors[name] = collector
     representative_node_id = frontend.truth.manifest.friendly_observer_ids[0]
-    representative_no_cann = {
-        key: sample
-        for key, sample in sample_collectors[
-            "centralized_multimodal_no_cann"
-        ]["local"].items()
-        if key[0] == representative_node_id
-    }
-    representative_cann = {
-        key: sample
-        for key, sample in sample_collectors[
-            "centralized_multimodal_cann"
-        ]["local"].items()
-        if key[0] == representative_node_id
-    }
-    representative_joint_cann = {
-        key: sample
-        for key, sample in sample_collectors[
-            "single_observer_joint_multimodal_cann"
-        ]["local"].items()
-        if key[0] == representative_node_id
-    }
-    representative_joint_no_cann = {
-        key: sample
-        for key, sample in sample_collectors[
-            "single_observer_joint_multimodal_no_cann"
-        ]["local"].items()
-        if key[0] == representative_node_id
-    }
-    representative_single_modality = {
-        modality: {
+    def representative_samples(arm_name: str) -> dict:
+        if arm_name not in sample_collectors:
+            return {}
+        return {
             key: sample
             for key, sample in sample_collectors[arm_name]["local"].items()
             if key[0] == representative_node_id
         }
+
+    def representative_acceleration_samples(arm_name: str) -> dict:
+        if arm_name not in sample_collectors:
+            return {}
+        return {
+            key: sample
+            for key, sample in sample_collectors[arm_name][
+                "localAcceleration"
+            ].items()
+            if key[0] == representative_node_id
+        }
+
+    representative_no_cann = representative_samples(
+        "centralized_multimodal_no_cann"
+    )
+    representative_cann = representative_samples(
+        "centralized_multimodal_cann"
+    )
+    representative_joint_cann = representative_samples(
+        "single_observer_joint_multimodal_cann"
+    )
+    representative_joint_no_cann = representative_samples(
+        "single_observer_joint_multimodal_no_cann"
+    )
+    representative_fixed_weight = representative_samples(
+        "single_observer_fixed_weight_federated_no_cann"
+    )
+    representative_no_cann_acceleration = (
+        representative_acceleration_samples("centralized_multimodal_no_cann")
+    )
+    representative_cann_acceleration = representative_acceleration_samples(
+        "centralized_multimodal_cann"
+    )
+    representative_joint_cann_acceleration = (
+        representative_acceleration_samples(
+            "single_observer_joint_multimodal_cann"
+        )
+    )
+    representative_joint_no_cann_acceleration = (
+        representative_acceleration_samples(
+            "single_observer_joint_multimodal_no_cann"
+        )
+    )
+    representative_fixed_weight_acceleration = (
+        representative_acceleration_samples(
+            "single_observer_fixed_weight_federated_no_cann"
+        )
+    )
+    representative_single_modality = {
+        modality: representative_samples(arm_name)
         for modality, arm_name in {
             "radar": "centralized_radar_only",
             "infrared": "centralized_infrared_only",
             "optical": "centralized_optical_only",
         }.items()
+        if arm_name in sample_collectors
     }
-    return BilateralBaselineMatrixResult(
-        arms=MappingProxyType(arms),
-        local_node_baselines=MappingProxyType({
+    representative_single_modality_acceleration = {
+        modality: representative_acceleration_samples(arm_name)
+        for modality, arm_name in {
+            "radar": "centralized_radar_only",
+            "infrared": "centralized_infrared_only",
+            "optical": "centralized_optical_only",
+        }.items()
+        if arm_name in sample_collectors
+    }
+
+    local_node_baselines = {}
+    if "centralized_multimodal_no_cann" in arms:
+        local_node_baselines.update({
             "single_node_multimodal_no_cann": arms[
                 "centralized_multimodal_no_cann"
-            ].representative_node_metrics,
-            "single_node_multimodal_cann": arms[
-                "centralized_multimodal_cann"
             ].representative_node_metrics,
             "independent_15_node_multimodal_no_cann": arms[
                 "centralized_multimodal_no_cann"
             ].independent_node_metrics,
+        })
+    if "centralized_multimodal_cann" in arms:
+        local_node_baselines.update({
+            "single_node_multimodal_cann": arms[
+                "centralized_multimodal_cann"
+            ].representative_node_metrics,
             "independent_15_node_multimodal_cann": arms[
                 "centralized_multimodal_cann"
             ].independent_node_metrics,
-        }),
-        matched_single_observer_cann_metrics=_matched_view_metrics(
-            representative_no_cann,
-            representative_cann,
+        })
+    if "single_observer_joint_multimodal_cann" in arms:
+        if acceptance_scope == "p05-candidate":
+            # In the lean P05 acceptance pair this is the selected CANN
+            # candidate.  Keep the established summary key so older evidence
+            # aggregation remains compatible without running an extra arm.
+            local_node_baselines[
+                "single_node_multimodal_cann"
+            ] = arms[
+                "single_observer_joint_multimodal_cann"
+            ].representative_node_metrics
+        local_node_baselines[
+            "independent_15_node_joint_multimodal_cann"
+        ] = arms[
+            "single_observer_joint_multimodal_cann"
+        ].independent_node_metrics
+    if "single_observer_fixed_weight_federated_no_cann" in arms:
+        local_node_baselines[
+            "single_node_fixed_weight_federated_no_cann"
+        ] = arms[
+            "single_observer_fixed_weight_federated_no_cann"
+        ].representative_node_metrics
+
+    def matched_or_none(
+        left: dict, right: dict, left_acceleration: dict,
+        right_acceleration: dict,
+    ):
+        return (
+            _matched_view_metrics(
+                left, right, left_acceleration, right_acceleration,
+            )
+            if left and right else None
+        )
+
+    matched_ablation_pairs = {
+        "federatedCannIncrement": (
+            representative_no_cann, representative_cann,
+            representative_no_cann_acceleration,
+            representative_cann_acceleration,
         ),
-        matched_single_observer_joint_cann_metrics=_matched_view_metrics(
-            representative_no_cann,
-            representative_joint_cann,
+        "jointFusionWithoutCann": (
+            representative_no_cann, representative_joint_no_cann,
+            representative_no_cann_acceleration,
+            representative_joint_no_cann_acceleration,
         ),
-        matched_single_observer_ablation_metrics=MappingProxyType({
-            "federatedCannIncrement": _matched_view_metrics(
-                representative_no_cann,
-                representative_cann,
-            ),
-            "jointFusionWithoutCann": _matched_view_metrics(
-                representative_no_cann,
-                representative_joint_no_cann,
-            ),
-            "jointCannIncrement": _matched_view_metrics(
-                representative_joint_no_cann,
-                representative_joint_cann,
-            ),
-            "jointFusionWithCannCombined": _matched_view_metrics(
-                representative_no_cann,
-                representative_joint_cann,
-            ),
-        }),
-        matched_single_observer_cann_vs_modality=MappingProxyType({
-            modality: _matched_view_metrics(samples, representative_cann)
-            for modality, samples in representative_single_modality.items()
-        }),
-        matched_independent_consensus_metrics_by_cann=MappingProxyType({
-            "withoutCann": _matched_view_metrics(
-                sample_collectors[
-                    "centralized_multimodal_no_cann"
-                ]["local"],
-                sample_collectors[
-                    "fixed_topology_multimodal_no_cann"
-                ]["consensus"],
-            ),
-            "incrementalCann": _matched_view_metrics(
-                sample_collectors[
-                    "centralized_multimodal_cann"
-                ]["local"],
-                sample_collectors[
-                    "fixed_topology_multimodal_cann"
-                ]["consensus"],
-            ),
-        }),
-        matched_joint_independent_consensus_metrics=_matched_view_metrics(
+        "jointCannIncrement": (
+            representative_joint_no_cann, representative_joint_cann,
+            representative_joint_no_cann_acceleration,
+            representative_joint_cann_acceleration,
+        ),
+        "fixedWeightFederatedToJointCann": (
+            representative_fixed_weight, representative_joint_cann,
+            representative_fixed_weight_acceleration,
+            representative_joint_cann_acceleration,
+        ),
+        "jointFusionWithCannCombined": (
+            representative_no_cann, representative_joint_cann,
+            representative_no_cann_acceleration,
+            representative_joint_cann_acceleration,
+        ),
+    }
+    matched_ablation = {
+        name: _matched_view_metrics(left, right, left_acc, right_acc)
+        for name, (left, right, left_acc, right_acc)
+        in matched_ablation_pairs.items()
+        if left and right
+    }
+    matched_by_cann = {}
+    for label, local_arm, consensus_arm in (
+        (
+            "withoutCann", "centralized_multimodal_no_cann",
+            "fixed_topology_multimodal_no_cann",
+        ),
+        (
+            "incrementalCann", "centralized_multimodal_cann",
+            "fixed_topology_multimodal_cann",
+        ),
+    ):
+        if local_arm in sample_collectors and consensus_arm in sample_collectors:
+            matched_by_cann[label] = _matched_view_metrics(
+                sample_collectors[local_arm]["local"],
+                sample_collectors[consensus_arm]["consensus"],
+                sample_collectors[local_arm]["localAcceleration"],
+                sample_collectors[consensus_arm]["consensusAcceleration"],
+            )
+    matched_joint = None
+    if {
+        "single_observer_joint_multimodal_cann",
+        "fixed_topology_joint_multimodal_cann",
+    }.issubset(sample_collectors):
+        matched_joint = _matched_view_metrics(
             sample_collectors[
                 "single_observer_joint_multimodal_cann"
             ]["local"],
             sample_collectors[
                 "fixed_topology_joint_multimodal_cann"
             ]["consensus"],
+            sample_collectors[
+                "single_observer_joint_multimodal_cann"
+            ]["localAcceleration"],
+            sample_collectors[
+                "fixed_topology_joint_multimodal_cann"
+            ]["consensusAcceleration"],
+        )
+
+    return BilateralBaselineMatrixResult(
+        arms=MappingProxyType(arms),
+        local_node_baselines=MappingProxyType(local_node_baselines),
+        matched_single_observer_cann_metrics=matched_or_none(
+            representative_no_cann, representative_cann,
+            representative_no_cann_acceleration,
+            representative_cann_acceleration,
         ),
+        matched_single_observer_joint_cann_metrics=matched_or_none(
+            representative_no_cann, representative_joint_cann,
+            representative_no_cann_acceleration,
+            representative_joint_cann_acceleration,
+        ),
+        matched_single_observer_ablation_metrics=MappingProxyType(
+            matched_ablation
+        ),
+        matched_single_observer_cann_vs_modality=MappingProxyType({
+            modality: _matched_view_metrics(
+                samples,
+                representative_cann,
+                representative_acceleration_samples({
+                    "radar": "centralized_radar_only",
+                    "infrared": "centralized_infrared_only",
+                    "optical": "centralized_optical_only",
+                }[modality]),
+                representative_cann_acceleration,
+            )
+            for modality, samples in representative_single_modality.items()
+            if representative_cann
+        }),
+        matched_single_observer_joint_cann_vs_modality=MappingProxyType({
+            modality: _matched_view_metrics(
+                samples,
+                representative_joint_cann,
+                representative_single_modality_acceleration[modality],
+                representative_joint_cann_acceleration,
+            )
+            for modality, samples in representative_single_modality.items()
+            if representative_joint_cann
+        }),
+        matched_independent_consensus_metrics_by_cann=MappingProxyType(
+            matched_by_cann
+        ),
+        matched_joint_independent_consensus_metrics=matched_joint,
         tracking_modalities_by_arm=MappingProxyType({
             name: tuple(modalities)
             for name, (
-                modalities, _cann, _consensus, _local_unified,
+                modalities, _cann, _consensus, _local_unified, _fixed_weights,
             ) in definitions.items()
         }),
         uses_common_multimodal_initialization=True,
@@ -834,23 +1183,30 @@ def run_bilateral_baseline_matrix(
         }),
     )
 
-
 def _run_bilateral_online_arm(
     frontend: BilateralFrontendResult,
     *,
     enable_cann: bool,
     enable_consensus: bool = False,
     enable_local_unified: bool = False,
+    fixed_information_weights: Mapping[str, float] | None = None,
     tracking_modalities: tuple[str, ...] | None = None,
     tracking_observer_ids: tuple[str, ...] | None = None,
+    tracking_target_ids: tuple[str, ...] | None = None,
     require_scored_truth: bool = True,
     sample_collector: dict | None = None,
     epoch_callback=None,
+    iod_initialization_cache: dict | None = None,
+    topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
 ) -> BilateralOnlineSmokeResult:
     allowed_tracking_modalities = _normalized_modalities(tracking_modalities)
     allowed_tracking_observers = (
         None if tracking_observer_ids is None
         else frozenset(str(value) for value in tracking_observer_ids)
+    )
+    allowed_tracking_targets = (
+        None if tracking_target_ids is None
+        else frozenset(str(value) for value in tracking_target_ids)
     )
     known_observers = frozenset(
         frontend.truth.manifest.friendly_observer_ids
@@ -862,6 +1218,15 @@ def _run_bilateral_online_arm(
         if unknown:
             raise ValueError(
                 f"Unknown tracking observer ids: {sorted(unknown)}"
+            )
+    known_targets = frozenset(frontend.truth.manifest.hostile_target_ids)
+    if allowed_tracking_targets is not None:
+        if not allowed_tracking_targets:
+            raise ValueError("tracking_target_ids cannot be empty.")
+        unknown = allowed_tracking_targets - known_targets
+        if unknown:
+            raise ValueError(
+                f"Unknown tracking target ids: {sorted(unknown)}"
             )
     tracker = OnlineMultiTargetTracker(
         scene_id=frontend.truth.manifest.scene_id,
@@ -881,6 +1246,11 @@ def _run_bilateral_online_arm(
             prediction_velocity_sigma_floor_mps=(
                 frontend.config.association_velocity_sigma_floor_mps
             ),
+            autonomous_iod_manager=AutonomousIODManager(
+                iod_manager=MultiTargetIODManager(
+                    initialization_cache=iod_initialization_cache,
+                )
+            ),
         ),
         max_coast_epochs=frontend.config.tracking_max_coast_epochs,
         max_lost_epochs=frontend.config.tracking_max_lost_epochs,
@@ -898,6 +1268,11 @@ def _run_bilateral_online_arm(
             enable_local_unified
             or frontend.config.use_local_unified_multimodal_measurement_update
         ),
+        local_fusion_method=(
+            "fixed_information"
+            if fixed_information_weights is not None else "ci"
+        ),
+        local_information_allocation_weights=fixed_information_weights,
         enable_inverse_depth_los_update=(
             frontend.config.use_inverse_depth_los_update
         ),
@@ -910,16 +1285,43 @@ def _run_bilateral_online_arm(
         measurement_preprocessor_factory=(
             (
                 lambda _observer, _target: IncrementalMultimodalCANNPreprocessor(
-                    IncrementalMultimodalCANNConfig(profile="realtime")
+                    IncrementalMultimodalCANNConfig(
+                        profile="realtime",
+                        radial_backup=(
+                            frontend.config.cann_process_radial_backup
+                        ),
+                    )
                 )
             )
             if enable_cann else None
         ),
     )
+    base_topology = frontend.truth.manifest.friendly_topology
+    if topology_by_timestamp is not None:
+        expected_nodes = set(base_topology.node_ids)
+        missing_epochs = {
+            float(value) for value in frontend.truth.timestamps
+        } - {float(value) for value in topology_by_timestamp}
+        if missing_epochs:
+            raise ValueError(
+                "topology_by_timestamp is missing frontend epochs: "
+                f"{sorted(missing_epochs)[:3]}"
+            )
+        for timestamp, topology in topology_by_timestamp.items():
+            if set(topology.node_ids) != expected_nodes:
+                raise ValueError(
+                    "Dynamic topology must contain exactly the friendly nodes "
+                    f"at timestamp {timestamp}."
+                )
+        initial_topology = topology_by_timestamp[
+            float(frontend.truth.timestamps[0])
+        ]
+    else:
+        initial_topology = base_topology
     consensus = (
         DistributedTargetConsensus(
             scene_id=frontend.truth.manifest.scene_id,
-            topology=frontend.truth.manifest.friendly_topology,
+            topology=initial_topology,
             prefer_complete_radial_lineage=(
                 frontend.config.prefer_complete_radial_lineage
             ),
@@ -927,7 +1329,6 @@ def _run_bilateral_online_arm(
         )
         if enable_consensus else None
     )
-    base_topology = frontend.truth.manifest.friendly_topology
     initialized_ids: set[str] = set()
     retired_ids: set[str] = set()
     final_update = None
@@ -949,7 +1350,14 @@ def _run_bilateral_online_arm(
     consensus_recovered = 0
     active_node_counts: dict[float, int] = {}
     active_edge_counts: dict[float, int] = {}
-    truth_ids = frontend.truth.manifest.hostile_target_ids
+    truth_ids = (
+        frontend.truth.manifest.hostile_target_ids
+        if allowed_tracking_targets is None
+        else tuple(
+            target_id for target_id in frontend.truth.manifest.hostile_target_ids
+            if target_id in allowed_tracking_targets
+        )
+    )
     central_evaluator = IdentityAwareTrackEvaluator(truth_ids)
     consensus_evaluators = {
         node_id: IdentityAwareTrackEvaluator(truth_ids)
@@ -978,6 +1386,13 @@ def _run_bilateral_online_arm(
             for observer_id in frontend.truth.manifest.friendly_observer_ids
         }
         epoch_messages = frontend.messages_by_timestamp[timestamp]
+        if allowed_tracking_targets is not None:
+            epoch_messages = tuple(
+                message for message in epoch_messages
+                if frontend.truth_target_by_detection_group[
+                    message.detection_group_id
+                ] in allowed_tracking_targets
+            )
         if (
             allowed_tracking_observers is not None
             and len(initialized_ids) == len(truth_ids)
@@ -1018,6 +1433,7 @@ def _run_bilateral_online_arm(
             for target_id, history in (
                 frontend.truth.hostile_truth_state_history_by_target.items()
             )
+            if target_id in truth_ids
         }
         reports_by_node = {
             node_id: {
@@ -1047,13 +1463,17 @@ def _run_bilateral_online_arm(
             reports_by_node[representative_node_id]
         )
         if consensus is not None:
+            epoch_base_topology = (
+                topology_by_timestamp[timestamp]
+                if topology_by_timestamp is not None else base_topology
+            )
             active_observers = _active_observer_ids(
                 frontend, timestamp=timestamp,
             )
             active_topology = _topology_with_inactive_nodes(
-                base_topology,
+                epoch_base_topology,
                 inactive_node_ids=(
-                    set(base_topology.node_ids) - set(active_observers)
+                    set(epoch_base_topology.node_ids) - set(active_observers)
                 ),
             )
             if active_topology.adjacency != consensus.topology.adjacency:
@@ -1204,11 +1624,41 @@ def _run_bilateral_online_arm(
         state_errors_by_timestamp=representative_state_errors_by_timestamp,
         final_estimate_count=final_representative_estimate_count,
     )
+    local_acceleration_samples = _acceleration_error_samples_by_key(
+        local_evaluators,
+        frontend.truth.hostile_truth_state_history_by_target,
+        frontend.truth.timestamps,
+        expected_interval_seconds=frontend.config.sample_interval_seconds,
+    )
+    consensus_acceleration_samples = (
+        _acceleration_error_samples_by_key(
+            consensus_evaluators,
+            frontend.truth.hostile_truth_state_history_by_target,
+            frontend.truth.timestamps,
+            expected_interval_seconds=frontend.config.sample_interval_seconds,
+        )
+        if consensus is not None else {}
+    )
+    central_acceleration = _acceleration_error_samples_by_key(
+        {"central": central_evaluator},
+        frontend.truth.hostile_truth_state_history_by_target,
+        frontend.truth.timestamps,
+        expected_interval_seconds=frontend.config.sample_interval_seconds,
+    )
+    central_acceleration_samples = {
+        (node_id, truth_id, previous_time, current_time): error
+        for (_central, truth_id, previous_time, current_time), error
+        in central_acceleration.items()
+        for node_id in local_evaluators
+    }
     if sample_collector is not None:
         sample_collector.update({
             "local": dict(local_samples_by_key),
             "consensus": dict(consensus_samples_by_key),
             "central": dict(central_samples_by_key),
+            "localAcceleration": local_acceleration_samples,
+            "consensusAcceleration": consensus_acceleration_samples,
+            "centralAcceleration": central_acceleration_samples,
         })
     return BilateralOnlineSmokeResult(
         frame_count=len(frontend.truth.timestamps),
@@ -1308,17 +1758,26 @@ def _run_bilateral_online_arm(
             _matched_view_metrics(
                 local_samples_by_key,
                 consensus_samples_by_key,
+                local_acceleration_samples,
+                consensus_acceleration_samples,
             )
             if consensus is not None else None
         ),
         matched_local_central_metrics=_matched_view_metrics(
             local_samples_by_key,
             central_samples_by_key,
+            local_acceleration_samples,
+            central_acceleration_samples,
         ),
     )
 
 
-def _matched_view_metrics(local_samples, consensus_samples):
+def _matched_view_metrics(
+    local_samples,
+    consensus_samples,
+    local_acceleration_samples=None,
+    consensus_acceleration_samples=None,
+):
     local_keys = set(local_samples)
     consensus_keys = set(consensus_samples)
     common_keys = tuple(sorted(local_keys & consensus_keys))
@@ -1333,6 +1792,19 @@ def _matched_view_metrics(local_samples, consensus_samples):
     ], dtype=float)
     consensus_velocity = np.asarray([
         consensus_samples[key].velocity_error_mps for key in common_keys
+    ], dtype=float)
+    local_acceleration_samples = local_acceleration_samples or {}
+    consensus_acceleration_samples = consensus_acceleration_samples or {}
+    local_acceleration_keys = set(local_acceleration_samples)
+    consensus_acceleration_keys = set(consensus_acceleration_samples)
+    common_acceleration_keys = tuple(sorted(
+        local_acceleration_keys & consensus_acceleration_keys
+    ))
+    local_acceleration = np.asarray([
+        local_acceleration_samples[key] for key in common_acceleration_keys
+    ], dtype=float)
+    consensus_acceleration = np.asarray([
+        consensus_acceleration_samples[key] for key in common_acceleration_keys
     ], dtype=float)
     return BilateralMatchedViewMetrics(
         local_sample_count=len(local_keys),
@@ -1363,6 +1835,23 @@ def _matched_view_metrics(local_samples, consensus_samples):
         velocity_rmse_improvement_percent=_improvement_percent(
             _rmse_or_nan(local_velocity),
             _rmse_or_nan(consensus_velocity),
+        ),
+        local_acceleration_sample_count=len(local_acceleration_keys),
+        consensus_acceleration_sample_count=len(consensus_acceleration_keys),
+        common_acceleration_sample_count=len(common_acceleration_keys),
+        local_only_acceleration_sample_count=len(
+            local_acceleration_keys - consensus_acceleration_keys
+        ),
+        consensus_only_acceleration_sample_count=len(
+            consensus_acceleration_keys - local_acceleration_keys
+        ),
+        local_acceleration_rmse_mps2=_rmse_or_nan(local_acceleration),
+        consensus_acceleration_rmse_mps2=_rmse_or_nan(
+            consensus_acceleration
+        ),
+        acceleration_rmse_improvement_percent=_improvement_percent(
+            _rmse_or_nan(local_acceleration),
+            _rmse_or_nan(consensus_acceleration),
         ),
     )
 
@@ -1444,6 +1933,45 @@ def _acceleration_errors_by_timestamp(
     }
 
 
+def _acceleration_error_samples_by_key(
+    evaluators,
+    truth_history_by_target,
+    timestamps,
+    *,
+    expected_interval_seconds,
+) -> dict[tuple[str, str, float, float], float]:
+    """Return ECI acceleration errors on identity-continuous adjacent epochs."""
+
+    truth_index_by_timestamp = {
+        float(timestamp): index for index, timestamp in enumerate(timestamps)
+    }
+    result = {}
+    for node_id, evaluator in evaluators.items():
+        for target_id, estimate_history in (
+            evaluator.state_history_by_truth.items()
+        ):
+            for (previous_time, previous), (current_time, current) in zip(
+                estimate_history, estimate_history[1:]
+            ):
+                previous_time = float(previous_time)
+                current_time = float(current_time)
+                dt = current_time - previous_time
+                if not np.isclose(dt, expected_interval_seconds):
+                    continue
+                previous_truth = truth_history_by_target[target_id][
+                    truth_index_by_timestamp[previous_time]
+                ]
+                current_truth = truth_history_by_target[target_id][
+                    truth_index_by_timestamp[current_time]
+                ]
+                estimated = (current[3:] - previous[3:]) / dt
+                truth = (current_truth[3:] - previous_truth[3:]) / dt
+                result[(
+                    str(node_id), str(target_id), previous_time, current_time,
+                )] = float(np.linalg.norm(estimated - truth))
+    return result
+
+
 def _combined_acceleration_errors_by_timestamp(
     evaluators,
     truth_history_by_target,
@@ -1471,7 +1999,7 @@ def _combined_position_rmse_by_truth(evaluators, truth_ids):
         errors = [
             sample.position_error_m
             for evaluator in evaluators.values()
-            for sample in evaluator.error_history_by_truth[truth_id]
+            for sample in evaluator.error_history_by_truth.get(truth_id, ())
         ]
         result[truth_id] = _rmse_or_nan(errors)
     return result
@@ -1836,6 +2364,29 @@ def _sensor_config(image_size: int) -> MultimodalSensorSimulationConfig:
             range_jitter_sigma_m=2.5,
             range_rate_jitter_sigma_mps=0.0125,
         ),
+    )
+
+
+def electro_optical_radial_failover_sensor_config(
+    image_size: int = 17,
+    *,
+    range_sigma_m: float = 2.5,
+    range_rate_sigma_mps: float = 0.010,
+) -> MultimodalSensorSimulationConfig:
+    """Return the frozen R06 radar-primary electro-optical failover sensors.
+
+    Optical and infrared observations both carry idealized radial proxy
+    metadata.  The measurement filter suppresses those components while radar
+    is present and admits one electro-optical proxy only when radar is absent.
+    """
+
+    return replace(
+        _sensor_config(image_size),
+        optical_range_proxy_sigma_m=float(range_sigma_m),
+        optical_range_rate_proxy_sigma_mps=float(range_rate_sigma_mps),
+        infrared_range_proxy_sigma_m=float(range_sigma_m),
+        infrared_range_rate_proxy_sigma_mps=float(range_rate_sigma_mps),
+        electro_optical_radial_proxy_policy="radar_primary_failover",
     )
 
 

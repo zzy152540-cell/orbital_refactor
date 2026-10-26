@@ -38,33 +38,32 @@ def test_acceptance_candidate_freezes_common_scenario_and_primary_metrics():
     assert metrics["F10"]["manualGuiChecklistRequired"] is True
 
 
-def test_r06_temporary_acceptance_uses_only_the_passing_radial_configuration():
+def test_r06_temporary_acceptance_uses_shared_eo_radial_failover():
     config = _config()
     r06 = config["metricConfigurations"]["R06"]
-    radial = r06["radarDropoutOverride"]
+    failover = r06["sharedElectroOpticalRadialFailover"]
     boundaries = config["acceptanceBoundaries"]
 
-    assert radial == {
-        "enabledOnAllFriendlyObservers": True,
-        "source": "INDEPENDENT_RADIAL_BACKUP_SHADOW",
-        "rangeSigmaM": 1.0,
-        "rangeRateSigmaMps": 0.0125,
+    assert failover == {
+        "appliedToControlAndAllDropoutGroups": True,
+        "policy": "RADAR_PRIMARY_FAILOVER",
+        "radarPrimary": True,
+        "fallbackPriority": ["INFRARED", "OPTICAL"],
+        "source": "IDEALIZED_ELECTRO_OPTICAL_RADIAL_PROXY",
+        "opticalRangeSigmaM": 2.5,
+        "opticalRangeRateSigmaMps": 0.01,
+        "infraredRangeSigmaM": 2.5,
+        "infraredRangeRateSigmaMps": 0.01,
         "physicalValidation": False,
         "physicalValidationWaivedForThisAcceptance": True,
     }
-    assert boundaries["excludePartialRadialCoverage"] is True
-    assert boundaries["excludeMultiHopCoverageExperiment"] is True
-    assert boundaries["excludeCompleteRadialLineageGate"] is True
+    assert boundaries["legacyIndependentRadialBackupUsed"] is False
+    assert boundaries["electroOpticalProxyPhysicalValidationClaimed"] is False
     assert boundaries["formalPhysicalSensorClaimed"] is False
     assert r06["evidence"]["perModalityStatus"] == {
         "OPTICAL": "PASS_L2",
         "INFRARED": "PASS_L2",
-        "RADAR": "PASS_L2_WITH_NUMERICAL_BACKUP",
-    }
-    assert r06["modalitySpecificOverridePolicy"] == {
-        "OPTICAL": "NONE",
-        "INFRARED": "NONE",
-        "RADAR": "USE_RADAR_DROPOUT_OVERRIDE",
+        "RADAR": "PASS_L2_WITH_IDEALIZED_EO_FAILOVER",
     }
     assert r06["evidence"]["opticalPositionIncreasePercent"] <= 15.0
     assert r06["evidence"]["infraredPositionIncreasePercent"] <= 15.0

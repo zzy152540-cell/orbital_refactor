@@ -223,8 +223,11 @@ def _summarize_local_node_runs(runs) -> dict:
                 run["phase_metrics"]["FULL_RUN"].get(field) for run in runs
             )
             for field in (
+                "position_mean_error_m",
                 "position_rmse_m",
+                "velocity_mean_error_mps",
                 "velocity_rmse_mps",
+                "acceleration_mean_error_mps2",
                 "acceleration_rmse_mps2",
                 "position_sample_count",
                 "acceleration_sample_count",
@@ -514,8 +517,40 @@ def _matched_pair_evidence(
         consensus_field="consensus_velocity_rmse_mps",
         squared=True,
     )
+    acceleration_fields_available = all(
+        "local_acceleration_rmse_mps2" in record
+        and "consensus_acceleration_rmse_mps2" in record
+        for record in records
+    )
+    acceleration_rmse = (
+        _pooled_matched_pair(
+            records,
+            local_field="local_acceleration_rmse_mps2",
+            consensus_field="consensus_acceleration_rmse_mps2",
+            squared=True,
+            count_field="common_acceleration_sample_count",
+        )
+        if acceleration_fields_available else {
+            "commonSampleCount": 0,
+            "local": None,
+            "consensus": None,
+            "improvementPercent": None,
+        }
+    )
+    acceleration_coverage_comparable = bool(
+        acceleration_fields_available
+        and all(
+            int(record.get("common_acceleration_sample_count", 0)) > 0
+            and int(record["common_acceleration_sample_count"])
+            == int(record.get("local_acceleration_sample_count", -1))
+            for record in records
+        )
+    )
     result = {
         "coverageComparable": coverage_comparable,
+        "accelerationCoverageComparable": (
+            acceleration_coverage_comparable
+        ),
         "localOnlySampleCount": int(sum(
             record["local_only_sample_count"] for record in records
         )),
@@ -526,6 +561,7 @@ def _matched_pair_evidence(
         "positionRmse": rmse,
         "velocityMeanError": velocity_mean_error,
         "velocityRmse": velocity_rmse,
+        "accelerationRmse": acceleration_rmse,
         "thresholdMetByCandidatePrimaryMetric": {
             "position_mean_error_m": bool(
                 mean_error["improvementPercent"] is not None
@@ -547,6 +583,12 @@ def _matched_pair_evidence(
                 and velocity_rmse["improvementPercent"]
                 >= minimum_improvement_percent
             ),
+            "acceleration_rmse_mps2": bool(
+                acceleration_coverage_comparable
+                and acceleration_rmse["improvementPercent"] is not None
+                and acceleration_rmse["improvementPercent"]
+                >= minimum_improvement_percent
+            ),
         },
     }
     if seeds is not None:
@@ -565,6 +607,10 @@ def _matched_pair_evidence(
                 record["local_position_rmse_m"],
                 record["consensus_position_rmse_m"],
             )
+            acceleration_improvement = _improvement_percent(
+                record.get("local_acceleration_rmse_mps2"),
+                record.get("consensus_acceleration_rmse_mps2"),
+            )
             mean_improvements.append(mean_improvement)
             rmse_improvements.append(rmse_improvement)
             per_seed.append({
@@ -572,6 +618,12 @@ def _matched_pair_evidence(
                 "commonSampleCount": int(record["common_sample_count"]),
                 "positionMeanErrorImprovementPercent": mean_improvement,
                 "positionRmseImprovementPercent": rmse_improvement,
+                "commonAccelerationSampleCount": int(
+                    record.get("common_acceleration_sample_count", 0)
+                ),
+                "accelerationRmseImprovementPercent": (
+                    acceleration_improvement
+                ),
                 "meanErrorThresholdMet": bool(
                     mean_improvement is not None
                     and mean_improvement >= minimum_improvement_percent
@@ -579,6 +631,12 @@ def _matched_pair_evidence(
                 "rmseThresholdMet": bool(
                     rmse_improvement is not None
                     and rmse_improvement >= minimum_improvement_percent
+                ),
+                "accelerationRmseThresholdMet": bool(
+                    int(record.get("common_acceleration_sample_count", 0)) > 0
+                    and acceleration_improvement is not None
+                    and acceleration_improvement
+                    >= minimum_improvement_percent
                 ),
             })
         result["perSeed"] = per_seed
@@ -678,33 +736,34 @@ def _pooled_node_pair(
 
 def _pooled_matched_pair(
     records, *, local_field, consensus_field, squared,
+    count_field="common_sample_count",
 ) -> dict:
-    count = sum(int(record["common_sample_count"]) for record in records)
+    count = sum(int(record.get(count_field, 0)) for record in records)
     if not count:
         local_value = consensus_value = None
     elif squared:
         local_value = (
             sum(
                 float(record[local_field]) ** 2
-                * int(record["common_sample_count"])
+                * int(record[count_field])
                 for record in records
             ) / count
         ) ** 0.5
         consensus_value = (
             sum(
                 float(record[consensus_field]) ** 2
-                * int(record["common_sample_count"])
+                * int(record[count_field])
                 for record in records
             ) / count
         ) ** 0.5
     else:
         local_value = sum(
-            float(record[local_field]) * int(record["common_sample_count"])
+            float(record[local_field]) * int(record[count_field])
             for record in records
         ) / count
         consensus_value = sum(
             float(record[consensus_field])
-            * int(record["common_sample_count"])
+            * int(record[count_field])
             for record in records
         ) / count
     return {

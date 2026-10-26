@@ -13,17 +13,78 @@ from matplotlib.lines import Line2D
 from visualization.replay_model import VisualizationReplayModel
 
 
+MODALITY_VISUAL_STYLE = {
+    "RADAR": {
+        "color": "#27b7d8",
+        "symbol": "s",
+        "description": "range-Doppler power",
+        "stops": ("#03051a", "#123b6d", "#1c8ca8", "#d8f3dc"),
+    },
+    "INFRARED": {
+        "color": "#ff7f0e",
+        "symbol": "t",
+        "description": "infrared intensity",
+        "stops": ("#090014", "#6a176e", "#dd513a", "#fff3b0"),
+    },
+    "OPTICAL": {
+        "color": "#9aa0a6",
+        "symbol": "o",
+        "description": "optical grayscale intensity",
+        "stops": ("#000000", "#555555", "#bdbdbd", "#ffffff"),
+    },
+}
+
+
+def _lookup_table(colors, size=256):
+    positions = np.linspace(0.0, 1.0, len(colors))
+    return pg.ColorMap(positions, colors).getLookupTable(nPts=size)
+
+
+def _robust_image_levels(values) -> tuple[float, float]:
+    finite = np.asarray(values, dtype=float)
+    finite = finite[np.isfinite(finite)]
+    if finite.size == 0:
+        return 0.0, 1.0
+    low, high = np.percentile(finite, (1.0, 99.5))
+    if not high > low:
+        padding = max(abs(float(high)) * 0.05, 1.0)
+        return float(low - padding), float(high + padding)
+    return float(low), float(high)
+
+
 class ModalityObservationPanel(QtWidgets.QWidget):
     def __init__(self, modality: str) -> None:
         super().__init__()
         self.modality = modality
+        self.visual_style = MODALITY_VISUAL_STYLE.get(
+            modality, MODALITY_VISUAL_STYLE["OPTICAL"],
+        )
         layout = QtWidgets.QVBoxLayout(self)
-        self.image_plot = pg.PlotWidget()
+        self.modality_badge = QtWidgets.QLabel(
+            f"{modality} raw observation · "
+            f"{self.visual_style['description']}"
+        )
+        self.modality_badge.setStyleSheet(
+            "font-weight: 600; padding: 4px 8px; "
+            f"border-left: 5px solid {self.visual_style['color']};"
+        )
+        layout.addWidget(self.modality_badge)
+        self.image_plot = pg.PlotWidget(
+            title=f"{modality} raw sensor frame",
+        )
         self.image_plot.setAspectLocked(True)
         self.image_plot.hideAxis("left")
         self.image_plot.hideAxis("bottom")
-        self.image_item = pg.ImageItem()
+        self.image_item = pg.ImageItem(axisOrder="row-major")
+        self.image_item.setLookupTable(
+            _lookup_table(self.visual_style["stops"])
+        )
         self.image_plot.addItem(self.image_item)
+        self.peak_marker = pg.ScatterPlotItem(
+            symbol=self.visual_style["symbol"], size=13,
+            pen=pg.mkPen("#ffffff", width=2), brush=pg.mkBrush(0, 0, 0, 0),
+        )
+        self.image_plot.addItem(self.peak_marker)
         self.image_plot.setMinimumHeight(180)
         layout.addWidget(self.image_plot, 1)
         self.details = QtWidgets.QPlainTextEdit()
@@ -35,6 +96,7 @@ class ModalityObservationPanel(QtWidgets.QWidget):
     def set_observation(self, observation) -> None:
         if observation is None:
             self.image_item.clear()
+            self.peak_marker.setData([], [])
             self.image_plot.setVisible(False)
             self.details.setPlainText(
                 f"{self.modality}\nNo observation for the selected link "
@@ -44,7 +106,21 @@ class ModalityObservationPanel(QtWidgets.QWidget):
         raw = observation.raw_sensor_data
         self.image_plot.setVisible(raw is not None)
         if raw is not None:
-            self.image_item.setImage(np.asarray(raw), autoLevels=True)
+            image = np.asarray(raw, dtype=float)
+            self.image_item.setImage(
+                image, autoLevels=False, levels=_robust_image_levels(image),
+            )
+            finite = np.isfinite(image)
+            if image.ndim == 2 and np.any(finite):
+                peak_image = np.where(finite, image, -np.inf)
+                peak_row, peak_column = np.unravel_index(
+                    int(np.argmax(peak_image)), image.shape,
+                )
+                self.peak_marker.setData(
+                    [float(peak_column)], [float(peak_row)]
+                )
+            else:
+                self.peak_marker.setData([], [])
         measurement = np.array2string(
             observation.measurement, precision=6, separator=", ",
         )
@@ -65,7 +141,9 @@ class ModalityObservationPanel(QtWidgets.QWidget):
             f"Visible / valid: {observation.visible} / {observation.valid}\n"
             f"NIS: {nis}\n"
             f"Processing: {observation.processing_status}\n"
-            f"Raw sensor data: {raw_status}"
+            f"Raw sensor data: {raw_status}\n"
+            f"Display: {self.visual_style['description']} | "
+            f"white {self.visual_style['symbol']} marks frame maximum"
         )
 
 
@@ -104,15 +182,19 @@ class CANNObservationPanel(QtWidgets.QWidget):
         self.direction_plot.addItem(self.direction_marker)
         current_layout.addWidget(self.direction_plot, 0, 0)
 
-        self.place_plot = pg.PlotWidget(title="RT place-cell activity")
+        self.place_plot = pg.PlotWidget(title="RT place-cell CANN")
         self.place_plot.setAspectLocked(True)
-        self.place_image = pg.ImageItem()
+        self.place_plot.showGrid(x=True, y=True, alpha=0.35)
+        self.place_image = pg.ImageItem(axisOrder="row-major")
+        self.place_image.setLookupTable(_lookup_table((
+            "#02090b", "#063944", "#08778a", "#16afc3", "#d7fbff",
+        )))
         self.place_plot.addItem(self.place_image)
         self.place_plot.setLabel(
-            "bottom", "along-track cell (-2000, 0, +2000 m)"
+            "bottom", "T offset", units="km",
         )
         self.place_plot.setLabel(
-            "left", "radial cell (-2000, 0, +2000 m)"
+            "left", "R offset", units="km",
         )
         current_layout.addWidget(self.place_plot, 0, 1)
 
@@ -188,6 +270,39 @@ class CANNObservationPanel(QtWidgets.QWidget):
         if self._view_context is not None:
             self._show_selected_view()
 
+    def _update_place_heatmap(self, activity):
+        """Show normalized place-cell activity on a fixed display scale."""
+
+        place_activity = np.asarray(activity, dtype=float)
+        positive = np.where(
+            np.isfinite(place_activity), np.maximum(place_activity, 0.0), 0.0,
+        )
+        total = float(np.sum(positive))
+        normalized = positive / total if total > 0.0 else positive
+        self.place_image.setImage(
+            normalized, autoLevels=False, levels=(0.0, 0.35),
+        )
+        self.place_image.setRect(QtCore.QRectF(
+            -0.5, -0.5,
+            float(place_activity.shape[1]),
+            float(place_activity.shape[0]),
+        ))
+        peak_row, peak_column = np.unravel_index(
+            int(np.argmax(positive)), positive.shape,
+        )
+        self.place_plot.setXRange(
+            -0.5, place_activity.shape[1] - 0.5, padding=0.02,
+        )
+        self.place_plot.setYRange(
+            -0.5, place_activity.shape[0] - 0.5, padding=0.02,
+        )
+        if place_activity.shape == (3, 3):
+            ticks = [[(0, "-2"), (1, "0"), (2, "+2")]]
+            self.place_plot.getAxis("bottom").setTicks(ticks)
+            self.place_plot.getAxis("left").setTicks(ticks)
+        self.place_plot.setTitle("RT place-cell CANN")
+        return peak_row, peak_column
+
     def set_frame(self, *, model, frame, node_id: str) -> None:
         snapshots = {
             item.representation: item for item in frame.cann
@@ -201,7 +316,7 @@ class CANNObservationPanel(QtWidgets.QWidget):
         required = ("DIRECTION_RING", "RT_LINE_PAIR", "PLACE_CELL_RT")
         if any(name not in snapshots for name in required):
             self._clear_activity()
-            self.direction_plot.setTitle("Absolute orbital-phase Ring CANN")
+            self.direction_plot.setTitle("Orbital-phase CANN")
             self.details.setPlainText(
                 "Target-state CANN is unavailable for the selected object "
                 "at this epoch."
@@ -228,9 +343,9 @@ class CANNObservationPanel(QtWidgets.QWidget):
         self.direction_curve.setPen(pg.mkPen(node_color, width=2))
         self.direction_curve.setSymbol(None)
         self.direction_marker.show()
-        self.direction_plot.setTitle("Absolute orbital-phase Ring CANN")
+        self.direction_plot.setTitle("Orbital-phase CANN")
         self.direction_plot.setLabel(
-            "bottom", "absolute argument of latitude", units="deg",
+            "bottom", "absolute phase", units="deg",
         )
         self.direction_plot.setLabel("left", "normalized activity")
         self.direction_plot.getAxis("bottom").setTicks(None)
@@ -258,7 +373,7 @@ class CANNObservationPanel(QtWidgets.QWidget):
         self.along_curve.setData(rt_activity[1] / along_peak)
         self.radial_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
         self.along_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
-        self.place_image.setImage(np.asarray(place.activity), autoLevels=True)
+        peak_row, peak_column = self._update_place_heatmap(place.activity)
 
         phase_deg = float(np.rad2deg(direction.decoded_value[0]) % 360.0)
         peak_neuron = int(np.argmax(direction_activity))
@@ -284,7 +399,10 @@ class CANNObservationPanel(QtWidgets.QWidget):
             f"{rt.anchor_age:.1f} s\n"
             f"{absolute_text}\n"
             f"Input: target filter posterior | place peak: "
-            f"{place.concentration:.6f}\n"
+            f"{place.concentration:.6f} | peak cell: "
+            f"R={peak_row}, T={peak_column}\n"
+            f"Heatmap display: normalized activity, fixed 0-0.35 "
+            f"single-hue scale (display only)\n"
             f"Status: direction={direction.status}, RT={rt.status}, "
             f"place={place.status}"
         )
@@ -318,7 +436,7 @@ class CANNObservationPanel(QtWidgets.QWidget):
         )
         self.radial_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
         self.along_plot.setXRange(0.0, rt_activity.shape[1] - 1, padding=0.0)
-        self.place_image.setImage(np.asarray(place.activity), autoLevels=True)
+        self._update_place_heatmap(place.activity)
 
         history = model.cann_decoded_history(node_id, "ABSOLUTE_POSITION_ECI")
         self.direction_image.hide()
@@ -355,7 +473,10 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self.model = model
         first_frame = model.frame(0)
         role_by_id = first_frame.metadata.get("node_role_by_id", {})
-        self.target_ids = tuple(
+        configured_target_ids = tuple(
+            first_frame.metadata.get("estimation_target_ids", ())
+        )
+        self.target_ids = configured_target_ids or tuple(
             node.node_id for node in first_frame.nodes
             if role_by_id.get(node.node_id) == "HOSTILE_TARGET"
             or node.status.startswith("HOSTILE")
@@ -410,6 +531,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         layer_defaults = (
             ("earth", "Earth", True),
             ("satellites", "Satellites", True),
+            ("observations", "Observation links", True),
             ("configured", "Configured topology", False),
             ("active", "Active topology", True),
             ("delivered", "Delivered flow", True),
@@ -503,6 +625,11 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         }
         for modality, panel in self.observation_panels.items():
             self.information_tabs.addTab(panel, modality.title())
+            tab_index = self.information_tabs.indexOf(panel)
+            self.information_tabs.tabBar().setTabTextColor(
+                tab_index,
+                QtGui.QColor(MODALITY_VISUAL_STYLE[modality]["color"]),
+            )
         self.cann_panel = CANNObservationPanel()
         self.information_tabs.addTab(self.cann_panel, "Target state CANN")
         right.addWidget(self.information_tabs)
@@ -591,23 +718,24 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             "ACTIVE_TOPOLOGY": ("#1f77b4", "-", 0.85),
             "ACTUAL_INFORMATION_FLOW": ("#2ca02c", "-", 1.0),
             "PENDING_INFORMATION_FLOW": ("#ffbf00", "--", 0.9),
-            "OBSERVATION_LINK": ("#9467bd", "--", 0.22),
+            "OBSERVATION_LINK": ("#9467bd", "--", 0.78),
         }
         edge_layers = {
             "CONFIGURED_TOPOLOGY": "configured",
             "ACTIVE_TOPOLOGY": "active",
             "ACTUAL_INFORMATION_FLOW": "delivered",
             "PENDING_INFORMATION_FLOW": "delayed",
-            "OBSERVATION_LINK": "active",
+            "OBSERVATION_LINK": "observations",
         }
         edge_labels = {
             "CONFIGURED_TOPOLOGY": "configured topology",
             "ACTIVE_TOPOLOGY": "active topology",
             "ACTUAL_INFORMATION_FLOW": "delivered flow",
             "PENDING_INFORMATION_FLOW": "delayed flow",
-            "OBSERVATION_LINK": "observation link",
+            "OBSERVATION_LINK": "friendly -> hostile observation",
         }
         visible_edge_types = set()
+        observing_source_ids = set()
         for edge in frame.edges:
             if not self._layer_visible(edge_layers.get(edge.edge_type, "active")):
                 continue
@@ -625,17 +753,45 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             axis.plot(
                 (left[0], right[0]), (left[1], right[1]), (left[2], right[2]),
                 color=color, linestyle=linestyle,
-                linewidth=(1.7 if edge.edge_type == "ACTUAL_INFORMATION_FLOW" else 0.8),
+                linewidth=(
+                    1.7 if edge.edge_type == "ACTUAL_INFORMATION_FLOW"
+                    else 1.35 if edge.edge_type == "OBSERVATION_LINK"
+                    else 0.8
+                ),
                 alpha=alpha,
             )
+            if edge.edge_type == "OBSERVATION_LINK":
+                observing_source_ids.add(edge.source_node_id)
+                delta = right - left
+                arrow_start = left + 0.80 * delta
+                arrow_delta = 0.14 * delta
+                axis.quiver(
+                    arrow_start[0], arrow_start[1], arrow_start[2],
+                    arrow_delta[0], arrow_delta[1], arrow_delta[2],
+                    color=color, alpha=alpha, linewidth=1.35,
+                    arrow_length_ratio=0.35,
+                )
             visible_edge_types.add(edge.edge_type)
+        if observing_source_ids and self._layer_visible("satellites"):
+            observer_positions = np.asarray([
+                positions[node_id] for node_id in sorted(observing_source_ids)
+            ])
+            axis.scatter(
+                observer_positions[:, 0], observer_positions[:, 1],
+                observer_positions[:, 2], s=58, facecolors="none",
+                edgecolors="#9467bd", linewidths=1.5,
+            )
         for edge_type in edge_styles:
             if edge_type not in visible_edge_types:
                 continue
             color, linestyle, alpha = edge_styles[edge_type]
             legend_handles.append(Line2D(
                 [], [], color=color, linestyle=linestyle, alpha=alpha,
-                linewidth=(1.7 if edge_type == "ACTUAL_INFORMATION_FLOW" else 0.8),
+                linewidth=(
+                    1.7 if edge_type == "ACTUAL_INFORMATION_FLOW"
+                    else 1.35 if edge_type == "OBSERVATION_LINK"
+                    else 0.8
+                ),
                 label=edge_labels[edge_type],
             ))
         if selected:
@@ -740,6 +896,16 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"Scenario: {frame.scenario_id}\n"
             f"Run: {frame.run_id}\n"
             f"Schema: {frame.schema_version}\n"
+            f"Estimation architecture: "
+            f"{frame.metadata.get('estimation_architecture', 'n/a')}\n"
+            f"Estimation observer scope: "
+            f"{frame.metadata.get('estimation_observer_scope', 'n/a')}\n"
+            f"Estimation target scope: "
+            f"{frame.metadata.get('estimation_target_scope', 'n/a')}\n"
+            f"Current estimation phase: "
+            f"{frame.metadata.get('estimation_phase', 'n/a')}\n"
+            f"Consensus-CI enabled: "
+            f"{frame.metadata.get('consensus_enabled', False)}\n"
             f"Nodes: {len(frame.nodes)}\n"
             f"Configured / active / flow edges: "
             f"{sum(item.edge_type == 'CONFIGURED_TOPOLOGY' for item in frame.edges)} / "
@@ -753,11 +919,13 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"{counts['RADAR']} / {counts['INFRARED']} / {counts['OPTICAL']}\n"
             f"Fleet position RMSE: {fleet_rmse_text}\n"
             f"Topology version: {frame.metadata.get('topology_version', 'n/a')}\n"
-            f"Sent / delivered / dropped / delayed: "
+            f"Observation messages available / accepted / dropped / delayed: "
             f"{frame.metadata.get('transmitted_message_count', 'n/a')} / "
             f"{frame.metadata.get('delivered_message_count', 'n/a')} / "
             f"{frame.metadata.get('dropped_message_count', 'n/a')} / "
             f"{frame.metadata.get('delayed_message_count', 'n/a')}\n"
+            f"Consensus messages received (whole run): "
+            f"{frame.metadata.get('estimation_diagnostics', {}).get('consensus_received_message_count', 'n/a')}\n"
             f"Resynchronized links: "
             f"{frame.metadata.get('resynchronization_count', 'n/a')}"
         )
