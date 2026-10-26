@@ -34,6 +34,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packaging\build_window
 Ubuntu：
 
 ```bash
+sudo apt install -y libxcb-cursor0
 python -m pip install -r requirements-build.txt
 bash packaging/build_linux.sh
 ```
@@ -41,3 +42,7 @@ bash packaging/build_linux.sh
 构建脚本会依次生成独立运行目录、执行接口 smoke、执行无显示 GUI smoke，
 最后在 `release/` 中生成对应平台的压缩交付包。两个平台必须分别在本机
 构建，不能使用 Windows 构建结果代替 Ubuntu 构建结果。
+
+Ubuntu 的 Qt XCB 图形插件需要系统库 `libxcb-cursor0`。构建描述还会将当前
+Conda 环境中与 Python `pyexpat` 扩展 ABI 匹配的 `libexpat.so.1` 显式放入
+独立运行包，避免误加载 Ubuntu 系统中的另一版本。
