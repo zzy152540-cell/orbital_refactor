@@ -9,7 +9,7 @@ from pathlib import Path
 import socket
 import threading
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import ProxyHandler, build_opener
 
 import numpy as np
 
@@ -93,7 +93,11 @@ def _http_loopback() -> dict:
             f"http://127.0.0.1:{server.server_address[1]}"
             f"/api/external/scene/status?{query}"
         )
-        with urlopen(url, timeout=2.0) as response:
+        # This endpoint is deliberately bound to loopback.  Do not let an
+        # inherited HTTP(S)_PROXY route the acceptance request to a corporate
+        # or VM proxy; the check is for the local scene-control interface.
+        direct_opener = build_opener(ProxyHandler({}))
+        with direct_opener.open(url, timeout=2.0) as response:
             payload = json.load(response)
         if payload.get("clockState") != "READY":
             raise AssertionError("Unexpected initial scene-control state.")

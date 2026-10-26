@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from experiments.run_interface_conformance_acceptance import (
+    _http_loopback,
     run_interface_conformance,
 )
 from visualization.acceptance_test_workflow import (
@@ -23,6 +24,17 @@ def test_interface_conformance_exercises_all_public_transports():
         "SCENE_CONTROL_HTTP_LOOPBACK",
         "TRAJECTORY_UDP_LOOPBACK",
     }
+
+
+def test_http_loopback_bypasses_inherited_proxy(monkeypatch):
+    monkeypatch.setenv("HTTP_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+    monkeypatch.setenv("NO_PROXY", "")
+
+    result = _http_loopback()
+
+    assert result["clockState"] == "READY"
+    assert result["httpStatus"] == 200
 
 
 def test_interface_and_ubuntu_plans_use_dedicated_workers(tmp_path):
