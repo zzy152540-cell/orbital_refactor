@@ -1,0 +1,2 @@
+-r requirements-visualization.txt
+pyinstaller>=6.10,<7

@@ -1067,8 +1067,10 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.status.setPlainText(f"Error: {type(exc).__name__}: {exc}")
 
 
-def run_simulation_launcher() -> int:
+def run_simulation_launcher(*, auto_close_ms: int | None = None) -> int:
     application = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     window = VisualizationSimulationLauncher()
     window.show()
+    if auto_close_ms is not None:
+        QtCore.QTimer.singleShot(max(0, int(auto_close_ms)), application.quit)
     return application.exec()

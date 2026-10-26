@@ -3,6 +3,7 @@ import sys
 import pytest
 
 from visualization.process_launch import module_process_command
+from experiments.run_v15_app_worker import PACKAGED_WORKER_MODULES
 
 
 def test_source_worker_uses_python_module_invocation(monkeypatch):
@@ -50,3 +51,16 @@ def test_dedicated_worker_executable_receives_module_directly(monkeypatch):
     assert arguments == [
         "experiments.run_interface_conformance_acceptance", "--output", "x",
     ]
+
+
+def test_all_gui_worker_modules_are_declared_for_packaging():
+    assert set(PACKAGED_WORKER_MODULES) == {
+        "experiments.run_bilateral_acceptance_control",
+        "experiments.run_bilateral_baseline_matrix",
+        "experiments.run_bilateral_dropout_prescan",
+        "experiments.run_bilateral_node_failure_prescan",
+        "experiments.run_bilateral_visualization_recording",
+        "experiments.run_interface_conformance_acceptance",
+        "experiments.run_multitarget_distributed_node_sync_latency_acceptance",
+        "experiments.run_ubuntu_environment_acceptance",
+    }

@@ -28,6 +28,7 @@ ENV/
 # Packaging and build artifacts
 build/
 dist/
+release/
 *.egg-info/
 .eggs/
 
