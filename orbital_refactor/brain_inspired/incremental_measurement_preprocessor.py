@@ -58,6 +58,17 @@ class IncrementalMultimodalCANNConfig:
     recovery_gap_seconds: float = 2.0
     trusted_measurement_confidence: float = 0.8
     prefer_trusted_measurements: bool = True
+    radar_nominal_blend_alpha: float = 1.0
+    radar_range_nominal_blend_alpha: float | None = None
+    radar_range_rate_nominal_blend_alpha: float | None = None
+    radar_nominal_covariance_scale: float = 1.0
+    radar_range_nominal_covariance_scale: float | None = None
+    radar_range_rate_nominal_covariance_scale: float | None = None
+    radar_adaptive_nominal_blend: bool = False
+    radar_adaptive_innovation_sigma: float = 3.0
+    radar_range_rate_trend_window_epochs: int = 0
+    radar_range_rate_trend_measurement_alpha: float = 1.0
+    optical_nominal_blend_alpha: float = 1.0
 
     def __post_init__(self) -> None:
         if (
@@ -68,6 +79,60 @@ class IncrementalMultimodalCANNConfig:
         if not 0.0 <= self.trusted_measurement_confidence <= 1.0:
             raise ValueError(
                 "trusted_measurement_confidence must lie in [0, 1]."
+            )
+        if not 0.0 < self.radar_nominal_blend_alpha <= 1.0:
+            raise ValueError(
+                "radar_nominal_blend_alpha must lie in (0, 1]."
+            )
+        for name, value in (
+            (
+                "radar_range_nominal_blend_alpha",
+                self.radar_range_nominal_blend_alpha,
+            ),
+            (
+                "radar_range_rate_nominal_blend_alpha",
+                self.radar_range_rate_nominal_blend_alpha,
+            ),
+        ):
+            if value is not None and not 0.0 < value <= 1.0:
+                raise ValueError(f"{name} must lie in (0, 1] when provided.")
+        if not 0.0 < self.radar_nominal_covariance_scale <= 1.0:
+            raise ValueError(
+                "radar_nominal_covariance_scale must lie in (0, 1]."
+            )
+        for name, value in (
+            (
+                "radar_range_nominal_covariance_scale",
+                self.radar_range_nominal_covariance_scale,
+            ),
+            (
+                "radar_range_rate_nominal_covariance_scale",
+                self.radar_range_rate_nominal_covariance_scale,
+            ),
+        ):
+            if value is not None and not 0.0 < value <= 1.0:
+                raise ValueError(f"{name} must lie in (0, 1] when provided.")
+        if (
+            not np.isfinite(self.radar_adaptive_innovation_sigma)
+            or self.radar_adaptive_innovation_sigma <= 0.0
+        ):
+            raise ValueError(
+                "radar_adaptive_innovation_sigma must be positive and finite."
+            )
+        if (
+            self.radar_range_rate_trend_window_epochs != 0
+            and self.radar_range_rate_trend_window_epochs < 3
+        ):
+            raise ValueError(
+                "radar_range_rate_trend_window_epochs must be zero or at least 3."
+            )
+        if not 0.0 <= self.radar_range_rate_trend_measurement_alpha <= 1.0:
+            raise ValueError(
+                "radar_range_rate_trend_measurement_alpha must lie in [0, 1]."
+            )
+        if not 0.0 < self.optical_nominal_blend_alpha <= 1.0:
+            raise ValueError(
+                "optical_nominal_blend_alpha must lie in (0, 1]."
             )
 
     def resolved_infrared_config(self) -> CoupledRingLineCANNConfig:
@@ -82,6 +147,26 @@ class IncrementalMultimodalCANNConfig:
             )
         config.validate()
         return config
+
+    def resolved_radar_blend_alphas(self) -> np.ndarray:
+        return np.asarray([
+            self.radar_nominal_blend_alpha
+            if self.radar_range_nominal_blend_alpha is None
+            else self.radar_range_nominal_blend_alpha,
+            self.radar_nominal_blend_alpha
+            if self.radar_range_rate_nominal_blend_alpha is None
+            else self.radar_range_rate_nominal_blend_alpha,
+        ], dtype=float)
+
+    def resolved_radar_covariance_scales(self) -> np.ndarray:
+        return np.asarray([
+            self.radar_nominal_covariance_scale
+            if self.radar_range_nominal_covariance_scale is None
+            else self.radar_range_nominal_covariance_scale,
+            self.radar_nominal_covariance_scale
+            if self.radar_range_rate_nominal_covariance_scale is None
+            else self.radar_range_rate_nominal_covariance_scale,
+        ], dtype=float)
 
 
 @dataclass
@@ -224,9 +309,12 @@ def _has_radial_backup(item: Observation) -> bool:
     )
 
 
-def _processed(source, measurement, diagnostics, *, valid=None):
+def _processed(
+    source, measurement, diagnostics, *, covariance=None, valid=None,
+):
     result = preprocess_observation(
         source, measurement=np.asarray(measurement, dtype=float),
+        covariance=covariance,
         diagnostics={"incremental": True, **diagnostics},
     )
     if valid is not None:
@@ -254,6 +342,7 @@ class _IncrementalRadar:
         self.trusted_sample_count = 0
         self.pending_measurement = None
         self.pending_timestamp = None
+        self.range_rate_history = []
 
     def process(self, item: Observation) -> Observation:
         measurement = np.asarray(item.measurement, dtype=float).reshape(2)
@@ -269,6 +358,7 @@ class _IncrementalRadar:
             self.last_trusted_timestamp = timestamp
             self.last_trusted_measurement = measurement.copy()
             self.trusted_sample_count = 1
+            self.range_rate_history = [(timestamp, float(measurement[1]))]
             return _processed(item, measurement, {
                 "radar_preprocessor": "incremental_range_rate_dual_line_cann",
                 "radar_initialized": True,
@@ -310,7 +400,29 @@ class _IncrementalRadar:
         recovery_pending = False
         range_substituted = False
         rate_substituted = False
+        nominal_blend_applied = False
         filtered = measurement.copy()
+        blend_alphas = np.ones(2, dtype=float)
+        trend_rate = None
+        trend_blend_applied = False
+        self.range_rate_history.append((timestamp, float(measurement[1])))
+        trend_window = self.policy.radar_range_rate_trend_window_epochs
+        if trend_window > 0:
+            self.range_rate_history = self.range_rate_history[-trend_window:]
+            if len(self.range_rate_history) >= trend_window:
+                history_times = np.asarray([
+                    value[0] for value in self.range_rate_history
+                ], dtype=float)
+                history_rates = np.asarray([
+                    value[1] for value in self.range_rate_history
+                ], dtype=float)
+                centered_times = history_times - timestamp
+                design = np.column_stack((
+                    np.ones_like(centered_times), centered_times,
+                ))
+                trend_rate = float(
+                    np.linalg.lstsq(design, history_rates, rcond=None)[0][0]
+                )
         if long_gap and trusted_measurement:
             range_output = self.range_cann.reset(measurement[0], timestamp=timestamp)
             rate_output = self.rate_cann.reset(measurement[1], timestamp=timestamp)
@@ -348,10 +460,46 @@ class _IncrementalRadar:
                 range_output.decoded_value if range_substituted else measurement[0],
                 rate_output.decoded_value if rate_substituted else measurement[1],
             ])
+            nominal_blend_applied = bool(
+                not warming_up
+                and not range_substituted
+                and not rate_substituted
+                and np.any(self.policy.resolved_radar_blend_alphas() < 1.0)
+            )
+            if nominal_blend_applied:
+                blend_alphas = self.policy.resolved_radar_blend_alphas()
+                if self.policy.radar_adaptive_nominal_blend:
+                    standard_deviations = np.sqrt(np.maximum(
+                        np.diag(np.asarray(item.covariance, dtype=float)),
+                        1.0e-12,
+                    ))
+                    normalized_innovation = np.abs(np.asarray([
+                        range_innovation, rate_innovation,
+                    ])) / standard_deviations
+                    blend_alphas = blend_alphas + (1.0 - blend_alphas) * np.clip(
+                        normalized_innovation
+                        / self.policy.radar_adaptive_innovation_sigma,
+                        0.0, 1.0,
+                    )
+                filtered = np.array([
+                    range_output.decoded_value
+                    + blend_alphas[0] * range_innovation,
+                    rate_output.decoded_value
+                    + blend_alphas[1] * rate_innovation,
+                ])
+            if trend_rate is not None:
+                trend_alpha = (
+                    self.policy.radar_range_rate_trend_measurement_alpha
+                )
+                filtered[1] = (
+                    trend_alpha * filtered[1]
+                    + (1.0 - trend_alpha) * trend_rate
+                )
+                trend_blend_applied = trend_alpha < 1.0
             if not range_substituted:
-                range_output = self.range_cann.apply_value_cue(measurement[0])
+                range_output = self.range_cann.apply_value_cue(filtered[0])
             if not rate_substituted:
-                rate_output = self.rate_cann.apply_value_cue(measurement[1])
+                rate_output = self.rate_cann.apply_value_cue(filtered[1])
         if not recovery_pending:
             if not range_substituted and not rate_substituted:
                 self.held_rate_acceleration = (
@@ -366,14 +514,49 @@ class _IncrementalRadar:
             "radar_reanchored": reanchored,
             "range_substituted": range_substituted,
             "range_rate_substituted": rate_substituted,
+            "nominal_blend_applied": nominal_blend_applied,
+            "nominal_blend_alpha": float(
+                self.policy.radar_nominal_blend_alpha
+            ),
+            "range_nominal_blend_alpha": float(
+                self.policy.resolved_radar_blend_alphas()[0]
+            ),
+            "range_rate_nominal_blend_alpha": float(
+                self.policy.resolved_radar_blend_alphas()[1]
+            ),
+            "adaptive_nominal_blend": bool(
+                self.policy.radar_adaptive_nominal_blend
+            ),
+            "effective_range_blend_alpha": float(blend_alphas[0]),
+            "effective_range_rate_blend_alpha": float(blend_alphas[1]),
+            "range_rate_trend_blend_applied": trend_blend_applied,
+            "range_rate_trend_window_epochs": int(trend_window),
+            "range_rate_trend_mps": trend_rate,
+            "nominal_covariance_scale": float(
+                self.policy.radar_nominal_covariance_scale
+                if nominal_blend_applied else 1.0
+            ),
+            "range_nominal_covariance_scale": float(
+                self.policy.resolved_radar_covariance_scales()[0]
+                if nominal_blend_applied else 1.0
+            ),
+            "range_rate_nominal_covariance_scale": float(
+                self.policy.resolved_radar_covariance_scales()[1]
+                if nominal_blend_applied else 1.0
+            ),
             "recovery_pending": recovery_pending,
             "range_bump_concentration": float(range_output.bump_concentration),
             "range_rate_bump_concentration": float(
                 rate_output.bump_concentration
             ),
         }
+        covariance = np.asarray(item.covariance, dtype=float)
+        if nominal_blend_applied:
+            covariance_scales = self.policy.resolved_radar_covariance_scales()
+            covariance_transform = np.diag(np.sqrt(covariance_scales))
+            covariance = covariance_transform @ covariance @ covariance_transform
         return _processed(
-            item, filtered, diagnostics,
+            item, filtered, diagnostics, covariance=covariance,
             valid=False if recovery_pending else None,
         )
 
@@ -441,6 +624,7 @@ class _IncrementalOptical:
         )
         recovery_pending = False
         substituted = np.zeros(2, dtype=bool)
+        nominal_blend_applied = False
         filtered = measurement.copy()
         if long_gap and trusted_measurement:
             output = self.cann.reset(measurement, timestamp=timestamp)
@@ -477,6 +661,13 @@ class _IncrementalOptical:
                 self.last_trusted_timestamp = timestamp
                 reanchored = True
             filtered = np.where(substituted, output.decoded_position, measurement)
+            nominal_blend_applied = bool(
+                not np.any(substituted)
+                and self.policy.optical_nominal_blend_alpha < 1.0
+            )
+            if nominal_blend_applied:
+                alpha = self.policy.optical_nominal_blend_alpha
+                filtered = output.decoded_position + alpha * innovation
             output = self.cann.apply_position_cue(filtered, cue_gain=1.0)
         if not np.any(substituted) and not recovery_pending and not reanchored:
             self.velocity = (measurement - self.last_trusted_measurement) / max(
@@ -489,6 +680,10 @@ class _IncrementalOptical:
             "optical_reanchored": reanchored,
             "u_substituted": bool(substituted[0]),
             "v_substituted": bool(substituted[1]),
+            "nominal_blend_applied": nominal_blend_applied,
+            "nominal_blend_alpha": float(
+                self.policy.optical_nominal_blend_alpha
+            ),
             "recovery_pending": recovery_pending,
             "plane_bump_concentration": float(output.bump_concentration),
         }

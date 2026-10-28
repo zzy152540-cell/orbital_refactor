@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,8 +43,15 @@ def generate_bilateral_visualization_recording(
     enable_consensus: bool = False,
     consensus_objective: str = "trace",
     local_velocity_refinement_alpha: float | None = None,
+    position_refinement_alpha: float | None = None,
     consensus_velocity_refinement_alpha: float | None = None,
+    cann_radar_range_alpha: float = 1.0,
+    cann_radar_range_rate_alpha: float = 1.0,
+    cann_radar_range_covariance_scale: float = 1.0,
+    cann_radar_range_rate_covariance_scale: float = 1.0,
+    cann_radar_adaptive_innovation_sigma: float | None = None,
     enable_local_unified: bool = True,
+    local_multimodal_update_mode: str = "batch",
     tracking_observer_indices: tuple[int, ...] | None = None,
     tracking_target_indices: tuple[int, ...] | None = None,
     tracking_modalities: tuple[str, ...] = (
@@ -207,11 +215,30 @@ def generate_bilateral_visualization_recording(
         enable_cann=bool(include_cann),
         enable_consensus=bool(enable_consensus),
         enable_local_unified=bool(enable_local_unified),
+        local_multimodal_update_mode=local_multimodal_update_mode,
         tracking_observer_ids=tracking_observer_ids,
         tracking_target_ids=tracking_target_ids,
         tracking_modalities=tuple(tracking_modalities),
         require_scored_truth=False,
         velocity_refinement_alpha=local_velocity_refinement_alpha,
+        position_refinement_alpha=position_refinement_alpha,
+        cann_radar_range_nominal_blend_alpha=cann_radar_range_alpha,
+        cann_radar_range_rate_nominal_blend_alpha=(
+            cann_radar_range_rate_alpha
+        ),
+        cann_radar_range_nominal_covariance_scale=(
+            cann_radar_range_covariance_scale
+        ),
+        cann_radar_range_rate_nominal_covariance_scale=(
+            cann_radar_range_rate_covariance_scale
+        ),
+        cann_radar_adaptive_nominal_blend=(
+            cann_radar_adaptive_innovation_sigma is not None
+        ),
+        cann_radar_adaptive_innovation_sigma=(
+            3.0 if cann_radar_adaptive_innovation_sigma is None
+            else cann_radar_adaptive_innovation_sigma
+        ),
         consensus_velocity_refinement_alpha=(
             consensus_velocity_refinement_alpha
         ),
@@ -232,6 +259,7 @@ def generate_bilateral_visualization_recording(
         tracking_target_ids=tracking_target_ids,
         tracking_modalities=tuple(tracking_modalities),
         enable_consensus=enable_consensus,
+        local_multimodal_update_mode=local_multimodal_update_mode,
         local_velocity_refinement_alpha=local_velocity_refinement_alpha,
         consensus_velocity_refinement_alpha=(
             consensus_velocity_refinement_alpha
@@ -276,6 +304,7 @@ def write_bilateral_visualization_recording(
         "RADAR", "INFRARED", "OPTICAL",
     ),
     enable_consensus: bool = False,
+    local_multimodal_update_mode: str = "batch",
     local_velocity_refinement_alpha: float | None = None,
     consensus_velocity_refinement_alpha: float | None = None,
     show_communication_topology: bool = True,
@@ -312,6 +341,20 @@ def write_bilateral_visualization_recording(
         target_ids=tracking_target_ids,
     ) if include_cann else None
     configured_edges = _friendly_topology_edges(frontend)
+    display_coverage = Counter(
+        target_id
+        for payload in captured
+        for target_id in payload.get(
+            "display_estimate_by_truth_id", {}
+        )
+    )
+    preferred_target_id = max(
+        hostile_ids,
+        key=lambda target_id: (
+            display_coverage.get(target_id, 0),
+            -hostile_ids.index(target_id),
+        ),
+    )
     frames = []
     for payload in captured:
         index = int(payload["epoch_index"])
@@ -424,7 +467,17 @@ def write_bilateral_visualization_recording(
                     )
                 ),
                 "estimation_phase": estimation_phase,
+                "display_estimation_scope": payload.get(
+                    "display_estimation_scope", "CENTRAL_TRACK_MANAGER"
+                ),
+                "display_source_node_id": payload.get(
+                    "display_source_node_id"
+                ),
+                "preferred_target_id": preferred_target_id,
                 "tracking_modalities": list(tracking_modalities),
+                "local_multimodal_update_mode": str(
+                    local_multimodal_update_mode
+                ),
                 "exported_measurement_modalities": list(tracking_modalities),
                 "tracking_modality_scope": (
                     "SELECTED_MODALITIES_AFTER_COMMON_MULTIMODAL_INITIALIZATION"
@@ -507,12 +560,16 @@ def write_bilateral_visualization_recording(
 
 def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
     index = int(payload["epoch_index"])
-    tracks = {
-        track.estimate.track_id: track
-        for track in payload["tracker_update"].tracks_by_target.values()
-        if track.lifecycle.value != "TERMINATED"
-    }
-    samples = payload["identity_epoch"].samples_by_truth
+    display_by_truth = payload.get("display_estimate_by_truth_id")
+    tracks = None
+    samples = None
+    if display_by_truth is None:
+        tracks = {
+            track.estimate.track_id: track
+            for track in payload["tracker_update"].tracks_by_target.values()
+            if track.lifecycle.value != "TERMINATED"
+        }
+        samples = payload["identity_epoch"].samples_by_truth
     nodes = []
     active_ids = set(_active_friendly_ids(frontend, float(payload["timestamp"])))
     for node_id in friendly_ids:
@@ -531,16 +588,20 @@ def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
         ))
     for target_id in hostile_ids:
         truth = frontend.truth.hostile_truth_state_history_by_target[target_id][index]
-        sample = samples.get(target_id)
-        track = None if sample is None else tracks.get(sample.track_id)
-        if track is None:
+        if display_by_truth is None:
+            sample = samples.get(target_id)
+            track = None if sample is None else tracks.get(sample.track_id)
+            posterior = None if track is None else track.estimate
+        else:
+            posterior = display_by_truth.get(target_id)
+        if posterior is None:
             estimate = truth
             covariance = np.eye(6) * 1e12
             valid = False
             status = "HOSTILE_TARGET_UNINITIALIZED"
         else:
-            estimate = track.estimate.state_eci
-            covariance = track.estimate.covariance_eci
+            estimate = posterior.state_eci
+            covariance = posterior.covariance_eci
             valid = True
             status = "HOSTILE_TARGET_TRACKED"
         nodes.append(VisualNodeState(
@@ -819,8 +880,24 @@ def main() -> None:
         default="trace",
     )
     parser.add_argument("--local-velocity-refinement-alpha", type=float)
+    parser.add_argument("--position-refinement-alpha", type=float)
     parser.add_argument("--consensus-velocity-refinement-alpha", type=float)
+    parser.add_argument("--cann-radar-range-alpha", type=float, default=1.0)
+    parser.add_argument("--cann-radar-range-rate-alpha", type=float, default=1.0)
+    parser.add_argument(
+        "--cann-radar-range-covariance-scale", type=float, default=1.0,
+    )
+    parser.add_argument(
+        "--cann-radar-range-rate-covariance-scale", type=float, default=1.0,
+    )
+    parser.add_argument(
+        "--cann-radar-adaptive-innovation-sigma", type=float,
+    )
     parser.add_argument("--no-local-unified", action="store_true")
+    parser.add_argument(
+        "--local-multimodal-update-mode",
+        choices=("batch", "sequential"), default="batch",
+    )
     parser.add_argument("--tracking-observer-indices", type=int, nargs="+")
     parser.add_argument("--tracking-target-indices", type=int, nargs="+")
     parser.add_argument(
@@ -884,10 +961,23 @@ def main() -> None:
         local_velocity_refinement_alpha=(
             args.local_velocity_refinement_alpha
         ),
+        position_refinement_alpha=args.position_refinement_alpha,
         consensus_velocity_refinement_alpha=(
             args.consensus_velocity_refinement_alpha
         ),
+        cann_radar_range_alpha=args.cann_radar_range_alpha,
+        cann_radar_range_rate_alpha=args.cann_radar_range_rate_alpha,
+        cann_radar_range_covariance_scale=(
+            args.cann_radar_range_covariance_scale
+        ),
+        cann_radar_range_rate_covariance_scale=(
+            args.cann_radar_range_rate_covariance_scale
+        ),
+        cann_radar_adaptive_innovation_sigma=(
+            args.cann_radar_adaptive_innovation_sigma
+        ),
         enable_local_unified=not args.no_local_unified,
+        local_multimodal_update_mode=args.local_multimodal_update_mode,
         tracking_observer_indices=(
             None if args.tracking_observer_indices is None
             else tuple(args.tracking_observer_indices)

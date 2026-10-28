@@ -18,6 +18,7 @@ EXPECTED_ARMS = {
     "centralized_optical_only",
     "centralized_multimodal_no_cann",
     "centralized_multimodal_cann",
+    "single_observer_sequential_multimodal_no_cann",
     "single_observer_joint_multimodal_no_cann",
     "single_observer_joint_multimodal_cann",
     "fixed_topology_multimodal_no_cann",
@@ -183,17 +184,17 @@ def test_single_acceptance_arm_matches_the_matrix_cann_arm(baseline_matrix):
     (
         (
             "p05-control",
-            {"centralized_optical_only"},
-            {"single_node_optical_only"},
+            {"single_observer_sequential_multimodal_no_cann"},
+            {"single_node_multimodal_no_cann"},
         ),
         (
             "p05-candidate",
             {
-                "centralized_optical_only",
+                "single_observer_sequential_multimodal_no_cann",
                 "single_observer_joint_multimodal_cann",
             },
             {
-                "single_node_optical_only",
+                "single_node_multimodal_no_cann",
                 "single_node_multimodal_cann",
                 "independent_15_node_joint_multimodal_cann",
             },
@@ -246,3 +247,18 @@ def test_acceptance_scope_runs_only_required_arms(
     assert set(result.arms) == expected_arms
     assert set(result.tracking_modalities_by_arm) == expected_arms
     assert set(result.local_node_baselines) == expected_local_baselines
+
+
+def test_p05_scope_can_freeze_a_nonzero_representative_observer():
+    result = run_bilateral_baseline_matrix(
+        BilateralFrontendConfig(duration_seconds=3.0, random_seed=17),
+        acceptance_scope="p05-candidate",
+        p05_observer_index=5,
+    )
+
+    assert result.local_node_baselines[
+        "single_node_multimodal_no_cann"
+    ].node_ids == ("friendly_p02_s01",)
+    assert result.local_node_baselines[
+        "single_node_multimodal_cann"
+    ].node_ids == ("friendly_p02_s01",)

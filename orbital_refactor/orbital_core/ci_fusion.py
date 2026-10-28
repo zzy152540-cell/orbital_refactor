@@ -41,6 +41,7 @@ def ci_fuse_pair(
     *,
     objective: str = "trace",
     grid_points: int = 101,
+    minimum_weight: float = 0.0,
 ) -> tuple[Array, Array, float]:
     """Fuse two posteriors by CI using the legacy weight grid.
 
@@ -61,7 +62,15 @@ def ci_fuse_pair(
     information_1 = np.linalg.pinv(covariance_1)
     information_2 = np.linalg.pinv(covariance_2)
 
+    minimum_weight = float(minimum_weight)
+    if not 0.0 <= minimum_weight <= 0.5:
+        raise ValueError("minimum_weight must be between 0 and 0.5.")
     weights = _pair_weight_grid(int(grid_points))
+    weights = weights[
+        (weights >= minimum_weight) & (weights <= 1.0 - minimum_weight)
+    ]
+    if not weights.size:
+        raise ValueError("CI pair grid has no weights satisfying minimum_weight.")
     fused_information = (
         weights[:, None, None] * information_1[None, :, :]
         + (1.0 - weights)[:, None, None] * information_2[None, :, :]
@@ -98,6 +107,7 @@ def ci_fuse_three(
     *,
     objective: str = "trace",
     grid_points: int = 31,
+    minimum_weight: float = 0.0,
 ) -> tuple[Array, Array, Array]:
     """Fuse three posteriors by CI using the legacy triangular grid.
 
@@ -126,7 +136,13 @@ def ci_fuse_three(
 
     # Local information matrices are invariant across all candidate weights.
     information = np.stack([np.linalg.pinv(covariance) for covariance in covariances])
+    minimum_weight = float(minimum_weight)
+    if not 0.0 <= minimum_weight <= 1.0 / 3.0:
+        raise ValueError("minimum_weight must be between 0 and 1/3.")
     weights = _three_weight_grid(int(grid_points))
+    weights = weights[np.all(weights >= minimum_weight, axis=1)]
+    if not weights.size:
+        raise ValueError("Three-way CI grid has no weights satisfying minimum_weight.")
 
     # (candidate, modality) x (modality, row, column) -> (candidate, row, column)
     fused_information = np.einsum("km,mij->kij", weights, information, optimize=True)
@@ -155,6 +171,7 @@ def ci_fuse_posteriors(
     *,
     objective: str = "trace",
     grid_points: int = 31,
+    minimum_weight: float = 0.0,
 ) -> CIFusionResult:
     items = list(posteriors)
     if not items:
@@ -171,6 +188,7 @@ def ci_fuse_posteriors(
             covariance_2,
             objective=objective,
             grid_points=max(grid_points, 2),
+            minimum_weight=minimum_weight,
         )
         return CIFusionResult(
             state,
@@ -188,6 +206,7 @@ def ci_fuse_posteriors(
             items[2][2],
             objective=objective,
             grid_points=grid_points,
+            minimum_weight=minimum_weight,
         )
         return CIFusionResult(
             state,

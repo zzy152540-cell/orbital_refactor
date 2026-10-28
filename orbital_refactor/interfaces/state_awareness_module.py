@@ -51,6 +51,9 @@ class StateAwarenessModule:
                 reset_feedback=adapted.reset_feedback,
                 ci_objective=adapted.ci_objective,
                 ci_grid_points=adapted.ci_grid_points,
+                ci_minimum_weight=float(
+                    filter_config.get("ci_minimum_weight", 0.0)
+                ),
                 cross_modality_anchor=adapted.cross_modality_anchor,
                 cross_modality_gate_threshold=(
                     adapted.cross_modality_gate_threshold

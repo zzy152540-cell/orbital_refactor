@@ -27,6 +27,26 @@ def main() -> None:
     )
     parser.add_argument("--local-velocity-refinement-alpha", type=float)
     parser.add_argument("--consensus-velocity-refinement-alpha", type=float)
+    parser.add_argument(
+        "--p05-observer-index", type=int, default=0,
+        help="zero-based friendly observer selected for P05 scoring",
+    )
+    parser.add_argument("--p05-target-index", type=int)
+    parser.add_argument("--process-noise-acceleration", type=float, default=1e-4)
+    parser.add_argument("--p05-candidate-range-alpha", type=float, default=1.0)
+    parser.add_argument("--p05-candidate-range-rate-alpha", type=float, default=1.0)
+    parser.add_argument(
+        "--p05-candidate-range-covariance-scale", type=float, default=1.0,
+    )
+    parser.add_argument(
+        "--p05-candidate-range-rate-covariance-scale", type=float, default=1.0,
+    )
+    parser.add_argument(
+        "--p05-candidate-adaptive-innovation-sigma", type=float,
+    )
+    parser.add_argument(
+        "--p05-candidate-position-refinement-alpha", type=float,
+    )
     parser.add_argument("--backup-radial-range-sigma-m", type=float)
     parser.add_argument("--backup-radial-range-rate-sigma-mps", type=float)
     parser.add_argument(
@@ -72,6 +92,7 @@ def main() -> None:
         duration_seconds=args.duration,
         sample_interval_seconds=1.0,
         random_seed=args.seed,
+        process_noise_acceleration=args.process_noise_acceleration,
         consensus_objective=args.consensus_objective,
         backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
         backup_radial_range_rate_sigma_mps=(
@@ -98,6 +119,24 @@ def main() -> None:
         consensus_velocity_refinement_alpha=(
             args.consensus_velocity_refinement_alpha
         ),
+        p05_observer_index=args.p05_observer_index,
+        p05_target_index=args.p05_target_index,
+        p05_candidate_range_alpha=args.p05_candidate_range_alpha,
+        p05_candidate_range_rate_alpha=(
+            args.p05_candidate_range_rate_alpha
+        ),
+        p05_candidate_range_covariance_scale=(
+            args.p05_candidate_range_covariance_scale
+        ),
+        p05_candidate_range_rate_covariance_scale=(
+            args.p05_candidate_range_rate_covariance_scale
+        ),
+        p05_candidate_adaptive_innovation_sigma=(
+            args.p05_candidate_adaptive_innovation_sigma
+        ),
+        p05_candidate_position_refinement_alpha=(
+            args.p05_candidate_position_refinement_alpha
+        ),
     )
     payload = {
         "schemaVersion": "bilateral-baseline-matrix.v3",
@@ -108,6 +147,18 @@ def main() -> None:
             "sampleIntervalSeconds": 1.0,
             "seed": args.seed,
             "maneuverProfile": "NONE",
+            "p05ObserverIndex": args.p05_observer_index,
+            "p05ObserverId": (
+                f"friendly_p{args.p05_observer_index // 5 + 1:02d}_"
+                f"s{args.p05_observer_index % 5 + 1:02d}"
+            ),
+            "p05TargetIndex": args.p05_target_index,
+            "p05TargetId": (
+                None if args.p05_target_index is None else
+                f"hostile_p{args.p05_target_index // 5 + 1:02d}_"
+                f"s{args.p05_target_index % 5 + 1:02d}"
+            ),
+            "processNoiseAcceleration": args.process_noise_acceleration,
             "armSelection": (
                 args.acceptance_scope.upper().replace("-", "_")
                 if args.acceptance_scope else (
@@ -131,6 +182,22 @@ def main() -> None:
                 "localAlpha": args.local_velocity_refinement_alpha,
                 "consensusAlpha": args.consensus_velocity_refinement_alpha,
                 "maneuverResetThresholdMps": 0.5,
+            },
+            "p05CandidateCann": {
+                "rangeAlpha": args.p05_candidate_range_alpha,
+                "rangeRateAlpha": args.p05_candidate_range_rate_alpha,
+                "rangeCovarianceScale": (
+                    args.p05_candidate_range_covariance_scale
+                ),
+                "rangeRateCovarianceScale": (
+                    args.p05_candidate_range_rate_covariance_scale
+                ),
+                "adaptiveInnovationSigma": (
+                    args.p05_candidate_adaptive_innovation_sigma
+                ),
+                "positionRefinementAlpha": (
+                    args.p05_candidate_position_refinement_alpha
+                ),
             },
             "accelerationFrame": "ECI",
             "accelerationDerivation": (

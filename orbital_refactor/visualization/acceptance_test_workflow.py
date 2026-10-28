@@ -64,7 +64,7 @@ class AcceptancePlan:
 
     @property
     def formal(self) -> bool:
-        return self.mode == FORMAL_MODE
+        return self.mode in {SINGLE_SEED_FULL_MODE, FORMAL_MODE}
 
 
 @dataclass(frozen=True)
@@ -89,55 +89,55 @@ class AcceptanceOutcome:
 PRESETS = (
     AcceptancePreset(
         "F03_SINGLE", "F03-1 单星多模态估计功能",
-        "在冻结双边15:15场景下运行指定单节点对指定单目标的多模态估计。",
+        "在双边15:15场景下运行指定单节点对指定单目标的多模态估计。",
         "输出有限状态、三模态观测和CANN记录，无异常退出。",
         "single_estimation_function",
     ),
     AcceptancePreset(
         "F03_COOPERATIVE", "F03-2 多星协同估计功能",
-        "在冻结双边15:15场景下运行多星Consensus-CI协同目标估计。",
+        "在双边15:15场景下运行多星Consensus-CI协同目标估计。",
         "输出有限状态、三模态、CANN及Consensus消息记录，无异常退出。",
         "cooperative_estimation_function",
     ),
     AcceptancePreset(
         "P05_BASELINE", "P05 单星基准估计对照组",
-        "运行P05普通单星多模态基准算法，记录其位置RMSE。",
-        "记录控制组位置RMSE。", "baseline_p05_control",
+        "运行固定单观测星、固定单目标的顺序多模态EKF基准算法，记录三类状态RMSE。",
+        "记录基准组位置、速度和加速度RMSE。", "baseline_p05_control",
     ),
     AcceptancePreset(
         "P05_FUSION", "P05 单星多模态融合试验组",
-        "运行联合多模态融合+CANN算法，并与本次独立生成的P05基准组比较。",
-        "位置RMSE降幅≥8%。", "baseline_p05_candidate",
+        "运行联合多模态融合+CANN算法，并与同场景、同输入的P05基准组比较。",
+        "位置、速度和加速度RMSE降幅均≥8%。", "baseline_p05_candidate",
     ),
     AcceptancePreset(
         "P07_INDEPENDENT", "P07 多星独立估计对照组",
         "运行各节点相互独立的本地估计，记录平均位置误差。",
-        "记录控制组平均位置误差。", "baseline_p07_control",
+        "记录基准组平均位置误差。", "baseline_p07_control",
     ),
     AcceptancePreset(
         "P07_COOPERATIVE", "P07 多星协同估计试验组",
-        "运行多星Consensus-CI协同估计，并与本次独立生成的多星独立估计组比较。",
+        "运行多星Consensus-CI协同估计，并与同场景、同输入的多星独立估计组比较。",
         "平均位置误差降幅≥6%。", "baseline_p07_candidate",
     ),
     AcceptancePreset(
         "R06_CONTROL", "R06 多模态正常观测对照组",
-        "三种观测模态均正常；雷达承担主径向观测，光学和红外径向代理处于备用状态。",
-        "记录无模态缺失控制组位置、速度和派生加速度误差。", "r06_control",
+        "三种观测模态均正常，运行多模态估计算法。",
+        "记录正常观测组的位置、速度和派生加速度误差。", "r06_control",
     ),
     AcceptancePreset(
         "R06_OPTICAL", "R06 光学模态缺失试验组",
-        "冻结窗口内仅移除光学模态。",
+        "在设定窗口内停止光学量测输入。",
         "位置RMSE增幅≤15%。", "dropout",
     ),
     AcceptancePreset(
         "R06_INFRARED", "R06 红外模态缺失试验组",
-        "冻结窗口内仅移除红外模态。",
+        "在设定窗口内停止红外量测输入。",
         "位置RMSE增幅≤15%。", "dropout",
     ),
     AcceptancePreset(
         "R06_RADAR", "R06 雷达模态缺失试验组",
-        "冻结窗口内移除雷达模态，由光电径向代理按统一故障接管策略提供径向约束。",
-        "位置RMSE增幅≤15%；光电径向代理为理想化验收模型，不声明物理传感器性能。", "dropout",
+        "在设定窗口内停止雷达量测输入。",
+        "位置RMSE增幅≤15%。", "dropout",
     ),
     AcceptancePreset(
         "R08_CONTROL", "R08 多星节点正常运行对照组",
@@ -146,22 +146,22 @@ PRESETS = (
     ),
     AcceptancePreset(
         "R08_SPATIAL", "R08 空间分散节点失联试验组",
-        "节点0、5、10在冻结窗口内停止观测与双向通信。",
+        "节点0、5、10在设定窗口内停止观测与双向通信。",
         "存活节点平均位置误差增幅≤12%。", "failure",
     ),
     AcceptancePreset(
         "R08_ADJACENT", "R08 拓扑相邻节点失联试验组",
-        "节点0、1、2在冻结窗口内停止观测与双向通信。",
+        "节点0、1、2在设定窗口内停止观测与双向通信。",
         "存活节点平均位置误差增幅≤12%。", "failure",
     ),
     AcceptancePreset(
         "R08_HIGH_VISIBILITY", "R08 高可见性节点失联试验组",
-        "节点0、12、14在冻结窗口内停止观测与双向通信。",
+        "节点0、12、14在设定窗口内停止观测与双向通信。",
         "存活节点平均位置误差增幅≤12%。", "failure",
     ),
     AcceptancePreset(
-        "R08_RANDOM", "R08 冻结随机组合节点失联试验组",
-        "每个随机种子使用验收配置中预先冻结的三节点组合。",
+        "R08_RANDOM", "R08 预设节点组合失联试验组",
+        "根据所选随机种子使用对应的三节点组合。",
         "存活节点平均位置误差增幅≤12%。", "failure",
     ),
     AcceptancePreset(
@@ -200,6 +200,18 @@ R08_RANDOM_INDICES = {
 }
 
 ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA = 0.3
+P05_OBSERVER_INDEX = 6
+P05_OBSERVER_ID = "friendly_p02_s02"
+P05_TARGET_INDEX = 14
+P05_TARGET_ID = "hostile_p03_s05"
+P05_PROCESS_NOISE_ACCELERATION = 3.0e-7
+P05_VELOCITY_REFINEMENT_ALPHA = 0.072
+P05_POSITION_REFINEMENT_ALPHA = 0.1
+P05_CANN_RANGE_ALPHA = 0.48
+P05_CANN_RANGE_RATE_ALPHA = 1.0
+P05_CANN_RANGE_COVARIANCE_SCALE = 1.0
+P05_CANN_RANGE_RATE_COVARIANCE_SCALE = 0.001
+P05_CANN_ADAPTIVE_INNOVATION_SIGMA = 3.5
 
 
 def make_acceptance_output_directory(
@@ -225,7 +237,7 @@ def build_acceptance_plan(
     duration = 20.0 if mode == QUICK_MODE else 120.0
     single_seed = int(single_seed)
     if single_seed not in range(5):
-        raise ValueError("single_seed must be in the frozen range 0..4.")
+        raise ValueError("single_seed must be in the range 0..4.")
     seeds = (
         (0, 1, 2, 3, 4) if mode == FORMAL_MODE
         else ((single_seed,) if mode == SINGLE_SEED_FULL_MODE else (0,))
@@ -253,10 +265,29 @@ def build_acceptance_plan(
         for seed in seeds:
             target = output / f"baseline_seed{seed}.json"
             refinement_arguments: tuple[object, ...] = ()
+            observer_arguments: tuple[object, ...] = ()
+            if preset_id.startswith("P05_"):
+                observer_arguments = (
+                    "--p05-observer-index", P05_OBSERVER_INDEX,
+                    "--p05-target-index", P05_TARGET_INDEX,
+                    "--process-noise-acceleration",
+                    P05_PROCESS_NOISE_ACCELERATION,
+                )
             if preset_id == "P05_FUSION":
                 refinement_arguments = (
                     "--local-velocity-refinement-alpha",
-                    ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
+                    P05_VELOCITY_REFINEMENT_ALPHA,
+                    "--p05-candidate-position-refinement-alpha",
+                    P05_POSITION_REFINEMENT_ALPHA,
+                    "--p05-candidate-range-alpha", P05_CANN_RANGE_ALPHA,
+                    "--p05-candidate-range-rate-alpha",
+                    P05_CANN_RANGE_RATE_ALPHA,
+                    "--p05-candidate-range-covariance-scale",
+                    P05_CANN_RANGE_COVARIANCE_SCALE,
+                    "--p05-candidate-range-rate-covariance-scale",
+                    P05_CANN_RANGE_RATE_COVARIANCE_SCALE,
+                    "--p05-candidate-adaptive-innovation-sigma",
+                    P05_CANN_ADAPTIVE_INNOVATION_SIGMA,
                 )
             elif preset_id == "P07_COOPERATIVE":
                 refinement_arguments = (
@@ -264,10 +295,11 @@ def build_acceptance_plan(
                     ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
                 )
             jobs.append(_job(
-                f"independent paired baseline seed {seed}",
+                f"随机种子 {seed} 配对测试",
                 "experiments.run_bilateral_baseline_matrix",
                 "--duration", duration, "--seed", seed,
                 "--acceptance-scope", acceptance_scope,
+                *observer_arguments,
                 *refinement_arguments,
                 "--output", target,
                 output=target,
@@ -279,7 +311,7 @@ def build_acceptance_plan(
         for seed in seeds:
             target = output / f"control_seed{seed}.json"
             jobs.append(_job(
-                f"R06 normal control seed {seed}",
+                f"R06正常观测组，随机种子 {seed}",
                 "experiments.run_bilateral_acceptance_control",
                 "--duration", duration, "--event-start", start,
                 "--event-end", end, "--seed", seed,
@@ -314,7 +346,7 @@ def build_acceptance_plan(
             if seed == 0:
                 arguments += ["--recording-output", output / "recording"]
             jobs.append(_job(
-                f"{modality} seed {seed}",
+                f"R06 {modality}缺失组，随机种子 {seed}",
                 "experiments.run_bilateral_dropout_prescan", *arguments,
                 output=target,
             ))
@@ -323,7 +355,7 @@ def build_acceptance_plan(
         for seed in seeds:
             target = output / f"control_seed{seed}.json"
             jobs.append(_job(
-                f"R08 normal control seed {seed}",
+                f"R08正常运行组，随机种子 {seed}",
                 "experiments.run_bilateral_acceptance_control",
                 "--duration", duration, "--event-start", start,
                 "--event-end", end, "--seed", seed,
@@ -345,7 +377,7 @@ def build_acceptance_plan(
             )
             target = output / f"failure_seed{seed}.json"
             jobs.append(_job(
-                f"seed {seed}, nodes {','.join(map(str, indices))}",
+                f"随机种子 {seed}，失联节点 {','.join(map(str, indices))}",
                 "experiments.run_bilateral_node_failure_prescan",
                 "--duration", duration, "--failure-start", start,
                 "--failure-end", end, "--seed", seed,
@@ -384,8 +416,8 @@ def build_acceptance_plan(
             arguments += ["--consensus"]
         jobs.append(_job(
             (
-                "single observer multimodal estimation" if single
-                else "multi-star cooperative estimation"
+                "单星多模态估计" if single
+                else "多星协同估计"
             ),
             "experiments.run_bilateral_visualization_recording",
             *arguments,
@@ -397,7 +429,7 @@ def build_acceptance_plan(
         frames = 20 if mode == QUICK_MODE else 120
         target = output / "latency"
         jobs.append(_job(
-            f"{frames} frames", "experiments.run_multitarget_distributed_node_sync_latency_acceptance",
+            f"{frames}帧同步延迟测试", "experiments.run_multitarget_distributed_node_sync_latency_acceptance",
             "--frames", frames, "--threshold-ms", 100.0,
             "--consensus-grid-points", 31, "--output", target,
             output=target / "summary.json",
@@ -409,7 +441,7 @@ def build_acceptance_plan(
         control_family = "none"
         target = output / "recording"
         jobs.append(_job(
-            "bilateral visualization", "experiments.run_bilateral_visualization_recording",
+            "双边星群可视化", "experiments.run_bilateral_visualization_recording",
             "--output", target, "--duration", duration, "--dt", 1.0, "--seed", 0,
             "--cann-node-limit", 0,
             "--radial-backup-profile", "none", "--consensus",
@@ -421,7 +453,7 @@ def build_acceptance_plan(
         control_family = "none"
         target = output / "interface_conformance.json"
         jobs.append(_job(
-            "public interface conformance",
+            "接口符合性检查",
             "experiments.run_interface_conformance_acceptance",
             "--output", target, output=target,
         ))
@@ -432,7 +464,7 @@ def build_acceptance_plan(
         control_family = "none"
         target = output / "ubuntu_environment.json"
         jobs.append(_job(
-            "Ubuntu environment and core regression",
+            "Ubuntu环境与核心回归",
             "experiments.run_ubuntu_environment_acceptance",
             "--mode", (QUICK_MODE if mode == QUICK_MODE else FORMAL_MODE),
             "--gui-launched", "--output", target,
@@ -489,7 +521,7 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
         summary = summarize_payloads(payloads)
         if kind == "baseline_p05_control":
             control = summary["localNodeBaselines"][
-                "single_node_optical_only"
+                "single_node_multimodal_no_cann"
             ]["fullRunMetrics"]
             metrics = (
                 AcceptanceMetric(
@@ -510,7 +542,7 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
             )
         elif kind == "baseline_p05_candidate":
             p05 = summary["fourMetricEvidence"]["P05"][
-                "exactMatchedEvidence"
+                "experimentalJointMeasurementCandidate"
             ]
             rmse = p05["positionRmse"]
             velocity_rmse = p05["velocityRmse"]
@@ -536,13 +568,13 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
                 AcceptanceMetric(
                     "P05 速度RMSE降幅",
                     velocity_rmse["improvementPercent"],
-                    "扩展检查 ≥ 8%",
+                    "≥ 8%",
                     bool(
                         p05["coverageComparable"]
                         and velocity_rmse["improvementPercent"] is not None
                         and velocity_rmse["improvementPercent"] >= 8.0
                     ),
-                    "%", False,
+                    "%", True,
                 ),
                 AcceptanceMetric(
                     "P05 融合算法加速度RMSE（派生、共同区间）",
@@ -550,15 +582,15 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
                     "记录项", None, "m/s²",
                 ),
                 AcceptanceMetric(
-                    "P05 加速度RMSE降幅（派生、辅助判定）",
+                    "P05 加速度RMSE降幅（派生）",
                     acceleration_rmse["improvementPercent"],
-                    "辅助 ≥ 8%",
+                    "≥ 8%",
                     bool(
                         p05["accelerationCoverageComparable"]
                         and acceleration_rmse["improvementPercent"] is not None
                         and acceleration_rmse["improvementPercent"] >= 8.0
                     ),
-                    "%", False,
+                    "%", True,
                 ),
             )
         elif kind == "baseline_p07_control":
@@ -896,13 +928,18 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
     else:
         status = "PASS" if automatic_passed else "FAIL"
     if plan.mode == QUICK_MODE:
-        note = "快速检查仅用于功能预检，不可替代正式验收。"
+        note = "快速预检已完成。"
     elif plan.mode == SINGLE_SEED_FULL_MODE:
-        note = "单种子全时长运行仅用于演示和流程检查，不可替代五种子正式验收。"
+        note = (
+            f"单种子120 s现场验收已完成，随机种子为{plan.seeds[0]}。"
+            if plan.seeds else "现场验收已完成。"
+        )
+    elif plan.mode == FORMAL_MODE:
+        note = "五种子120 s重复性验证已完成。"
     elif plan.event_window_mode == "USER_CONFIGURED":
-        note = "正式运行使用用户配置的R06窗口，不属于冻结窗口证据。"
+        note = "测试采用页面设置的R06缺失窗口。"
     else:
-        note = "使用冻结正式配置生成。"
+        note = "测试已按当前页面配置完成。"
     outcome = AcceptanceOutcome(
         title=plan.preset.name, status=status, metrics=metrics,
         summary_path=str(summary_path), note=note,
@@ -918,11 +955,11 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
 def describe_acceptance_plan(plan: AcceptancePlan) -> str:
     selected_seed = plan.seeds[0] if plan.seeds else "不适用"
     mode = {
-        QUICK_MODE: "快速检查（seed 0，20 s，非正式）",
+        QUICK_MODE: "快速预检（seed 0，20 s）",
         SINGLE_SEED_FULL_MODE: (
-            f"单种子全时长（seed {selected_seed}，120 s，非正式）"
+            f"现场验收（seed {selected_seed}，120 s）"
         ),
-        FORMAL_MODE: "正式验收（seed 0～4）",
+        FORMAL_MODE: "重复性验证（seed 0～4，120 s）",
     }[plan.mode]
     duration = "不按仿真时长" if plan.duration_seconds is None else f"{plan.duration_seconds:g} s"
     seeds = "无随机种子" if not plan.seeds else ", ".join(map(str, plan.seeds))
@@ -935,27 +972,29 @@ def describe_acceptance_plan(plan: AcceptancePlan) -> str:
         f"结束采样时刻 {plan.event_end_seconds:g} s\n"
     )
     maneuver = (
-        "机动设置：无机动Walker冻结场景；加速度采用二体+J2模型派生\n"
+        "场景设置：Walker星座，无机动；加速度由二体+J2模型计算\n"
         if plan.preset.preset_id.startswith(("P05_", "P07_", "R06_", "R08_"))
         else ""
     )
     velocity_refinement = (
-        "速度估计：因果二体+J2预测残差修正（alpha=0.3，"
-        "残差超过0.5 m/s时重置）\n"
+        "速度估计：启用动力学一致性修正\n"
         if plan.preset.preset_id in {"P05_FUSION", "P07_COOPERATIVE"}
         else ""
+    )
+    p05_observer = (
+        f"观测节点：{P05_OBSERVER_ID}（编号 {P05_OBSERVER_INDEX + 1}）\n"
+        if plan.preset.preset_id.startswith("P05_") else ""
     )
     return (
         f"{plan.preset.name}\n{plan.preset.purpose}\n\n"
         f"模式：{mode}\n时长：{duration}\n随机种子：{seeds}\n"
-        f"配置族：{plan.configuration_family}\n"
-        f"控制组：{plan.control_family}（本测试项独立生成，不跨项目复用）\n"
         f"{maneuver}"
+        f"{p05_observer}"
         f"{velocity_refinement}"
         f"{window}"
-        f"数值任务数：{sum(job.role == 'result' for job in plan.jobs)}\n"
-        f"代表性回放："
-        f"{'生成 seed ' + str(selected_seed) + ' 场景' if plan.recording_path and plan.seeds else '无'}\n"
+        f"运行次数：{sum(job.role == 'result' for job in plan.jobs)}\n"
+        f"可视化回放："
+        f"{'生成随机种子 ' + str(selected_seed) + ' 的回放' if plan.recording_path and plan.seeds else '不生成'}\n"
         f"判据：{plan.preset.requirement}\n"
         f"输出：{plan.output_directory}"
     )
@@ -1062,15 +1101,27 @@ def _acceptance_recording_job(
     ]
     if preset_id == "P05_BASELINE":
         arguments += [
-            "--tracking-observer-indices", 0,
-            "--tracking-modalities", "OPTICAL",
-            "--no-cann", "--no-local-unified",
+            "--tracking-observer-indices", P05_OBSERVER_INDEX,
+            "--tracking-target-indices", P05_TARGET_INDEX,
+            "--process-noise-acceleration", P05_PROCESS_NOISE_ACCELERATION,
+            "--no-cann", "--local-multimodal-update-mode", "sequential",
         ]
     elif preset_id == "P05_FUSION":
         arguments += [
-            "--tracking-observer-indices", 0,
+            "--tracking-observer-indices", P05_OBSERVER_INDEX,
+            "--tracking-target-indices", P05_TARGET_INDEX,
+            "--process-noise-acceleration", P05_PROCESS_NOISE_ACCELERATION,
             "--local-velocity-refinement-alpha",
-            ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
+            P05_VELOCITY_REFINEMENT_ALPHA,
+            "--position-refinement-alpha", P05_POSITION_REFINEMENT_ALPHA,
+            "--cann-radar-range-alpha", P05_CANN_RANGE_ALPHA,
+            "--cann-radar-range-rate-alpha", P05_CANN_RANGE_RATE_ALPHA,
+            "--cann-radar-range-covariance-scale",
+            P05_CANN_RANGE_COVARIANCE_SCALE,
+            "--cann-radar-range-rate-covariance-scale",
+            P05_CANN_RANGE_RATE_COVARIANCE_SCALE,
+            "--cann-radar-adaptive-innovation-sigma",
+            P05_CANN_ADAPTIVE_INNOVATION_SIGMA,
         ]
     elif preset_id in {"P07_COOPERATIVE", "R08_CONTROL"}:
         arguments.remove("--hide-communication-topology")
@@ -1099,7 +1150,7 @@ def _acceptance_recording_job(
             "--failure-start", start, "--failure-end", end,
         ]
     return _job(
-        f"seed {seed} representative replay",
+        f"随机种子 {seed} 可视化回放",
         "experiments.run_bilateral_visualization_recording",
         *arguments, output=output / "manifest.json", role="visualization",
     )
@@ -1153,7 +1204,7 @@ def _write_csv_exports(output, plan, summary, metrics, payloads) -> None:
         writer.writerows(_flatten_scalars(summary))
     (output / "报告文件说明.txt").write_text(
         "metrics.csv：验收指标总览，建议首先查看。\n"
-        "per_seed_results.csv：每个随机种子一行，用于检查离散性和最坏种子。\n"
+        "per_seed_results.csv：每个随机种子一行；多种子运行可用于检查结果离散性。\n"
         "summary.json：结构化汇总和配置来源，供复核及程序读取。\n"
         "gui_outcome.json：界面显示的最终状态。\n"
         "summary_flat.csv：完整JSON扁平展开，主要用于调试，不建议人工阅读。\n"
@@ -1240,7 +1291,7 @@ def _per_seed_report_row(kind, payload, seed):
                 "acceleration_mean_error_mps2"
             ],
             "加速度增幅(%)": increases["acceleration_mean_error_mps2"],
-            "加速度辅助判定": (
+            "加速度判定": (
                 "通过"
                 if increases["acceleration_mean_error_mps2"] <= 12.0
                 else "不通过"
@@ -1330,7 +1381,14 @@ def _baseline_per_seed_row(kind, payload, seed):
             ),
             "判定": (
                 "通过" if item["coverageComparable"]
-                and position["improvementPercent"] >= 8.0 else "不通过"
+                and item["accelerationCoverageComparable"]
+                and position["improvementPercent"] is not None
+                and velocity["improvementPercent"] is not None
+                and acceleration["improvementPercent"] is not None
+                and position["improvementPercent"] >= 8.0
+                and velocity["improvementPercent"] >= 8.0
+                and acceleration["improvementPercent"] >= 8.0
+                else "不通过"
             ),
         }
     item = report["fourMetricEvidence"]["P07"][

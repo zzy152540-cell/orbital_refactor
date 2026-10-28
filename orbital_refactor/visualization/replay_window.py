@@ -500,6 +500,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         return self._current_index
 
     def _build_ui(self) -> None:
+        first_frame = self.model.frame(0)
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         root = QtWidgets.QVBoxLayout(central)
@@ -511,6 +512,11 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         self.step_button.clicked.connect(self._advance)
         self.target_selector = QtWidgets.QComboBox()
         self.target_selector.addItems(self.target_ids)
+        preferred_target = str(
+            first_frame.metadata.get("preferred_target_id", "")
+        )
+        if preferred_target in self.target_ids:
+            self.target_selector.setCurrentText(preferred_target)
         self.target_selector.currentTextChanged.connect(self._refresh_selected_node)
         self.speed_selector = QtWidgets.QComboBox()
         self.speed_selector.addItems(("0.5x", "1x", "2x", "5x", "10x"))
@@ -904,6 +910,9 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"{frame.metadata.get('estimation_target_scope', 'n/a')}\n"
             f"Current estimation phase: "
             f"{frame.metadata.get('estimation_phase', 'n/a')}\n"
+            f"Displayed posterior: "
+            f"{frame.metadata.get('display_estimation_scope', 'n/a')}"
+            f" @ {frame.metadata.get('display_source_node_id', 'n/a')}\n"
             f"Consensus-CI enabled: "
             f"{frame.metadata.get('consensus_enabled', False)}\n"
             f"Nodes: {len(frame.nodes)}\n"

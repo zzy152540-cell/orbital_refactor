@@ -1,9 +1,11 @@
 import numpy as np
+import pytest
 
 from orbital_core.dynamics import rk4_step_absolute
 from tracking.association.data_contracts import UnlabeledIODObservation
 from tracking.data_contracts import TargetInitialState
 from tracking.multi_observer_multimodal_filter import (
+    sequential_multi_observer_multimodal_update,
     unified_multi_observer_multimodal_update,
 )
 from tracking.multi_epoch_multimodal_filter import FixedLagMultimodalWindow
@@ -78,6 +80,22 @@ def test_unified_update_combines_radar_and_los_on_one_state_prior():
     assert result.observation_count == 4
     assert result.measurement_dimension == 8
     assert np.linalg.eigvalsh(result.covariance_eci).min() >= -1e-8
+
+    sequential = sequential_multi_observer_multimodal_update(
+        prior, observations, timestamp=1.0,
+    )
+    reordered = sequential_multi_observer_multimodal_update(
+        prior, tuple(reversed(observations)), timestamp=1.0,
+    )
+    assert np.linalg.norm(sequential.state_eci[:3] - truth[:3]) < np.linalg.norm(
+        propagated_prior[:3] - truth[:3]
+    )
+    assert sequential.modality_counts == {"OPTICAL": 2, "RADAR": 2}
+    assert sequential.measurement_dimension == 8
+    assert sequential.state_eci == pytest.approx(reordered.state_eci)
+    assert sequential.covariance_eci == pytest.approx(
+        reordered.covariance_eci
+    )
 
 
 def test_unified_update_accepts_los_only_when_radar_is_missing():

@@ -288,20 +288,22 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             self.acceptance_test.addItem(preset.name, preset.preset_id)
         self.acceptance_mode = QtWidgets.QComboBox()
         self.acceptance_mode.addItem(
-            "快速检查（seed 0，20 s，非正式）", QUICK_MODE
+            "快速预检（seed 0，20 s）", QUICK_MODE
         )
         self.acceptance_mode.addItem(
-            "单种子全时长（seed 可选，120 s，非正式）",
+            "现场验收（单种子可选，120 s）",
             SINGLE_SEED_FULL_MODE,
         )
-        self.acceptance_mode.addItem("正式验收（seed 0～4）", FORMAL_MODE)
+        self.acceptance_mode.addItem(
+            "重复性验证（seed 0～4，120 s）", FORMAL_MODE
+        )
         self.acceptance_mode.setCurrentIndex(
             self.acceptance_mode.findData(SINGLE_SEED_FULL_MODE)
         )
         self.acceptance_single_seed = self._integer(0, 4)
         self.acceptance_single_seed.setValue(0)
         self.acceptance_default_r06_window = QtWidgets.QCheckBox(
-            "Use default R06 dropout window"
+            "使用默认R06缺失窗口"
         )
         self.acceptance_default_r06_window.setChecked(True)
         self.acceptance_dropout_start_s = self._decimal(0.0, 86400.0, 1)
@@ -309,18 +311,18 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_output = QtWidgets.QLineEdit()
         output_row = QtWidgets.QHBoxLayout()
         output_row.addWidget(self.acceptance_output, 1)
-        browse = QtWidgets.QPushButton("Browse...")
+        browse = QtWidgets.QPushButton("浏览...")
         browse.clicked.connect(self._browse_acceptance_output)
         output_row.addWidget(browse)
-        form.addRow("Test item", self.acceptance_test)
-        form.addRow("Run mode", self.acceptance_mode)
-        form.addRow("Single-seed value", self.acceptance_single_seed)
-        form.addRow("R06 window", self.acceptance_default_r06_window)
-        form.addRow("R06 dropout start (s)", self.acceptance_dropout_start_s)
+        form.addRow("测试项目", self.acceptance_test)
+        form.addRow("运行方式", self.acceptance_mode)
+        form.addRow("随机种子", self.acceptance_single_seed)
+        form.addRow("R06缺失窗口", self.acceptance_default_r06_window)
+        form.addRow("R06缺失开始时间（s）", self.acceptance_dropout_start_s)
         form.addRow(
-            "R06 dropout duration (s)", self.acceptance_dropout_duration_s
+            "R06缺失持续时间（s）", self.acceptance_dropout_duration_s
         )
-        form.addRow("Result directory", output_row)
+        form.addRow("结果目录", output_row)
         root.addLayout(form)
 
         self.acceptance_description = QtWidgets.QPlainTextEdit()
@@ -329,9 +331,9 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         root.addWidget(self.acceptance_description)
 
         controls = QtWidgets.QHBoxLayout()
-        self.acceptance_run_button = QtWidgets.QPushButton("Run selected test")
-        self.acceptance_stop_button = QtWidgets.QPushButton("Stop")
-        self.acceptance_open_button = QtWidgets.QPushButton("Open result folder")
+        self.acceptance_run_button = QtWidgets.QPushButton("运行所选测试")
+        self.acceptance_stop_button = QtWidgets.QPushButton("停止")
+        self.acceptance_open_button = QtWidgets.QPushButton("打开结果目录")
         self.acceptance_stop_button.setEnabled(False)
         self.acceptance_run_button.clicked.connect(self._run_acceptance_test)
         self.acceptance_stop_button.clicked.connect(self._stop_acceptance_test)
@@ -346,7 +348,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         root.addWidget(self.acceptance_progress)
         self.acceptance_results = QtWidgets.QTreeWidget()
         self.acceptance_results.setHeaderLabels(
-            ("Metric", "Value", "Threshold", "Status")
+            ("指标", "数值", "判据", "结果")
         )
         self.acceptance_results.setRootIsDecorated(False)
         self.acceptance_results.setAlternatingRowColors(True)
@@ -762,7 +764,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             )
         except Exception as exc:
             self.acceptance_description.setPlainText(
-                f"Invalid test configuration: {type(exc).__name__}: {exc}"
+                f"测试配置无效：{type(exc).__name__}: {exc}"
             )
 
     def _run_acceptance_test(self) -> None:
@@ -786,7 +788,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_progress.setValue(0)
         self._set_acceptance_running(True)
         self.acceptance_log.appendPlainText(
-            f"Starting {plan.preset.name} ({'formal' if plan.formal else 'quick'})"
+            f"开始运行：{plan.preset.name}；{self.acceptance_mode.currentText()}"
         )
         self._start_next_acceptance_job()
 
@@ -891,13 +893,13 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             return
         if exit_code != 0 or exit_status != QtCore.QProcess.ExitStatus.NormalExit:
             self._abort_acceptance_jobs(
-                f"Test stopped: process exit code {exit_code}."
+                f"测试已停止：进程退出码为 {exit_code}。"
             )
             return
         job = plan.jobs[job_index]
         if not Path(job.output_path).exists():
             self._abort_acceptance_jobs(
-                f"Test stopped: expected output was not created: {job.output_path}"
+                f"测试已停止：未生成预期结果 {job.output_path}"
             )
             return
         self._acceptance_completed_jobs += 1
@@ -912,11 +914,11 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         if error == QtCore.QProcess.ProcessError.Crashed:
             return
         self.acceptance_log.appendPlainText(
-            f"Process {job_index + 1} error: {error}"
+            f"任务 {job_index + 1} 发生错误：{error}"
         )
         if error == QtCore.QProcess.ProcessError.FailedToStart:
             self._abort_acceptance_jobs(
-                f"Test stopped: process {job_index + 1} failed to start."
+                f"测试已停止：任务 {job_index + 1} 无法启动。"
             )
 
     def _abort_acceptance_jobs(self, message: str) -> None:
@@ -939,8 +941,8 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         for metric in outcome.metrics:
             value = "N/A" if metric.value is None else f"{metric.value:.6g} {metric.unit}"
             status = (
-                "Recorded" if metric.passed is None
-                else "PASS" if metric.passed else "FAIL"
+                "已记录" if metric.passed is None
+                else "通过" if metric.passed else "未通过"
             )
             item = QtWidgets.QTreeWidgetItem(
                 (metric.metric, value, metric.threshold, status)
@@ -952,16 +954,22 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             self.acceptance_results.addTopLevelItem(item)
         self.acceptance_results.resizeColumnToContents(0)
         self.acceptance_progress.setValue(100)
+        outcome_status = {
+            "RECORDED": "已记录",
+            "PASS": "通过",
+            "FAIL": "未通过",
+            "PENDING_MANUAL_CHECK": "等待人工检查",
+        }.get(outcome.status, outcome.status)
         self.acceptance_log.appendPlainText(
-            f"\nCompleted: {outcome.status}\n{outcome.note}\n"
-            f"Summary: {outcome.summary_path}"
+            f"\n运行完成：{outcome_status}\n{outcome.note}\n"
+            f"汇总文件：{outcome.summary_path}"
         )
         self._set_acceptance_running(False)
         if self._acceptance_plan.recording_path is not None:
             self._open_replay(Path(self._acceptance_plan.recording_path))
 
     def _stop_acceptance_test(self) -> None:
-        self._abort_acceptance_jobs("Test stopped by user.")
+        self._abort_acceptance_jobs("测试已由用户停止。")
 
     def _set_acceptance_running(self, running: bool) -> None:
         self.acceptance_run_button.setEnabled(not running)
@@ -979,7 +987,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         else:
             self._refresh_acceptance_window_controls()
         self.acceptance_run_button.setText(
-            "Running..." if running else "Run selected test"
+            "运行中..." if running else "运行所选测试"
         )
 
     def _open_acceptance_output(self) -> None:
@@ -993,7 +1001,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
 
     def _show_acceptance_error(self, exc: Exception) -> None:
         self.acceptance_log.appendPlainText(
-            f"Error: {type(exc).__name__}: {exc}"
+            f"错误：{type(exc).__name__}: {exc}"
         )
 
     def _open_recording_dialog(self) -> None:

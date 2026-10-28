@@ -15,7 +15,7 @@ from experiments.bilateral_multitarget_frontend import (
     run_bilateral_online_comparison,
     run_bilateral_online_smoke,
 )
-from orbital_core.dynamics import accel_two_body_j2
+from orbital_core.dynamics import accel_two_body_j2, rk4_step_absolute
 from tracking.association.frontend_adapter import (
     unlabeled_iod_observations_from_messages,
 )
@@ -60,6 +60,27 @@ def test_velocity_refiner_is_causal_and_resets_large_residuals():
 def test_velocity_refiner_rejects_invalid_alpha():
     with pytest.raises(ValueError, match="alpha"):
         _DynamicsConsistentVelocityRefiner(0.0)
+
+
+def test_state_refiner_can_causally_refine_position_residuals():
+    refiner = _DynamicsConsistentVelocityRefiner(None, position_alpha=0.2)
+    covariance = np.eye(6)
+    initial = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
+    first, _ = refiner._refine(
+        ("observer", "target"), 0.0, initial, covariance,
+    )
+    predicted = rk4_step_absolute(first, 1.0)
+    current = predicted.copy()
+    current[:3] += np.array([1.0, -1.0, 0.5])
+
+    refined, _ = refiner._refine(
+        ("observer", "target"), 1.0, current, covariance,
+    )
+
+    assert refined[:3] == pytest.approx(
+        predicted[:3] + 0.2 * (current[:3] - predicted[:3])
+    )
+    assert refined[3:] == pytest.approx(current[3:])
 
 
 def test_model_acceleration_error_is_derived_from_eci_position():

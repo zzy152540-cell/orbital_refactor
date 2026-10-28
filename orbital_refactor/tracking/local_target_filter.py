@@ -15,6 +15,7 @@ def run_local_target_filter(
     module_input: ModuleInput,
     *,
     track_id: str | None = None,
+    history_callback=None,
 ) -> TargetNodeReport:
     """Run the existing single-observer filter and emit an absolute target report.
 
@@ -23,13 +24,18 @@ def run_local_target_filter(
     absolute J2000 state required by target-level cooperative fusion.
     """
 
-    return run_local_target_history(module_input, track_id=track_id)[-1]
+    return run_local_target_history(
+        module_input,
+        track_id=track_id,
+        history_callback=history_callback,
+    )[-1]
 
 
 def run_local_target_history(
     module_input: ModuleInput,
     *,
     track_id: str | None = None,
+    history_callback=None,
 ) -> tuple[TargetNodeReport, ...]:
     """Return one absolute target report for every local filter epoch."""
 
@@ -58,6 +64,8 @@ def run_local_target_history(
         )
 
     history = StateAwarenessModule().run_history(module_input)
+    if history_callback is not None:
+        history_callback(history)
     relative_values = getattr(history, "fused_state_history", None)
     if relative_values is None:
         relative_values = history.state_history

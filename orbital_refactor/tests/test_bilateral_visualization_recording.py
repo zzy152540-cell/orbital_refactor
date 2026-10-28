@@ -198,6 +198,7 @@ def test_single_observer_recording_restricts_estimation_after_initialization(
         seed=0,
         include_cann=True,
         enable_consensus=False,
+        local_multimodal_update_mode="sequential",
         tracking_observer_indices=(0,),
         tracking_target_indices=(0,),
         show_communication_topology=False,
@@ -211,6 +212,7 @@ def test_single_observer_recording_restricts_estimation_after_initialization(
         "SELECTED_OBSERVERS_AFTER_COMMON_INITIALIZATION"
     )
     assert final.metadata["estimation_architecture"] == "SINGLE_OBSERVER"
+    assert final.metadata["local_multimodal_update_mode"] == "sequential"
     assert frames[0].metadata["estimation_phase"] == (
         "COMMON_MULTIOBSERVER_INITIALIZATION"
     )

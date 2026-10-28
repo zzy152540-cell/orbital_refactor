@@ -31,6 +31,7 @@ from tracking.inverse_depth_bearing_filter import (
     inverse_depth_multi_observer_bearing_update,
 )
 from tracking.multi_observer_multimodal_filter import (
+    sequential_multi_observer_multimodal_update,
     unified_multi_observer_multimodal_update,
 )
 from tracking.multi_epoch_bearing_filter import MultiEpochBearingWindow
@@ -151,14 +152,21 @@ class OnlineMultiTargetTracker:
         enable_multi_observer_bearing_update: bool = False,
         enable_unified_multimodal_update: bool = False,
         enable_local_unified_multimodal_update: bool = False,
+        local_multimodal_update_mode: str = "batch",
         local_fusion_method: str = "ci",
         local_information_allocation_weights: Mapping[str, float] | None = None,
+        local_cross_modality_anchor: str | None = "rad",
+        local_cross_modality_gate_threshold: float = 25.0,
+        local_federated_reanchor_interval_epochs: int | None = None,
+        local_federated_reanchor_covariance_scale: float = 1.0,
+        local_ci_minimum_weight: float = 0.0,
         enable_inverse_depth_los_update: bool = False,
         unified_multimodal_window_epochs: int = 1,
         multi_epoch_bearing_window_epochs: int = 1,
         measurement_preprocessor_factory: Callable[
             [str, str], MeasurementPreprocessor
         ] | None = None,
+        local_filter_history_callback=None,
     ):
         self.scene_id = str(scene_id)
         self.association_pipeline = association_pipeline or MultiTargetAssociationPipeline()
@@ -170,6 +178,7 @@ class OnlineMultiTargetTracker:
             duplicate_track_resolver or DuplicateTrackResolver()
         )
         self.measurement_preprocessor_factory = measurement_preprocessor_factory
+        self.local_filter_history_callback = local_filter_history_callback
         if maximum_track_count is not None and int(maximum_track_count) < 1:
             raise ValueError("maximum_track_count must be positive when supplied.")
         self.maximum_track_count = (
@@ -187,6 +196,13 @@ class OnlineMultiTargetTracker:
         self.enable_local_unified_multimodal_update = bool(
             enable_local_unified_multimodal_update
         )
+        self.local_multimodal_update_mode = str(
+            local_multimodal_update_mode
+        ).lower()
+        if self.local_multimodal_update_mode not in {"batch", "sequential"}:
+            raise ValueError(
+                "local_multimodal_update_mode must be batch or sequential."
+            )
         self.local_fusion_method = str(local_fusion_method).lower()
         if self.local_fusion_method not in {"ci", "fixed_information"}:
             raise ValueError(
@@ -199,6 +215,37 @@ class OnlineMultiTargetTracker:
                 for name, value in local_information_allocation_weights.items()
             }
         )
+        self.local_cross_modality_anchor = (
+            None if local_cross_modality_anchor is None
+            else str(local_cross_modality_anchor).lower()
+        )
+        self.local_cross_modality_gate_threshold = float(
+            local_cross_modality_gate_threshold
+        )
+        if (
+            local_federated_reanchor_interval_epochs is not None
+            and int(local_federated_reanchor_interval_epochs) < 1
+        ):
+            raise ValueError(
+                "local_federated_reanchor_interval_epochs must be positive."
+            )
+        self.local_federated_reanchor_interval_epochs = (
+            None
+            if local_federated_reanchor_interval_epochs is None
+            else int(local_federated_reanchor_interval_epochs)
+        )
+        self.local_federated_reanchor_covariance_scale = float(
+            local_federated_reanchor_covariance_scale
+        )
+        self.local_ci_minimum_weight = float(local_ci_minimum_weight)
+        if (
+            not np.isfinite(self.local_federated_reanchor_covariance_scale)
+            or self.local_federated_reanchor_covariance_scale <= 0.0
+        ):
+            raise ValueError(
+                "local_federated_reanchor_covariance_scale must be positive."
+            )
+        self._local_filter_update_counts: dict[tuple[str, str], int] = {}
         self.enable_inverse_depth_los_update = bool(
             enable_inverse_depth_los_update
         )
@@ -220,6 +267,9 @@ class OnlineMultiTargetTracker:
             str, MultiEpochBearingWindow
         ] = {}
         self._multimodal_windows: dict[str, FixedLagMultimodalWindow] = {}
+        self._local_multimodal_windows: dict[
+            tuple[str, str], FixedLagMultimodalWindow
+        ] = {}
         self._measurement_preprocessor_by_stream: dict[
             tuple[str, str], MeasurementPreprocessor
         ] = {}
@@ -435,6 +485,11 @@ class OnlineMultiTargetTracker:
                 }
                 self._multi_epoch_bearing_windows.pop(target_id, None)
                 self._multimodal_windows.pop(target_id, None)
+                self._local_multimodal_windows = {
+                    key: value
+                    for key, value in self._local_multimodal_windows.items()
+                    if key[1] != target_id
+                }
             self._manager.remove_terminated()
         else:
             reported_tracks = dict(self.tracks)
@@ -533,7 +588,14 @@ class OnlineMultiTargetTracker:
             current_key = (observer_id, epoch)
             if previous_key not in self._observer_states:
                 raise ValueError(f"Missing retained observer state for {previous_key!r}.")
-            if self.enable_local_unified_multimodal_update:
+            stream_key = (observer_id, target_id)
+            update_count = self._local_filter_update_counts.get(stream_key, 0) + 1
+            self._local_filter_update_counts[stream_key] = update_count
+            periodic_reanchor = (
+                self.local_federated_reanchor_interval_epochs is not None
+                and update_count % self.local_federated_reanchor_interval_epochs == 0
+            )
+            if self.enable_local_unified_multimodal_update or periodic_reanchor:
                 values = tuple(
                     item for item in items
                     if item.valid_flag and item.modality in {"RADAR", "LOS"}
@@ -543,19 +605,60 @@ class OnlineMultiTargetTracker:
                     observations=values,
                     timestamp=epoch,
                 )
+                if (
+                    periodic_reanchor
+                    and self.local_federated_reanchor_covariance_scale != 1.0
+                ):
+                    values = tuple(replace(
+                        item,
+                        covariance=(
+                            np.asarray(item.covariance, dtype=float)
+                            * self.local_federated_reanchor_covariance_scale
+                        ),
+                        metadata={
+                            **item.metadata,
+                            "federated_reanchor_covariance_scale": (
+                                self.local_federated_reanchor_covariance_scale
+                            ),
+                        },
+                    ) for item in values)
                 if not values:
                     continue
                 process_noise_scale = (
                     self.maneuver_detector.process_noise_scale(target_id)
                 )
-                update = unified_multi_observer_multimodal_update(
-                    prior,
-                    values,
-                    timestamp=epoch,
-                    process_noise_acceleration=(
-                        self.process_noise_acceleration * process_noise_scale
-                    ),
+                process_noise = (
+                    self.process_noise_acceleration * process_noise_scale
                 )
+                if (
+                    self.local_multimodal_update_mode == "batch"
+                    and self.unified_multimodal_window_epochs > 1
+                ):
+                    window_key = (observer_id, target_id)
+                    window = self._local_multimodal_windows.get(window_key)
+                    if window is None:
+                        window = FixedLagMultimodalWindow(
+                            prior,
+                            maximum_epochs=(
+                                self.unified_multimodal_window_epochs
+                            ),
+                            process_noise_acceleration=process_noise,
+                        )
+                        self._local_multimodal_windows[window_key] = window
+                    window.append(values, timestamp=epoch)
+                    update = window.estimate()
+                else:
+                    update_function = (
+                        sequential_multi_observer_multimodal_update
+                        if self.local_multimodal_update_mode == "sequential"
+                        else unified_multi_observer_multimodal_update
+                    )
+                    update = update_function(
+                        prior,
+                        values,
+                        timestamp=epoch,
+                        process_noise_acceleration=process_noise,
+                    )
                 prior_information_ids = self._local_prior_information_ids.get(
                     (observer_id, target_id), ()
                 )
@@ -645,11 +748,14 @@ class OnlineMultiTargetTracker:
                         "reset_feedback": True,
                         "ci_objective": "trace",
                         "ci_grid_points": 31,
+                        "ci_minimum_weight": self.local_ci_minimum_weight,
                         "preserve_angular_radial_nullspace": (
                             self.preserve_angular_radial_nullspace
                         ),
-                        "cross_modality_anchor": "rad",
-                        "cross_modality_gate_threshold": 25.0,
+                        "cross_modality_anchor": self.local_cross_modality_anchor,
+                        "cross_modality_gate_threshold": (
+                            self.local_cross_modality_gate_threshold
+                        ),
                     },
                     "modalities": {},
                 },
@@ -657,6 +763,7 @@ class OnlineMultiTargetTracker:
             report = run_local_target_filter(
                 module_input,
                 track_id=prior.track_id,
+                history_callback=self.local_filter_history_callback,
             )
             prior_information_ids = self._local_prior_information_ids.get(
                 (observer_id, target_id), ()

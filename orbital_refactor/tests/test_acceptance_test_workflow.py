@@ -11,6 +11,7 @@ from visualization.acceptance_test_workflow import (
     QUICK_MODE,
     SINGLE_SEED_FULL_MODE,
     build_acceptance_plan,
+    describe_acceptance_plan,
     finalize_acceptance_plan,
     make_acceptance_output_directory,
 )
@@ -33,6 +34,9 @@ def test_formal_p05_plan_freezes_duration_and_five_seeds(tmp_path):
     assert result_jobs[0].arguments == (
         "--duration", "120.0", "--seed", "0",
         "--acceptance-scope", "p05-control",
+        "--p05-observer-index", "6",
+        "--p05-target-index", "14",
+        "--process-noise-acceleration", "3e-07",
         "--output",
         str(tmp_path / "baseline_seed0.json"),
     )
@@ -44,7 +48,7 @@ def test_single_seed_full_plan_keeps_duration_but_runs_only_seed_zero(tmp_path):
         "P05_BASELINE", SINGLE_SEED_FULL_MODE, tmp_path
     )
 
-    assert not plan.formal
+    assert plan.formal
     assert plan.duration_seconds == 120.0
     assert plan.seeds == (0,)
     result_jobs = tuple(job for job in plan.jobs if job.role == "result")
@@ -68,7 +72,7 @@ def test_single_seed_full_plan_accepts_frozen_seed_selection(tmp_path):
         "--duration", "120.0", "--seed", "3",
     )
     assert len(recording_jobs) == 1
-    assert recording_jobs[0].label == "seed 3 representative replay"
+    assert recording_jobs[0].label == "随机种子 3 可视化回放"
     seed_argument = recording_jobs[0].arguments.index("--seed")
     assert recording_jobs[0].arguments[seed_argument + 1] == "3"
 
@@ -80,7 +84,7 @@ def test_p05_candidate_uses_validated_local_velocity_refinement(tmp_path):
     replay = next(job for job in plan.jobs if job.role == "visualization")
     for job in (result, replay):
         index = job.arguments.index("--local-velocity-refinement-alpha")
-        assert job.arguments[index + 1] == "0.3"
+        assert job.arguments[index + 1] == "0.072"
 
 
 def test_p07_candidate_uses_validated_consensus_velocity_refinement(tmp_path):
@@ -191,7 +195,7 @@ def test_p05_and_p07_control_and_candidate_are_four_separate_options(tmp_path):
     assert all(
         job.arguments[
             job.arguments.index("--tracking-observer-indices") + 1
-        ] == "0"
+        ] == "6"
         for job in p05_recordings
     )
     assert all(
@@ -230,7 +234,7 @@ def test_dropdown_order_explicitly_lists_control_and_experiment_groups():
         "R08 空间分散节点失联试验组",
         "R08 拓扑相邻节点失联试验组",
         "R08 高可见性节点失联试验组",
-        "R08 冻结随机组合节点失联试验组",
+        "R08 预设节点组合失联试验组",
         "P09 多星协同状态同步延迟",
     ]
 
@@ -388,8 +392,22 @@ def test_latency_result_is_normalized_for_the_gui(tmp_path):
     assert outcome.metrics[0].metric == "P09 平均同步延迟"
     assert outcome.metrics[0].value == 12.5
     assert outcome.metrics[0].passed
-    assert "不可替代正式验收" in outcome.note
+    assert outcome.note == "快速预检已完成。"
     assert (tmp_path / "gui_outcome.json").exists()
+
+
+def test_single_seed_description_is_acceptance_ready_and_concise(tmp_path):
+    plan = build_acceptance_plan(
+        "R06_RADAR", SINGLE_SEED_FULL_MODE, tmp_path, single_seed=1,
+    )
+    description = describe_acceptance_plan(plan)
+
+    assert "现场验收（seed 1，120 s）" in description
+    assert "非正式" not in description
+    assert "不跨项目复用" not in description
+    assert "径向代理" not in description
+    assert "配置族：" not in description
+    assert "控制组：" not in description
 
 
 def test_p05_uses_the_frozen_joint_multimodal_cann_comparison(
@@ -403,7 +421,7 @@ def test_p05_uses_the_frozen_joint_multimodal_cann_comparison(
         "fourMetricEvidence": {
             "P05": {
                 "pooled": {"improvementPercent": 0.0},
-                "exactMatchedEvidence": {
+                "experimentalJointMeasurementCandidate": {
                     "coverageComparable": True,
                     "positionRmse": {
                         "local": 10.0, "consensus": 1.69,
@@ -444,10 +462,10 @@ def test_p05_uses_the_frozen_joint_multimodal_cann_comparison(
     assert outcome.metrics[1].value == 83.1
     assert outcome.metrics[1].passed
     assert outcome.metrics[-1].metric == (
-        "P05 加速度RMSE降幅（派生、辅助判定）"
+        "P05 加速度RMSE降幅（派生）"
     )
     assert outcome.metrics[-1].passed
-    assert not outcome.metrics[-1].acceptance_required
+    assert outcome.metrics[-1].acceptance_required
 
 
 def test_p07_uses_mean_error_from_joint_multistar_comparison(

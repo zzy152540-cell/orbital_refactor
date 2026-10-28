@@ -29,7 +29,7 @@ from brain_inspired.incremental_measurement_preprocessor import (
 )
 from cooperative.topology import NetworkTopology
 from orbital_core.coordinates import build_rtn_quaternion, dcm_to_quat_wxyz
-from orbital_core.dynamics import accel_two_body_j2
+from orbital_core.dynamics import accel_two_body_j2, rk4_step_absolute
 from scenarios.bilateral_multitarget import (
     BilateralWalkerTruth,
     generate_bilateral_walker_truth,
@@ -57,7 +57,7 @@ MODALITIES = ("RADAR", "INFRARED", "OPTICAL")
 
 
 class _DynamicsConsistentVelocityRefiner:
-    """Causal orbital-model residual smoother for reported ECI velocity.
+    """Causal orbital-model residual smoother for reported ECI state.
 
     The refiner never sees truth data.  It predicts velocity from the previous
     refined report with the same two-body-plus-J2 model used by the scenario,
@@ -65,11 +65,24 @@ class _DynamicsConsistentVelocityRefiner:
     history so a genuine maneuver is not silently smoothed away.
     """
 
-    def __init__(self, alpha: float, *, reset_threshold_mps: float = 0.5):
-        self.alpha = float(alpha)
+    def __init__(
+        self, alpha: float | None, *, position_alpha: float | None = None,
+        reset_threshold_mps: float = 0.5,
+    ):
+        self.alpha = None if alpha is None else float(alpha)
+        self.position_alpha = (
+            None if position_alpha is None else float(position_alpha)
+        )
         self.reset_threshold_mps = float(reset_threshold_mps)
-        if not 0.0 < self.alpha <= 1.0:
+        if self.alpha is None and self.position_alpha is None:
+            raise ValueError("At least one state refinement alpha is required.")
+        if self.alpha is not None and not 0.0 < self.alpha <= 1.0:
             raise ValueError("velocity refinement alpha must lie in (0, 1].")
+        if (
+            self.position_alpha is not None
+            and not 0.0 < self.position_alpha <= 1.0
+        ):
+            raise ValueError("position refinement alpha must lie in (0, 1].")
         if self.reset_threshold_mps <= 0.0:
             raise ValueError("velocity refinement reset threshold must be positive.")
         self._history: dict[tuple[str, str], tuple[float, np.ndarray, np.ndarray]] = {}
@@ -100,6 +113,7 @@ class _DynamicsConsistentVelocityRefiner:
         else:
             previous_time, previous_state, previous_covariance = previous
             dt = epoch - previous_time
+            predicted_state = rk4_step_absolute(previous_state, dt)
             acceleration = 0.5 * (
                 accel_two_body_j2(previous_state[:3])
                 + accel_two_body_j2(current[:3])
@@ -111,19 +125,35 @@ class _DynamicsConsistentVelocityRefiner:
                 refined_covariance = current_covariance.copy()
             else:
                 refined_state = current.copy()
-                refined_state[3:] = (
-                    predicted_velocity + self.alpha * residual
-                )
+                if self.position_alpha is not None:
+                    refined_state[:3] = (
+                        predicted_state[:3]
+                        + self.position_alpha
+                        * (current[:3] - predicted_state[:3])
+                    )
+                if self.alpha is not None:
+                    refined_state[3:] = (
+                        predicted_velocity + self.alpha * residual
+                    )
                 predicted_velocity_covariance = (
                     previous_covariance[3:, 3:]
                     + np.eye(3) * 1e-8 * dt * dt
                 )
-                velocity_covariance = (
-                    (1.0 - self.alpha) * predicted_velocity_covariance
-                    + self.alpha * current_covariance[3:, 3:]
-                )
+                velocity_covariance = current_covariance[3:, 3:]
+                if self.alpha is not None:
+                    velocity_covariance = (
+                        (1.0 - self.alpha) * predicted_velocity_covariance
+                        + self.alpha * current_covariance[3:, 3:]
+                    )
+                position_covariance = current_covariance[:3, :3]
+                if self.position_alpha is not None:
+                    position_covariance = (
+                        (1.0 - self.position_alpha)
+                        * previous_covariance[:3, :3]
+                        + self.position_alpha * current_covariance[:3, :3]
+                    )
                 refined_covariance = np.zeros((6, 6), dtype=float)
-                refined_covariance[:3, :3] = current_covariance[:3, :3]
+                refined_covariance[:3, :3] = position_covariance
                 refined_covariance[3:, 3:] = velocity_covariance
         refined_covariance = 0.5 * (
             refined_covariance + refined_covariance.T
@@ -897,6 +927,14 @@ def run_bilateral_baseline_matrix(
     fixed_federated_weights: Mapping[str, float] | None = None,
     local_velocity_refinement_alpha: float | None = None,
     consensus_velocity_refinement_alpha: float | None = None,
+    p05_observer_index: int = 0,
+    p05_target_index: int | None = None,
+    p05_candidate_range_alpha: float = 1.0,
+    p05_candidate_range_rate_alpha: float = 1.0,
+    p05_candidate_range_covariance_scale: float = 1.0,
+    p05_candidate_range_rate_covariance_scale: float = 1.0,
+    p05_candidate_adaptive_innovation_sigma: float | None = None,
+    p05_candidate_position_refinement_alpha: float | None = None,
     frontend: BilateralFrontendResult | None = None,
     topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
 ) -> BilateralBaselineMatrixResult:
@@ -912,38 +950,56 @@ def run_bilateral_baseline_matrix(
         frontend = build_bilateral_raw_frontend(selected)
     elif config is not None and config != frontend.config:
         raise ValueError("config must match the supplied frontend.config.")
+    friendly_observer_ids = frontend.truth.manifest.friendly_observer_ids
+    selected_observer_index = int(p05_observer_index)
+    if not 0 <= selected_observer_index < len(friendly_observer_ids):
+        raise ValueError("p05_observer_index must identify a friendly observer.")
+    representative_node_id = friendly_observer_ids[selected_observer_index]
+    hostile_target_ids = frontend.truth.manifest.hostile_target_ids
+    representative_target_id = None
+    if p05_target_index is not None:
+        selected_target_index = int(p05_target_index)
+        if not 0 <= selected_target_index < len(hostile_target_ids):
+            raise ValueError("p05_target_index must identify a hostile target.")
+        representative_target_id = hostile_target_ids[selected_target_index]
+    restrict_to_p05_observer = bool(
+        acceptance_scope is not None and acceptance_scope.startswith("p05-")
+    )
     definitions = {
-        "centralized_radar_only": (("RADAR",), False, False, False, None),
-        "centralized_infrared_only": (("INFRARED",), False, False, False, None),
-        "centralized_optical_only": (("OPTICAL",), False, False, False, None),
+        "centralized_radar_only": (("RADAR",), False, False, False, None, "batch"),
+        "centralized_infrared_only": (("INFRARED",), False, False, False, None, "batch"),
+        "centralized_optical_only": (("OPTICAL",), False, False, False, None, "batch"),
         "centralized_multimodal_no_cann": (
-            MODALITIES, False, False, False, None,
+            MODALITIES, False, False, False, None, "batch",
         ),
         "centralized_multimodal_cann": (
-            MODALITIES, True, False, False, None,
+            MODALITIES, True, False, False, None, "batch",
+        ),
+        "single_observer_sequential_multimodal_no_cann": (
+            MODALITIES, False, False, True, None, "sequential",
         ),
         "single_observer_joint_multimodal_no_cann": (
-            MODALITIES, False, False, True, None,
+            MODALITIES, False, False, True, None, "batch",
         ),
         "single_observer_joint_multimodal_cann": (
-            MODALITIES, True, False, True, None,
+            MODALITIES, True, False, True, None, "batch",
         ),
         "fixed_topology_multimodal_no_cann": (
-            MODALITIES, False, True, False, None,
+            MODALITIES, False, True, False, None, "batch",
         ),
         "fixed_topology_multimodal_cann": (
-            MODALITIES, True, True, False, None,
+            MODALITIES, True, True, False, None, "batch",
         ),
         "fixed_topology_joint_multimodal_cann": (
-            MODALITIES, True, True, True, None,
+            MODALITIES, True, True, True, None, "batch",
         ),
     }
     acceptance_arm_names = {
         "p05-control": {
-            "centralized_optical_only",
+            "single_observer_sequential_multimodal_no_cann",
         },
         "p05-candidate": {
-            "centralized_optical_only",
+            "single_observer_sequential_multimodal_no_cann",
             "single_observer_joint_multimodal_cann",
         },
         "p05-optical-pilot": {
@@ -968,7 +1024,7 @@ def run_bilateral_baseline_matrix(
         }
         definitions["single_observer_fixed_weight_federated_no_cann"] = (
             MODALITIES, False, False, False,
-            dict(pilot_weights),
+            dict(pilot_weights), "batch",
         )
     if acceptance_scope is not None:
         try:
@@ -998,7 +1054,7 @@ def run_bilateral_baseline_matrix(
     initialization_cache = {}
     for name, (
         modalities, enable_cann, enable_consensus, enable_local_unified,
-        fixed_information_weights,
+        fixed_information_weights, local_update_mode,
     ) in definitions.items():
         collector = {}
         arms[name] = _run_bilateral_online_arm(
@@ -1006,7 +1062,17 @@ def run_bilateral_baseline_matrix(
             enable_cann=enable_cann,
             enable_consensus=enable_consensus,
             tracking_modalities=modalities,
+            tracking_observer_ids=(
+                (representative_node_id,)
+                if restrict_to_p05_observer else None
+            ),
+            tracking_target_ids=(
+                (representative_target_id,)
+                if restrict_to_p05_observer
+                and representative_target_id is not None else None
+            ),
             enable_local_unified=enable_local_unified,
+            local_multimodal_update_mode=local_update_mode,
             fixed_information_weights=fixed_information_weights,
             sample_collector=collector,
             iod_initialization_cache=initialization_cache,
@@ -1016,6 +1082,30 @@ def run_bilateral_baseline_matrix(
                 if name == "single_observer_joint_multimodal_cann"
                 else None
             ),
+            position_refinement_alpha=(
+                p05_candidate_position_refinement_alpha
+                if name == "single_observer_joint_multimodal_cann"
+                else None
+            ),
+            cann_radar_range_nominal_blend_alpha=(
+                p05_candidate_range_alpha
+            ),
+            cann_radar_range_rate_nominal_blend_alpha=(
+                p05_candidate_range_rate_alpha
+            ),
+            cann_radar_range_nominal_covariance_scale=(
+                p05_candidate_range_covariance_scale
+            ),
+            cann_radar_range_rate_nominal_covariance_scale=(
+                p05_candidate_range_rate_covariance_scale
+            ),
+            cann_radar_adaptive_nominal_blend=(
+                p05_candidate_adaptive_innovation_sigma is not None
+            ),
+            cann_radar_adaptive_innovation_sigma=(
+                3.0 if p05_candidate_adaptive_innovation_sigma is None
+                else p05_candidate_adaptive_innovation_sigma
+            ),
             consensus_velocity_refinement_alpha=(
                 consensus_velocity_refinement_alpha
                 if name == "fixed_topology_joint_multimodal_cann"
@@ -1023,7 +1113,6 @@ def run_bilateral_baseline_matrix(
             ),
         )
         sample_collectors[name] = collector
-    representative_node_id = frontend.truth.manifest.friendly_observer_ids[0]
     def representative_samples(arm_name: str) -> dict:
         if arm_name not in sample_collectors:
             return {}
@@ -1044,8 +1133,13 @@ def run_bilateral_baseline_matrix(
             if key[0] == representative_node_id
         }
 
+    representative_no_cann_arm = (
+        "single_observer_sequential_multimodal_no_cann"
+        if "single_observer_sequential_multimodal_no_cann" in sample_collectors
+        else "centralized_multimodal_no_cann"
+    )
     representative_no_cann = representative_samples(
-        "centralized_multimodal_no_cann"
+        representative_no_cann_arm
     )
     representative_cann = representative_samples(
         "centralized_multimodal_cann"
@@ -1060,7 +1154,7 @@ def run_bilateral_baseline_matrix(
         "single_observer_fixed_weight_federated_no_cann"
     )
     representative_no_cann_acceleration = (
-        representative_acceleration_samples("centralized_multimodal_no_cann")
+        representative_acceleration_samples(representative_no_cann_arm)
     )
     representative_cann_acceleration = representative_acceleration_samples(
         "centralized_multimodal_cann"
@@ -1109,6 +1203,12 @@ def run_bilateral_baseline_matrix(
                 "centralized_multimodal_no_cann"
             ].independent_node_metrics,
         })
+    if "single_observer_sequential_multimodal_no_cann" in arms:
+        local_node_baselines[
+            "single_node_multimodal_no_cann"
+        ] = arms[
+            "single_observer_sequential_multimodal_no_cann"
+        ].representative_node_metrics
     if "centralized_multimodal_cann" in arms:
         local_node_baselines.update({
             "single_node_multimodal_cann": arms[
@@ -1274,6 +1374,7 @@ def run_bilateral_baseline_matrix(
             name: tuple(modalities)
             for name, (
                 modalities, _cann, _consensus, _local_unified, _fixed_weights,
+                _local_update_mode,
             ) in definitions.items()
         }),
         uses_common_multimodal_initialization=True,
@@ -1289,19 +1390,48 @@ def _run_bilateral_online_arm(
     enable_cann: bool,
     enable_consensus: bool = False,
     enable_local_unified: bool = False,
+    local_multimodal_update_mode: str = "batch",
+    cann_radar_nominal_blend_alpha: float = 1.0,
+    cann_radar_range_nominal_blend_alpha: float | None = None,
+    cann_radar_range_rate_nominal_blend_alpha: float | None = None,
+    cann_radar_nominal_covariance_scale: float = 1.0,
+    cann_radar_range_nominal_covariance_scale: float | None = None,
+    cann_radar_range_rate_nominal_covariance_scale: float | None = None,
+    cann_radar_adaptive_nominal_blend: bool = False,
+    cann_radar_adaptive_innovation_sigma: float = 3.0,
+    cann_radar_range_rate_trend_window_epochs: int = 0,
+    cann_radar_range_rate_trend_measurement_alpha: float = 1.0,
+    cann_optical_nominal_blend_alpha: float = 1.0,
+    local_multimodal_window_epochs: int | None = None,
     fixed_information_weights: Mapping[str, float] | None = None,
+    local_cross_modality_anchor: str | None = "rad",
+    local_cross_modality_gate_threshold: float = 25.0,
+    local_federated_reanchor_interval_epochs: int | None = None,
+    local_federated_reanchor_covariance_scale: float = 1.0,
+    local_ci_minimum_weight: float = 0.0,
     tracking_modalities: tuple[str, ...] | None = None,
     tracking_observer_ids: tuple[str, ...] | None = None,
     tracking_target_ids: tuple[str, ...] | None = None,
+    restrict_tracking_observers_from_start: bool = False,
     require_scored_truth: bool = True,
     sample_collector: dict | None = None,
     acceleration_pilot_windows: tuple[int, ...] = (),
+    position_refinement_alpha: float | None = None,
     velocity_refinement_alpha: float | None = None,
     consensus_velocity_refinement_alpha: float | None = None,
     epoch_callback=None,
     iod_initialization_cache: dict | None = None,
     topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
+    local_filter_history_callback=None,
+    process_noise_acceleration_override: float | None = None,
 ) -> BilateralOnlineSmokeResult:
+    if process_noise_acceleration_override is not None and (
+        not np.isfinite(process_noise_acceleration_override)
+        or process_noise_acceleration_override < 0.0
+    ):
+        raise ValueError(
+            "process_noise_acceleration_override must be finite and nonnegative."
+        )
     allowed_tracking_modalities = _normalized_modalities(tracking_modalities)
     allowed_tracking_observers = (
         None if tracking_observer_ids is None
@@ -1335,6 +1465,8 @@ def _run_bilateral_online_arm(
         scene_id=frontend.truth.manifest.scene_id,
         process_noise_acceleration=(
             frontend.config.process_noise_acceleration
+            if process_noise_acceleration_override is None
+            else float(process_noise_acceleration_override)
         ),
         association_pipeline=MultiTargetAssociationPipeline(
             gate_squared_mahalanobis=(
@@ -1371,16 +1503,30 @@ def _run_bilateral_online_arm(
             enable_local_unified
             or frontend.config.use_local_unified_multimodal_measurement_update
         ),
+        local_multimodal_update_mode=local_multimodal_update_mode,
         local_fusion_method=(
             "fixed_information"
             if fixed_information_weights is not None else "ci"
         ),
         local_information_allocation_weights=fixed_information_weights,
+        local_cross_modality_anchor=local_cross_modality_anchor,
+        local_cross_modality_gate_threshold=(
+            local_cross_modality_gate_threshold
+        ),
+        local_federated_reanchor_interval_epochs=(
+            local_federated_reanchor_interval_epochs
+        ),
+        local_federated_reanchor_covariance_scale=(
+            local_federated_reanchor_covariance_scale
+        ),
+        local_ci_minimum_weight=local_ci_minimum_weight,
         enable_inverse_depth_los_update=(
             frontend.config.use_inverse_depth_los_update
         ),
         unified_multimodal_window_epochs=(
             frontend.config.unified_multimodal_window_epochs
+            if local_multimodal_window_epochs is None
+            else int(local_multimodal_window_epochs)
         ),
         multi_epoch_bearing_window_epochs=(
             frontend.config.multi_epoch_bearing_window_epochs
@@ -1390,6 +1536,39 @@ def _run_bilateral_online_arm(
                 lambda _observer, _target: IncrementalMultimodalCANNPreprocessor(
                     IncrementalMultimodalCANNConfig(
                         profile="realtime",
+                        radar_nominal_blend_alpha=(
+                            cann_radar_nominal_blend_alpha
+                        ),
+                        radar_range_nominal_blend_alpha=(
+                            cann_radar_range_nominal_blend_alpha
+                        ),
+                        radar_range_rate_nominal_blend_alpha=(
+                            cann_radar_range_rate_nominal_blend_alpha
+                        ),
+                        radar_nominal_covariance_scale=(
+                            cann_radar_nominal_covariance_scale
+                        ),
+                        radar_range_nominal_covariance_scale=(
+                            cann_radar_range_nominal_covariance_scale
+                        ),
+                        radar_range_rate_nominal_covariance_scale=(
+                            cann_radar_range_rate_nominal_covariance_scale
+                        ),
+                        radar_adaptive_nominal_blend=(
+                            cann_radar_adaptive_nominal_blend
+                        ),
+                        radar_adaptive_innovation_sigma=(
+                            cann_radar_adaptive_innovation_sigma
+                        ),
+                        radar_range_rate_trend_window_epochs=(
+                            cann_radar_range_rate_trend_window_epochs
+                        ),
+                        radar_range_rate_trend_measurement_alpha=(
+                            cann_radar_range_rate_trend_measurement_alpha
+                        ),
+                        optical_nominal_blend_alpha=(
+                            cann_optical_nominal_blend_alpha
+                        ),
                         radial_backup=(
                             frontend.config.cann_process_radial_backup
                         ),
@@ -1398,6 +1577,7 @@ def _run_bilateral_online_arm(
             )
             if enable_cann else None
         ),
+        local_filter_history_callback=local_filter_history_callback,
     )
     base_topology = frontend.truth.manifest.friendly_topology
     if topology_by_timestamp is not None:
@@ -1422,8 +1602,12 @@ def _run_bilateral_online_arm(
     else:
         initial_topology = base_topology
     local_velocity_refiner = _DynamicsConsistentVelocityRefiner(
-        velocity_refinement_alpha
-    ) if velocity_refinement_alpha is not None else None
+        velocity_refinement_alpha,
+        position_alpha=position_refinement_alpha,
+    ) if (
+        velocity_refinement_alpha is not None
+        or position_refinement_alpha is not None
+    ) else None
     consensus_velocity_refiner = _DynamicsConsistentVelocityRefiner(
         consensus_velocity_refinement_alpha
     ) if consensus_velocity_refinement_alpha is not None else None
@@ -1477,7 +1661,11 @@ def _run_bilateral_online_arm(
         node_id: IdentityAwareTrackEvaluator(truth_ids)
         for node_id in frontend.truth.manifest.friendly_observer_ids
     }
-    representative_node_id = frontend.truth.manifest.friendly_observer_ids[0]
+    representative_node_id = (
+        sorted(allowed_tracking_observers)[0]
+        if allowed_tracking_observers is not None
+        else frontend.truth.manifest.friendly_observer_ids[0]
+    )
     state_errors_by_timestamp: dict[float, np.ndarray] = {}
     consensus_state_errors_by_timestamp: dict[float, np.ndarray] = {}
     local_state_errors_by_timestamp: dict[float, np.ndarray] = {}
@@ -1505,7 +1693,10 @@ def _run_bilateral_online_arm(
             )
         if (
             allowed_tracking_observers is not None
-            and len(initialized_ids) == len(truth_ids)
+            and (
+                restrict_tracking_observers_from_start
+                or len(initialized_ids) == len(truth_ids)
+            )
         ):
             epoch_messages = tuple(
                 message for message in epoch_messages
@@ -1562,12 +1753,14 @@ def _run_bilateral_online_arm(
             for node_id in local_evaluators
         }
         local_samples = []
+        local_identity_epoch_by_node = {}
         for node_id, evaluator in local_evaluators.items():
             node_epoch = evaluator.update(
                 timestamp=timestamp,
                 state_by_track_id=reports_by_node[node_id],
                 truth_state_by_id=truth_state_by_target,
             )
+            local_identity_epoch_by_node[node_id] = node_epoch
             local_samples.extend(node_epoch.samples_by_truth.values())
             for truth_id, sample in node_epoch.samples_by_truth.items():
                 local_samples_by_key[(node_id, truth_id, timestamp)] = sample
@@ -1630,6 +1823,7 @@ def _run_bilateral_online_arm(
             active_node_counts[timestamp] = len(active_observers)
             active_edge_counts[timestamp] = _undirected_edge_count(active_topology)
             consensus_samples = []
+            consensus_identity_epoch_by_node = {}
             for node_id in active_observers:
                 epoch_result = consensus_evaluators[node_id].update(
                     timestamp=timestamp,
@@ -1641,6 +1835,7 @@ def _run_bilateral_online_arm(
                     },
                     truth_state_by_id=truth_state_by_target,
                 )
+                consensus_identity_epoch_by_node[node_id] = epoch_result
                 consensus_samples.extend(epoch_result.samples_by_truth.values())
                 for truth_id, sample in epoch_result.samples_by_truth.items():
                     consensus_samples_by_key[(
@@ -1696,6 +1891,37 @@ def _run_bilateral_online_arm(
         )
         state_errors_by_timestamp[timestamp] = final_state_errors
         if epoch_callback is not None:
+            if allowed_tracking_observers is not None:
+                display_node_id = sorted(allowed_tracking_observers)[0]
+                display_epoch = local_identity_epoch_by_node[
+                    display_node_id
+                ]
+                display_estimates = tuple(
+                    report for report in final_update.local_reports
+                    if report.observer_id == display_node_id
+                    and report.valid_flag
+                )
+                display_source = "SELECTED_OBSERVER_LOCAL_POSTERIOR"
+            elif consensus is not None:
+                display_node_id = sorted(active_observers)[0]
+                display_epoch = consensus_identity_epoch_by_node[
+                    display_node_id
+                ]
+                display_estimates = tuple(
+                    consensus_step.estimates_by_node[display_node_id].values()
+                )
+                display_source = "REPRESENTATIVE_NODE_CONSENSUS_POSTERIOR"
+            else:
+                display_node_id = representative_node_id
+                display_epoch = local_identity_epoch_by_node[
+                    display_node_id
+                ]
+                display_estimates = tuple(
+                    report for report in final_update.local_reports
+                    if report.observer_id == display_node_id
+                    and report.valid_flag
+                )
+                display_source = "REPRESENTATIVE_NODE_LOCAL_POSTERIOR"
             epoch_callback({
                 "epoch_index": epoch_index,
                 "timestamp": timestamp,
@@ -1705,6 +1931,13 @@ def _run_bilateral_online_arm(
                 "tracker_update": final_update,
                 "truth_state_by_target": truth_state_by_target,
                 "identity_epoch": central_epoch,
+                "display_estimate_by_truth_id": (
+                    _estimates_by_truth_identity(
+                        display_epoch, display_estimates,
+                    )
+                ),
+                "display_source_node_id": display_node_id,
+                "display_estimation_scope": display_source,
             })
 
     final_active_tracks = tuple(
@@ -2024,6 +2257,20 @@ def _sample_errors(samples) -> np.ndarray:
         (sample.position_error_m, sample.velocity_error_mps)
         for sample in values
     ], dtype=float)
+
+
+def _estimates_by_truth_identity(identity_epoch, estimates) -> dict:
+    """Map estimator-native track identities onto frozen physical targets."""
+
+    by_track_id = {
+        str(estimate.track_id): estimate
+        for estimate in estimates
+    }
+    return {
+        str(truth_id): by_track_id[sample.track_id]
+        for truth_id, sample in identity_epoch.samples_by_truth.items()
+        if sample.track_id in by_track_id
+    }
 
 
 def _final_acceleration_errors(

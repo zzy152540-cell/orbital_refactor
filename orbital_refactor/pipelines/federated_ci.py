@@ -148,6 +148,7 @@ def run_federated_ci_filter(
     reset_feedback: bool = False,
     ci_objective: str = "trace",
     ci_grid_points: int = 101,
+    ci_minimum_weight: float = 0.0,
     cross_modality_anchor: str | None = None,
     cross_modality_gate_threshold: float = np.inf,
     fusion_method: str = "ci",
@@ -412,6 +413,7 @@ def run_federated_ci_filter(
                     posterior_list,
                     objective=ci_objective,
                     grid_points=ci_grid_points,
+                    minimum_weight=ci_minimum_weight,
                 )
                 fused_states[index] = fusion.state
                 fused_covariances[index] = fusion.covariance

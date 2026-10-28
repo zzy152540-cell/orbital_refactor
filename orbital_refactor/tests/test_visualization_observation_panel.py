@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+import shutil
 from types import SimpleNamespace
 
 import numpy as np
@@ -10,12 +12,53 @@ pytest.importorskip("pyqtgraph")
 
 from PySide6.QtWidgets import QApplication
 
-from visualization.data_contract import VisualObservation
+from visualization.data_contract import (
+    VisualNodeState,
+    VisualObservation,
+    VisualizationFrame,
+)
+from visualization.recording import VisualizationRecordingWriter
+from visualization.replay_model import VisualizationReplayModel
 from visualization.replay_window import (
     CANNObservationPanel,
     MODALITY_VISUAL_STYLE,
     ModalityObservationPanel,
+    VisualizationReplayWindow,
 )
+
+
+def test_replay_window_selects_preferred_target_without_scope_error():
+    application = QApplication.instance() or QApplication([])
+    target = Path("results/test_replay_window_preferred_target")
+    if target.exists():
+        shutil.rmtree(target)
+    try:
+        with VisualizationRecordingWriter(target) as writer:
+            writer.append(VisualizationFrame(
+                scenario_id="test", run_id="seed-0",
+                timestamp=0.0, epoch_index=0,
+                nodes=tuple(
+                    VisualNodeState(
+                        node_id=node_id,
+                        estimate_state=np.zeros(6),
+                        truth_state=np.zeros(6),
+                        covariance_diagonal=np.ones(6),
+                        status="HOSTILE_TARGET_TRACKED",
+                    )
+                    for node_id in ("target-0", "target-1")
+                ),
+                metadata={
+                    "preferred_target_id": "target-1",
+                    "estimation_target_ids": ("target-0", "target-1"),
+                },
+            ))
+        window = VisualizationReplayWindow(VisualizationReplayModel(target))
+        assert window.target_selector.currentText() == "target-1"
+        window.close()
+        application.processEvents()
+    finally:
+        if target.exists():
+            shutil.rmtree(target)
 
 
 def test_observation_panel_distinguishes_raw_and_numeric_only_data():

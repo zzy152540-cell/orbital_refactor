@@ -260,7 +260,7 @@ def _summarize_local_node_runs(runs) -> dict:
 
 
 def _p05_evidence(payloads) -> dict:
-    baseline_name = "single_node_optical_only"
+    baseline_name = "single_node_multimodal_no_cann"
     candidate_name = "single_node_multimodal_cann"
     required = {baseline_name, candidate_name}
     if any(
@@ -302,9 +302,7 @@ def _p05_evidence(payloads) -> dict:
         and pooled["improvementPercent"] >= P05_MINIMUM_IMPROVEMENT_PERCENT
     )
     matched_records = [
-        payload.get("matchedSingleObserverJointCannVsModality", {}).get(
-            "optical"
-        )
+        payload.get("matchedSingleObserverJointCann")
         for payload in payloads
     ]
     matched_evidence = (

@@ -216,6 +216,160 @@ def test_high_confidence_radar_reanchors_immediately_after_short_dropout():
     assert not diagnostics["range_substituted"]
 
 
+def test_optional_nominal_radar_blend_is_causal_and_off_by_default():
+    source = _observations(
+        "RADAR",
+        [
+            [1_000_000.0, 100.0],
+            [1_000_100.0, 100.0],
+            [1_000_205.0, 100.0],
+        ],
+        [0.0, 1.0, 2.0],
+    )
+    default = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(), source,
+    )
+    smoothed = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(
+            IncrementalMultimodalCANNConfig(
+                radar_nominal_blend_alpha=0.5,
+                radar_nominal_covariance_scale=0.6,
+            ),
+        ),
+        source,
+    )
+
+    np.testing.assert_allclose(default[-1].measurement, source[-1].measurement)
+    assert not np.array_equal(
+        smoothed[-1].measurement, source[-1].measurement,
+    )
+    diagnostics = smoothed[-1].metadata["cann_diagnostics"]
+    assert diagnostics["nominal_blend_applied"]
+    assert diagnostics["nominal_blend_alpha"] == 0.5
+    assert diagnostics["nominal_covariance_scale"] == 0.6
+    np.testing.assert_allclose(
+        smoothed[-1].covariance, 0.6 * source[-1].covariance,
+    )
+
+
+def test_optional_nominal_optical_blend_is_causal_and_off_by_default():
+    source = _observations(
+        "OPTICAL",
+        [[0.0, 0.0], [0.01, 0.01], [0.025, 0.025]],
+        [0.0, 1.0, 2.0],
+    )
+    default = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(), source,
+    )
+    smoothed = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(
+            IncrementalMultimodalCANNConfig(
+                optical_nominal_blend_alpha=0.5,
+            ),
+        ),
+        source,
+    )
+
+    np.testing.assert_allclose(default[-1].measurement, source[-1].measurement)
+    assert not np.array_equal(
+        smoothed[-1].measurement, source[-1].measurement,
+    )
+    diagnostics = smoothed[-1].metadata["cann_diagnostics"]
+    assert diagnostics["nominal_blend_applied"]
+    assert diagnostics["nominal_blend_alpha"] == 0.5
+
+
+def test_optional_adaptive_radar_blend_raises_gain_for_large_innovation():
+    source = _observations(
+        "RADAR",
+        [
+            [1_000_000.0, 100.0],
+            [1_000_100.0, 100.0],
+            [1_000_205.0, 100.0],
+        ],
+        [0.0, 1.0, 2.0],
+    )
+    actual = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(
+            IncrementalMultimodalCANNConfig(
+                radar_nominal_blend_alpha=0.5,
+                radar_adaptive_nominal_blend=True,
+                radar_adaptive_innovation_sigma=10.0,
+            ),
+        ),
+        source,
+    )
+
+    diagnostics = actual[-1].metadata["cann_diagnostics"]
+    assert diagnostics["adaptive_nominal_blend"]
+    assert 0.5 <= diagnostics["effective_range_blend_alpha"] <= 1.0
+    assert 0.5 <= diagnostics["effective_range_rate_blend_alpha"] <= 1.0
+    assert (
+        diagnostics["effective_range_blend_alpha"]
+        > diagnostics["effective_range_rate_blend_alpha"]
+    )
+
+
+def test_optional_radar_range_and_rate_blend_gains_are_independent():
+    source = _observations(
+        "RADAR",
+        [
+            [1_000_000.0, 100.0],
+            [1_000_100.0, 100.0],
+            [1_000_205.0, 100.1],
+        ],
+        [0.0, 1.0, 2.0],
+    )
+    actual = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(
+            IncrementalMultimodalCANNConfig(
+                radar_range_nominal_blend_alpha=0.6,
+                radar_range_rate_nominal_blend_alpha=0.9,
+                radar_range_nominal_covariance_scale=0.5,
+                radar_range_rate_nominal_covariance_scale=0.8,
+            ),
+        ),
+        source,
+    )
+
+    diagnostics = actual[-1].metadata["cann_diagnostics"]
+    assert diagnostics["range_nominal_blend_alpha"] == 0.6
+    assert diagnostics["range_rate_nominal_blend_alpha"] == 0.9
+    assert diagnostics["effective_range_blend_alpha"] == 0.6
+    assert diagnostics["effective_range_rate_blend_alpha"] == 0.9
+    assert diagnostics["range_nominal_covariance_scale"] == 0.5
+    assert diagnostics["range_rate_nominal_covariance_scale"] == 0.8
+    np.testing.assert_allclose(actual[-1].covariance, np.diag([0.5, 0.8]))
+
+
+def test_optional_range_rate_trend_blend_is_causal_and_off_by_default():
+    source = _observations(
+        "RADAR",
+        [
+            [1_000_000.0, 100.0],
+            [1_000_100.0, 101.0],
+            [1_000_201.0, 102.0],
+            [1_000_303.0, 104.0],
+        ],
+        [0.0, 1.0, 2.0, 3.0],
+    )
+    actual = _run_incrementally(
+        IncrementalMultimodalCANNPreprocessor(
+            IncrementalMultimodalCANNConfig(
+                radar_range_rate_trend_window_epochs=4,
+                radar_range_rate_trend_measurement_alpha=0.5,
+            ),
+        ),
+        source,
+    )
+
+    diagnostics = actual[-1].metadata["cann_diagnostics"]
+    assert diagnostics["range_rate_trend_blend_applied"]
+    assert diagnostics["range_rate_trend_window_epochs"] == 4
+    assert diagnostics["range_rate_trend_mps"] is not None
+    assert actual[-1].measurement[1] != source[-1].measurement[1]
+
+
 def test_low_confidence_radar_outlier_can_still_be_substituted_by_cann():
     processor = IncrementalMultimodalCANNPreprocessor(
         IncrementalMultimodalCANNConfig(infrared=False, optical=False),

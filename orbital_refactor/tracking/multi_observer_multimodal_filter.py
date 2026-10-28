@@ -127,6 +127,108 @@ def unified_multi_observer_multimodal_update(
     )
 
 
+def sequential_multi_observer_multimodal_update(
+    prior,
+    observations,
+    *,
+    timestamp: float,
+    process_noise_acceleration: float = 1e-4,
+) -> UnifiedMultimodalUpdate:
+    """Apply independent multimodal blocks in a deterministic EKF sequence.
+
+    The target prior is propagated exactly once.  RADAR, INFRARED and OPTICAL
+    blocks are then applied in that order and relinearized at the posterior
+    produced by the previous block.  This is a conventional no-CANN baseline,
+    distinct from the same-linearization stacked update above.
+    """
+
+    epoch = float(timestamp)
+    values = _apply_radial_proxy_failover_policy(tuple(observations))
+    if not values:
+        raise ValueError("At least one multimodal observation is required.")
+    if any(
+        not isinstance(item, (UnlabeledIODObservation, IODObservation))
+        for item in values
+    ):
+        raise TypeError("Sequential update requires IOD observations.")
+    if any(item.modality not in {"RADAR", "LOS"} for item in values):
+        raise ValueError("Sequential update accepts RADAR and LOS only.")
+    if any(
+        not item.valid_flag or not np.isclose(item.timestamp, epoch)
+        for item in values
+    ):
+        raise ValueError("Every observation must be valid and epoch-aligned.")
+
+    order = {"RADAR": 0, "INFRARED": 1, "OPTICAL": 2}
+    values = tuple(sorted(
+        values,
+        key=lambda item: (
+            order.get(str(item.metadata.get(
+                "sourceModality", item.modality,
+            )).upper(), 3),
+            str(item.observer_id),
+            str(item.metadata.get("sourceMessageId", "")),
+        ),
+    ))
+    state, covariance = _predict_prior(
+        prior,
+        epoch,
+        process_noise_acceleration=process_noise_acceleration,
+    )
+    identity = np.eye(6)
+    modality_counts: dict[str, int] = {}
+    information_capabilities: set[str] = set()
+    measurement_ids = []
+    measurement_dimension = 0
+    total_nis = 0.0
+    for item in values:
+        jacobian, innovation, measurement_covariance = _measurement_block(
+            item, state,
+        )
+        innovation_covariance = _symmetrize(
+            jacobian @ covariance @ jacobian.T + measurement_covariance
+        )
+        inverse_innovation = np.linalg.pinv(innovation_covariance)
+        gain = covariance @ jacobian.T @ inverse_innovation
+        state = state + gain @ innovation
+        residual_matrix = identity - gain @ jacobian
+        covariance = _symmetrize(
+            residual_matrix @ covariance @ residual_matrix.T
+            + gain @ measurement_covariance @ gain.T
+        )
+        total_nis += float(innovation @ inverse_innovation @ innovation)
+        measurement_dimension += int(innovation.size)
+        source_modality = str(
+            item.metadata.get("sourceModality", item.modality)
+        ).upper()
+        modality_counts[source_modality] = (
+            modality_counts.get(source_modality, 0) + 1
+        )
+        if item.modality == "RADAR" or item.metadata.get("rangeProxyM") is not None:
+            information_capabilities.add("RADIAL_RANGE")
+        if (
+            item.modality == "RADAR"
+            or item.metadata.get("rangeRateProxyMps") is not None
+        ):
+            information_capabilities.add("RADIAL_RANGE_RATE")
+        identifier = item.metadata.get("sourceMessageId")
+        if identifier is not None:
+            measurement_ids.append(str(identifier))
+
+    return UnifiedMultimodalUpdate(
+        timestamp=epoch,
+        state_eci=state,
+        covariance_eci=covariance,
+        observer_ids=tuple(sorted({item.observer_id for item in values})),
+        measurement_ids=tuple(dict.fromkeys(measurement_ids)),
+        modality_counts=dict(sorted(modality_counts.items())),
+        information_capabilities=tuple(sorted(information_capabilities)),
+        observation_count=len(values),
+        measurement_dimension=measurement_dimension,
+        nis=total_nis,
+    )
+
+
 def _apply_radial_proxy_failover_policy(observations):
     """Use one radial source per detection when EO proxies are fallbacks.
 
