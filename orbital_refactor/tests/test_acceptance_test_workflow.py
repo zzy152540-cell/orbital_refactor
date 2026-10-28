@@ -9,6 +9,7 @@ from visualization.acceptance_test_workflow import (
     FORMAL_MODE,
     PRESETS,
     QUICK_MODE,
+    SINGLE_SEED_FULL_MODE,
     build_acceptance_plan,
     finalize_acceptance_plan,
     make_acceptance_output_directory,
@@ -36,6 +37,21 @@ def test_formal_p05_plan_freezes_duration_and_five_seeds(tmp_path):
         str(tmp_path / "baseline_seed0.json"),
     )
     assert plan.configuration_family == "nominal"
+
+
+def test_single_seed_full_plan_keeps_duration_but_runs_only_seed_zero(tmp_path):
+    plan = build_acceptance_plan(
+        "P05_BASELINE", SINGLE_SEED_FULL_MODE, tmp_path
+    )
+
+    assert not plan.formal
+    assert plan.duration_seconds == 120.0
+    assert plan.seeds == (0,)
+    result_jobs = tuple(job for job in plan.jobs if job.role == "result")
+    assert len(result_jobs) == 1
+    assert result_jobs[0].arguments[:4] == (
+        "--duration", "120.0", "--seed", "0",
+    )
 
 
 def test_f03_plans_run_single_and_cooperative_recordings_separately(tmp_path):

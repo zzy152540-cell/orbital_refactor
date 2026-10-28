@@ -5,6 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6 import QtWidgets
 
 from visualization.simulation_launcher import VisualizationSimulationLauncher
+from visualization.acceptance_test_workflow import SINGLE_SEED_FULL_MODE
 
 
 def test_constellation_fields_follow_selected_scenario():
@@ -79,6 +80,18 @@ def test_constellation_fields_follow_selected_scenario():
     window.close()
 
 
+def test_single_seed_full_acceptance_mode_is_default():
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    window = VisualizationSimulationLauncher()
+
+    assert window.acceptance_mode.currentData() == SINGLE_SEED_FULL_MODE
+    plan = window._build_acceptance_plan_from_ui()
+    assert plan.duration_seconds == 120.0
+    assert plan.seeds == (0,)
+
+    window.close()
+
+
 def test_r06_acceptance_window_defaults_and_custom_controls():
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
     window = VisualizationSimulationLauncher()
@@ -88,8 +101,8 @@ def test_r06_acceptance_window_defaults_and_custom_controls():
     app.processEvents()
 
     assert window.acceptance_default_r06_window.isChecked()
-    assert window.acceptance_dropout_start_s.value() == 6.0
-    assert window.acceptance_dropout_duration_s.value() == 8.0
+    assert window.acceptance_dropout_start_s.value() == 30.0
+    assert window.acceptance_dropout_duration_s.value() == 60.0
     assert not window.acceptance_dropout_start_s.isEnabled()
 
     window.acceptance_default_r06_window.setChecked(False)

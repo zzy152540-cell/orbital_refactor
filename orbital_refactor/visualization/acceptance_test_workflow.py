@@ -21,6 +21,7 @@ from visualization.recording import VisualizationRecordingReader
 
 
 QUICK_MODE = "quick"
+SINGLE_SEED_FULL_MODE = "single_seed_full"
 FORMAL_MODE = "formal"
 ACCEPTANCE_OUTPUT_ROOT = Path("results/acceptance_gui")
 EO_RADIAL_FAILOVER_RANGE_SIGMA_M = 2.5
@@ -214,12 +215,14 @@ def build_acceptance_plan(
 ) -> AcceptancePlan:
     if preset_id not in PRESET_BY_ID:
         raise ValueError(f"Unknown acceptance preset: {preset_id}")
-    if mode not in {QUICK_MODE, FORMAL_MODE}:
+    if mode not in {QUICK_MODE, SINGLE_SEED_FULL_MODE, FORMAL_MODE}:
         raise ValueError(f"Unknown acceptance mode: {mode}")
     preset = PRESET_BY_ID[preset_id]
     output = Path(output_directory)
     duration = 20.0 if mode == QUICK_MODE else 120.0
-    seeds = (0,) if mode == QUICK_MODE else (0, 1, 2, 3, 4)
+    seeds = (
+        (0, 1, 2, 3, 4) if mode == FORMAL_MODE else (0,)
+    )
     jobs: list[AcceptanceJob] = []
     configuration_family = "nominal"
     control_family = "nominal"
@@ -412,7 +415,8 @@ def build_acceptance_plan(
         jobs.append(_job(
             "Ubuntu environment and core regression",
             "experiments.run_ubuntu_environment_acceptance",
-            "--mode", mode, "--gui-launched", "--output", target,
+            "--mode", (QUICK_MODE if mode == QUICK_MODE else FORMAL_MODE),
+            "--gui-launched", "--output", target,
             output=target,
         ))
         duration = None
@@ -872,8 +876,10 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
         status = "PENDING_MANUAL_CHECK"
     else:
         status = "PASS" if automatic_passed else "FAIL"
-    if not plan.formal:
+    if plan.mode == QUICK_MODE:
         note = "快速检查仅用于功能预检，不可替代正式验收。"
+    elif plan.mode == SINGLE_SEED_FULL_MODE:
+        note = "单种子全时长运行仅用于演示和流程检查，不可替代五种子正式验收。"
     elif plan.event_window_mode == "USER_CONFIGURED":
         note = "正式运行使用用户配置的R06窗口，不属于冻结窗口证据。"
     else:
@@ -891,7 +897,11 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
 
 
 def describe_acceptance_plan(plan: AcceptancePlan) -> str:
-    mode = "正式验收" if plan.formal else "快速检查（非正式）"
+    mode = {
+        QUICK_MODE: "快速检查（seed 0，20 s，非正式）",
+        SINGLE_SEED_FULL_MODE: "单种子全时长（seed 0，120 s，非正式）",
+        FORMAL_MODE: "正式验收（seed 0～4）",
+    }[plan.mode]
     duration = "不按仿真时长" if plan.duration_seconds is None else f"{plan.duration_seconds:g} s"
     seeds = "无随机种子" if not plan.seeds else ", ".join(map(str, plan.seeds))
     window = (

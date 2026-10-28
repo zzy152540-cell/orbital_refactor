@@ -23,6 +23,7 @@ from visualization.acceptance_test_workflow import (
     FORMAL_MODE,
     PRESETS,
     QUICK_MODE,
+    SINGLE_SEED_FULL_MODE,
     build_acceptance_plan,
     describe_acceptance_plan,
     finalize_acceptance_plan,
@@ -286,8 +287,17 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         for preset in PRESETS:
             self.acceptance_test.addItem(preset.name, preset.preset_id)
         self.acceptance_mode = QtWidgets.QComboBox()
-        self.acceptance_mode.addItem("快速检查（seed 0，非正式）", QUICK_MODE)
+        self.acceptance_mode.addItem(
+            "快速检查（seed 0，20 s，非正式）", QUICK_MODE
+        )
+        self.acceptance_mode.addItem(
+            "单种子全时长（seed 0，120 s，非正式）",
+            SINGLE_SEED_FULL_MODE,
+        )
         self.acceptance_mode.addItem("正式验收（seed 0～4）", FORMAL_MODE)
+        self.acceptance_mode.setCurrentIndex(
+            self.acceptance_mode.findData(SINGLE_SEED_FULL_MODE)
+        )
         self.acceptance_default_r06_window = QtWidgets.QCheckBox(
             "Use default R06 dropout window"
         )
