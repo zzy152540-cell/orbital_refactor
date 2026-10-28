@@ -263,7 +263,8 @@ def test_configurable_bilateral_walker_population_is_recorded(tmp_path):
         hostile_altitude_m=760_000.0,
         maximum_observation_range_m=7_000_000.0,
         process_noise_acceleration=2e-4,
-        tracking_modalities=("RADAR", "OPTICAL"),
+        local_velocity_refinement_alpha=0.3,
+        tracking_modalities=("OPTICAL",),
         dropout_modality="OPTICAL",
         dropout_start=4.0,
         dropout_end=np.nextafter(6.0, 4.0),
@@ -277,7 +278,22 @@ def test_configurable_bilateral_walker_population_is_recorded(tmp_path):
     assert frame.metadata["hostile_target_count"] == 4
     assert frame.metadata["maximum_observation_range_m"] == 7_000_000.0
     assert frame.metadata["process_noise_acceleration"] == 2e-4
-    assert frame.metadata["tracking_modalities"] == ("RADAR", "OPTICAL")
+    assert frame.metadata["tracking_modalities"] == ("OPTICAL",)
+    assert frame.metadata["exported_measurement_modalities"] == (
+        "OPTICAL",
+    )
+    assert frame.metadata["maneuver_profile"] == "NONE"
+    assert frame.metadata["velocity_refinement"] == {
+        "method": "causal-two-body-j2-residual-blend",
+        "local_alpha": 0.3,
+        "consensus_alpha": None,
+        "maneuver_reset_threshold_mps": 0.5,
+    }
+    assert {
+        observation.modality
+        for recorded_frame in VisualizationRecordingReader(output)
+        for observation in recorded_frame.observations
+    } <= {"OPTICAL"}
     assert frame.metadata["estimation_architecture"] == "MULTI_INDEPENDENT"
     assert frame.metadata["tracking_modality_scope"] == (
         "SELECTED_MODALITIES_AFTER_COMMON_MULTIMODAL_INITIALIZATION"

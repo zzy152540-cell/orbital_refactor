@@ -199,6 +199,8 @@ R08_RANDOM_INDICES = {
     3: (1, 2, 10), 4: (9, 13, 14),
 }
 
+ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA = 0.3
+
 
 def make_acceptance_output_directory(
     preset_id: str, *, root: str | Path = ACCEPTANCE_OUTPUT_ROOT,
@@ -212,6 +214,7 @@ def build_acceptance_plan(
     preset_id: str, mode: str, output_directory: str | Path,
     *, r06_event_start_s: float | None = None,
     r06_event_duration_s: float | None = None,
+    single_seed: int = 0,
 ) -> AcceptancePlan:
     if preset_id not in PRESET_BY_ID:
         raise ValueError(f"Unknown acceptance preset: {preset_id}")
@@ -220,8 +223,12 @@ def build_acceptance_plan(
     preset = PRESET_BY_ID[preset_id]
     output = Path(output_directory)
     duration = 20.0 if mode == QUICK_MODE else 120.0
+    single_seed = int(single_seed)
+    if single_seed not in range(5):
+        raise ValueError("single_seed must be in the frozen range 0..4.")
     seeds = (
-        (0, 1, 2, 3, 4) if mode == FORMAL_MODE else (0,)
+        (0, 1, 2, 3, 4) if mode == FORMAL_MODE
+        else ((single_seed,) if mode == SINGLE_SEED_FULL_MODE else (0,))
     )
     jobs: list[AcceptanceJob] = []
     configuration_family = "nominal"
@@ -245,11 +252,23 @@ def build_acceptance_plan(
         }[preset.result_kind]
         for seed in seeds:
             target = output / f"baseline_seed{seed}.json"
+            refinement_arguments: tuple[object, ...] = ()
+            if preset_id == "P05_FUSION":
+                refinement_arguments = (
+                    "--local-velocity-refinement-alpha",
+                    ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
+                )
+            elif preset_id == "P07_COOPERATIVE":
+                refinement_arguments = (
+                    "--consensus-velocity-refinement-alpha",
+                    ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
+                )
             jobs.append(_job(
                 f"independent paired baseline seed {seed}",
                 "experiments.run_bilateral_baseline_matrix",
                 "--duration", duration, "--seed", seed,
                 "--acceptance-scope", acceptance_scope,
+                *refinement_arguments,
                 "--output", target,
                 output=target,
             ))
@@ -433,7 +452,7 @@ def build_acceptance_plan(
         recording = output / "recording"
         jobs.append(_acceptance_recording_job(
             preset_id, duration=duration, output=recording,
-            event_window=_event_window(mode),
+            event_window=_event_window(mode), seed=seeds[0],
         ))
         recording_path = str(recording)
     elif preset.result_kind == "visualization":
@@ -470,7 +489,7 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
         summary = summarize_payloads(payloads)
         if kind == "baseline_p05_control":
             control = summary["localNodeBaselines"][
-                "single_node_multimodal_no_cann"
+                "single_node_optical_only"
             ]["fullRunMetrics"]
             metrics = (
                 AcceptanceMetric(
@@ -491,7 +510,7 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
             )
         elif kind == "baseline_p05_candidate":
             p05 = summary["fourMetricEvidence"]["P05"][
-                "experimentalJointMeasurementCandidate"
+                "exactMatchedEvidence"
             ]
             rmse = p05["positionRmse"]
             velocity_rmse = p05["velocityRmse"]
@@ -897,9 +916,12 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
 
 
 def describe_acceptance_plan(plan: AcceptancePlan) -> str:
+    selected_seed = plan.seeds[0] if plan.seeds else "不适用"
     mode = {
         QUICK_MODE: "快速检查（seed 0，20 s，非正式）",
-        SINGLE_SEED_FULL_MODE: "单种子全时长（seed 0，120 s，非正式）",
+        SINGLE_SEED_FULL_MODE: (
+            f"单种子全时长（seed {selected_seed}，120 s，非正式）"
+        ),
         FORMAL_MODE: "正式验收（seed 0～4）",
     }[plan.mode]
     duration = "不按仿真时长" if plan.duration_seconds is None else f"{plan.duration_seconds:g} s"
@@ -912,14 +934,28 @@ def describe_acceptance_plan(plan: AcceptancePlan) -> str:
         f"持续 {plan.event_duration_seconds:g} s，"
         f"结束采样时刻 {plan.event_end_seconds:g} s\n"
     )
+    maneuver = (
+        "机动设置：无机动Walker冻结场景；加速度采用二体+J2模型派生\n"
+        if plan.preset.preset_id.startswith(("P05_", "P07_", "R06_", "R08_"))
+        else ""
+    )
+    velocity_refinement = (
+        "速度估计：因果二体+J2预测残差修正（alpha=0.3，"
+        "残差超过0.5 m/s时重置）\n"
+        if plan.preset.preset_id in {"P05_FUSION", "P07_COOPERATIVE"}
+        else ""
+    )
     return (
         f"{plan.preset.name}\n{plan.preset.purpose}\n\n"
         f"模式：{mode}\n时长：{duration}\n随机种子：{seeds}\n"
         f"配置族：{plan.configuration_family}\n"
         f"控制组：{plan.control_family}（本测试项独立生成，不跨项目复用）\n"
+        f"{maneuver}"
+        f"{velocity_refinement}"
         f"{window}"
         f"数值任务数：{sum(job.role == 'result' for job in plan.jobs)}\n"
-        f"代表性回放：{'生成 seed 0 场景' if plan.recording_path else '无'}\n"
+        f"代表性回放："
+        f"{'生成 seed ' + str(selected_seed) + ' 场景' if plan.recording_path and plan.seeds else '无'}\n"
         f"判据：{plan.preset.requirement}\n"
         f"输出：{plan.output_directory}"
     )
@@ -1015,25 +1051,35 @@ def _job(
 
 def _acceptance_recording_job(
     preset_id: str, *, duration: float, output: Path,
-    event_window: tuple[float, float],
+    event_window: tuple[float, float], seed: int,
 ) -> AcceptanceJob:
     start, end = event_window
     arguments: list[object] = [
         "--output", output, "--duration", duration, "--dt", 1.0,
-        "--seed", 0, "--cann-node-limit", 0,
+        "--seed", seed, "--cann-node-limit", 0,
         "--radial-backup-profile", "none",
         "--hide-communication-topology",
     ]
     if preset_id == "P05_BASELINE":
         arguments += [
             "--tracking-observer-indices", 0,
+            "--tracking-modalities", "OPTICAL",
             "--no-cann", "--no-local-unified",
         ]
     elif preset_id == "P05_FUSION":
-        arguments += ["--tracking-observer-indices", 0]
+        arguments += [
+            "--tracking-observer-indices", 0,
+            "--local-velocity-refinement-alpha",
+            ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
+        ]
     elif preset_id in {"P07_COOPERATIVE", "R08_CONTROL"}:
         arguments.remove("--hide-communication-topology")
         arguments += ["--consensus"]
+        if preset_id == "P07_COOPERATIVE":
+            arguments += [
+                "--consensus-velocity-refinement-alpha",
+                ACCEPTANCE_VELOCITY_REFINEMENT_ALPHA,
+            ]
     elif preset_id == "R06_CONTROL":
         # Normal-observation replay: keep all modalities enabled and do not
         # accidentally interpret CONTROL as a dropout modality.
@@ -1053,7 +1099,7 @@ def _acceptance_recording_job(
             "--failure-start", start, "--failure-end", end,
         ]
     return _job(
-        "seed 0 representative replay",
+        f"seed {seed} representative replay",
         "experiments.run_bilateral_visualization_recording",
         *arguments, output=output / "manifest.json", role="visualization",
     )

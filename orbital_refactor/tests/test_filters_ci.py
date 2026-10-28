@@ -107,6 +107,27 @@ def test_ci_pair_returns_normalized_weights_and_psd_covariance():
     assert np.min(np.linalg.eigvalsh(p)) >= -1e-12
 
 
+def test_normalized_trace_ci_weight_is_invariant_to_state_unit_scaling():
+    state_1 = np.zeros(6)
+    state_2 = np.ones(6)
+    covariance_1 = np.diag([4.0, 2.0, 3.0, 0.04, 0.02, 0.03])
+    covariance_2 = np.diag([1.0, 5.0, 2.0, 0.01, 0.05, 0.02])
+    _, _, original_weight = ci_fuse_pair(
+        state_1, covariance_1, state_2, covariance_2,
+        objective="normalized_trace", grid_points=51,
+    )
+    unit_scale = np.diag([1000.0, 1000.0, 1000.0, 0.1, 0.1, 0.1])
+    _, _, rescaled_weight = ci_fuse_pair(
+        unit_scale @ state_1,
+        unit_scale @ covariance_1 @ unit_scale,
+        unit_scale @ state_2,
+        unit_scale @ covariance_2 @ unit_scale,
+        objective="normalized_trace", grid_points=51,
+    )
+
+    assert np.isclose(rescaled_weight, original_weight)
+
+
 def test_single_ekf_accepts_shared_proportional_integrity_policy():
     policy = MeasurementIntegrityPolicy(
         mode=INTEGRITY_MODE_PROPORTIONAL_WITH_HARD_GATE,

@@ -18,7 +18,7 @@ commit="$(git rev-parse HEAD)"
 build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 cat > "$application_dir/VERSION.txt" <<EOF
 product=Satellite State Estimation
-version=0.4.0-rc2
+version=0.4.0-rc3
 git_commit=$commit
 platform=Linux-x86_64
 built_at_utc=$build_time
@@ -43,7 +43,7 @@ fi
 if [[ "${SKIP_ARCHIVE:-0}" != "1" ]]; then
   mkdir -p "$project_root/release"
   tar -czf \
-    "$project_root/release/SatelliteStateEstimation-Ubuntu-x86_64-0.4.0-rc2.tar.gz" \
+    "$project_root/release/SatelliteStateEstimation-Ubuntu-x86_64-0.4.0-rc3.tar.gz" \
     -C "$project_root/dist" SatelliteStateEstimation
 fi
 

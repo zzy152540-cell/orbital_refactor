@@ -6,6 +6,8 @@ import tracking.association.online_tracker as online_tracker_module
 
 from experiments.bilateral_multitarget_frontend import (
     BilateralFrontendConfig,
+    _DynamicsConsistentVelocityRefiner,
+    _model_acceleration_error,
     _topology_with_inactive_nodes,
     build_bilateral_raw_frontend,
     derive_bilateral_fault_frontend,
@@ -13,9 +15,62 @@ from experiments.bilateral_multitarget_frontend import (
     run_bilateral_online_comparison,
     run_bilateral_online_smoke,
 )
+from orbital_core.dynamics import accel_two_body_j2
 from tracking.association.frontend_adapter import (
     unlabeled_iod_observations_from_messages,
 )
+
+
+def test_velocity_refiner_is_causal_and_resets_large_residuals():
+    refiner = _DynamicsConsistentVelocityRefiner(
+        0.3, reset_threshold_mps=0.5,
+    )
+    covariance = np.eye(6)
+    initial = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
+
+    first, _ = refiner._refine(
+        ("observer", "target"), 0.0, initial, covariance,
+    )
+    acceleration = 0.5 * (
+        accel_two_body_j2(first[:3])
+        + accel_two_body_j2(first[:3])
+    )
+    predicted_velocity = first[3:] + acceleration
+    current = first.copy()
+    current[3:] = predicted_velocity + np.array([0.1, -0.1, 0.0])
+    refined, refined_covariance = refiner._refine(
+        ("observer", "target"), 1.0, current, covariance,
+    )
+
+    assert refined[:3] == pytest.approx(current[:3])
+    assert refined[3:] == pytest.approx(
+        predicted_velocity + 0.3 * (current[3:] - predicted_velocity)
+    )
+    assert np.all(np.isfinite(refined_covariance))
+    assert np.all(np.linalg.eigvalsh(refined_covariance) >= 0.0)
+
+    maneuver = refined.copy()
+    maneuver[3] += 1.0
+    reset, _ = refiner._refine(
+        ("observer", "target"), 2.0, maneuver, covariance,
+    )
+    assert reset == pytest.approx(maneuver)
+
+
+def test_velocity_refiner_rejects_invalid_alpha():
+    with pytest.raises(ValueError, match="alpha"):
+        _DynamicsConsistentVelocityRefiner(0.0)
+
+
+def test_model_acceleration_error_is_derived_from_eci_position():
+    truth = np.array([7_000_000.0, 0.0, 0.0, 0.0, 7_500.0, 0.0])
+    same_position = truth.copy()
+    same_position[3:] += np.array([100.0, -50.0, 25.0])
+    shifted_position = truth.copy()
+    shifted_position[0] += 100.0
+
+    assert _model_acceleration_error(same_position, truth) == pytest.approx(0.0)
+    assert _model_acceleration_error(shifted_position, truth) > 0.0
 
 
 def test_frontend_process_noise_must_be_finite_and_nonnegative():

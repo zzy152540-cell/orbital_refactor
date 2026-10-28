@@ -40,6 +40,9 @@ def generate_bilateral_visualization_recording(
     cann_node_limit: int = 3,
     retain_raw_frames: bool = True,
     enable_consensus: bool = False,
+    consensus_objective: str = "trace",
+    local_velocity_refinement_alpha: float | None = None,
+    consensus_velocity_refinement_alpha: float | None = None,
     enable_local_unified: bool = True,
     tracking_observer_indices: tuple[int, ...] | None = None,
     tracking_target_indices: tuple[int, ...] | None = None,
@@ -119,6 +122,7 @@ def generate_bilateral_visualization_recording(
         maximum_track_count=int(hostile_total_satellites),
         maximum_observation_range_m=float(maximum_observation_range_m),
         process_noise_acceleration=float(process_noise_acceleration),
+        consensus_objective=str(consensus_objective),
     )
     progress("bilateral_frontend_started", 0.02)
     friendly_config = WalkerDeltaConfig(
@@ -207,6 +211,10 @@ def generate_bilateral_visualization_recording(
         tracking_target_ids=tracking_target_ids,
         tracking_modalities=tuple(tracking_modalities),
         require_scored_truth=False,
+        velocity_refinement_alpha=local_velocity_refinement_alpha,
+        consensus_velocity_refinement_alpha=(
+            consensus_velocity_refinement_alpha
+        ),
         epoch_callback=captured.append,
     )
     progress("bilateral_tracking_complete", 0.65)
@@ -224,6 +232,10 @@ def generate_bilateral_visualization_recording(
         tracking_target_ids=tracking_target_ids,
         tracking_modalities=tuple(tracking_modalities),
         enable_consensus=enable_consensus,
+        local_velocity_refinement_alpha=local_velocity_refinement_alpha,
+        consensus_velocity_refinement_alpha=(
+            consensus_velocity_refinement_alpha
+        ),
         show_communication_topology=show_communication_topology,
         radial_backup_profile=radial_profile,
         electro_optical_radial_failover=electro_optical_radial_failover,
@@ -264,6 +276,8 @@ def write_bilateral_visualization_recording(
         "RADAR", "INFRARED", "OPTICAL",
     ),
     enable_consensus: bool = False,
+    local_velocity_refinement_alpha: float | None = None,
+    consensus_velocity_refinement_alpha: float | None = None,
     show_communication_topology: bool = True,
     radial_backup_profile: str = "none",
     electro_optical_radial_failover: bool = False,
@@ -317,7 +331,11 @@ def write_bilateral_visualization_recording(
             friendly_ids=friendly_ids,
             hostile_ids=hostile_ids,
         )
-        observations = _visual_observations(frontend, payload["epoch_messages"])
+        observations = _visual_observations(
+            frontend,
+            payload["epoch_messages"],
+            allowed_modalities=tracking_modalities,
+        )
         observation_source_ids = {
             item.observer_id for item in observations
         }
@@ -407,9 +425,11 @@ def write_bilateral_visualization_recording(
                 ),
                 "estimation_phase": estimation_phase,
                 "tracking_modalities": list(tracking_modalities),
+                "exported_measurement_modalities": list(tracking_modalities),
                 "tracking_modality_scope": (
                     "SELECTED_MODALITIES_AFTER_COMMON_MULTIMODAL_INITIALIZATION"
                 ),
+                "maneuver_profile": "NONE",
                 "maximum_observation_range_m": float(
                     frontend.config.maximum_observation_range_m
                 ),
@@ -420,6 +440,12 @@ def write_bilateral_visualization_recording(
                     estimation_diagnostics or {}
                 ),
                 "consensus_enabled": bool(enable_consensus),
+                "velocity_refinement": {
+                    "method": "causal-two-body-j2-residual-blend",
+                    "local_alpha": local_velocity_refinement_alpha,
+                    "consensus_alpha": consensus_velocity_refinement_alpha,
+                    "maneuver_reset_threshold_mps": 0.5,
+                },
                 "communication_topology_displayed": bool(
                     show_communication_topology
                 ),
@@ -529,9 +555,15 @@ def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
     return tuple(nodes)
 
 
-def _visual_observations(frontend, messages):
+def _visual_observations(frontend, messages, *, allowed_modalities=None):
+    allowed = (
+        None if allowed_modalities is None
+        else frozenset(str(value).upper() for value in allowed_modalities)
+    )
     values = []
     for message in messages:
+        if allowed is not None and message.modality not in allowed:
+            continue
         target_id = frontend.truth_target_by_detection_group[
             message.detection_group_id
         ]
@@ -781,6 +813,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-cann", action="store_true")
     parser.add_argument("--consensus", action="store_true")
+    parser.add_argument(
+        "--consensus-objective",
+        choices=("trace", "logdet", "normalized_trace"),
+        default="trace",
+    )
+    parser.add_argument("--local-velocity-refinement-alpha", type=float)
+    parser.add_argument("--consensus-velocity-refinement-alpha", type=float)
     parser.add_argument("--no-local-unified", action="store_true")
     parser.add_argument("--tracking-observer-indices", type=int, nargs="+")
     parser.add_argument("--tracking-target-indices", type=int, nargs="+")
@@ -841,6 +880,13 @@ def main() -> None:
         cann_node_limit=args.cann_node_limit,
         retain_raw_frames=not args.no_raw_frames,
         enable_consensus=args.consensus,
+        consensus_objective=args.consensus_objective,
+        local_velocity_refinement_alpha=(
+            args.local_velocity_refinement_alpha
+        ),
+        consensus_velocity_refinement_alpha=(
+            args.consensus_velocity_refinement_alpha
+        ),
         enable_local_unified=not args.no_local_unified,
         tracking_observer_indices=(
             None if args.tracking_observer_indices is None

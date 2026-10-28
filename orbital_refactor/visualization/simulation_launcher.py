@@ -291,13 +291,15 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             "快速检查（seed 0，20 s，非正式）", QUICK_MODE
         )
         self.acceptance_mode.addItem(
-            "单种子全时长（seed 0，120 s，非正式）",
+            "单种子全时长（seed 可选，120 s，非正式）",
             SINGLE_SEED_FULL_MODE,
         )
         self.acceptance_mode.addItem("正式验收（seed 0～4）", FORMAL_MODE)
         self.acceptance_mode.setCurrentIndex(
             self.acceptance_mode.findData(SINGLE_SEED_FULL_MODE)
         )
+        self.acceptance_single_seed = self._integer(0, 4)
+        self.acceptance_single_seed.setValue(0)
         self.acceptance_default_r06_window = QtWidgets.QCheckBox(
             "Use default R06 dropout window"
         )
@@ -312,6 +314,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         output_row.addWidget(browse)
         form.addRow("Test item", self.acceptance_test)
         form.addRow("Run mode", self.acceptance_mode)
+        form.addRow("Single-seed value", self.acceptance_single_seed)
         form.addRow("R06 window", self.acceptance_default_r06_window)
         form.addRow("R06 dropout start (s)", self.acceptance_dropout_start_s)
         form.addRow(
@@ -360,6 +363,9 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         )
         self.acceptance_mode.currentIndexChanged.connect(
             self._refresh_acceptance_plan
+        )
+        self.acceptance_single_seed.valueChanged.connect(
+            self._refresh_acceptance_description
         )
         self.acceptance_default_r06_window.toggled.connect(
             self._refresh_acceptance_window_controls
@@ -713,6 +719,9 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         if not preset_id or not mode:
             return
         self._refresh_acceptance_window_controls()
+        self.acceptance_single_seed.setEnabled(
+            self._acceptance_uses_selected_seed()
+        )
         self.acceptance_output.setText(str(
             make_acceptance_output_directory(preset_id)
         ))
@@ -737,6 +746,13 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_dropout_start_s.setEnabled(custom_enabled)
         self.acceptance_dropout_duration_s.setEnabled(custom_enabled)
         self._refresh_acceptance_description()
+
+    def _acceptance_uses_selected_seed(self) -> bool:
+        preset_id = str(self.acceptance_test.currentData() or "")
+        return (
+            self.acceptance_mode.currentData() == SINGLE_SEED_FULL_MODE
+            and preset_id.startswith(("P05_", "P07_", "R06_", "R08_"))
+        )
 
     def _refresh_acceptance_description(self) -> None:
         try:
@@ -784,6 +800,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             preset_id,
             self.acceptance_mode.currentData(),
             self.acceptance_output.text().strip(),
+            single_seed=self.acceptance_single_seed.value(),
             r06_event_start_s=(
                 self.acceptance_dropout_start_s.value()
                 if custom_r06 else None
@@ -951,6 +968,9 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_stop_button.setEnabled(running)
         self.acceptance_test.setEnabled(not running)
         self.acceptance_mode.setEnabled(not running)
+        self.acceptance_single_seed.setEnabled(
+            not running and self._acceptance_uses_selected_seed()
+        )
         self.acceptance_output.setEnabled(not running)
         if running:
             self.acceptance_default_r06_window.setEnabled(False)

@@ -5,7 +5,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6 import QtWidgets
 
 from visualization.simulation_launcher import VisualizationSimulationLauncher
-from visualization.acceptance_test_workflow import SINGLE_SEED_FULL_MODE
+from visualization.acceptance_test_workflow import FORMAL_MODE, SINGLE_SEED_FULL_MODE
 
 
 def test_constellation_fields_follow_selected_scenario():
@@ -88,6 +88,21 @@ def test_single_seed_full_acceptance_mode_is_default():
     plan = window._build_acceptance_plan_from_ui()
     assert plan.duration_seconds == 120.0
     assert plan.seeds == (0,)
+
+    window.acceptance_test.setCurrentIndex(
+        window.acceptance_test.findData("P07_COOPERATIVE")
+    )
+    app.processEvents()
+    window.acceptance_single_seed.setValue(4)
+    plan = window._build_acceptance_plan_from_ui()
+    assert plan.seeds == (4,)
+
+    window.acceptance_mode.setCurrentIndex(
+        window.acceptance_mode.findData(FORMAL_MODE)
+    )
+    app.processEvents()
+    assert not window.acceptance_single_seed.isEnabled()
+    assert window._build_acceptance_plan_from_ui().seeds == (0, 1, 2, 3, 4)
 
     window.close()
 

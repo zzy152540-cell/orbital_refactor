@@ -87,8 +87,25 @@ def test_p05_uses_exact_single_observer_sample_fingerprint():
         payloads.append({
             "scenario": {"seed": seed},
             "localNodeBaselines": {
-                "single_node_multimodal_no_cann": baseline,
+                "single_node_optical_only": baseline,
                 "single_node_multimodal_cann": candidate,
+            },
+            "matchedSingleObserverJointCannVsModality": {
+                "optical": {
+                    "local_sample_count": 20,
+                    "consensus_sample_count": 20,
+                    "common_sample_count": 20,
+                    "local_only_sample_count": 0,
+                    "consensus_only_sample_count": 0,
+                    "local_position_mean_error_m": 10.0,
+                    "consensus_position_mean_error_m": 9.0,
+                    "local_position_rmse_m": 10.0,
+                    "consensus_position_rmse_m": 9.0,
+                    "local_velocity_mean_error_mps": 1.0,
+                    "consensus_velocity_mean_error_mps": 0.9,
+                    "local_velocity_rmse_mps": 1.0,
+                    "consensus_velocity_rmse_mps": 0.9,
+                },
             },
             "matchedSingleObserverCannVsModality": {
                 modality: {

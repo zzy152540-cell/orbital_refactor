@@ -23,7 +23,7 @@ try {
     $BuildTime = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
     @(
         "product=Satellite State Estimation"
-        "version=0.4.0-rc2"
+        "version=0.4.0-rc3"
         "git_commit=$Commit"
         "platform=Windows-x64"
         "built_at_utc=$BuildTime"
@@ -59,7 +59,7 @@ try {
 
     if (-not $SkipArchive) {
         $ReleaseDir = Join-Path $ProjectRoot "release"
-        $Archive = Join-Path $ReleaseDir "SatelliteStateEstimation-Windows-x64-0.4.0-rc2.zip"
+        $Archive = Join-Path $ReleaseDir "SatelliteStateEstimation-Windows-x64-0.4.0-rc3.zip"
         New-Item -ItemType Directory -Force $ReleaseDir | Out-Null
         if (Test-Path $Archive) { Remove-Item -LiteralPath $Archive -Force }
         Compress-Archive -Path (Join-Path $ApplicationDir "*") `

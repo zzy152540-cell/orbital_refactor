@@ -26,6 +26,7 @@ EXPECTED_ARMS = {
 }
 
 EXPECTED_LOCAL_NODE_BASELINES = {
+    "single_node_optical_only",
     "single_node_multimodal_no_cann",
     "single_node_multimodal_cann",
     "independent_15_node_multimodal_no_cann",
@@ -182,21 +183,17 @@ def test_single_acceptance_arm_matches_the_matrix_cann_arm(baseline_matrix):
     (
         (
             "p05-control",
-            {"centralized_multimodal_no_cann"},
-            {
-                "single_node_multimodal_no_cann",
-                "independent_15_node_multimodal_no_cann",
-            },
+            {"centralized_optical_only"},
+            {"single_node_optical_only"},
         ),
         (
             "p05-candidate",
             {
-                "centralized_multimodal_no_cann",
+                "centralized_optical_only",
                 "single_observer_joint_multimodal_cann",
             },
             {
-                "single_node_multimodal_no_cann",
-                "independent_15_node_multimodal_no_cann",
+                "single_node_optical_only",
                 "single_node_multimodal_cann",
                 "independent_15_node_joint_multimodal_cann",
             },
@@ -212,7 +209,10 @@ def test_single_acceptance_arm_matches_the_matrix_cann_arm(baseline_matrix):
                 "centralized_optical_only",
                 "single_observer_joint_multimodal_cann",
             },
-            {"independent_15_node_joint_multimodal_cann"},
+            {
+                "single_node_optical_only",
+                "independent_15_node_joint_multimodal_cann",
+            },
         ),
         (
             "p05-fixed-weight-pilot",

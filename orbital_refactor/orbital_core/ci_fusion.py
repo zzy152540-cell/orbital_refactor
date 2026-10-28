@@ -25,6 +25,11 @@ def ci_objective(covariance: Array, mode: str = "trace") -> float:
     if mode == "logdet":
         sign, logdet = np.linalg.slogdet(covariance)
         return float(logdet) if sign > 0 else np.inf
+    if mode == "normalized_trace":
+        raise ValueError(
+            "normalized_trace requires the shared input-covariance scale "
+            "computed during CI weight search."
+        )
     raise ValueError(f"Unsupported CI objective: {mode}")
 
 
@@ -62,7 +67,13 @@ def ci_fuse_pair(
         + (1.0 - weights)[:, None, None] * information_2[None, :, :]
     )
     covariance_candidates = _invert_stack(fused_information)
-    values = _objective_values(covariance_candidates, objective)
+    values = _objective_values(
+        covariance_candidates,
+        objective,
+        normalization=_objective_normalization(
+            (covariance_1, covariance_2), objective,
+        ),
+    )
     best_index = int(np.argmin(values))
     if not np.isfinite(values[best_index]):
         raise RuntimeError("CI pair fusion failed to find a valid weight.")
@@ -120,7 +131,11 @@ def ci_fuse_three(
     # (candidate, modality) x (modality, row, column) -> (candidate, row, column)
     fused_information = np.einsum("km,mij->kij", weights, information, optimize=True)
     covariance_candidates = _invert_stack(fused_information)
-    values = _objective_values(covariance_candidates, objective)
+    values = _objective_values(
+        covariance_candidates,
+        objective,
+        normalization=_objective_normalization(covariances, objective),
+    )
     best_index = int(np.argmin(values))
     if not np.isfinite(values[best_index]):
         raise RuntimeError("Three-way CI fusion failed to find valid weights.")
@@ -227,18 +242,46 @@ def _safe_inverse(matrix: Array) -> Array:
         return np.linalg.pinv(matrix)
 
 
-def _objective_values(covariances: Array, mode: str) -> Array:
+def _objective_values(
+    covariances: Array,
+    mode: str,
+    *,
+    normalization: Array | None = None,
+) -> Array:
     if mode == "trace":
         return np.trace(covariances, axis1=-2, axis2=-1)
     if mode == "logdet":
         sign, logdet = np.linalg.slogdet(covariances)
         return np.where(sign > 0, logdet, np.inf)
+    if mode == "normalized_trace":
+        if normalization is None:
+            raise ValueError("normalized_trace requires a shared normalization.")
+        return np.sum(
+            np.diagonal(covariances, axis1=-2, axis2=-1)
+            / normalization[None, :],
+            axis=-1,
+        )
     raise ValueError(f"Unsupported CI objective: {mode}")
 
 
 def _validate_objective(mode: str) -> None:
-    if mode not in {"trace", "logdet"}:
+    if mode not in {"trace", "logdet", "normalized_trace"}:
         raise ValueError(f"Unsupported CI objective: {mode}")
+
+
+def _objective_normalization(
+    covariances: Iterable[Array], mode: str,
+) -> Array | None:
+    """Build a common dimensionless scale from the CI input covariances."""
+
+    if mode != "normalized_trace":
+        return None
+    diagonals = np.stack([
+        np.diag(np.asarray(covariance, dtype=float))
+        for covariance in covariances
+    ])
+    scale = np.mean(np.maximum(diagonals, 0.0), axis=0)
+    return np.maximum(scale, np.finfo(float).eps)
 
 
 def _symmetrize(matrix: Array) -> Array:

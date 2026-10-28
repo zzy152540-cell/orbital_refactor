@@ -20,6 +20,13 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--duration", type=float, default=20.0)
     parser.add_argument("--seed", type=int, default=11)
+    parser.add_argument(
+        "--consensus-objective",
+        choices=("trace", "logdet", "normalized_trace"),
+        default="trace",
+    )
+    parser.add_argument("--local-velocity-refinement-alpha", type=float)
+    parser.add_argument("--consensus-velocity-refinement-alpha", type=float)
     parser.add_argument("--backup-radial-range-sigma-m", type=float)
     parser.add_argument("--backup-radial-range-rate-sigma-mps", type=float)
     parser.add_argument(
@@ -65,6 +72,7 @@ def main() -> None:
         duration_seconds=args.duration,
         sample_interval_seconds=1.0,
         random_seed=args.seed,
+        consensus_objective=args.consensus_objective,
         backup_radial_range_sigma_m=args.backup_radial_range_sigma_m,
         backup_radial_range_rate_sigma_mps=(
             args.backup_radial_range_rate_sigma_mps
@@ -84,6 +92,12 @@ def main() -> None:
                 "opt": args.fixed_federated_weights[2],
             }
         ),
+        local_velocity_refinement_alpha=(
+            args.local_velocity_refinement_alpha
+        ),
+        consensus_velocity_refinement_alpha=(
+            args.consensus_velocity_refinement_alpha
+        ),
     )
     payload = {
         "schemaVersion": "bilateral-baseline-matrix.v3",
@@ -93,6 +107,7 @@ def main() -> None:
             "durationSeconds": args.duration,
             "sampleIntervalSeconds": 1.0,
             "seed": args.seed,
+            "maneuverProfile": "NONE",
             "armSelection": (
                 args.acceptance_scope.upper().replace("-", "_")
                 if args.acceptance_scope else (
@@ -111,6 +126,17 @@ def main() -> None:
         "comparisonContract": {
             "sharedRenderedSensorFrames": True,
             "fixedTruthAndNoiseAcrossArms": True,
+            "velocityRefinement": {
+                "method": "causal-two-body-j2-residual-blend",
+                "localAlpha": args.local_velocity_refinement_alpha,
+                "consensusAlpha": args.consensus_velocity_refinement_alpha,
+                "maneuverResetThresholdMps": 0.5,
+            },
+            "accelerationFrame": "ECI",
+            "accelerationDerivation": (
+                "two-body-plus-J2 dynamics evaluated at the estimated "
+                "position; acceleration is not an independent filter state"
+            ),
             "usesCommonMultimodalInitialization": (
                 result.uses_common_multimodal_initialization
             ),

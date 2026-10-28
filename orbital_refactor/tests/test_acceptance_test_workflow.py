@@ -54,6 +54,53 @@ def test_single_seed_full_plan_keeps_duration_but_runs_only_seed_zero(tmp_path):
     )
 
 
+def test_single_seed_full_plan_accepts_frozen_seed_selection(tmp_path):
+    plan = build_acceptance_plan(
+        "P07_COOPERATIVE", SINGLE_SEED_FULL_MODE, tmp_path,
+        single_seed=3,
+    )
+
+    assert plan.seeds == (3,)
+    result_jobs = tuple(job for job in plan.jobs if job.role == "result")
+    recording_jobs = tuple(job for job in plan.jobs if job.role == "visualization")
+    assert len(result_jobs) == 1
+    assert result_jobs[0].arguments[:4] == (
+        "--duration", "120.0", "--seed", "3",
+    )
+    assert len(recording_jobs) == 1
+    assert recording_jobs[0].label == "seed 3 representative replay"
+    seed_argument = recording_jobs[0].arguments.index("--seed")
+    assert recording_jobs[0].arguments[seed_argument + 1] == "3"
+
+
+def test_p05_candidate_uses_validated_local_velocity_refinement(tmp_path):
+    plan = build_acceptance_plan("P05_FUSION", QUICK_MODE, tmp_path)
+
+    result = next(job for job in plan.jobs if job.role == "result")
+    replay = next(job for job in plan.jobs if job.role == "visualization")
+    for job in (result, replay):
+        index = job.arguments.index("--local-velocity-refinement-alpha")
+        assert job.arguments[index + 1] == "0.3"
+
+
+def test_p07_candidate_uses_validated_consensus_velocity_refinement(tmp_path):
+    plan = build_acceptance_plan("P07_COOPERATIVE", QUICK_MODE, tmp_path)
+
+    result = next(job for job in plan.jobs if job.role == "result")
+    replay = next(job for job in plan.jobs if job.role == "visualization")
+    for job in (result, replay):
+        index = job.arguments.index("--consensus-velocity-refinement-alpha")
+        assert job.arguments[index + 1] == "0.3"
+
+
+def test_acceptance_seed_selection_rejects_values_outside_frozen_set(tmp_path):
+    with pytest.raises(ValueError, match="0..4"):
+        build_acceptance_plan(
+            "P07_COOPERATIVE", SINGLE_SEED_FULL_MODE, tmp_path,
+            single_seed=5,
+        )
+
+
 def test_f03_plans_run_single_and_cooperative_recordings_separately(tmp_path):
     single_plan = build_acceptance_plan("F03_SINGLE", QUICK_MODE, tmp_path / "s")
     cooperative_plan = build_acceptance_plan(
@@ -356,7 +403,7 @@ def test_p05_uses_the_frozen_joint_multimodal_cann_comparison(
         "fourMetricEvidence": {
             "P05": {
                 "pooled": {"improvementPercent": 0.0},
-                "experimentalJointMeasurementCandidate": {
+                "exactMatchedEvidence": {
                     "coverageComparable": True,
                     "positionRmse": {
                         "local": 10.0, "consensus": 1.69,
@@ -375,7 +422,7 @@ def test_p05_uses_the_frozen_joint_multimodal_cann_comparison(
             },
         },
         "localNodeBaselines": {
-            "single_node_multimodal_no_cann": {
+            "single_node_optical_only": {
                 "fullRunMetrics": {
                     "acceleration_rmse_mps2": {"mean": 0.02},
                 },

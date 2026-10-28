@@ -29,6 +29,7 @@ from brain_inspired.incremental_measurement_preprocessor import (
 )
 from cooperative.topology import NetworkTopology
 from orbital_core.coordinates import build_rtn_quaternion, dcm_to_quat_wxyz
+from orbital_core.dynamics import accel_two_body_j2
 from scenarios.bilateral_multitarget import (
     BilateralWalkerTruth,
     generate_bilateral_walker_truth,
@@ -55,6 +56,84 @@ from experiments.multitarget_identity_evaluation import (
 MODALITIES = ("RADAR", "INFRARED", "OPTICAL")
 
 
+class _DynamicsConsistentVelocityRefiner:
+    """Causal orbital-model residual smoother for reported ECI velocity.
+
+    The refiner never sees truth data.  It predicts velocity from the previous
+    refined report with the same two-body-plus-J2 model used by the scenario,
+    then blends only the velocity residual.  A large residual resets the
+    history so a genuine maneuver is not silently smoothed away.
+    """
+
+    def __init__(self, alpha: float, *, reset_threshold_mps: float = 0.5):
+        self.alpha = float(alpha)
+        self.reset_threshold_mps = float(reset_threshold_mps)
+        if not 0.0 < self.alpha <= 1.0:
+            raise ValueError("velocity refinement alpha must lie in (0, 1].")
+        if self.reset_threshold_mps <= 0.0:
+            raise ValueError("velocity refinement reset threshold must be positive.")
+        self._history: dict[tuple[str, str], tuple[float, np.ndarray, np.ndarray]] = {}
+
+    def refine_report(self, report):
+        key = (str(report.observer_id), str(report.target_id))
+        state, covariance = self._refine(
+            key, report.timestamp, report.state_eci, report.covariance_eci,
+        )
+        return replace(report, state_eci=state, covariance_eci=covariance)
+
+    def refine_estimate(self, node_id: str, estimate):
+        key = (str(node_id), str(estimate.target_id))
+        state, covariance = self._refine(
+            key, estimate.timestamp, estimate.state_eci,
+            estimate.covariance_eci,
+        )
+        return replace(estimate, state_eci=state, covariance_eci=covariance)
+
+    def _refine(self, key, timestamp, state, covariance):
+        epoch = float(timestamp)
+        current = np.asarray(state, dtype=float).reshape(6)
+        current_covariance = np.asarray(covariance, dtype=float).reshape(6, 6)
+        previous = self._history.get(key)
+        if previous is None or epoch <= previous[0]:
+            refined_state = current.copy()
+            refined_covariance = current_covariance.copy()
+        else:
+            previous_time, previous_state, previous_covariance = previous
+            dt = epoch - previous_time
+            acceleration = 0.5 * (
+                accel_two_body_j2(previous_state[:3])
+                + accel_two_body_j2(current[:3])
+            )
+            predicted_velocity = previous_state[3:] + acceleration * dt
+            residual = current[3:] - predicted_velocity
+            if np.linalg.norm(residual) > self.reset_threshold_mps:
+                refined_state = current.copy()
+                refined_covariance = current_covariance.copy()
+            else:
+                refined_state = current.copy()
+                refined_state[3:] = (
+                    predicted_velocity + self.alpha * residual
+                )
+                predicted_velocity_covariance = (
+                    previous_covariance[3:, 3:]
+                    + np.eye(3) * 1e-8 * dt * dt
+                )
+                velocity_covariance = (
+                    (1.0 - self.alpha) * predicted_velocity_covariance
+                    + self.alpha * current_covariance[3:, 3:]
+                )
+                refined_covariance = np.zeros((6, 6), dtype=float)
+                refined_covariance[:3, :3] = current_covariance[:3, :3]
+                refined_covariance[3:, 3:] = velocity_covariance
+        refined_covariance = 0.5 * (
+            refined_covariance + refined_covariance.T
+        )
+        self._history[key] = (
+            epoch, refined_state.copy(), refined_covariance.copy(),
+        )
+        return refined_state, refined_covariance
+
+
 @dataclass(frozen=True)
 class BilateralFrontendConfig:
     """Small deterministic Stage-B frontend configuration."""
@@ -73,6 +152,7 @@ class BilateralFrontendConfig:
     cann_process_radial_backup: bool = False
     prefer_complete_radial_lineage: bool = False
     consensus_exchange_hops: int = 1
+    consensus_objective: str = "trace"
     dropout_modality: str | None = None
     dropout_start_seconds: float | None = None
     dropout_end_seconds: float | None = None
@@ -146,6 +226,10 @@ class BilateralFrontendConfig:
         object.__setattr__(
             self, "consensus_exchange_hops", int(self.consensus_exchange_hops)
         )
+        objective = str(self.consensus_objective).lower()
+        if objective not in {"trace", "logdet", "normalized_trace"}:
+            raise ValueError("consensus_objective is unsupported.")
+        object.__setattr__(self, "consensus_objective", objective)
         modality = (
             None if self.dropout_modality is None
             else str(self.dropout_modality).upper()
@@ -811,6 +895,8 @@ def run_bilateral_baseline_matrix(
     primary_acceptance_only: bool = False,
     acceptance_scope: str | None = None,
     fixed_federated_weights: Mapping[str, float] | None = None,
+    local_velocity_refinement_alpha: float | None = None,
+    consensus_velocity_refinement_alpha: float | None = None,
     frontend: BilateralFrontendResult | None = None,
     topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
 ) -> BilateralBaselineMatrixResult:
@@ -854,10 +940,10 @@ def run_bilateral_baseline_matrix(
     }
     acceptance_arm_names = {
         "p05-control": {
-            "centralized_multimodal_no_cann",
+            "centralized_optical_only",
         },
         "p05-candidate": {
-            "centralized_multimodal_no_cann",
+            "centralized_optical_only",
             "single_observer_joint_multimodal_cann",
         },
         "p05-optical-pilot": {
@@ -925,6 +1011,16 @@ def run_bilateral_baseline_matrix(
             sample_collector=collector,
             iod_initialization_cache=initialization_cache,
             topology_by_timestamp=topology_by_timestamp,
+            velocity_refinement_alpha=(
+                local_velocity_refinement_alpha
+                if name == "single_observer_joint_multimodal_cann"
+                else None
+            ),
+            consensus_velocity_refinement_alpha=(
+                consensus_velocity_refinement_alpha
+                if name == "fixed_topology_joint_multimodal_cann"
+                else None
+            ),
         )
         sample_collectors[name] = collector
     representative_node_id = frontend.truth.manifest.friendly_observer_ids[0]
@@ -1037,6 +1133,10 @@ def run_bilateral_baseline_matrix(
         ] = arms[
             "single_observer_joint_multimodal_cann"
         ].independent_node_metrics
+    if "centralized_optical_only" in arms:
+        local_node_baselines[
+            "single_node_optical_only"
+        ] = arms["centralized_optical_only"].representative_node_metrics
     if "single_observer_fixed_weight_federated_no_cann" in arms:
         local_node_baselines[
             "single_node_fixed_weight_federated_no_cann"
@@ -1195,6 +1295,9 @@ def _run_bilateral_online_arm(
     tracking_target_ids: tuple[str, ...] | None = None,
     require_scored_truth: bool = True,
     sample_collector: dict | None = None,
+    acceleration_pilot_windows: tuple[int, ...] = (),
+    velocity_refinement_alpha: float | None = None,
+    consensus_velocity_refinement_alpha: float | None = None,
     epoch_callback=None,
     iod_initialization_cache: dict | None = None,
     topology_by_timestamp: Mapping[float, NetworkTopology] | None = None,
@@ -1318,6 +1421,12 @@ def _run_bilateral_online_arm(
         ]
     else:
         initial_topology = base_topology
+    local_velocity_refiner = _DynamicsConsistentVelocityRefiner(
+        velocity_refinement_alpha
+    ) if velocity_refinement_alpha is not None else None
+    consensus_velocity_refiner = _DynamicsConsistentVelocityRefiner(
+        consensus_velocity_refinement_alpha
+    ) if consensus_velocity_refinement_alpha is not None else None
     consensus = (
         DistributedTargetConsensus(
             scene_id=frontend.truth.manifest.scene_id,
@@ -1325,6 +1434,7 @@ def _run_bilateral_online_arm(
             prefer_complete_radial_lineage=(
                 frontend.config.prefer_complete_radial_lineage
             ),
+            objective=frontend.config.consensus_objective,
             exchange_hops=frontend.config.consensus_exchange_hops,
         )
         if enable_consensus else None
@@ -1428,6 +1538,14 @@ def _run_bilateral_online_arm(
                 for observer_id, state in observer_states.items()
             },
         )
+        if local_velocity_refiner is not None:
+            final_update = replace(
+                final_update,
+                local_reports=tuple(
+                    local_velocity_refiner.refine_report(report)
+                    for report in final_update.local_reports
+                ),
+            )
         truth_state_by_target = {
             target_id: history[epoch_index]
             for target_id, history in (
@@ -1483,6 +1601,21 @@ def _run_bilateral_online_arm(
                 local_reports=final_update.local_reports,
                 active_source_ids=active_observers,
             )
+            if consensus_velocity_refiner is not None:
+                consensus_step = replace(
+                    consensus_step,
+                    estimates_by_node={
+                        node_id: {
+                            target_id: consensus_velocity_refiner.refine_estimate(
+                                node_id, estimate,
+                            )
+                            for target_id, estimate in estimates.items()
+                        }
+                        for node_id, estimates in (
+                            consensus_step.estimates_by_node.items()
+                        )
+                    },
+                )
             tracker.apply_consensus_feedback(consensus_step)
             consensus_received += sum(
                 len(message_ids)
@@ -1651,6 +1784,23 @@ def _run_bilateral_online_arm(
         in central_acceleration.items()
         for node_id in local_evaluators
     }
+    local_acceleration_variants = _acceleration_pilot_samples_by_key(
+        local_evaluators,
+        frontend.truth.hostile_truth_state_history_by_target,
+        frontend.truth.timestamps,
+        expected_interval_seconds=frontend.config.sample_interval_seconds,
+        windows=acceleration_pilot_windows,
+    )
+    consensus_acceleration_variants = (
+        _acceleration_pilot_samples_by_key(
+            consensus_evaluators,
+            frontend.truth.hostile_truth_state_history_by_target,
+            frontend.truth.timestamps,
+            expected_interval_seconds=frontend.config.sample_interval_seconds,
+            windows=acceleration_pilot_windows,
+        )
+        if consensus is not None else {}
+    )
     if sample_collector is not None:
         sample_collector.update({
             "local": dict(local_samples_by_key),
@@ -1659,6 +1809,8 @@ def _run_bilateral_online_arm(
             "localAcceleration": local_acceleration_samples,
             "consensusAcceleration": consensus_acceleration_samples,
             "centralAcceleration": central_acceleration_samples,
+            "localAccelerationPilot": local_acceleration_variants,
+            "consensusAccelerationPilot": consensus_acceleration_variants,
         })
     return BilateralOnlineSmokeResult(
         frame_count=len(frontend.truth.timestamps),
@@ -1886,17 +2038,11 @@ def _final_acceleration_errors(
     for target_id, estimate_history in estimate_history_by_truth.items():
         if len(estimate_history) < 2:
             continue
-        (previous_time, previous), (current_time, current) = estimate_history[-2:]
-        dt = current_time - previous_time
-        previous_truth = truth_history_by_target[target_id][
-            truth_index_by_timestamp[previous_time]
-        ]
+        _, (current_time, current) = estimate_history[-2:]
         current_truth = truth_history_by_target[target_id][
             truth_index_by_timestamp[current_time]
         ]
-        estimated_acceleration = (current[3:] - previous[3:]) / dt
-        truth_acceleration = (current_truth[3:] - previous_truth[3:]) / dt
-        errors.append(np.linalg.norm(estimated_acceleration - truth_acceleration))
+        errors.append(_model_acceleration_error(current, current_truth))
     if not errors:
         raise ValueError("At least two tracked epochs are required for acceleration.")
     return np.asarray(errors)
@@ -1912,20 +2058,14 @@ def _acceleration_errors_by_timestamp(
     }
     errors_by_timestamp: dict[float, list[float]] = {}
     for target_id, estimate_history in estimate_history_by_truth.items():
-        for (previous_time, previous), (current_time, current) in zip(
+        for (_previous_time, _previous), (current_time, current) in zip(
             estimate_history, estimate_history[1:]
         ):
-            dt = current_time - previous_time
-            previous_truth = truth_history_by_target[target_id][
-                truth_index_by_timestamp[previous_time]
-            ]
             current_truth = truth_history_by_target[target_id][
                 truth_index_by_timestamp[current_time]
             ]
-            estimated = (current[3:] - previous[3:]) / dt
-            truth = (current_truth[3:] - previous_truth[3:]) / dt
             errors_by_timestamp.setdefault(current_time, []).append(
-                float(np.linalg.norm(estimated - truth))
+                _model_acceleration_error(current, current_truth)
             )
     return {
         timestamp: np.asarray(errors, dtype=float)
@@ -1940,7 +2080,15 @@ def _acceleration_error_samples_by_key(
     *,
     expected_interval_seconds,
 ) -> dict[tuple[str, str, float, float], float]:
-    """Return ECI acceleration errors on identity-continuous adjacent epochs."""
+    """Return model-derived ECI acceleration errors on continuous samples.
+
+    The bilateral estimator carries a six-state position/velocity posterior,
+    not an independently estimated acceleration state.  Acceleration is
+    therefore derived from the same two-body-plus-J2 dynamics used by the
+    orbit propagator.  Requiring adjacent identity-continuous epochs preserves
+    the matched comparison contract without amplifying CI feedback through a
+    one-step velocity finite difference.
+    """
 
     truth_index_by_timestamp = {
         float(timestamp): index for index, timestamp in enumerate(timestamps)
@@ -1950,7 +2098,7 @@ def _acceleration_error_samples_by_key(
         for target_id, estimate_history in (
             evaluator.state_history_by_truth.items()
         ):
-            for (previous_time, previous), (current_time, current) in zip(
+            for (previous_time, _previous), (current_time, current) in zip(
                 estimate_history, estimate_history[1:]
             ):
                 previous_time = float(previous_time)
@@ -1958,18 +2106,95 @@ def _acceleration_error_samples_by_key(
                 dt = current_time - previous_time
                 if not np.isclose(dt, expected_interval_seconds):
                     continue
-                previous_truth = truth_history_by_target[target_id][
-                    truth_index_by_timestamp[previous_time]
-                ]
                 current_truth = truth_history_by_target[target_id][
                     truth_index_by_timestamp[current_time]
                 ]
-                estimated = (current[3:] - previous[3:]) / dt
-                truth = (current_truth[3:] - previous_truth[3:]) / dt
                 result[(
                     str(node_id), str(target_id), previous_time, current_time,
-                )] = float(np.linalg.norm(estimated - truth))
+                )] = _model_acceleration_error(current, current_truth)
     return result
+
+
+def _model_acceleration_error(estimated_state, truth_state) -> float:
+    """ECI acceleration error derived from the orbital dynamics model."""
+
+    estimated = accel_two_body_j2(
+        np.asarray(estimated_state, dtype=float).reshape(6)[:3]
+    )
+    truth = accel_two_body_j2(
+        np.asarray(truth_state, dtype=float).reshape(6)[:3]
+    )
+    return float(np.linalg.norm(estimated - truth))
+
+
+def _acceleration_pilot_samples_by_key(
+    evaluators,
+    truth_history_by_target,
+    timestamps,
+    *,
+    expected_interval_seconds,
+    windows,
+) -> dict[str, dict[tuple[str, str, float, float], float]]:
+    """Build causal smoothed-difference and maneuver-residual pilot samples."""
+
+    selected_windows = tuple(sorted({int(value) for value in windows}))
+    if any(value < 2 for value in selected_windows):
+        raise ValueError("Acceleration pilot windows must be at least 2 epochs.")
+    variants = {
+        name: {}
+        for window in selected_windows
+        for name in (
+            f"smoothed_difference_w{window}",
+            f"model_residual_w{window}",
+        )
+    }
+    if not variants:
+        return variants
+    truth_index_by_timestamp = {
+        float(timestamp): index for index, timestamp in enumerate(timestamps)
+    }
+    for node_id, evaluator in evaluators.items():
+        for target_id, estimate_history in evaluator.state_history_by_truth.items():
+            for window in selected_windows:
+                for end_index in range(window, len(estimate_history)):
+                    history = estimate_history[end_index - window:end_index + 1]
+                    times = np.asarray([float(item[0]) for item in history])
+                    if not np.allclose(
+                        np.diff(times), expected_interval_seconds,
+                    ):
+                        continue
+                    states = np.asarray([item[1] for item in history], dtype=float)
+                    truth_states = np.asarray([
+                        truth_history_by_target[target_id][
+                            truth_index_by_timestamp[timestamp]
+                        ]
+                        for timestamp in times
+                    ], dtype=float)
+                    elapsed = float(times[-1] - times[0])
+                    estimated_total = (states[-1, 3:] - states[0, 3:]) / elapsed
+                    truth_total = (
+                        truth_states[-1, 3:] - truth_states[0, 3:]
+                    ) / elapsed
+                    estimated_gravity = np.mean([
+                        accel_two_body_j2(state[:3]) for state in states
+                    ], axis=0)
+                    truth_gravity = np.mean([
+                        accel_two_body_j2(state[:3]) for state in truth_states
+                    ], axis=0)
+                    key = (
+                        str(node_id), str(target_id), float(times[0]),
+                        float(times[-1]),
+                    )
+                    variants[f"smoothed_difference_w{window}"][key] = float(
+                        np.linalg.norm(estimated_total - truth_total)
+                    )
+                    variants[f"model_residual_w{window}"][key] = float(
+                        np.linalg.norm(
+                            (estimated_total - estimated_gravity)
+                            - (truth_total - truth_gravity)
+                        )
+                    )
+    return variants
 
 
 def _combined_acceleration_errors_by_timestamp(
