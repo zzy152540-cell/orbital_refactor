@@ -64,10 +64,10 @@ try {
         if (Test-Path $Archive) { Remove-Item -LiteralPath $Archive -Force }
         Compress-Archive -Path (Join-Path $ApplicationDir "*") `
             -DestinationPath $Archive -CompressionLevel Optimal
-        Write-Host "RC1 archive ready: $Archive"
+        Write-Host "Release archive ready: $Archive"
     }
 
-    Write-Host "RC1 package ready: $ApplicationDir"
+    Write-Host "Release package ready: $ApplicationDir"
 }
 finally {
     Pop-Location

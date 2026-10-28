@@ -47,4 +47,4 @@ if [[ "${SKIP_ARCHIVE:-0}" != "1" ]]; then
     -C "$project_root/dist" SatelliteStateEstimation
 fi
 
-echo "RC1 package ready: $application_dir"
+echo "Release package ready: $application_dir"
