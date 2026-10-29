@@ -5,6 +5,7 @@ __pycache__/
 
 # Test, coverage, and type-checking caches
 .pytest_cache/
+.pytest_*/
 .pytest_*_tmp*/
 .pytest_tmp/
 .pytest_review_tmp/
@@ -47,6 +48,14 @@ results/cann/test_*.json
 results/cann/test_*.csv
 results/test_visualization_*/
 results/visualization_recordings/
+
+# Runtime, acceptance, audit, and replay outputs are generated locally.
+# Already tracked fixtures remain tracked; selected new evidence can still be
+# added explicitly with `git add -f` when it is intentionally versioned.
+results/
+
+# Cross-platform smoke-test scratch workspaces.
+.tmp_cross_platform/
 
 # One-off diagnostic scans summarized in the acceptance baseline document.
 # They have no stable public runner and are not part of the reproducible
