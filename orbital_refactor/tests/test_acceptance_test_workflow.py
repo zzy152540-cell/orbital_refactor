@@ -131,6 +131,47 @@ def test_f03_plans_run_single_and_cooperative_recordings_separately(tmp_path):
     assert cooperative_plan.recording_path == str(tmp_path / "m" / "recording")
 
 
+def test_f11_plan_runs_frozen_three_modality_distance_response(tmp_path):
+    plan = build_acceptance_plan("F11", SINGLE_SEED_FULL_MODE, tmp_path)
+
+    assert len(plan.jobs) == 1
+    assert plan.duration_seconds is None
+    assert plan.recording_path is None
+    job = plan.jobs[0]
+    assert job.module == "experiments.run_tango_like_physical_frontend_demo"
+    assert job.output_path == str(
+        tmp_path / "distance_response" / "test_summary.json"
+    )
+    assert job.arguments[job.arguments.index("--frames") + 1] == "8"
+    assert job.arguments[job.arguments.index("--distance-m") + 1] == "10.0"
+    assert job.arguments[
+        job.arguments.index("--maximum-distance-m") + 1
+    ] == "6000000.0"
+    description = describe_acceptance_plan(plan)
+    assert "10 m～6000 km" in description
+    assert "8个距离点" in description
+
+
+def test_f11_result_is_pending_visual_review_after_data_generation(tmp_path):
+    plan = build_acceptance_plan("F11", SINGLE_SEED_FULL_MODE, tmp_path)
+    result = Path(plan.jobs[0].output_path)
+    result.parent.mkdir(parents=True, exist_ok=True)
+    result.write_text(json.dumps({
+        "schemaVersion": "multimodal-distance-response-test.v1",
+        "overallPassed": True,
+        "passedCount": 3,
+        "checkCount": 3,
+        "sampleCount": 8,
+    }), encoding="utf-8")
+
+    outcome = finalize_acceptance_plan(plan)
+
+    assert outcome.status == "PENDING_MANUAL_CHECK"
+    assert outcome.metrics[0].passed is True
+    assert outcome.metrics[0].value == 8.0
+    assert "不设置精度阈值" in outcome.note
+
+
 @pytest.mark.parametrize("preset_id, subtest", (
     ("F03_SINGLE", "F03-1"),
     ("F03_COOPERATIVE", "F03-2"),

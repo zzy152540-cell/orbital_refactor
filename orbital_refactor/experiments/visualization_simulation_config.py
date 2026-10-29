@@ -37,6 +37,10 @@ CONFIG_SECTIONS = {
         "absolute_navigation_sigma_m",
     ),
     "visibility": ("maximum_range_km",),
+    "presentation": (
+        "display_enhancement_minimum_extent_pixels",
+        "display_enhancement_maximum_extent_pixels",
+    ),
     "filter": (
         "estimation_architecture", "tracking_observer_index",
         "tracking_target_index",
@@ -70,6 +74,8 @@ class VisualizationSimulationConfig:
     duration_s: float = 120.0
     dt_s: float = 2.0
     maximum_range_km: float = 6000.0
+    display_enhancement_minimum_extent_pixels: float = 2.0
+    display_enhancement_maximum_extent_pixels: float = 32.0
     seed: int = 0
     enable_absolute_navigation_dropout: bool = True
     process_noise_acceleration: float = 1e-8
@@ -130,6 +136,8 @@ class VisualizationSimulationConfig:
             self.altitude_km, self.friendly_altitude_km,
             self.hostile_altitude_km, self.duration_s, self.dt_s,
             self.maximum_range_km,
+            self.display_enhancement_minimum_extent_pixels,
+            self.display_enhancement_maximum_extent_pixels,
             self.process_noise_acceleration,
             self.bilateral_process_noise_acceleration,
             self.radar_range_sigma_m,
@@ -140,6 +148,13 @@ class VisualizationSimulationConfig:
         )
         if any(not np.isfinite(value) or value <= 0.0 for value in positive):
             raise ValueError("Physical scales and time settings must be positive.")
+        if (
+            self.display_enhancement_minimum_extent_pixels
+            > self.display_enhancement_maximum_extent_pixels
+        ):
+            raise ValueError(
+                "Display enhancement minimum extent cannot exceed maximum extent."
+            )
         if not np.isfinite(self.inclination_deg) or not 0.0 <= self.inclination_deg <= 180.0:
             raise ValueError("inclination_deg must be in [0, 180].")
         for role in ("friendly", "hostile"):
@@ -290,6 +305,14 @@ class VisualizationSimulationConfig:
             "maximum_observation_range_m": (
                 6_000_000.0 if frozen
                 else float(self.maximum_range_km) * 1000.0
+            ),
+            "display_enhancement_minimum_extent_pixels": (
+                2.0 if frozen
+                else float(self.display_enhancement_minimum_extent_pixels)
+            ),
+            "display_enhancement_maximum_extent_pixels": (
+                32.0 if frozen
+                else float(self.display_enhancement_maximum_extent_pixels)
             ),
             "process_noise_acceleration": (
                 1e-4 if frozen

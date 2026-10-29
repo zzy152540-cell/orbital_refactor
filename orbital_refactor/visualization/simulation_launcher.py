@@ -29,6 +29,7 @@ from visualization.acceptance_test_workflow import (
     finalize_acceptance_plan,
     make_acceptance_output_directory,
 )
+from visualization.distance_response_window import DistanceResponseWindow
 from visualization.replay_model import VisualizationReplayModel
 from visualization.replay_window import VisualizationReplayWindow
 from visualization.process_launch import module_process_command
@@ -75,6 +76,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         super().__init__()
         self._worker = None
         self._replay_window = None
+        self._distance_response_window = None
         self._acceptance_processes = {}
         self._acceptance_plan = None
         self._acceptance_job_index = 0
@@ -119,6 +121,8 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.duration_s = self._decimal(2.0, 86400.0, 1)
         self.dt_s = self._decimal(0.1, 3600.0, 2)
         self.maximum_range_km = self._decimal(1.0, 100000.0, 1)
+        self.display_enhancement_minimum_extent = self._decimal(0.5, 64.0, 1)
+        self.display_enhancement_maximum_extent = self._decimal(1.0, 256.0, 1)
         self.topology_audit_max_duration_s = self._decimal(1.0, 86400.0, 1)
         self.seed = self._integer(0, 2_000_000_000)
         self.absolute_dropout = QtWidgets.QCheckBox(
@@ -227,6 +231,14 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             ("Dropout start (s)", self.dropout_start_s),
             ("Dropout duration (s)", self.dropout_duration_s),
             ("Maximum observation/link range (km)", self.maximum_range_km),
+            (
+                "Display enhancement minimum extent (px)",
+                self.display_enhancement_minimum_extent,
+            ),
+            (
+                "Display enhancement maximum extent (px)",
+                self.display_enhancement_maximum_extent,
+            ),
             ("Radar range sigma (m)", self.radar_range_sigma),
             ("Radar range-rate sigma (m/s)", self.radar_rate_sigma),
             ("Infrared angle sigma (deg)", self.infrared_sigma),
@@ -334,13 +346,19 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.acceptance_run_button = QtWidgets.QPushButton("运行所选测试")
         self.acceptance_stop_button = QtWidgets.QPushButton("停止")
         self.acceptance_open_button = QtWidgets.QPushButton("打开结果目录")
+        self.acceptance_view_button = QtWidgets.QPushButton("查看展示结果")
+        self.acceptance_view_button.setEnabled(False)
         self.acceptance_stop_button.setEnabled(False)
         self.acceptance_run_button.clicked.connect(self._run_acceptance_test)
         self.acceptance_stop_button.clicked.connect(self._stop_acceptance_test)
         self.acceptance_open_button.clicked.connect(self._open_acceptance_output)
+        self.acceptance_view_button.clicked.connect(
+            self._open_acceptance_visual_result
+        )
         controls.addWidget(self.acceptance_run_button)
         controls.addWidget(self.acceptance_stop_button)
         controls.addWidget(self.acceptance_open_button)
+        controls.addWidget(self.acceptance_view_button)
         root.addLayout(controls)
 
         self.acceptance_progress = QtWidgets.QProgressBar()
@@ -433,6 +451,12 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             hostile_inclination_deg=self.hostile_inclination_deg.value(),
             duration_s=self.duration_s.value(), dt_s=self.dt_s.value(),
             maximum_range_km=self.maximum_range_km.value(),
+            display_enhancement_minimum_extent_pixels=(
+                self.display_enhancement_minimum_extent.value()
+            ),
+            display_enhancement_maximum_extent_pixels=(
+                self.display_enhancement_maximum_extent.value()
+            ),
             seed=self.seed.value(),
             enable_absolute_navigation_dropout=self.absolute_dropout.isChecked(),
             process_noise_acceleration=self.process_noise.value(),
@@ -496,6 +520,12 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self.duration_s.setValue(config.duration_s)
         self.dt_s.setValue(config.dt_s)
         self.maximum_range_km.setValue(config.maximum_range_km)
+        self.display_enhancement_minimum_extent.setValue(
+            config.display_enhancement_minimum_extent_pixels
+        )
+        self.display_enhancement_maximum_extent.setValue(
+            config.display_enhancement_maximum_extent_pixels
+        )
         self.seed.setValue(config.seed)
         self.absolute_dropout.setChecked(config.enable_absolute_navigation_dropout)
         self.process_noise.setValue(config.process_noise_acceleration)
@@ -594,6 +624,17 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             self.infrared_enabled, self.optical_enabled,
         ):
             widget.setEnabled(not frozen_bilateral)
+        for widget in (
+            self.display_enhancement_minimum_extent,
+            self.display_enhancement_maximum_extent,
+        ):
+            widget.setEnabled(configurable_bilateral)
+        display_help = (
+            "Display-only logical target extent inside the configured observation "
+            "range. It does not change raw measurements, covariance or filtering."
+        )
+        self.display_enhancement_minimum_extent.setToolTip(display_help)
+        self.display_enhancement_maximum_extent.setToolTip(display_help)
         self.modality_dropout.setEnabled(configurable_bilateral)
         bilateral_tracking_help = (
             "For bilateral target tracking, enabled modalities are applied "
@@ -612,6 +653,8 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self._apply_estimation_controls()
         self._apply_dropout_controls()
         if frozen_bilateral:
+            self.display_enhancement_minimum_extent.setValue(2.0)
+            self.display_enhancement_maximum_extent.setValue(32.0)
             self.friendly_total_satellites.setValue(15)
             self.friendly_plane_count.setValue(3)
             self.friendly_phasing.setValue(1)
@@ -720,6 +763,13 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         mode = self.acceptance_mode.currentData()
         if not preset_id or not mode:
             return
+        self.acceptance_view_button.setEnabled(False)
+        fixed_distance_response = str(preset_id) == "F11"
+        self.acceptance_mode.setEnabled(not fixed_distance_response)
+        self.acceptance_mode.setToolTip(
+            "F11采用固定的8点距离序列，运行方式不改变其配置。"
+            if fixed_distance_response else ""
+        )
         self._refresh_acceptance_window_controls()
         self.acceptance_single_seed.setEnabled(
             self._acceptance_uses_selected_seed()
@@ -784,6 +834,7 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         self._acceptance_completed_jobs = 0
         self._acceptance_processes.clear()
         self.acceptance_results.clear()
+        self.acceptance_view_button.setEnabled(False)
         self.acceptance_log.clear()
         self.acceptance_progress.setValue(0)
         self._set_acceptance_running(True)
@@ -965,7 +1016,10 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
             f"汇总文件：{outcome.summary_path}"
         )
         self._set_acceptance_running(False)
-        if self._acceptance_plan.recording_path is not None:
+        if self._acceptance_plan.preset.preset_id == "F11":
+            self.acceptance_view_button.setEnabled(True)
+            self._open_acceptance_visual_result()
+        elif self._acceptance_plan.recording_path is not None:
             self._open_replay(Path(self._acceptance_plan.recording_path))
 
     def _stop_acceptance_test(self) -> None:
@@ -998,6 +1052,20 @@ class VisualizationSimulationLauncher(QtWidgets.QMainWindow):
         QtGui.QDesktopServices.openUrl(
             QtCore.QUrl.fromLocalFile(str(path.resolve()))
         )
+
+    def _open_acceptance_visual_result(self) -> None:
+        if self._acceptance_plan is None:
+            return
+        if self._acceptance_plan.preset.preset_id != "F11":
+            return
+        result = Path(self._acceptance_plan.output_directory) / "distance_response"
+        try:
+            self._distance_response_window = DistanceResponseWindow(result)
+            self._distance_response_window.show()
+            self._distance_response_window.raise_()
+            self._distance_response_window.activateWindow()
+        except Exception as exc:
+            self._show_acceptance_error(exc)
 
     def _show_acceptance_error(self, exc: Exception) -> None:
         self.acceptance_log.appendPlainText(

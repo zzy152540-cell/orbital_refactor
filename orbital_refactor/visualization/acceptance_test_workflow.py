@@ -175,6 +175,12 @@ PRESETS = (
         "数据契约自动检查通过，界面显示项目需人工确认。", "visualization",
     ),
     AcceptancePreset(
+        "F11", "F11 三模态量测距离响应测试",
+        "在10 m至6000 km距离序列上生成雷达、红外和光学观测数据，并展示其随距离的变化。",
+        "完成各距离点三模态数据生成；运行结束后通过专用窗口人工查看，不设置量测精度判据。",
+        "multimodal_distance_response",
+    ),
+    AcceptancePreset(
         "JK01", "JK01 接口符合性测试",
         "自动检查JSON+NPZ模块接口、HTTP场景控制接口和UDP轨迹接口。",
         "接口收发、校验、异常拒绝和序列化检查全部通过。",
@@ -448,6 +454,26 @@ def build_acceptance_plan(
             output=target / "manifest.json",
         ))
         seeds = (0,)
+    elif preset.result_kind == "multimodal_distance_response":
+        configuration_family = "tango-like-physical-frontend-v1"
+        control_family = "none"
+        target = output / "distance_response"
+        jobs.append(_job(
+            "三模态量测距离响应",
+            "experiments.run_tango_like_physical_frontend_demo",
+            "--output", target,
+            "--frames", 8,
+            "--distance-m", 10.0,
+            "--maximum-distance-m", 6_000_000.0,
+            "--maximum-observation-range-km", 6000.0,
+            "--display-minimum-extent-pixels", 2.0,
+            "--display-maximum-extent-pixels", 32.0,
+            "--seed", 0,
+            "--no-show",
+            output=target / "test_summary.json",
+        ))
+        duration = None
+        seeds = (0,)
     elif preset.result_kind == "interface_conformance":
         configuration_family = "public-interface-v1"
         control_family = "none"
@@ -477,7 +503,7 @@ def build_acceptance_plan(
         preset.result_kind not in {
             "latency", "visualization", "single_estimation_function",
             "cooperative_estimation_function", "interface_conformance",
-            "ubuntu_environment",
+            "ubuntu_environment", "multimodal_distance_response",
         }
         and not sidecar_recording
     ):
@@ -868,6 +894,14 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
             f"= {int(summary.get('checkCount', 0))} checks",
             bool(summary.get("overallPassed")), "checks",
         ),)
+    elif kind == "multimodal_distance_response":
+        summary = payloads[0]
+        metrics = (AcceptanceMetric(
+            "F11 三模态距离数据生成",
+            float(summary.get("sampleCount", 0)),
+            "8个距离点均生成三模态数据",
+            bool(summary.get("overallPassed")), "距离点",
+        ),)
     else:
         manifest = payloads[0]
         passed = bool(
@@ -922,12 +956,14 @@ def finalize_acceptance_plan(plan: AcceptancePlan) -> AcceptanceOutcome:
         status = "RECORDED"
     elif kind in {
         "visualization", "single_estimation_function",
-        "cooperative_estimation_function",
+        "cooperative_estimation_function", "multimodal_distance_response",
     } and automatic_passed:
         status = "PENDING_MANUAL_CHECK"
     else:
         status = "PASS" if automatic_passed else "FAIL"
-    if plan.mode == QUICK_MODE:
+    if kind == "multimodal_distance_response":
+        note = "三模态量测数据已生成并打开展示窗口；本用例不设置精度阈值，结果由人工查看。"
+    elif plan.mode == QUICK_MODE:
         note = "快速预检已完成。"
     elif plan.mode == SINGLE_SEED_FULL_MODE:
         note = (
@@ -961,6 +997,8 @@ def describe_acceptance_plan(plan: AcceptancePlan) -> str:
         ),
         FORMAL_MODE: "重复性验证（seed 0～4，120 s）",
     }[plan.mode]
+    if plan.preset.preset_id == "F11":
+        mode = "固定距离序列功能测试（8个距离点）"
     duration = "不按仿真时长" if plan.duration_seconds is None else f"{plan.duration_seconds:g} s"
     seeds = "无随机种子" if not plan.seeds else ", ".join(map(str, plan.seeds))
     window = (
@@ -985,12 +1023,19 @@ def describe_acceptance_plan(plan: AcceptancePlan) -> str:
         f"观测节点：{P05_OBSERVER_ID}（编号 {P05_OBSERVER_INDEX + 1}）\n"
         if plan.preset.preset_id.startswith("P05_") else ""
     )
+    distance_response = (
+        "距离配置：10 m～6000 km，对数分布8个距离点；最大可见距离6000 km\n"
+        "展示内容：逐距离切换三模态观测数据，并列查看完整距离变化过程\n"
+        "结果口径：功能展示，不设置量测精度或误差阈值\n"
+        if plan.preset.preset_id == "F11" else ""
+    )
     return (
         f"{plan.preset.name}\n{plan.preset.purpose}\n\n"
         f"模式：{mode}\n时长：{duration}\n随机种子：{seeds}\n"
         f"{maneuver}"
         f"{p05_observer}"
         f"{velocity_refinement}"
+        f"{distance_response}"
         f"{window}"
         f"运行次数：{sum(job.role == 'result' for job in plan.jobs)}\n"
         f"可视化回放："

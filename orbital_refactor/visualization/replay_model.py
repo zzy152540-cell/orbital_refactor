@@ -79,6 +79,26 @@ class VisualizationReplayModel:
             raise ValueError(f"Unsupported replay error quantity: {quantity!r}")
         return self._error_history_cache[key]
 
+    def target_estimate_coverage_fraction(self, target_id: str) -> float:
+        """Fraction of replay epochs with a finite target position estimate."""
+        errors = self.node_error_history(target_id, "position")
+        if not errors.size:
+            return float("nan")
+        return float(np.mean(np.isfinite(errors)))
+
+    def target_visibility_fraction(self, target_id: str) -> float:
+        """Fraction of epochs with at least one valid visible observation."""
+        if not self._frames:
+            return float("nan")
+        visible = [
+            any(
+                item.target_id == target_id and item.visible and item.valid
+                for item in frame.observations
+            )
+            for frame in self._frames
+        ]
+        return float(np.mean(visible))
+
     def fleet_error_rmse_history(
         self, quantity: str, node_ids=None,
     ) -> np.ndarray:

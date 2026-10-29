@@ -18,6 +18,7 @@ from experiments.bilateral_multitarget_frontend import (
 )
 from interfaces.data_objects import AbsolutePositionObservation, RawSensorFrame
 from orbital_core.constants import R_EARTH
+from orbital_core.coordinates import dcm_to_quat_wxyz
 from scenarios.bilateral_multitarget import generate_bilateral_walker_truth
 from scenarios.walker_scenario import WalkerDeltaConfig
 from visualization.cann_history_adapter import build_cann_visualization_history
@@ -58,6 +59,8 @@ def generate_bilateral_visualization_recording(
         "RADAR", "INFRARED", "OPTICAL",
     ),
     maximum_observation_range_m: float = 6_000_000.0,
+    display_enhancement_minimum_extent_pixels: float = 2.0,
+    display_enhancement_maximum_extent_pixels: float = 32.0,
     process_noise_acceleration: float = 1e-4,
     show_communication_topology: bool = True,
     radial_backup_profile: str = "none",
@@ -92,6 +95,17 @@ def generate_bilateral_visualization_recording(
     output = Path(output)
     if output.exists():
         raise FileExistsError(f"Visualization recording already exists: {output}")
+    display_minimum = float(display_enhancement_minimum_extent_pixels)
+    display_maximum = float(display_enhancement_maximum_extent_pixels)
+    if (
+        not np.isfinite(display_minimum)
+        or not np.isfinite(display_maximum)
+        or display_minimum <= 0.0
+        or display_minimum > display_maximum
+    ):
+        raise ValueError(
+            "Display-enhancement extents must be finite, positive and ordered."
+        )
     radial_profile = str(radial_backup_profile).lower()
     if radial_profile not in {"none", "legacy", "independent"}:
         raise ValueError("radial_backup_profile must be none, legacy or independent.")
@@ -258,6 +272,12 @@ def generate_bilateral_visualization_recording(
         tracking_observer_ids=tracking_observer_ids,
         tracking_target_ids=tracking_target_ids,
         tracking_modalities=tuple(tracking_modalities),
+        display_enhancement_minimum_extent_pixels=(
+            display_enhancement_minimum_extent_pixels
+        ),
+        display_enhancement_maximum_extent_pixels=(
+            display_enhancement_maximum_extent_pixels
+        ),
         enable_consensus=enable_consensus,
         local_multimodal_update_mode=local_multimodal_update_mode,
         local_velocity_refinement_alpha=local_velocity_refinement_alpha,
@@ -303,6 +323,8 @@ def write_bilateral_visualization_recording(
     tracking_modalities: tuple[str, ...] = (
         "RADAR", "INFRARED", "OPTICAL",
     ),
+    display_enhancement_minimum_extent_pixels: float = 2.0,
+    display_enhancement_maximum_extent_pixels: float = 32.0,
     enable_consensus: bool = False,
     local_multimodal_update_mode: str = "batch",
     local_velocity_refinement_alpha: float | None = None,
@@ -344,9 +366,7 @@ def write_bilateral_visualization_recording(
     display_coverage = Counter(
         target_id
         for payload in captured
-        for target_id in payload.get(
-            "display_estimate_by_truth_id", {}
-        )
+        for target_id in _system_target_posteriors(payload)
     )
     preferred_target_id = max(
         hostile_ids,
@@ -378,6 +398,12 @@ def write_bilateral_visualization_recording(
             frontend,
             payload["epoch_messages"],
             allowed_modalities=tracking_modalities,
+            display_enhancement_minimum_extent_pixels=(
+                display_enhancement_minimum_extent_pixels
+            ),
+            display_enhancement_maximum_extent_pixels=(
+                display_enhancement_maximum_extent_pixels
+            ),
         )
         observation_source_ids = {
             item.observer_id for item in observations
@@ -467,10 +493,16 @@ def write_bilateral_visualization_recording(
                     )
                 ),
                 "estimation_phase": estimation_phase,
-                "display_estimation_scope": payload.get(
+                # Replay trajectories use the common system track manager so
+                # every selectable target and the target-fleet RMSE share one
+                # stable visualization scope.  The architecture-specific
+                # local/consensus posterior remains recorded as a diagnostic.
+                "display_estimation_scope": "SYSTEM_TRACK_MANAGER",
+                "display_source_node_id": None,
+                "architecture_posterior_scope": payload.get(
                     "display_estimation_scope", "CENTRAL_TRACK_MANAGER"
                 ),
-                "display_source_node_id": payload.get(
+                "architecture_posterior_source_node_id": payload.get(
                     "display_source_node_id"
                 ),
                 "preferred_target_id": preferred_target_id,
@@ -486,6 +518,17 @@ def write_bilateral_visualization_recording(
                 "maximum_observation_range_m": float(
                     frontend.config.maximum_observation_range_m
                 ),
+                "presentation_enhancement": {
+                    "enabled": True,
+                    "display_only": True,
+                    "filter_input": False,
+                    "minimum_extent_pixels": float(
+                        display_enhancement_minimum_extent_pixels
+                    ),
+                    "maximum_extent_pixels": float(
+                        display_enhancement_maximum_extent_pixels
+                    ),
+                },
                 "process_noise_acceleration": float(
                     frontend.config.process_noise_acceleration
                 ),
@@ -560,16 +603,7 @@ def write_bilateral_visualization_recording(
 
 def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
     index = int(payload["epoch_index"])
-    display_by_truth = payload.get("display_estimate_by_truth_id")
-    tracks = None
-    samples = None
-    if display_by_truth is None:
-        tracks = {
-            track.estimate.track_id: track
-            for track in payload["tracker_update"].tracks_by_target.values()
-            if track.lifecycle.value != "TERMINATED"
-        }
-        samples = payload["identity_epoch"].samples_by_truth
+    display_by_truth = _system_target_posteriors(payload)
     nodes = []
     active_ids = set(_active_friendly_ids(frontend, float(payload["timestamp"])))
     for node_id in friendly_ids:
@@ -588,12 +622,7 @@ def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
         ))
     for target_id in hostile_ids:
         truth = frontend.truth.hostile_truth_state_history_by_target[target_id][index]
-        if display_by_truth is None:
-            sample = samples.get(target_id)
-            track = None if sample is None else tracks.get(sample.track_id)
-            posterior = None if track is None else track.estimate
-        else:
-            posterior = display_by_truth.get(target_id)
+        posterior = display_by_truth.get(target_id)
         if posterior is None:
             estimate = truth
             covariance = np.eye(6) * 1e12
@@ -616,7 +645,11 @@ def _visual_nodes(frontend, payload, *, friendly_ids, hostile_ids):
     return tuple(nodes)
 
 
-def _visual_observations(frontend, messages, *, allowed_modalities=None):
+def _visual_observations(
+    frontend, messages, *, allowed_modalities=None,
+    display_enhancement_minimum_extent_pixels=2.0,
+    display_enhancement_maximum_extent_pixels=32.0,
+):
     allowed = (
         None if allowed_modalities is None
         else frozenset(str(value).upper() for value in allowed_modalities)
@@ -631,7 +664,15 @@ def _visual_observations(frontend, messages, *, allowed_modalities=None):
         raw = frontend.raw_frames_by_detection_group.get(
             message.detection_group_id, {}
         ).get(message.modality)
+        raw_group = frontend.raw_frames_by_detection_group.get(
+            message.detection_group_id, {}
+        )
         raw_data, raw_kind = _raw_visualization_payload(raw, message.modality)
+        presentation = _presentation_enhancement_metadata(
+            frontend, message, target_id=target_id, raw_group=raw_group,
+            minimum_extent_pixels=display_enhancement_minimum_extent_pixels,
+            maximum_extent_pixels=display_enhancement_maximum_extent_pixels,
+        )
         values.append(VisualObservation(
             observer_id=message.observer_id,
             target_id=target_id,
@@ -651,9 +692,83 @@ def _visual_observations(frontend, messages, *, allowed_modalities=None):
                 "message_id": message.message_id,
                 "detection_group_id": message.detection_group_id,
                 "truth_identity_usage": "DISPLAY_ONLY",
+                "presentation_enhancement": presentation,
             },
         ))
     return tuple(values)
+
+
+def _presentation_enhancement_metadata(
+    frontend, message, *, target_id, raw_group,
+    minimum_extent_pixels, maximum_extent_pixels,
+):
+    timestamp = float(message.timestamp)
+    times = np.asarray(frontend.truth.timestamps, dtype=float)
+    epoch_index = int(np.argmin(np.abs(times - timestamp)))
+    observer_state = frontend.observer_state_by_epoch[
+        (message.observer_id, timestamp)
+    ]
+    target_state = frontend.truth.hostile_truth_state_history_by_target[
+        target_id
+    ][epoch_index]
+    sensor_quaternion = None
+    for modality in ("OPTICAL", "INFRARED"):
+        candidate = raw_group.get(modality)
+        if candidate is None:
+            continue
+        if hasattr(candidate, "quaternion_i2b_wxyz"):
+            sensor_quaternion = np.asarray(
+                candidate.quaternion_i2b_wxyz, dtype=float,
+            )
+            break
+        if isinstance(candidate, RawSensorFrame):
+            raw_quaternion = candidate.metadata.get("quaternion_i2b_wxyz")
+            if raw_quaternion is not None:
+                sensor_quaternion = np.asarray(raw_quaternion, dtype=float)
+                break
+    if sensor_quaternion is None:
+        sensor_quaternion = _target_pointing_quaternion(
+            observer_state, target_state,
+        )
+    phase = 0.015 * timestamp + 0.17 * epoch_index
+    target_quaternion = np.array([
+        np.cos(0.5 * phase), 0.0, np.sin(0.5 * phase), 0.0,
+    ])
+    return {
+        "enabled": True,
+        "display_only": True,
+        "filter_input": False,
+        "maximum_observation_range_m": float(
+            frontend.config.maximum_observation_range_m
+        ),
+        "minimum_extent_pixels": float(minimum_extent_pixels),
+        "maximum_extent_pixels": float(maximum_extent_pixels),
+        "observer_state_eci": np.asarray(observer_state, dtype=float),
+        "target_state_eci": np.asarray(target_state, dtype=float),
+        "sensor_quaternion_i2b_wxyz": sensor_quaternion,
+        "target_quaternion_i2b_wxyz": target_quaternion,
+    }
+
+
+def _target_pointing_quaternion(observer_state, target_state):
+    """Return an inertial-to-sensor attitude with the target on +X boresight."""
+
+    relative = (
+        np.asarray(target_state, dtype=float)[:3]
+        - np.asarray(observer_state, dtype=float)[:3]
+    )
+    norm = float(np.linalg.norm(relative))
+    if norm <= 0.0:
+        return np.array([1.0, 0.0, 0.0, 0.0])
+    forward = relative / norm
+    reference = np.array([0.0, 0.0, 1.0])
+    if abs(float(np.dot(forward, reference))) > 0.95:
+        reference = np.array([0.0, 1.0, 0.0])
+    lateral = np.cross(reference, forward)
+    lateral /= np.linalg.norm(lateral)
+    vertical = np.cross(forward, lateral)
+    dcm_i2sensor = np.vstack((forward, lateral, vertical))
+    return dcm_to_quat_wxyz(dcm_i2sensor)
 
 
 def _raw_visualization_payload(raw, modality):
@@ -813,6 +928,15 @@ def _tracked_target_posterior(payload, target_id):
     return None if track is None else track.estimate
 
 
+def _system_target_posteriors(payload):
+    """Return common system-track posteriors indexed by truth target ID."""
+    return {
+        target_id: posterior
+        for target_id in payload["identity_epoch"].samples_by_truth
+        if (posterior := _tracked_target_posterior(payload, target_id)) is not None
+    }
+
+
 def _contiguous_runs(indices):
     if not indices:
         return ()
@@ -906,6 +1030,14 @@ def main() -> None:
         default=("RADAR", "INFRARED", "OPTICAL"),
     )
     parser.add_argument("--maximum-observation-range-km", type=float, default=6000.0)
+    parser.add_argument(
+        "--display-enhancement-minimum-extent-pixels",
+        type=float, default=2.0,
+    )
+    parser.add_argument(
+        "--display-enhancement-maximum-extent-pixels",
+        type=float, default=32.0,
+    )
     parser.add_argument("--process-noise-acceleration", type=float, default=1e-4)
     parser.add_argument("--hide-communication-topology", action="store_true")
     parser.add_argument(
@@ -989,6 +1121,12 @@ def main() -> None:
         tracking_modalities=tuple(args.tracking_modalities),
         maximum_observation_range_m=(
             1000.0 * args.maximum_observation_range_km
+        ),
+        display_enhancement_minimum_extent_pixels=(
+            args.display_enhancement_minimum_extent_pixels
+        ),
+        display_enhancement_maximum_extent_pixels=(
+            args.display_enhancement_maximum_extent_pixels
         ),
         process_noise_acceleration=args.process_noise_acceleration,
         show_communication_topology=(

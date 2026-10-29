@@ -54,6 +54,11 @@ def test_replay_window_selects_preferred_target_without_scope_error():
             ))
         window = VisualizationReplayWindow(VisualizationReplayModel(target))
         assert window.target_selector.currentText() == "target-1"
+        assert window.model.target_estimate_coverage_fraction("target-1") == 1.0
+        assert window.model.target_visibility_fraction("target-1") == 0.0
+        assert window.target_coverage_label.text() == (
+            "Estimate: 100.0% | visible: 0.0%"
+        )
         window.close()
         application.processEvents()
     finally:
@@ -90,6 +95,16 @@ def test_observation_panel_distinguishes_raw_and_numeric_only_data():
     assert "optical grayscale intensity" in panel.details.toPlainText()
     assert panel.visual_style["symbol"] == "o"
     assert panel.image_item.lut is not None
+
+    enhanced = np.eye(32)
+    panel.set_observation(raw, enhanced)
+    application.processEvents()
+    assert panel.enhanced_plot.isVisible()
+    assert panel.raw_container.isVisible()
+    assert panel.preview_container.isVisible()
+    assert "visualization only" in panel.preview_label.text()
+    assert "never supplied to estimator" in panel.details.toPlainText()
+    assert np.array_equal(panel.enhanced_item.image, enhanced)
     panel.close()
 
 

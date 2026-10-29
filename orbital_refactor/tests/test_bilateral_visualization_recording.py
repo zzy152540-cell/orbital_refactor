@@ -87,6 +87,17 @@ def test_bilateral_recording_contains_roles_edges_observations_and_estimates(tmp
         "RADAR", "INFRARED", "OPTICAL",
     }
     assert any(item.raw_sensor_data is not None for item in frame.observations)
+    presentation = next(
+        item.metadata["presentation_enhancement"]
+        for item in frame.observations
+        if item.metadata.get("presentation_enhancement")
+    )
+    assert presentation["display_only"] is True
+    assert presentation["filter_input"] is False
+    assert presentation["minimum_extent_pixels"] == 2.0
+    assert presentation["maximum_extent_pixels"] == 32.0
+    assert np.asarray(presentation["observer_state_eci"]).shape == (6,)
+    assert np.asarray(presentation["target_state_eci"]).shape == (6,)
     assert any(item.edge_type == "ACTIVE_TOPOLOGY" for item in frame.edges)
     assert any(item.edge_type == "OBSERVATION_LINK" for item in frame.edges)
     hostile = tuple(
@@ -97,6 +108,20 @@ def test_bilateral_recording_contains_roles_edges_observations_and_estimates(tmp
     assert frame.metadata["hostile_target_count"] == 15
     assert np.isfinite(frame.metadata["fleet_position_rmse_m"])
     assert frame.metadata["radial_backup_profile"] == "none"
+    assert frame.metadata["presentation_enhancement"] == {
+        "enabled": True,
+        "display_only": True,
+        "filter_input": False,
+        "minimum_extent_pixels": 2.0,
+        "maximum_extent_pixels": 32.0,
+    }
+    assert frame.metadata["display_estimation_scope"] == (
+        "SYSTEM_TRACK_MANAGER"
+    )
+    assert frame.metadata["display_source_node_id"] is None
+    assert frame.metadata["architecture_posterior_scope"] == (
+        "REPRESENTATIVE_NODE_LOCAL_POSTERIOR"
+    )
 
 
 def test_bilateral_recording_cann_exposes_absolute_eci_position(tmp_path):
@@ -226,6 +251,12 @@ def test_single_observer_recording_restricts_estimation_after_initialization(
     )
     assert final.metadata["estimation_target_scope"] == (
         "SELECTED_HOSTILE_TARGETS_ONLY"
+    )
+    assert final.metadata["display_estimation_scope"] == (
+        "SYSTEM_TRACK_MANAGER"
+    )
+    assert final.metadata["architecture_posterior_scope"] == (
+        "SELECTED_OBSERVER_LOCAL_POSTERIOR"
     )
     assert not any(edge.edge_type == "ACTIVE_TOPOLOGY" for edge in final.edges)
     assert {

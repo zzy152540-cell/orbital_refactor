@@ -111,6 +111,8 @@ def test_bilateral_configuration_exposes_only_relevant_generator_arguments():
     assert arguments["hostile_total_satellites"] == 15
     assert arguments["hostile_plane_count"] == 3
     assert arguments["maximum_observation_range_m"] == 6_000_000.0
+    assert arguments["display_enhancement_minimum_extent_pixels"] == 2.0
+    assert arguments["display_enhancement_maximum_extent_pixels"] == 32.0
     assert arguments["process_noise_acceleration"] == 1e-4
     assert arguments["tracking_modalities"] == (
         "RADAR", "INFRARED", "OPTICAL",
@@ -132,6 +134,8 @@ def test_configurable_bilateral_walker_fleets_are_forwarded():
         "hostile_altitude_km": 760.0,
         "hostile_inclination_deg": 57.0,
         "maximum_range_km": 4500.0,
+        "display_enhancement_minimum_extent_pixels": 3.0,
+        "display_enhancement_maximum_extent_pixels": 40.0,
         "bilateral_process_noise_acceleration": 2e-4,
         "radar_enabled": True,
         "infrared_enabled": False,
@@ -155,6 +159,8 @@ def test_configurable_bilateral_walker_fleets_are_forwarded():
     assert arguments["enable_local_unified"] is True
     assert arguments["enable_consensus"] is False
     assert arguments["maximum_observation_range_m"] == 4_500_000.0
+    assert arguments["display_enhancement_minimum_extent_pixels"] == 3.0
+    assert arguments["display_enhancement_maximum_extent_pixels"] == 40.0
     assert arguments["process_noise_acceleration"] == 2e-4
     assert arguments["tracking_modalities"] == ("RADAR", "OPTICAL")
     assert arguments["enable_consensus"] is False
@@ -166,6 +172,15 @@ def test_configurable_bilateral_walker_fleets_are_forwarded():
     assert arguments["dropout_end"] == pytest.approx(50.0)
     assert arguments["dropout_end"] < 50.0
     assert arguments["configured_dropout_duration_s"] == 30.0
+
+
+def test_display_enhancement_extent_order_is_validated():
+    with pytest.raises(ValueError, match="minimum extent"):
+        visualization_simulation_config_from_dict({
+            "schema_version": "v1.0",
+            "display_enhancement_minimum_extent_pixels": 20.0,
+            "display_enhancement_maximum_extent_pixels": 10.0,
+        })
 
 
 def test_configurable_bilateral_cooperative_architecture_enables_consensus():

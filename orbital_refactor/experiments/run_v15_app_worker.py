@@ -14,6 +14,7 @@ PACKAGED_WORKER_MODULES = (
     "experiments.run_bilateral_visualization_recording",
     "experiments.run_interface_conformance_acceptance",
     "experiments.run_multitarget_distributed_node_sync_latency_acceptance",
+    "experiments.run_tango_like_physical_frontend_demo",
     "experiments.run_ubuntu_environment_acceptance",
 )
 

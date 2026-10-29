@@ -10,6 +10,11 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from adapters.tango_like_physical_frontend import (
+    PhysicalFrontendConfig,
+    simulate_tango_like_physical_epoch,
+)
+
 from visualization.replay_model import VisualizationReplayModel
 
 
@@ -18,18 +23,40 @@ MODALITY_VISUAL_STYLE = {
         "color": "#27b7d8",
         "symbol": "s",
         "description": "range-Doppler power",
+        "panel_title": "RADAR target response",
+        "preview_title": "Physical-model scatter response",
+        "raw_explanation": (
+            "Filter-input evidence: a local range-Doppler power patch. "
+            "The horizontal axis is Doppler bin, the vertical axis is range "
+            "bin, and the white square marks the extracted power peak."
+        ),
+        "raw_axes": ("Doppler bin", "Range bin"),
         "stops": ("#03051a", "#123b6d", "#1c8ca8", "#d8f3dc"),
     },
     "INFRARED": {
         "color": "#ff7f0e",
         "symbol": "t",
         "description": "infrared intensity",
+        "panel_title": "INFRARED target image",
+        "preview_title": "Physical-model thermal preview",
+        "raw_explanation": (
+            "Filter-input evidence: the recorded infrared detector frame. "
+            "The white triangle marks the extracted intensity peak."
+        ),
+        "raw_axes": ("Image x (pixel)", "Image y (pixel)"),
         "stops": ("#090014", "#6a176e", "#dd513a", "#fff3b0"),
     },
     "OPTICAL": {
         "color": "#9aa0a6",
         "symbol": "o",
         "description": "optical grayscale intensity",
+        "panel_title": "OPTICAL target image",
+        "preview_title": "Physical-model reflected-light preview",
+        "raw_explanation": (
+            "Filter-input evidence: the recorded optical detector frame. "
+            "The white circle marks the extracted intensity peak."
+        ),
+        "raw_axes": ("Image x (pixel)", "Image y (pixel)"),
         "stops": ("#000000", "#555555", "#bdbdbd", "#ffffff"),
     },
 }
@@ -61,20 +88,37 @@ class ModalityObservationPanel(QtWidgets.QWidget):
         )
         layout = QtWidgets.QVBoxLayout(self)
         self.modality_badge = QtWidgets.QLabel(
-            f"{modality} raw observation · "
-            f"{self.visual_style['description']}"
+            self.visual_style["panel_title"]
         )
         self.modality_badge.setStyleSheet(
             "font-weight: 600; padding: 4px 8px; "
             f"border-left: 5px solid {self.visual_style['color']};"
         )
         layout.addWidget(self.modality_badge)
-        self.image_plot = pg.PlotWidget(
-            title=f"{modality} raw sensor frame",
+
+        image_row = QtWidgets.QHBoxLayout()
+        image_row.setSpacing(10)
+
+        self.raw_container = QtWidgets.QWidget()
+        self.raw_container.setSizePolicy(
+            QtWidgets.QSizePolicy.Ignored,
+            QtWidgets.QSizePolicy.Preferred,
         )
+        raw_column = QtWidgets.QVBoxLayout(self.raw_container)
+        raw_column.setContentsMargins(0, 0, 0, 0)
+        self.raw_label = QtWidgets.QLabel(
+            f"Filter input  ·  {self.visual_style['description']}"
+        )
+        self.raw_label.setStyleSheet(
+            "font-weight: 600; color: #3c4043; padding-left: 4px;"
+        )
+        raw_column.addWidget(self.raw_label)
+        self.image_plot = pg.PlotWidget()
         self.image_plot.setAspectLocked(True)
-        self.image_plot.hideAxis("left")
-        self.image_plot.hideAxis("bottom")
+        self.image_plot.setLabel("bottom", self.visual_style["raw_axes"][0])
+        self.image_plot.setLabel("left", self.visual_style["raw_axes"][1])
+        self.image_plot.setMenuEnabled(False)
+        self.image_plot.getPlotItem().hideButtons()
         self.image_item = pg.ImageItem(axisOrder="row-major")
         self.image_item.setLookupTable(
             _lookup_table(self.visual_style["stops"])
@@ -85,31 +129,73 @@ class ModalityObservationPanel(QtWidgets.QWidget):
             pen=pg.mkPen("#ffffff", width=2), brush=pg.mkBrush(0, 0, 0, 0),
         )
         self.image_plot.addItem(self.peak_marker)
-        self.image_plot.setMinimumHeight(180)
-        layout.addWidget(self.image_plot, 1)
+        self.image_plot.setMinimumHeight(245)
+        self.image_plot.setMaximumHeight(360)
+        raw_column.addWidget(self.image_plot, 1)
+
+        self.preview_container = QtWidgets.QWidget()
+        self.preview_container.setSizePolicy(
+            QtWidgets.QSizePolicy.Ignored,
+            QtWidgets.QSizePolicy.Preferred,
+        )
+        preview_column = QtWidgets.QVBoxLayout(self.preview_container)
+        preview_column.setContentsMargins(0, 0, 0, 0)
+        self.preview_label = QtWidgets.QLabel(
+            "Physical preview  ·  visualization only"
+        )
+        self.preview_label.setStyleSheet(
+            "font-weight: 600; color: #3c4043; padding-left: 4px;"
+        )
+        preview_column.addWidget(self.preview_label)
+        self.enhanced_plot = pg.PlotWidget()
+        self.enhanced_plot.setAspectLocked(True)
+        self.enhanced_plot.hideAxis("left")
+        self.enhanced_plot.hideAxis("bottom")
+        self.enhanced_plot.setMenuEnabled(False)
+        self.enhanced_plot.getPlotItem().hideButtons()
+        self.enhanced_item = pg.ImageItem(axisOrder="row-major")
+        self.enhanced_item.setLookupTable(
+            _lookup_table(self.visual_style["stops"])
+        )
+        self.enhanced_plot.addItem(self.enhanced_item)
+        self.enhanced_plot.setMinimumHeight(245)
+        self.enhanced_plot.setMaximumHeight(360)
+        preview_column.addWidget(self.enhanced_plot, 1)
+        image_row.addWidget(self.preview_container, 1)
+        image_row.addWidget(self.raw_container, 1)
+        layout.addLayout(image_row, 1)
+
         self.details = QtWidgets.QPlainTextEdit()
         self.details.setReadOnly(True)
         self.details.setMaximumHeight(150)
         layout.addWidget(self.details)
         self.set_observation(None)
 
-    def set_observation(self, observation) -> None:
+    def set_observation(self, observation, presentation_data=None) -> None:
         if observation is None:
             self.image_item.clear()
+            self.enhanced_item.clear()
             self.peak_marker.setData([], [])
             self.image_plot.setVisible(False)
+            self.enhanced_plot.setVisible(False)
+            self.raw_container.setVisible(False)
+            self.preview_container.setVisible(False)
             self.details.setPlainText(
                 f"{self.modality}\nNo observation for the selected link "
                 "at this epoch."
             )
             return
         raw = observation.raw_sensor_data
+        self.raw_container.setVisible(raw is not None)
         self.image_plot.setVisible(raw is not None)
+        self.preview_container.setVisible(presentation_data is not None)
+        self.enhanced_plot.setVisible(presentation_data is not None)
         if raw is not None:
             image = np.asarray(raw, dtype=float)
             self.image_item.setImage(
                 image, autoLevels=False, levels=_robust_image_levels(image),
             )
+            self.image_plot.getViewBox().autoRange(padding=0.03)
             finite = np.isfinite(image)
             if image.ndim == 2 and np.any(finite):
                 peak_image = np.where(finite, image, -np.inf)
@@ -121,6 +207,13 @@ class ModalityObservationPanel(QtWidgets.QWidget):
                 )
             else:
                 self.peak_marker.setData([], [])
+        if presentation_data is not None:
+            enhanced = np.asarray(presentation_data, dtype=float)
+            self.enhanced_item.setImage(
+                enhanced, autoLevels=False,
+                levels=_robust_image_levels(enhanced),
+            )
+            self.enhanced_plot.getViewBox().autoRange(padding=0.02)
         measurement = np.array2string(
             observation.measurement, precision=6, separator=", ",
         )
@@ -132,6 +225,11 @@ class ModalityObservationPanel(QtWidgets.QWidget):
             if raw is not None else
             "not recorded (numeric simulation path)"
         )
+        presentation_status = (
+            f"display-only shape={np.asarray(presentation_data).shape}; "
+            "never supplied to estimator"
+            if presentation_data is not None else "not available"
+        )
         nis = "unavailable" if observation.nis is None else f"{observation.nis:.4f}"
         self.details.setPlainText(
             f"{observation.modality}: {observation.observer_id} -> "
@@ -141,10 +239,52 @@ class ModalityObservationPanel(QtWidgets.QWidget):
             f"Visible / valid: {observation.visible} / {observation.valid}\n"
             f"NIS: {nis}\n"
             f"Processing: {observation.processing_status}\n"
-            f"Raw sensor data: {raw_status}\n"
-            f"Display: {self.visual_style['description']} | "
-            f"white {self.visual_style['symbol']} marks frame maximum"
+            f"Filter-input evidence: {raw_status}\n"
+            f"Physical-model preview: {presentation_status}\n"
+            f"Displayed quantity: {self.visual_style['description']}"
         )
+
+
+def _build_display_enhancement(observations, *, timestamp):
+    metadata = None
+    for observation in observations.values():
+        if observation is None:
+            continue
+        candidate = observation.metadata.get("presentation_enhancement")
+        if candidate and candidate.get("enabled", False):
+            metadata = candidate
+            break
+    if metadata is None:
+        return {}
+    config = PhysicalFrontendConfig(
+        maximum_observation_range_m=float(
+            metadata["maximum_observation_range_m"]
+        ),
+        display_minimum_extent_pixels=float(
+            metadata["minimum_extent_pixels"]
+        ),
+        display_maximum_extent_pixels=float(
+            metadata["maximum_extent_pixels"]
+        ),
+    )
+    try:
+        epoch = simulate_tango_like_physical_epoch(
+            timestamp=float(timestamp),
+            observer_id="display_observer", target_id="display_target",
+            observer_state=np.asarray(metadata["observer_state_eci"], dtype=float),
+            target_state=np.asarray(metadata["target_state_eci"], dtype=float),
+            sensor_quaternion_i2b_wxyz=np.asarray(
+                metadata["sensor_quaternion_i2b_wxyz"], dtype=float,
+            ),
+            target_quaternion_i2b_wxyz=np.asarray(
+                metadata["target_quaternion_i2b_wxyz"], dtype=float,
+            ),
+            random_seed=int(abs(float(timestamp)) * 1000.0) % 2_000_000_000,
+            config=config,
+        )
+    except (KeyError, TypeError, ValueError):
+        return {}
+    return epoch.presentation_frames
 
 
 class CANNObservationPanel(QtWidgets.QWidget):
@@ -484,6 +624,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         if not self.target_ids:
             self.target_ids = model.node_ids
         self._current_index = 0
+        self._presentation_cache = {}
         self._timer = QtCore.QTimer(self)
         self._timer.timeout.connect(self._advance)
         self._earth_surface_km = self._build_earth_surface()
@@ -518,6 +659,12 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         if preferred_target in self.target_ids:
             self.target_selector.setCurrentText(preferred_target)
         self.target_selector.currentTextChanged.connect(self._refresh_selected_node)
+        self.target_coverage_label = QtWidgets.QLabel()
+        self.target_coverage_label.setToolTip(
+            "Estimate coverage is the fraction of replay epochs with a valid "
+            "system-track estimate. Visibility is the fraction with at least "
+            "one valid visible observation of the selected target."
+        )
         self.speed_selector = QtWidgets.QComboBox()
         self.speed_selector.addItems(("0.5x", "1x", "2x", "5x", "10x"))
         self.speed_selector.setCurrentText("1x")
@@ -526,6 +673,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         controls.addWidget(self.step_button)
         controls.addWidget(QtWidgets.QLabel("Tracked hostile target:"))
         controls.addWidget(self.target_selector)
+        controls.addWidget(self.target_coverage_label)
         controls.addWidget(QtWidgets.QLabel("Speed:"))
         controls.addWidget(self.speed_selector)
         controls.addStretch(1)
@@ -671,6 +819,7 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"t = {frame.timestamp:.1f} s   "
             f"epoch {frame.epoch_index + 1}/{len(self.model)}"
         )
+        self._update_target_coverage()
         self._draw_orbit(frame)
         self._draw_errors(frame.timestamp)
         self._populate_status(frame)
@@ -898,6 +1047,34 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
         fleet_rmse_text = (
             f"{fleet_rmse:.3f} m" if np.isfinite(fleet_rmse) else "N/A"
         )
+        estimate_coverage = self.model.target_estimate_coverage_fraction(target)
+        visibility = self.model.target_visibility_fraction(target)
+        estimate_coverage_text = (
+            f"{100.0 * estimate_coverage:.1f}%"
+            if np.isfinite(estimate_coverage) else "N/A"
+        )
+        visibility_text = (
+            f"{100.0 * visibility:.1f}%"
+            if np.isfinite(visibility) else "N/A"
+        )
+        display_scope = str(
+            frame.metadata.get("display_estimation_scope", "n/a")
+        )
+        display_node = frame.metadata.get("display_source_node_id")
+        display_source = (
+            display_scope if display_node in (None, "", "n/a")
+            else f"{display_scope} @ {display_node}"
+        )
+        architecture_scope = str(
+            frame.metadata.get("architecture_posterior_scope", "n/a")
+        )
+        architecture_node = frame.metadata.get(
+            "architecture_posterior_source_node_id"
+        )
+        architecture_source = (
+            architecture_scope if architecture_node in (None, "", "n/a")
+            else f"{architecture_scope} @ {architecture_node}"
+        )
         self.summary.setPlainText(
             f"Scenario: {frame.scenario_id}\n"
             f"Run: {frame.run_id}\n"
@@ -910,9 +1087,8 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"{frame.metadata.get('estimation_target_scope', 'n/a')}\n"
             f"Current estimation phase: "
             f"{frame.metadata.get('estimation_phase', 'n/a')}\n"
-            f"Displayed posterior: "
-            f"{frame.metadata.get('display_estimation_scope', 'n/a')}"
-            f" @ {frame.metadata.get('display_source_node_id', 'n/a')}\n"
+            f"Displayed trajectory source: {display_source}\n"
+            f"Architecture posterior reference: {architecture_source}\n"
             f"Consensus-CI enabled: "
             f"{frame.metadata.get('consensus_enabled', False)}\n"
             f"Nodes: {len(frame.nodes)}\n"
@@ -922,10 +1098,18 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
             f"{sum(item.edge_type == 'ACTUAL_INFORMATION_FLOW' for item in frame.edges)}\n"
             f"Observations this epoch: {len(frame.observations)}\n"
             f"Tracked hostile target: {target or 'none'}\n"
+            f"Target estimate coverage / observation visibility: "
+            f"{estimate_coverage_text} / {visibility_text}\n"
             f"Active observing friendly nodes: "
             f"{len({item.observer_id for item in selected_observations})}\n"
             f"RADAR / INFRARED / OPTICAL: "
             f"{counts['RADAR']} / {counts['INFRARED']} / {counts['OPTICAL']}\n"
+            f"Raw sensor products: filter input; display enhancement: "
+            f"visualization only\n"
+            f"Observation range / display extent: "
+            f"{float(frame.metadata.get('maximum_observation_range_m', 0.0)) / 1000.0:.1f} km / "
+            f"{frame.metadata.get('presentation_enhancement', {}).get('minimum_extent_pixels', 'n/a')}-"
+            f"{frame.metadata.get('presentation_enhancement', {}).get('maximum_extent_pixels', 'n/a')} px\n"
             f"Fleet position RMSE: {fleet_rmse_text}\n"
             f"Topology version: {frame.metadata.get('topology_version', 'n/a')}\n"
             f"Observation messages available / accepted / dropped / delayed: "
@@ -950,7 +1134,17 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
                     key=lambda item: (item.valid, item.visible),
                 )
         for modality, panel in self.observation_panels.items():
-            panel.set_observation(by_modality.get(modality))
+            cache_key = (int(frame.epoch_index), str(target))
+            if cache_key not in self._presentation_cache:
+                self._presentation_cache[cache_key] = _build_display_enhancement(
+                    by_modality, timestamp=frame.timestamp,
+                )
+                if len(self._presentation_cache) > 24:
+                    self._presentation_cache.pop(next(iter(self._presentation_cache)))
+            panel.set_observation(
+                by_modality.get(modality),
+                self._presentation_cache[cache_key].get(modality),
+            )
         self.cann_panel.set_frame(
             model=self.model, frame=frame, node_id=target,
         )
@@ -1002,6 +1196,21 @@ class VisualizationReplayWindow(QtWidgets.QMainWindow):
 
     def _refresh_selected_node(self) -> None:
         self._set_frame(self._current_index)
+
+    def _update_target_coverage(self) -> None:
+        target = self.target_selector.currentText()
+        estimate = self.model.target_estimate_coverage_fraction(target)
+        visibility = self.model.target_visibility_fraction(target)
+        estimate_text = (
+            f"{100.0 * estimate:.1f}%" if np.isfinite(estimate) else "N/A"
+        )
+        visibility_text = (
+            f"{100.0 * visibility:.1f}%"
+            if np.isfinite(visibility) else "N/A"
+        )
+        self.target_coverage_label.setText(
+            f"Estimate: {estimate_text} | visible: {visibility_text}"
+        )
 
     def _toggle_playback(self) -> None:
         if self._timer.isActive():
